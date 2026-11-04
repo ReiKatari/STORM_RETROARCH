@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <NoWarn>WFO1000</NoWarn>
+    <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
+    <AssemblyName>STORM_RETROARCH_1.0.0_Setup</AssemblyName>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <AssemblyTitle>STORM RETROARCH</AssemblyTitle>
+    <Product>STORM RETROARCH</Product>
+    <Title>STORM RETROARCH</Title>
+    <Description>STORM RETROARCH</Description>
+    <Company>STORM TEAM</Company>
+    <Authors>STORM TEAM</Authors>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Payload\Payload.zip" Link="Payload\Payload.zip" />
+    <EmbeddedResource Include="Resources\AppIcon.ico" Link="Resources\AppIcon.ico" />
+    <EmbeddedResource Include="Resources\logo.png" Link="Resources\logo.png" />
+    <EmbeddedResource Include="Resources\app_icon.png" Link="Resources\app_icon.png" />
+    <EmbeddedResource Include="Resources\STORM_Certificate.cer" Link="Resources\STORM_Certificate.cer" />
+    <EmbeddedResource Include="Resources\STORM_SERTIFICATE.cer" Link="Resources\STORM_SERTIFICATE.cer" />
+  </ItemGroup>
+
+</Project>

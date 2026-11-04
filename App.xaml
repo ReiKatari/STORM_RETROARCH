@@ -1,0 +1,89 @@
+<Application x:Class="StormRetroArch.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:StormRetroArch"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <!-- Live Mutating Theme Brushes -->
+            <SolidColorBrush x:Key="ThemeBgWindow" Color="#0E0A1A" />
+            <SolidColorBrush x:Key="ThemeBgHeader" Color="#141026" />
+            <SolidColorBrush x:Key="ThemeBgCard" Color="#1A1432" />
+            <SolidColorBrush x:Key="ThemeBgElevated" Color="#241D42" />
+            <SolidColorBrush x:Key="ThemeBorderSubtle" Color="#31265A" />
+            <SolidColorBrush x:Key="ThemeTextPrimary" Color="#F0F0F5" />
+            <SolidColorBrush x:Key="ThemeTextSecondary" Color="#A098C0" />
+            <SolidColorBrush x:Key="ThemeTextMuted" Color="#7A7298" />
+
+            <SolidColorBrush x:Key="ThemeAccent" Color="#8B5CF6" />
+            <SolidColorBrush x:Key="ThemeAccentGlow" Color="#A855F7" />
+            <SolidColorBrush x:Key="ThemeAccentSoft" Color="#2A8B5CF6" />
+
+            <!-- Aliases for STORM Ecosystem consistency -->
+            <SolidColorBrush x:Key="BgPrimaryBrush" Color="#0E0A1A" />
+            <SolidColorBrush x:Key="BgSecondaryBrush" Color="#141026" />
+            <SolidColorBrush x:Key="BgCardBrush" Color="#1A1432" />
+            <SolidColorBrush x:Key="BgElevatedBrush" Color="#241D42" />
+            <SolidColorBrush x:Key="BorderSubtleBrush" Color="#31265A" />
+            <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F0F0F5" />
+            <SolidColorBrush x:Key="TextSecondaryBrush" Color="#A098C0" />
+            <SolidColorBrush x:Key="TextMutedBrush" Color="#7A7298" />
+
+            <SolidColorBrush x:Key="AccentPrimaryBrush" Color="#8B5CF6" />
+            <SolidColorBrush x:Key="AccentGlowBrush" Color="#A855F7" />
+            <SolidColorBrush x:Key="AccentSoftBrush" Color="#2A8B5CF6" />
+
+            <SolidColorBrush x:Key="SuccessBrush" Color="#10B981" />
+            <SolidColorBrush x:Key="WarningBrush" Color="#F59E0B" />
+            <SolidColorBrush x:Key="DangerBrush" Color="#F43F5E" />
+
+            <FontFamily x:Key="AppFontFamily">Inter Variable, Segoe UI Variable Text, Segoe UI</FontFamily>
+
+            <!-- Global ToolTip Template -->
+            <Style TargetType="ToolTip">
+                <Setter Property="Background" Value="{DynamicResource ThemeBgHeader}" />
+                <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource ThemeAccent}" />
+                <Setter Property="BorderThickness" Value="1.5" />
+                <Setter Property="Padding" Value="10,6" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToolTip">
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Global ContextMenu Style -->
+            <Style TargetType="ContextMenu">
+                <Setter Property="Background" Value="{DynamicResource ThemeBgHeader}" />
+                <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource ThemeAccent}" />
+                <Setter Property="BorderThickness" Value="1.5" />
+                <Setter Property="Padding" Value="4,4" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ContextMenu">
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="8"
+                                    Padding="{TemplateBinding Padding}">
+                                <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
