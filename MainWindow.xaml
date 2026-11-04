@@ -14,6 +14,15 @@
         Closing="Window_Closing"
         KeyDown="Window_KeyDown"
         AllowDrop="True">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0"
+                      ResizeBorderThickness="6"
+                      GlassFrameThickness="0"
+                      CornerRadius="0"
+                      NonClientFrameEdges="None"
+                      UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
 
     <Window.Resources>
         <!-- Star Converter for Favorites -->
@@ -606,6 +615,7 @@
     </Window.Resources>
 
     <!-- Main Window Root Layout -->
+    <Border x:Name="WindowOuterBorder" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" Background="{DynamicResource ThemeBgWindow}">
     <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="40"/> <!-- Row 0: Custom TitleBar -->
@@ -746,6 +756,10 @@
                             <Button x:Name="NavBtnFavorites" Content="⭐ Избранное" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
                             <Button x:Name="NavBtnHistory" Content="🕒 История" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
                             <Button x:Name="NavBtnCores" Content="🧩 Менеджер ядер" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
+                            <Button x:Name="NavBtnShaders" Content="🎨 Шейдеры и фильтры" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
+                            <Button x:Name="NavBtnSaves" Content="💾 Сейвы и стейты" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
+                            <Button x:Name="NavBtnBios" Content="🧬 BIOS и система" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
+                            <Button x:Name="NavBtnCheats" Content="⚡ Читы и коды" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
                             <Button x:Name="NavBtnNetplay" Content="🌐 Сетевая игра" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
                             <Button x:Name="NavBtnScreenshots" Content="🖼️ Скриншоты" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
                             <Button x:Name="NavBtnImport" Content="➕ Импорт контента" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
@@ -1048,6 +1062,7 @@
                         <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                             <Button x:Name="BtnAddFiles" Content="+ Добавить файлы" Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnAddFiles_Click"/>
                             <Button x:Name="BtnAddFolder" Content="📁 Папка с играми" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnAddFolder_Click"/>
+                            <Button x:Name="BtnDownloadBoxarts" Content="🖼️ Загрузить обложки" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnDownloadBoxarts_Click"/>
                             <Button x:Name="BtnClearList" Content="Очистить" Style="{StaticResource StormSecondaryButton}" Margin="0,0,14,0" Click="BtnClearList_Click"/>
                         </StackPanel>
 
@@ -1262,6 +1277,23 @@
                                 <Button Content="⚡ Установить Золотой набор ядер (25)" Style="{StaticResource StormAccentButton}" HorizontalAlignment="Right" Click="BtnDownloadGoldenCores_Click"/>
                             </DockPanel>
                         </Border>
+                        <!-- Manufacturer Filter Chips -->
+                        <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="10,6" Margin="0,0,0,10" DockPanel.Dock="Top">
+                            <WrapPanel Orientation="Horizontal">
+                                <Button Content="Все ядра (350+)" Style="{StaticResource CategoryChipButton}" Tag="Active" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
+                                <Button Content="Золотой набор (25)" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
+                                <Button Content="Nintendo" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
+                                <Button Content="Sega" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
+                                <Button Content="Sony" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
+                                <Button Content="Arcade" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
+                                <Button Content="Atari" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
+                                <Button Content="PC / DOS" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
+                                <Button Content="Commodore" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
+                                <Button Content="SNK" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
+                                <Button Content="Other" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
+                            </WrapPanel>
+                        </Border>
+
                         <ListView x:Name="LvCores" BorderThickness="0" Background="Transparent">
                             <ListView.ItemTemplate>
                                 <DataTemplate>
@@ -1330,6 +1362,40 @@
                                     <Button Content="🔗 Подключиться по IP" Style="{StaticResource StormSecondaryButton}" HorizontalAlignment="Left" Margin="0,12,0,0" Click="BtnJoinNetplay_Click"/>
                                 </StackPanel>
                             </Border>
+
+                            <!-- Live Netplay Lobby -->
+                            <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="18" Margin="0,14,0,0">
+                                <StackPanel>
+                                    <DockPanel Margin="0,0,0,10">
+                                        <TextBlock Text="Публичные лобби Libretro (Live Netplay Lobby)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold"/>
+                                        <Button Content="🔄 Обновить лобби" Style="{StaticResource StormSecondaryButton}" HorizontalAlignment="Right" Click="BtnRefreshLobby_Click"/>
+                                    </DockPanel>
+                                    <ItemsControl x:Name="ItemsNetplayLobby">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{DynamicResource ThemeBgWindow}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="6" Margin="0,0,0,6" Padding="10">
+                                                    <DockPanel LastChildFill="True">
+                                                        <Button Content="Подключиться" Style="{StaticResource StormAccentButton}" DockPanel.Dock="Right" Padding="10,4" Tag="{Binding}" Click="BtnJoinLobbyRoom_Click"/>
+                                                        <StackPanel>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock Text="{Binding GameName}" Foreground="{DynamicResource ThemeTextPrimary}" FontWeight="Bold" FontSize="13"/>
+                                                                <Border Background="{DynamicResource ThemeAccentSoft}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1" CornerRadius="4" Padding="6,1" Margin="10,0,0,0">
+                                                                    <TextBlock Text="{Binding CoreName}" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontWeight="SemiBold"/>
+                                                                </Border>
+                                                            </StackPanel>
+                                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                <TextBlock Text="{Binding Username, StringFormat='{}Хост: {0}'}" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" Margin="0,0,14,0"/>
+                                                                <TextBlock Text="{Binding Country, StringFormat='{}Регион: {0}'}" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" Margin="0,0,14,0"/>
+                                                                <TextBlock Text="{Binding IpPort, StringFormat='{}Адрес: {0}'}" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                    </DockPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
@@ -1382,6 +1448,327 @@
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
+
+                <!-- VIEW 10: 🎨 ШЕЙДЕРЫ И ФИЛЬТРЫ (SHADERS & FILTERS) -->
+                <Grid x:Name="ViewShaders" Visibility="Collapsed" Margin="22,14">
+                    <DockPanel LastChildFill="True">
+                        <!-- Header & Action Bar -->
+                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+                            <DockPanel Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="Шейдеры и видеофильтры (Shaders &amp; Video Filters)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold"/>
+                                    <TextBlock Text="Каталог эффектов Slang/GLSL, ЭЛТ CRT-сканлинии, апскейлеры FSR/xBRZ и цветокоррекция" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button Content="🚫 Отключить шейдеры" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnDisableShaders_Click"/>
+                                    <Button Content="📁 Папка shaders" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnOpenShadersDir_Click"/>
+                                    <Button Content="🔄 Обновить шейдеры" Style="{StaticResource StormAccentButton}" Click="BtnUpdateShadersDirect_Click"/>
+                                </StackPanel>
+                            </DockPanel>
+
+                            <!-- Filters Bar -->
+                            <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="10,8">
+                                <DockPanel LastChildFill="True">
+                                    <TextBox x:Name="TxtSearchShaders" DockPanel.Dock="Right" Width="260" Margin="10,0,0,0" Tag="Поиск шейдеров..." TextChanged="TxtSearchShaders_TextChanged"/>
+                                    <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Content="Все категории" Style="{StaticResource CategoryChipButton}" Tag="Active" Margin="0,0,6,0" Click="BtnShaderCategory_Click"/>
+                                        <Button Content="CRT ЭЛТ" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnShaderCategory_Click"/>
+                                        <Button Content="Апскейл HD" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnShaderCategory_Click"/>
+                                        <Button Content="Сглаживание" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnShaderCategory_Click"/>
+                                        <Button Content="Портативные LCD" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnShaderCategory_Click"/>
+                                        <Button Content="Ретро VHS/NTSC" Style="{StaticResource CategoryChipButton}" Click="BtnShaderCategory_Click"/>
+                                    </WrapPanel>
+                                </DockPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Shaders Presets Grid -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl x:Name="ItemsShaders">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Margin="0,0,12,12" Width="380" Padding="14">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="*"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,6">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding Icon}" FontSize="16" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{Binding Name}" Foreground="{DynamicResource ThemeTextPrimary}" FontWeight="Bold" FontSize="14" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                    <Border HorizontalAlignment="Right" Background="{DynamicResource ThemeAccentSoft}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1" CornerRadius="4" Padding="6,2">
+                                                        <TextBlock Text="{Binding Category}" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontWeight="SemiBold"/>
+                                                    </Border>
+                                                </DockPanel>
+                                                <TextBlock Grid.Row="1" Text="{Binding Description}" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                                <DockPanel Grid.Row="3" LastChildFill="True">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <TextBlock Text="Проходов: " Foreground="{DynamicResource ThemeTextMuted}" FontSize="11"/>
+                                                        <TextBlock Text="{Binding PassesCount}" Foreground="{DynamicResource ThemeTextPrimary}" FontWeight="Bold" FontSize="11"/>
+                                                    </StackPanel>
+                                                    <Button Content="⚡ Применить шейдер" Style="{StaticResource StormAccentButton}" HorizontalAlignment="Right" Padding="12,5" Tag="{Binding}" Click="BtnApplyShaderPreset_Click"/>
+                                                </DockPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Grid>
+
+                <!-- VIEW 11: 💾 СОХРАНЕНИЯ И СТЕЙТЫ (SAVES & SAVESTATES) -->
+                <Grid x:Name="ViewSaves" Visibility="Collapsed" Margin="22,14">
+                    <DockPanel LastChildFill="True">
+                        <!-- Header & Action Bar -->
+                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+                            <DockPanel Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="Менеджер сохранений и быстрых стейтов (Saves &amp; States)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold"/>
+                                    <TextBlock Text="Резервное копирование .srm и .state файлов, скриншоты стейтов, экспорт и импорт ZIP" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button Content="📦 Создать ZIP-бэкап" Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnBackupSavesZip_Click"/>
+                                    <Button Content="📥 Восстановить из ZIP" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnRestoreSavesZip_Click"/>
+                                    <Button Content="📁 Папка saves" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnOpenSavesFolder_Click"/>
+                                    <Button Content="📁 Папка states" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnOpenStatesFolder_Click"/>
+                                    <Button Content="🔄 Обновить" Style="{StaticResource StormSecondaryButton}" Click="BtnRefreshSaves_Click"/>
+                                </StackPanel>
+                            </DockPanel>
+
+                            <!-- Search & Filter Bar -->
+                            <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="10,8">
+                                <DockPanel LastChildFill="True">
+                                    <TextBox x:Name="TxtSearchSaves" DockPanel.Dock="Right" Width="260" Margin="10,0,0,0" Tag="Поиск по названию игры..." TextChanged="TxtSearchSaves_TextChanged"/>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Content="Все сохранения" Style="{StaticResource CategoryChipButton}" Tag="Active" Margin="0,0,6,0" Click="BtnSaveFilter_Click"/>
+                                        <Button Content="SRAM файлы (.srm)" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnSaveFilter_Click"/>
+                                        <Button Content="Быстрые стейты (.state)" Style="{StaticResource CategoryChipButton}" Click="BtnSaveFilter_Click"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Saves List -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl x:Name="ItemsSaves">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Margin="0,0,0,8" Padding="12">
+                                            <DockPanel LastChildFill="True">
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right" VerticalAlignment="Center">
+                                                    <Button Content="🗑️ Удалить" Style="{StaticResource StormSecondaryButton}" Padding="10,5" Margin="0,0,0,0" Tag="{Binding}" Click="BtnDeleteSaveEntry_Click"/>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Border Width="36" Height="36" CornerRadius="6" Background="{DynamicResource ThemeAccentSoft}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" Margin="0,0,12,0">
+                                                        <TextBlock Text="💾" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <StackPanel>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding GameName}" Foreground="{DynamicResource ThemeTextPrimary}" FontWeight="Bold" FontSize="13.5"/>
+                                                            <Border Background="{DynamicResource ThemeSurfaceHover}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="4" Padding="6,1" Margin="10,0,0,0">
+                                                                <TextBlock Text="{Binding SaveType}" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontWeight="SemiBold"/>
+                                                            </Border>
+                                                        </StackPanel>
+                                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                            <TextBlock Text="{Binding FileName}" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" Margin="0,0,16,0"/>
+                                                            <TextBlock Text="{Binding FormattedSize}" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" Margin="0,0,16,0"/>
+                                                            <TextBlock Text="{Binding FormattedDate}" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11"/>
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Grid>
+
+                <!-- VIEW 12: 🧬 BIOS И СИСТЕМНЫЕ ФАЙЛЫ (SYSTEM / BIOS INSPECTOR) -->
+                <Grid x:Name="ViewBios" Visibility="Collapsed" Margin="22,14">
+                    <DockPanel LastChildFill="True">
+                        <!-- Header & Action Bar -->
+                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+                            <DockPanel Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="Системные файлы и BIOS (System &amp; BIOS Inspector)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold"/>
+                                    <TextBlock Text="Проверка целостности прошивок, MD5-сумм и готовности ядер PlayStation, Saturn, Dreamcast, NDS к запуску" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button Content="📥 Импортировать BIOS..." Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnImportBios_Click"/>
+                                    <Button Content="📁 Папка system" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnOpenSystemFolder_Click"/>
+                                    <Button Content="🔄 Пересканировать" Style="{StaticResource StormSecondaryButton}" Click="BtnRefreshBios_Click"/>
+                                </StackPanel>
+                            </DockPanel>
+
+                            <!-- Stats & Filter Bar -->
+                            <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="10,8">
+                                <DockPanel LastChildFill="True">
+                                    <TextBox x:Name="TxtSearchBios" DockPanel.Dock="Right" Width="260" Margin="10,0,0,0" Tag="Поиск BIOS..." TextChanged="TxtSearchBios_TextChanged"/>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Border Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="6" Padding="10,4" Margin="0,0,10,0">
+                                            <TextBlock x:Name="TxtBiosStats" Text="Всего в базе: 25 | Установлено: 0 | Отсутствует: 25" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="11.5" FontWeight="SemiBold"/>
+                                        </Border>
+                                        <Button Content="Все файлы" Style="{StaticResource CategoryChipButton}" Tag="Active" Margin="0,0,6,0" Click="BtnBiosFilter_Click"/>
+                                        <Button Content="Установленные" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnBiosFilter_Click"/>
+                                        <Button Content="Отсутствующие" Style="{StaticResource CategoryChipButton}" Click="BtnBiosFilter_Click"/>
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- BIOS Cards Grid -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl x:Name="ItemsBios">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Margin="0,0,12,12" Width="380" Padding="14">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="*"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,6">
+                                                    <TextBlock Text="{Binding FileName}" Foreground="{DynamicResource ThemeTextPrimary}" FontWeight="Bold" FontSize="14" FontFamily="Consolas, monospace"/>
+                                                    <Border HorizontalAlignment="Right" Background="{DynamicResource ThemeAccentSoft}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1" CornerRadius="4" Padding="6,2">
+                                                        <TextBlock Text="{Binding Platform}" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontWeight="SemiBold"/>
+                                                    </Border>
+                                                </DockPanel>
+                                                <TextBlock Grid.Row="1" Text="{Binding Description}" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                                <StackPanel Grid.Row="2" Margin="0,0,0,10">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="MD5 эталон: " Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5"/>
+                                                        <TextBlock Text="{Binding ExpectedMd5}" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="10.5" FontFamily="Consolas, monospace"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                                <DockPanel Grid.Row="4" LastChildFill="True">
+                                                    <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                    <Button Content="📥 Импорт" Style="{StaticResource StormSecondaryButton}" HorizontalAlignment="Right" Padding="10,4" Tag="{Binding}" Click="BtnImportSingleBios_Click"/>
+                                                </DockPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Grid>
+
+                <!-- VIEW 13: ⚡ ЧИТЫ И КОДЫ (RETROARCH CHEAT MANAGER) -->
+                <Grid x:Name="ViewCheats" Visibility="Collapsed" Margin="22,14">
+                    <DockPanel LastChildFill="True">
+                        <!-- Header & Action Bar -->
+                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+                            <DockPanel Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="Менеджер чит-кодов (RetroArch Cheat Manager)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold"/>
+                                    <TextBlock Text="Game Genie, Action Replay, кодовые базы и быстрое включение/отключение читов для игр" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button Content="🌐 Загрузить базу Libretro" Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnDownloadCheatsDb_Click"/>
+                                    <Button Content="➕ Новый чит-файл" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnCreateCheatFile_Click"/>
+                                    <Button Content="📁 Папка cheats" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnOpenCheatsDir_Click"/>
+                                    <Button Content="🔄 Обновить" Style="{StaticResource StormSecondaryButton}" Click="BtnRefreshCheats_Click"/>
+                                </StackPanel>
+                            </DockPanel>
+                        </StackPanel>
+
+                        <!-- 2 Columns: Files List & Cheat Details -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="380"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Left: Cheat Files List -->
+                            <Border Grid.Column="0" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,14,0">
+                                <DockPanel LastChildFill="True">
+                                    <TextBox x:Name="TxtSearchCheats" DockPanel.Dock="Top" Tag="Поиск игры или платформы..." Margin="0,0,0,10" TextChanged="TxtSearchCheats_TextChanged"/>
+                                    <ListBox x:Name="ListCheatFiles" Background="Transparent" BorderThickness="0" SelectionChanged="ListCheatFiles_SelectionChanged">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{DynamicResource ThemeBgWindow}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="6" Margin="0,0,0,6" Padding="10">
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding GameName}" Foreground="{DynamicResource ThemeTextPrimary}" FontWeight="Bold" FontSize="12.5"/>
+                                                        <DockPanel LastChildFill="True" Margin="0,4,0,0">
+                                                            <TextBlock Text="{Binding Platform}" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11"/>
+                                                            <TextBlock Text="{Binding CheatCount, StringFormat='{}Читов: {0}'}" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                                                        </DockPanel>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </DockPanel>
+                            </Border>
+
+                            <!-- Right: Cheat Editor Panel -->
+                            <Border Grid.Column="1" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="16">
+                                <DockPanel LastChildFill="True">
+                                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                                        <StackPanel>
+                                            <TextBlock x:Name="TxtSelectedCheatGame" Text="Выберите игру из списка слева" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold"/>
+                                            <TextBlock x:Name="TxtSelectedCheatPath" Text="Формат RetroArch .cht" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                            <Button x:Name="BtnAddCheatRow" Content="➕ Добавить код" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnAddCheatRow_Click"/>
+                                            <Button x:Name="BtnSaveCheats" Content="💾 Сохранить .cht" Style="{StaticResource StormAccentButton}" Click="BtnSaveCheats_Click"/>
+                                        </StackPanel>
+                                    </DockPanel>
+
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl x:Name="ItemsCheatEntries">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="{DynamicResource ThemeBgWindow}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="6" Margin="0,0,0,8" Padding="12">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="220"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <CheckBox Grid.Column="0" IsChecked="{Binding IsEnabled}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                                            <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                                                                <TextBlock Text="Описание чита" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" Margin="0,0,0,3"/>
+                                                                <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}"/>
+                                                            </StackPanel>
+                                                            <StackPanel Grid.Column="2" Margin="0,0,12,0">
+                                                                <TextBlock Text="Код (Game Genie / Hex)" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" Margin="0,0,0,3"/>
+                                                                <TextBox Text="{Binding Code, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas, monospace"/>
+                                                            </StackPanel>
+                                                            <Button Grid.Column="3" Content="✕" Style="{StaticResource WindowCaptionButton}" VerticalAlignment="Bottom" Margin="0,0,0,2" Tag="{Binding}" Click="BtnDeleteCheatRow_Click"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </DockPanel>
+                            </Border>
+                        </Grid>
+                    </DockPanel>
+                </Grid>
+
 
             </Grid>
         </Grid>
@@ -1493,4 +1880,5 @@
         </Grid>
 
     </Grid>
+    </Border>
 </Window>
