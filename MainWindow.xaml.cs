@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Net.Http;
 using System;
 using System.Collections.Generic;
@@ -42,12 +44,44 @@ public enum ViewDisplayMode
 
 public record NetplayRoomItem(string Username, string GameName, string CoreName, string Country, string IpPort, string Version);
 
-public partial class MainWindow : Window
+public partial class MainWindow : Window, INotifyPropertyChanged
 {
     public static MainWindow? Instance { get; private set; }
 
     public const string StormCertificate = "STORM-AURORA-FLUID-CERT-2026-RETROARCH-ORIGINAL-AUTHENTIC-BUILD-VERIFIED";
     public const string StormSignature = "STORM TEAM SIGNATURE 2026 - AURORA FLUID STANDARD";
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    protected void OnPropertyChanged([CallerMemberName] string? name = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
+    private double _dynamicCardWidth = 380;
+    public double DynamicCardWidth
+    {
+        get => _dynamicCardWidth;
+        set
+        {
+            if (Math.Abs(_dynamicCardWidth - value) > 0.1)
+            {
+                _dynamicCardWidth = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    // Subsystem Collections
+    private List<CoreProfileItem> _allCoreProfiles = new();
+    private CoreProfileItem? _selectedCoreProfile;
+    private readonly ObservableCollection<CoreOptionItem> _currentCoreOptions = new();
+
+    private int _selectedRemapPlayerIndex = 1;
+    private readonly ObservableCollection<RemapButtonBinding> _currentRemapBindings = new();
+
+    private readonly ObservableCollection<AchievementItem> _allAchievements = new();
+    private readonly ObservableCollection<AchievementItem> _filteredAchievements = new();
+    private string _selectedCheevosFilter = "Все трофеи";
+
+    private readonly List<string> _selectedM3uFiles = new();
 
     // Collections
     private readonly ObservableCollection<RomItem> _allGames = new();
@@ -179,6 +213,18 @@ public partial class MainWindow : Window
         ItemsCheatEntries.ItemsSource = _selectedCheats;
         ItemsNetplayLobby.ItemsSource = _netplayLobby;
         ItemsBezels.ItemsSource = _filteredBezels;
+        ItemsCoreOptions.ItemsSource = _currentCoreOptions;
+        ItemsInputRemap.ItemsSource = _currentRemapBindings;
+        ItemsAchievements.ItemsSource = _filteredAchievements;
+
+        // Ensure UDP Command Bridge
+        UdpCommandBridge.EnsureNetworkCommandConfig();
+
+        // Load Subsystems
+        _allCoreProfiles = CoreOptionsAndOverridesManager.GetCoreProfiles();
+        LoadCoreOptionsProfile("SwanStation");
+        LoadRemapBindings(1);
+        LoadAchievements();
 
         LoadShaders();
         LoadSaves();
@@ -238,11 +284,17 @@ public partial class MainWindow : Window
             if (cmdArgs[i].Equals("--screenshot", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-settings", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-bios", StringComparison.OrdinalIgnoreCase) ||
-                cmdArgs[i].Equals("--screenshot-bezels", StringComparison.OrdinalIgnoreCase))
+                cmdArgs[i].Equals("--screenshot-bezels", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-tiles", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-list", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-icons", StringComparison.OrdinalIgnoreCase))
             {
                 bool isSettings = cmdArgs[i].Equals("--screenshot-settings", StringComparison.OrdinalIgnoreCase);
                 bool isBios = cmdArgs[i].Equals("--screenshot-bios", StringComparison.OrdinalIgnoreCase);
                 bool isBezels = cmdArgs[i].Equals("--screenshot-bezels", StringComparison.OrdinalIgnoreCase);
+                bool isTiles = cmdArgs[i].Equals("--screenshot-tiles", StringComparison.OrdinalIgnoreCase);
+                bool isList = cmdArgs[i].Equals("--screenshot-list", StringComparison.OrdinalIgnoreCase);
+                bool isIcons = cmdArgs[i].Equals("--screenshot-icons", StringComparison.OrdinalIgnoreCase);
                 string shotPath = cmdArgs[i + 1];
 
                 Dispatcher.BeginInvoke(new Action(() =>
@@ -260,6 +312,18 @@ public partial class MainWindow : Window
                         else if (isBezels)
                         {
                             NavBtn_Click(NavBtnBezels, new RoutedEventArgs());
+                        }
+                        else if (isTiles)
+                        {
+                            BtnViewMode_Click(BtnViewBento, new RoutedEventArgs());
+                        }
+                        else if (isList)
+                        {
+                            BtnViewMode_Click(BtnViewOzone, new RoutedEventArgs());
+                        }
+                        else if (isIcons)
+                        {
+                            BtnViewMode_Click(BtnViewCompact, new RoutedEventArgs());
                         }
                         UpdateLayout();
                         int w = Math.Max(1160, (int)ActualWidth);
@@ -447,6 +511,10 @@ public partial class MainWindow : Window
         NavBtnBios.Tag = null;
         NavBtnCheats.Tag = null;
         NavBtnBezels.Tag = null;
+        NavBtnCoreOptions.Tag = null;
+        NavBtnInputRemap.Tag = null;
+        NavBtnAchievements.Tag = null;
+        NavBtnStreamAi.Tag = null;
 
         btn.Tag = "Active";
 
@@ -465,6 +533,10 @@ public partial class MainWindow : Window
         ViewBios.Visibility = Visibility.Collapsed;
         ViewCheats.Visibility = Visibility.Collapsed;
         ViewBezels.Visibility = Visibility.Collapsed;
+        ViewCoreOptions.Visibility = Visibility.Collapsed;
+        ViewInputRemap.Visibility = Visibility.Collapsed;
+        ViewAchievements.Visibility = Visibility.Collapsed;
+        ViewStreamAi.Visibility = Visibility.Collapsed;
 
         if (btn == NavBtnMainMenu)
         {
@@ -544,6 +616,29 @@ public partial class MainWindow : Window
             ViewBezels.Visibility = Visibility.Visible;
             LoadBezels();
         }
+        else if (btn == NavBtnCoreOptions)
+        {
+            _activeNavView = "CoreOptions";
+            ViewCoreOptions.Visibility = Visibility.Visible;
+            LoadCoreOptionsProfile("SwanStation");
+        }
+        else if (btn == NavBtnInputRemap)
+        {
+            _activeNavView = "InputRemap";
+            ViewInputRemap.Visibility = Visibility.Visible;
+            LoadRemapBindings(1);
+        }
+        else if (btn == NavBtnAchievements)
+        {
+            _activeNavView = "Achievements";
+            ViewAchievements.Visibility = Visibility.Visible;
+            LoadAchievements();
+        }
+        else if (btn == NavBtnStreamAi)
+        {
+            _activeNavView = "StreamAi";
+            ViewStreamAi.Visibility = Visibility.Visible;
+        }
 
         UpdateViewModeLayout();
     }
@@ -575,6 +670,15 @@ public partial class MainWindow : Window
         // 2. Games library view modes
         GamesBentoScroll.Visibility = (_currentViewMode == ViewDisplayMode.Bento) ? Visibility.Visible : Visibility.Collapsed;
         LvGames.Visibility = (_currentViewMode != ViewDisplayMode.Bento) ? Visibility.Visible : Visibility.Collapsed;
+
+        // 3. Dynamic Card Width across all Bento Cards & Item Controls
+        DynamicCardWidth = _currentViewMode switch
+        {
+            ViewDisplayMode.Bento => 380,   // ⊞ Плитки: 2-3 колонки
+            ViewDisplayMode.Ozone => 1100,  // ☰ Список: 1 широкая строка
+            ViewDisplayMode.Compact => 210, // ❖ Иконки: 4-5 компактных колонок
+            _ => 380
+        };
     }
 
     // ==================== SETTINGS REGISTRY & LIVE SEARCH ====================
@@ -739,21 +843,21 @@ public partial class MainWindow : Window
 
     private void BtnExitApp_Click(object sender, RoutedEventArgs e) => Close();
 
-    private void BtnQuickResume_Click(object sender, RoutedEventArgs e) => CoreManager.LaunchOzone();
+    private void BtnQuickResume_Click(object sender, RoutedEventArgs e) { UdpCommandBridge.PauseToggle(); ShowNotification("STORM RETROARCH", "Команда PAUSE_TOGGLE отправлена в RetroArch (UDP:55355)"); }
 
     private void BtnQuickSaveState_Click(object sender, RoutedEventArgs e)
     {
-        ShowNotification("STORM RETROARCH", $"Стейт сохранения в слот {CmbStateSlot.SelectedItem} записан в папку states/.");
+        UdpCommandBridge.SaveState(); ShowNotification("STORM RETROARCH", $"Команда SAVE_STATE отправлена в RetroArch (слот {CmbStateSlot.SelectedItem}).");
     }
 
     private void BtnQuickLoadState_Click(object sender, RoutedEventArgs e)
     {
-        ShowNotification("STORM RETROARCH", $"Стейт из слота {CmbStateSlot.SelectedItem} успешно загружен.");
+        UdpCommandBridge.LoadState(); ShowNotification("STORM RETROARCH", $"Команда LOAD_STATE отправлена в RetroArch (слот {CmbStateSlot.SelectedItem}).");
     }
 
     private void BtnQuickScreenshot_Click(object sender, RoutedEventArgs e)
     {
-        ShowNotification("STORM RETROARCH", "Снимок экрана сохранён в папку screenshots/.");
+        UdpCommandBridge.TakeScreenshot(); ShowNotification("STORM RETROARCH", "Команда SCREENSHOT отправлена в RetroArch (UDP:55355).");
         RefreshScreenshotsList();
     }
 
@@ -2177,6 +2281,356 @@ public partial class MainWindow : Window
     {
         bool enable = ChkBezelIntegerScale.IsChecked == true;
         BezelManager.SetIntegerScale(enable);
+    }
+
+
+    // ==================== CORE OPTIONS & OVERRIDES ====================
+
+    private void LoadCoreOptionsProfile(string coreName)
+    {
+        _selectedCoreProfile = _allCoreProfiles.FirstOrDefault(p => p.CoreName.Equals(coreName, StringComparison.OrdinalIgnoreCase)) ??
+                               _allCoreProfiles.FirstOrDefault();
+
+        _currentCoreOptions.Clear();
+        if (_selectedCoreProfile != null)
+        {
+            CoreOptionsAndOverridesManager.LoadCoreOptionsFromDisk(_selectedCoreProfile.CoreName, _selectedCoreProfile.Options);
+            foreach (var opt in _selectedCoreProfile.Options)
+            {
+                _currentCoreOptions.Add(opt);
+            }
+        }
+    }
+
+    private void BtnCoreProfile_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+        if (btn.Parent is Panel p)
+        {
+            foreach (var child in p.Children)
+            {
+                if (child is Button b) b.Tag = null;
+            }
+        }
+        btn.Tag = "Active";
+
+        string coreName = btn.Content?.ToString()?.Split(' ')[0] ?? "SwanStation";
+        LoadCoreOptionsProfile(coreName);
+    }
+
+    private void BtnSaveCoreOptions_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedCoreProfile == null) return;
+        CoreOptionsAndOverridesManager.SaveCoreOptionsToDisk(_selectedCoreProfile.CoreName, _currentCoreOptions);
+        ShowNotification("STORM RETROARCH", $"Опции ядра {_selectedCoreProfile.CoreName} успешно сохранены в config/{_selectedCoreProfile.CoreName}/{_selectedCoreProfile.CoreName}.opt!");
+    }
+
+    private void BtnSaveCoreOverride_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedCoreProfile == null) return;
+        var overrides = new Dictionary<string, string>
+        {
+            ["video_shader_enable"] = "true",
+            ["aspect_ratio_index"] = "0",
+            ["video_scale_integer"] = "true"
+        };
+        CoreOptionsAndOverridesManager.SaveCoreOverrideCfg(_selectedCoreProfile.CoreName, overrides);
+        ShowNotification("STORM RETROARCH", $"Переопределение (Override) для ядра {_selectedCoreProfile.CoreName} сохранено!");
+    }
+
+    private void BtnResetCoreOptions_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedCoreProfile == null) return;
+        CoreOptionsAndOverridesManager.ResetCoreOptions(_selectedCoreProfile.CoreName);
+        LoadCoreOptionsProfile(_selectedCoreProfile.CoreName);
+        ShowNotification("STORM RETROARCH", $"Опции ядра {_selectedCoreProfile.CoreName} сброшены на стандартные.");
+    }
+
+    private void BtnRefreshCoreOptions_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedCoreProfile != null) LoadCoreOptionsProfile(_selectedCoreProfile.CoreName);
+    }
+
+    // ==================== INPUT REMAP (PORTS 1-8) ====================
+
+    private void LoadRemapBindings(int playerIndex)
+    {
+        _selectedRemapPlayerIndex = playerIndex;
+        var bindings = InputRemapManager.CreateDefaultBindings(playerIndex);
+        _currentRemapBindings.Clear();
+        foreach (var b in bindings) _currentRemapBindings.Add(b);
+    }
+
+    private void BtnPlayerPort_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+        if (btn.Parent is Panel p)
+        {
+            foreach (var child in p.Children)
+            {
+                if (child is Button b) b.Tag = null;
+            }
+        }
+        btn.Tag = "Active";
+
+        string txt = btn.Content?.ToString() ?? "Порт 1";
+        int port = 1;
+        if (txt.Contains("2")) port = 2;
+        else if (txt.Contains("3")) port = 3;
+        else if (txt.Contains("4")) port = 4;
+        else if (txt.Contains("5")) port = 5;
+        else if (txt.Contains("6")) port = 6;
+        else if (txt.Contains("7")) port = 7;
+        else if (txt.Contains("8")) port = 8;
+
+        LoadRemapBindings(port);
+    }
+
+    private void BtnSaveInputRemap_Click(object sender, RoutedEventArgs e)
+    {
+        InputRemapManager.SaveBindingsToConfig(_currentRemapBindings);
+        ShowNotification("STORM RETROARCH", $"Назначения кнопок для Игрока {_selectedRemapPlayerIndex} успешно сохранены в retroarch.cfg!");
+    }
+
+    private void BtnExportRemap_Click(object sender, RoutedEventArgs e)
+    {
+        string coreName = _selectedCoreProfile?.CoreName ?? "RetroPad";
+        InputRemapManager.ExportRemapFile(coreName, _currentRemapBindings);
+        ShowNotification("STORM RETROARCH", $"Файл переназначения remaps/{coreName}/{coreName}.rmp успешно экспортирован!");
+    }
+
+    private void BtnImportRemap_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            InitialDirectory = InputRemapManager.RemapsDir,
+            Filter = "Файлы переназначения (*.rmp)|*.rmp|Все файлы (*.*)|*.*",
+            Title = "Выберите .rmp файл для импорта"
+        };
+        if (dlg.ShowDialog() == true)
+        {
+            InputRemapManager.ImportRemapFile(dlg.FileName, _currentRemapBindings);
+            ShowNotification("STORM RETROARCH", $"Переназначение из {Path.GetFileName(dlg.FileName)} загружено!");
+        }
+    }
+
+    private void BtnResetInputRemap_Click(object sender, RoutedEventArgs e)
+    {
+        LoadRemapBindings(_selectedRemapPlayerIndex);
+        ShowNotification("STORM RETROARCH", $"Кнопки Игрока {_selectedRemapPlayerIndex} сброшены на стандартные.");
+    }
+
+    // ==================== RETROACHIEVEMENTS ====================
+
+    private void LoadAchievements()
+    {
+        var list = AchievementsManager.GetSampleAchievements();
+        _allAchievements.Clear();
+        foreach (var a in list) _allAchievements.Add(a);
+        ChkCheevosHardcore.IsChecked = AchievementsManager.IsHardcoreEnabled;
+        TxtCheevosUser.Text = AchievementsManager.Username;
+        ApplyAchievementsFilter();
+    }
+
+    private void ApplyAchievementsFilter()
+    {
+        _filteredAchievements.Clear();
+        foreach (var a in _allAchievements)
+        {
+            bool match = _selectedCheevosFilter switch
+            {
+                "Открытые" => a.IsUnlocked,
+                "Закрытые" => !a.IsUnlocked,
+                _ => true
+            };
+            if (match) _filteredAchievements.Add(a);
+        }
+    }
+
+    private void BtnRefreshAchievements_Click(object sender, RoutedEventArgs e) => LoadAchievements();
+
+    private void ChkCheevosHardcore_Click(object sender, RoutedEventArgs e)
+    {
+        AchievementsManager.IsHardcoreEnabled = ChkCheevosHardcore.IsChecked == true;
+        ShowNotification("STORM RETROARCH", AchievementsManager.IsHardcoreEnabled
+            ? "Режим Hardcore включён (блокировка читов, стейтов и перемотки)!"
+            : "Режим Softcore включён.");
+    }
+
+    private void BtnCheevosFilter_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+        if (btn.Parent is Panel p)
+        {
+            foreach (var child in p.Children)
+            {
+                if (child is Button b) b.Tag = null;
+            }
+        }
+        btn.Tag = "Active";
+        _selectedCheevosFilter = btn.Content?.ToString() ?? "Все трофеи";
+        ApplyAchievementsFilter();
+    }
+
+    // ==================== STREAM & AI SERVICE ====================
+
+    private void BtnStartAiService_Click(object sender, RoutedEventArgs e)
+    {
+        StreamAndAiManager.StartAiServer(msg =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                TxtAiServiceStatus.Text = "Статус: Активен (Порт 4404)";
+                TxtAiServiceStatus.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(16, 185, 129));
+            });
+        });
+        ShowNotification("STORM RETROARCH", "Локальный AI Service запущен на http://127.0.0.1:4404/!");
+    }
+
+    private void BtnStopAiService_Click(object sender, RoutedEventArgs e)
+    {
+        StreamAndAiManager.StopAiServer();
+        TxtAiServiceStatus.Text = "Статус: Остановлен";
+        TxtAiServiceStatus.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68));
+        ShowNotification("STORM RETROARCH", "Локальный AI Service остановлен.");
+    }
+
+    private void BtnConfigureAiInCfg_Click(object sender, RoutedEventArgs e)
+    {
+        StreamAndAiManager.ConfigureAiServiceInRetroArch("ru");
+        ShowNotification("STORM RETROARCH", "Параметры AI Service успешно прописаны в retroarch.cfg!");
+    }
+
+    private void CmbStreamPlatform_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // Platform selection changed
+    }
+
+    private void BtnSaveStreamSettings_Click(object sender, RoutedEventArgs e)
+    {
+        string rtmp = "rtmp://live.twitch.tv/app/";
+        if (CmbStreamPlatform.SelectedItem is ComboBoxItem item && item.Tag is string tag) rtmp = tag;
+        string key = TxtStreamKey.Text.Trim();
+
+        StreamAndAiManager.SaveStreamingSettings(rtmp, key);
+        ShowNotification("STORM RETROARCH", "Параметры стриминга RTMP сохранены в retroarch.cfg!");
+    }
+
+    private void BtnOpenRecordingsDir_Click(object sender, RoutedEventArgs e)
+    {
+        string recDir = Path.Combine(CoreManager.AppDir, "recordings");
+        if (!Directory.Exists(recDir)) Directory.CreateDirectory(recDir);
+        try { Process.Start(new ProcessStartInfo { FileName = recDir, UseShellExecute = true }); }
+        catch (Exception ex) { ShowNotification("STORM RETROARCH", $"Ошибка: {ex.Message}"); }
+    }
+
+    // ==================== MULTI-DISC M3U & PATCHING ====================
+
+    private void BtnSelectM3uFiles_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Multiselect = true,
+            Filter = "Образы дисков (*.cue;*.chd;*.iso;*.cdi)|*.cue;*.chd;*.iso;*.cdi|Все файлы (*.*)|*.*",
+            Title = "Выберите образы дисков игры"
+        };
+        if (dlg.ShowDialog() == true)
+        {
+            _selectedM3uFiles.Clear();
+            _selectedM3uFiles.AddRange(dlg.FileNames);
+            TxtM3uSelectedFiles.Text = $"Выбрано дисков: {_selectedM3uFiles.Count} ({string.Join(", ", _selectedM3uFiles.Select(Path.GetFileName))})";
+        }
+    }
+
+    private void BtnGenerateM3u_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedM3uFiles.Count == 0)
+        {
+            ShowNotification("STORM RETROARCH", "Сначала выберите файлы дисков!");
+            return;
+        }
+
+        string title = TxtM3uGameTitle.Text.Trim();
+        string outDir = Path.GetDirectoryName(_selectedM3uFiles[0]) ?? CoreManager.AppDir;
+
+        string m3uPath = DiscPatchSubsystemManager.GenerateM3uPlaylist(title, _selectedM3uFiles, outDir);
+        ShowNotification("STORM RETROARCH", $"Плейлист .m3u успешно создан:\n{Path.GetFileName(m3uPath)}");
+    }
+
+    private void BtnDiscEjectToggle_Click(object sender, RoutedEventArgs e)
+    {
+        DiscPatchSubsystemManager.EjectOrInsertDisc();
+        ShowNotification("STORM RETROARCH", "Команда DISK_EJECT_TOGGLE отправлена в RetroArch (UDP:55355)");
+    }
+
+    private void BtnDiscPrev_Click(object sender, RoutedEventArgs e)
+    {
+        DiscPatchSubsystemManager.PreviousDisc();
+        ShowNotification("STORM RETROARCH", "Команда DISK_PREV отправлена в RetroArch (UDP:55355)");
+    }
+
+    private void BtnDiscNext_Click(object sender, RoutedEventArgs e)
+    {
+        DiscPatchSubsystemManager.NextDisc();
+        ShowNotification("STORM RETROARCH", "Команда DISK_NEXT отправлена в RetroArch (UDP:55355)");
+    }
+
+    private void BtnSelectPatchRom_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter = "ROM файлы (*.nes;*.sfc;*.md;*.bin;*.gba)|*.nes;*.sfc;*.md;*.bin;*.gba|Все файлы (*.*)|*.*",
+            Title = "Выберите файл ROM для патчинга"
+        };
+        if (dlg.ShowDialog() == true) TxtPatchRomPath.Text = dlg.FileName;
+    }
+
+    private void BtnSelectPatchFile_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter = "Файлы патчей (*.ips;*.bps;*.ups)|*.ips;*.bps;*.ups|Все файлы (*.*)|*.*",
+            Title = "Выберите файл патча русификатора"
+        };
+        if (dlg.ShowDialog() == true) TxtPatchFilePath.Text = dlg.FileName;
+    }
+
+    private void BtnAttachSoftPatch_Click(object sender, RoutedEventArgs e)
+    {
+        string rom = TxtPatchRomPath.Text.Trim();
+        string patch = TxtPatchFilePath.Text.Trim();
+        var res = DiscPatchSubsystemManager.AttachSoftPatch(rom, patch);
+        ShowNotification("STORM RETROARCH", res.Message);
+    }
+
+    private void BtnApplyIpsPatch_Click(object sender, RoutedEventArgs e)
+    {
+        string rom = TxtPatchRomPath.Text.Trim();
+        string patch = TxtPatchFilePath.Text.Trim();
+
+        if (string.IsNullOrEmpty(rom) || string.IsNullOrEmpty(patch))
+        {
+            ShowNotification("STORM RETROARCH", "Укажите пути к файлу ROM и файлу патча!");
+            return;
+        }
+
+        string outRom = Path.Combine(Path.GetDirectoryName(rom) ?? "", Path.GetFileNameWithoutExtension(rom) + "_RU" + Path.GetExtension(rom));
+        var res = DiscPatchSubsystemManager.ApplyIpsPatch(rom, patch, outRom);
+        ShowNotification("STORM RETROARCH", res.Message);
+    }
+
+    private void BtnLaunchSuperGameBoy_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter = "Game Boy ROM (*.gb;*.gbc)|*.gb;*.gbc|Все файлы (*.*)|*.*",
+            Title = "Выберите картридж Game Boy для запуска в Super Game Boy"
+        };
+        if (dlg.ShowDialog() == true)
+        {
+            string snesRom = Path.Combine(CoreManager.AppDir, "system", "Super Game Boy (World).sfc");
+            DiscPatchSubsystemManager.LaunchSuperGameBoy(snesRom, dlg.FileName, err => ShowNotification("STORM RETROARCH", err));
+        }
     }
 
 }
