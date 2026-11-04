@@ -680,6 +680,125 @@ public static class SettingsRegistry
             Options = new() { "9", "0", "1", "2", "3", "4", "5" }
         });
 
+        foreach (var it in list) AssignCategoryVisuals(it);
         return list;
+    }
+    private static void AssignCategoryVisuals(SettingItem item)
+    {
+        string key = (item.CfgKey + " " + item.Title).ToLowerInvariant();
+
+        // 1. Specific CfgKey / Title based semantic vector icons and vibrant colors
+        if (key.Contains("video_driver") || key.Contains("video") || key.Contains("fullscreen") || key.Contains("scale") || key.Contains("aspect") || key.Contains("monitor") || key.Contains("screen") || key.Contains("resolution"))
+        {
+            // Monitor / Screen Icon (#A78BFA Purple)
+            item.IconGeometry = "M21 16V4H3v12h18zm0-14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-7l2 3v1H8v-1l2-3H3a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h18z";
+            item.IconColor = "#A78BFA";
+            item.IconBgColor = "#22A78BFA";
+        }
+        else if (key.Contains("audio") || key.Contains("sound") || key.Contains("volume") || key.Contains("mixer") || key.Contains("resampler") || key.Contains("wasapi") || key.Contains("dsp") || key.Contains("midi"))
+        {
+            // Audio / Sound Wave Icon (#34D399 Emerald)
+            item.IconGeometry = "M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z";
+            item.IconColor = "#34D399";
+            item.IconBgColor = "#2234D399";
+        }
+        else if (key.Contains("menu_driver") || key.Contains("menu") || key.Contains("ozone") || key.Contains("xmb") || key.Contains("rgui") || key.Contains("theme") || key.Contains("font") || key.Contains("wallpaper"))
+        {
+            // Menu / Layers Icon (#EC4899 Pink)
+            item.IconGeometry = "M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9.07l-9-7-9 7 1.63 1.27L12 16z";
+            item.IconColor = "#EC4899";
+            item.IconBgColor = "#22EC4899";
+        }
+        else if (key.Contains("input") || key.Contains("joypad") || key.Contains("controller") || key.Contains("gamepad") || key.Contains("analog") || key.Contains("autodetect") || key.Contains("remap") || key.Contains("dinput") || key.Contains("xinput"))
+        {
+            // Gamepad Icon (#FBBF24 Amber)
+            item.IconGeometry = "M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm3-3c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z";
+            item.IconColor = "#FBBF24";
+            item.IconBgColor = "#22FBBF24";
+        }
+        else if (key.Contains("camera") || key.Contains("record") || key.Contains("stream") || key.Contains("rtmp") || key.Contains("video_record"))
+        {
+            // Video Recording Camera Icon (#EF4444 Red)
+            item.IconGeometry = "M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z";
+            item.IconColor = "#EF4444";
+            item.IconBgColor = "#22EF4444";
+        }
+        else if (key.Contains("location") || key.Contains("netplay") || key.Contains("network") || key.Contains("ip") || key.Contains("port") || key.Contains("server"))
+        {
+            // Globe Network Icon (#06B6D4 Cyan)
+            item.IconGeometry = "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z";
+            item.IconColor = "#06B6D4";
+            item.IconBgColor = "#2206B6D4";
+        }
+        else if (key.Contains("save") || key.Contains("state") || key.Contains("srm") || key.Contains("savestate") || key.Contains("backup"))
+        {
+            // Save / Floppy Disk Icon (#F97316 Orange)
+            item.IconGeometry = "M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z";
+            item.IconColor = "#F97316";
+            item.IconBgColor = "#22F97316";
+        }
+        else if (key.Contains("latency") || key.Contains("run_ahead") || key.Contains("preemptive") || key.Contains("frame_delay") || key.Contains("hard_sync") || key.Contains("vsync") || key.Contains("speed") || key.Contains("fast_forward"))
+        {
+            // Bolt / Fast Latency Icon (#FB7185 Rose)
+            item.IconGeometry = "M7 2v11h3v9l7-12h-4l4-8z";
+            item.IconColor = "#FB7185";
+            item.IconBgColor = "#22FB7185";
+        }
+        else if (key.Contains("dir") || key.Contains("path") || key.Contains("folder") || key.Contains("directory"))
+        {
+            // Directory / Folder Icon (#EAB308 Yellow)
+            item.IconGeometry = "M10 4H4c-1.11 0-2 .89-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8c0-1.1-.89-2-2-2h-8l-2-2z";
+            item.IconColor = "#EAB308";
+            item.IconBgColor = "#22EAB308";
+        }
+        else if (key.Contains("ai_") || key.Contains("ai_service") || key.Contains("translate") || key.Contains("voice") || key.Contains("ocr") || key.Contains("walkthrough"))
+        {
+            // AI Sparkle / Brain Icon (#8B5CF6 Violet)
+            item.IconGeometry = "M12 2L9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2z";
+            item.IconColor = "#8B5CF6";
+            item.IconBgColor = "#228B5CF6";
+        }
+        else if (key.Contains("cheevos") || key.Contains("achievement") || key.Contains("trophy") || key.Contains("badge") || key.Contains("leaderboard"))
+        {
+            // Trophy Icon (#F59E0B Gold)
+            item.IconGeometry = "M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94A5.01 5.01 0 0 0 11 15.9V19H7v2h10v-2h-4v-3.1c1.86-.44 3.32-1.84 3.61-3.66C19.08 11.63 21 9.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z";
+            item.IconColor = "#F59E0B";
+            item.IconBgColor = "#22F59E0B";
+        }
+        else if (key.Contains("shader") || key.Contains("filter") || key.Contains("crt") || key.Contains("bezel") || key.Contains("curvature"))
+        {
+            // Palette Icon (#EC4899 Pink)
+            item.IconGeometry = "M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 19.4c-.39.39-.39 1.02 0 1.41.39.39 1.02.39 1.41 0l1.9-1.9C9.22 19.59 10.56 20 12 20c4.97 0 9-4.03 9-9s-4.03-9-9-9zm0 15c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z";
+            item.IconColor = "#EC4899";
+            item.IconBgColor = "#22EC4899";
+        }
+        else if (key.Contains("fps") || key.Contains("osd") || key.Contains("stat") || key.Contains("msg") || key.Contains("notification") || key.Contains("memory_show"))
+        {
+            // OSD Screen Display Icon (#10B981 Emerald)
+            item.IconGeometry = "M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z";
+            item.IconColor = "#10B981";
+            item.IconBgColor = "#2210B981";
+        }
+        else if (key.Contains("core") || key.Contains("libretro") || key.Contains("system") || key.Contains("firmware") || key.Contains("bios"))
+        {
+            // Core / Puzzle Icon (#60A5FA Blue)
+            item.IconGeometry = "M20 12h-2V8h-4V6a2 2 0 0 0-4 0v2H6a2 2 0 0 0-2 2v4h2a2 2 0 0 1 0 4H4v4a2 2 0 0 0 2 2h4v-2a2 2 0 0 1 4 0v2h4a2 2 0 0 0 2-2v-4h-2a2 2 0 0 1 0-4h2v-4a2 2 0 0 0-2-2z";
+            item.IconColor = "#60A5FA";
+            item.IconBgColor = "#2260A5FA";
+        }
+        else if (key.Contains("power") || key.Contains("battery") || key.Contains("suspend") || key.Contains("throttle"))
+        {
+            // Power / Battery Icon (#14B8A6 Teal)
+            item.IconGeometry = "M16 4h-2V2h-4v2H8c-.55 0-1 .45-1 1v16c0 .55.45 1 1 1h8c.55 0 1-.45 1-1V5c0-.55-.45-1-1-1zm-1 10h-2v4h-2v-4H9l3-6v4h2l-1 2z";
+            item.IconColor = "#14B8A6";
+            item.IconBgColor = "#2214B8A6";
+        }
+        else
+        {
+            // Default Steering Wheel / Drivers / Settings Sliders (#38BDF8 Cyan)
+            item.IconGeometry = "M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 17.93V15a3 3 0 0 1-2 0v4.93A8 8 0 0 1 4.07 13H9a3 3 0 0 1 0-2H4.07A8 8 0 0 1 11 4.07V9a3 3 0 0 1 2 0V4.07A8 8 0 0 1 19.93 11H15a3 3 0 0 1 0 2h4.93A8 8 0 0 1 13 19.93z";
+            item.IconColor = "#38BDF8";
+            item.IconBgColor = "#2238BDF8";
+        }
     }
 }

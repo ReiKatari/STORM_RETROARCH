@@ -134,6 +134,14 @@ public static class ShaderManager
         return result;
     }
 
+    public static void ApplyShaderPreset(string presetRelativePath)
+    {
+        RetroArchConfigManager.SetBool("video_shader_enable", true);
+        string fullPath = Path.Combine(CoreManager.AppDir, presetRelativePath);
+        RetroArchConfigManager.SetString("video_shader_dir", fullPath);
+        RetroArchConfigManager.Save();
+    }
+
     public static void ApplyShader(ShaderPresetItem item)
     {
         RetroArchConfigManager.SetBool("video_shader_enable", true);

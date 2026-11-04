@@ -29,6 +29,9 @@ public class SettingItem : INotifyPropertyChanged
     public string CategoryId { get; set; } = "";
     public string CategoryName { get; set; } = "";
     public string CategoryIcon { get; set; } = "⚙️";
+    public string IconGeometry { get; set; } = "M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10 10 10 0 0 0 10-10A10 10 0 0 0 12 2z";
+    public string IconColor { get; set; } = "#38BDF8";
+    public string IconBgColor { get; set; } = "#2038BDF8";
     public string Title { get; set; } = "";
     public string Description { get; set; } = "";
     public string CfgKey { get; set; } = "";

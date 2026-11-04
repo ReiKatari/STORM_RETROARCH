@@ -21,6 +21,10 @@ public class UserSettings
     public string ShaderPreset { get; set; } = "None";
     public string RetroArchPath { get; set; } = string.Empty;
     public List<string> RecentRoms { get; set; } = new();
+    public bool TelemetryOverlayVisible { get; set; } = false;
+    public bool SmartProfileAutoApply { get; set; } = true;
+    public bool AutoSaveSyncEnabled { get; set; } = false;
+    public string CloudSyncFolder { get; set; } = string.Empty;
 }
 
 public static class SettingsManager

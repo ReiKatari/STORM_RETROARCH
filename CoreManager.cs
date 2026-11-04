@@ -308,6 +308,16 @@ public static class CoreManager
 
         try
         {
+            if (SettingsManager.Current.SmartProfileAutoApply)
+            {
+                try
+                {
+                    var profile = SmartProfileManager.DetectProfile(Path.GetFileName(romPath), coreDll ?? "");
+                    SmartProfileManager.ApplyProfile(profile, AppDir);
+                }
+                catch { }
+            }
+
             var psi = new ProcessStartInfo
             {
                 FileName = retroArchExe,
