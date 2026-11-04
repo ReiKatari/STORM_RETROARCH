@@ -760,6 +760,7 @@
                             <Button x:Name="NavBtnSaves" Content="💾 Сейвы и стейты" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
                             <Button x:Name="NavBtnBios" Content="🧬 BIOS и система" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
                             <Button x:Name="NavBtnCheats" Content="⚡ Читы и коды" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
+                            <Button x:Name="NavBtnBezels" Content="🖼️ Рамки (Bezels)" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
                             <Button x:Name="NavBtnNetplay" Content="🌐 Сетевая игра" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
                             <Button x:Name="NavBtnScreenshots" Content="🖼️ Скриншоты" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
                             <Button x:Name="NavBtnImport" Content="➕ Импорт контента" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
@@ -1766,6 +1767,112 @@
                                 </DockPanel>
                             </Border>
                         </Grid>
+                    </DockPanel>
+                </Grid>
+
+                <!-- VIEW 14: 🖼️ РАМКИ BEZEL И ЭКРАН (BEZELS & OVERLAYS) -->
+                <Grid x:Name="ViewBezels" Visibility="Collapsed" Margin="22,14">
+                    <DockPanel LastChildFill="True">
+                        <!-- Header & Action Bar -->
+                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+                            <DockPanel Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="Рамки Bezel и экранные оверлеи (Screen Bezels &amp; Overlays)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold"/>
+                                    <TextBlock Text="Аутентичные 1080p рамки для 12 консолей с прозрачным окном 4:3, регулировкой прозрачности и импортом" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button Content="🚫 Отключить рамку" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnDisableBezel_Click"/>
+                                    <Button Content="📥 Импортировать рамку..." Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnImportBezel_Click"/>
+                                    <Button Content="📁 Папка borders" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnOpenBordersFolder_Click"/>
+                                    <Button Content="🔄 Обновить" Style="{StaticResource StormSecondaryButton}" Click="BtnRefreshBezels_Click"/>
+                                </StackPanel>
+                            </DockPanel>
+
+                            <!-- Quick Controls & Filters Bar -->
+                            <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="12,10">
+                                <StackPanel>
+                                    <DockPanel LastChildFill="True" Margin="0,0,0,10">
+                                        <TextBox x:Name="TxtSearchBezels" DockPanel.Dock="Right" Width="260" Margin="10,0,0,0" Tag="Поиск рамки по названию..." TextChanged="TxtSearchBezels_TextChanged"/>
+                                        <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button Content="Все рамки (12)" Style="{StaticResource CategoryChipButton}" Tag="Active" Margin="0,0,6,0" Click="BtnBezelPlatform_Click"/>
+                                            <Button Content="Sony" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnBezelPlatform_Click"/>
+                                            <Button Content="Nintendo" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnBezelPlatform_Click"/>
+                                            <Button Content="Sega" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnBezelPlatform_Click"/>
+                                            <Button Content="Arcade / Other" Style="{StaticResource CategoryChipButton}" Click="BtnBezelPlatform_Click"/>
+                                        </WrapPanel>
+                                    </DockPanel>
+
+                                    <!-- Quick Display Adjustments -->
+                                    <Border Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="6" Padding="10,6">
+                                        <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="Быстрые настройки экрана:" Foreground="{DynamicResource ThemeAccentGlow}" FontWeight="Bold" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,14,0"/>
+
+                                            <TextBlock Text="Прозрачность:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <ComboBox x:Name="CmbBezelOpacity" Width="100" Height="26" Margin="0,0,14,0" SelectionChanged="CmbBezelOpacity_SelectionChanged">
+                                                <ComboBoxItem Content="100%" Tag="1.000000" IsSelected="True"/>
+                                                <ComboBoxItem Content="90%" Tag="0.900000"/>
+                                                <ComboBoxItem Content="80%" Tag="0.800000"/>
+                                                <ComboBoxItem Content="70%" Tag="0.700000"/>
+                                                <ComboBoxItem Content="50%" Tag="0.500000"/>
+                                            </ComboBox>
+
+                                            <TextBlock Text="Соотношение сторон:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <ComboBox x:Name="CmbBezelAspect" Width="130" Height="26" Margin="0,0,14,0" SelectionChanged="CmbBezelAspect_SelectionChanged">
+                                                <ComboBoxItem Content="4:3 (Ретро CRT)" Tag="0" IsSelected="True"/>
+                                                <ComboBoxItem Content="16:9 (Широкий)" Tag="1"/>
+                                                <ComboBoxItem Content="1:1 (Квадрат)" Tag="2"/>
+                                                <ComboBoxItem Content="Core Provided" Tag="22"/>
+                                            </ComboBox>
+
+                                            <CheckBox x:Name="ChkBezelIntegerScale" Content="Целочисленный масштаб (Integer Scale)" VerticalAlignment="Center" Click="ChkBezelIntegerScale_Click"/>
+                                        </WrapPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Bezels Bento Grid -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl x:Name="ItemsBezels">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Margin="0,0,12,12" Width="380" Padding="14">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="*"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,6">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding Icon}" FontSize="16" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{Binding Name}" Foreground="{DynamicResource ThemeTextPrimary}" FontWeight="Bold" FontSize="13.5" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                    <Border HorizontalAlignment="Right" Background="{DynamicResource ThemeAccentSoft}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1" CornerRadius="4" Padding="6,2">
+                                                        <TextBlock Text="{Binding Platform}" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontWeight="SemiBold"/>
+                                                    </Border>
+                                                </DockPanel>
+                                                <TextBlock Grid.Row="1" Text="{Binding Description}" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                                <DockPanel Grid.Row="3" LastChildFill="True">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Border Background="{DynamicResource ThemeSurfaceHover}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="4" Padding="6,2">
+                                                            <TextBlock Text="{Binding AspectRatio}" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5"/>
+                                                        </Border>
+                                                    </StackPanel>
+                                                    <Button Content="⚡ Применить рамку" Style="{StaticResource StormAccentButton}" HorizontalAlignment="Right" Padding="12,5" Tag="{Binding}" Click="BtnApplyBezelPreset_Click"/>
+                                                </DockPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
                     </DockPanel>
                 </Grid>
 

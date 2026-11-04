@@ -363,6 +363,8 @@ public static class RetroArchConfigManager
         }
     }
 
+    public static void Set(string key, string value) => SetString(key, value);
+
     public static void SetString(string key, string value)
     {
         lock (_lock)

@@ -155,6 +155,99 @@ public static class SettingsRegistry
             Min = 1, Max = 4, Step = 1, Unit = "буфера"
         });
 
+                list.Add(new SettingItem
+        {
+            CategoryId = "video", CategoryName = "Видео", CategoryIcon = "🖥️",
+            Title = "Ширина полноэкранного разрешения", CfgKey = "video_fullscreen_x", Kind = SettingControlKind.ComboBox,
+            Description = "Горизонтальное разрешение экрана при запуске в полноэкранном режиме (0 = родное разрешение монитора).",
+            Options = new() { "0", "1280", "1920", "2560", "3840" }
+        });
+        list.Add(new SettingItem
+        {
+            CategoryId = "video", CategoryName = "Видео", CategoryIcon = "🖥️",
+            Title = "Высота полноэкранного разрешения", CfgKey = "video_fullscreen_y", Kind = SettingControlKind.ComboBox,
+            Description = "Вертикальное разрешение экрана при запуске в полноэкранном режиме (0 = родное разрешение монитора).",
+            Options = new() { "0", "720", "1080", "1440", "2160" }
+        });
+        list.Add(new SettingItem
+        {
+            CategoryId = "video", CategoryName = "Видео", CategoryIcon = "🖥️",
+            Title = "Фиксированный размер окна", CfgKey = "video_window_custom_size_enable", Kind = SettingControlKind.Toggle,
+            Description = "Принудительно использовать заданные ширину и высоту окна вместо автоматического масштаба."
+        });
+        list.Add(new SettingItem
+        {
+            CategoryId = "video", CategoryName = "Видео", CategoryIcon = "🖥️",
+            Title = "Ширина окна (видео)", CfgKey = "video_window_x", Kind = SettingControlKind.ComboBox,
+            Description = "Точная ширина окна эмулятора в пикселях.",
+            Options = new() { "960", "1280", "1440", "1600", "1920", "2560" }
+        });
+        list.Add(new SettingItem
+        {
+            CategoryId = "video", CategoryName = "Видео", CategoryIcon = "🖥️",
+            Title = "Высота окна (видео)", CfgKey = "video_window_y", Kind = SettingControlKind.ComboBox,
+            Description = "Точная высота окна эмулятора в пикселях.",
+            Options = new() { "720", "900", "960", "1080", "1440" }
+        });
+        list.Add(new SettingItem
+        {
+            CategoryId = "video", CategoryName = "Видео", CategoryIcon = "🖥️",
+            Title = "Кратность масштаба окна (1x–6x)", CfgKey = "video_scale", Kind = SettingControlKind.ComboBox,
+            Description = "Коэффициент увеличения окна относительно базового разрешения ретро-консоли.",
+            Options = new() { "1", "2", "3", "4", "5", "6" }
+        });
+        list.Add(new SettingItem
+        {
+            CategoryId = "video", CategoryName = "Видео", CategoryIcon = "🖥️",
+            Title = "Выбор активного монитора", CfgKey = "video_monitor_index", Kind = SettingControlKind.ComboBox,
+            Description = "Номер дисплея в системе Windows для вывода видео (0 = автоматический выбор основного).",
+            Options = new() { "0", "1", "2", "3" }
+        });
+        list.Add(new SettingItem
+        {
+            CategoryId = "video", CategoryName = "Видео", CategoryIcon = "🖥️",
+            Title = "Частота обновления экрана (Гц)", CfgKey = "video_refresh_rate", Kind = SettingControlKind.ComboBox,
+            Description = "Целевая кадровая частота развёртки дисплея для идеальной плавной синхронизации звука и видео.",
+            Options = new() { "59.940000", "60.000000", "75.000000", "120.000000", "144.000000", "165.000000", "240.000000" }
+        });
+        list.Add(new SettingItem
+        {
+            CategoryId = "video", CategoryName = "Видео", CategoryIcon = "🖥️",
+            Title = "Поворот экрана (TATE / Аркады)", CfgKey = "video_rotation", Kind = SettingControlKind.ComboBox,
+            Description = "Ориентация вывода изображения для вертикальных аркадных шутеров Shoot 'em up.",
+            Options = new() { "0", "1", "2", "3" }
+        });
+        list.Add(new SettingItem
+        {
+            CategoryId = "video", CategoryName = "Видео", CategoryIcon = "🖥️",
+            Title = "Целочисленный масштаб с заполнением (Overscale)", CfgKey = "video_scale_integer_overscale", Kind = SettingControlKind.Toggle,
+            Description = "Округление целочисленного масштаба в большую сторону для полного заполнения экрана."
+        });
+        list.Add(new SettingItem
+        {
+            CategoryId = "video", CategoryName = "Видео", CategoryIcon = "🖥️",
+            Title = "Обрезка краёв кадра (Crop Overscan)", CfgKey = "video_crop_overscan", Kind = SettingControlKind.Toggle,
+            Description = "Скрытие служебных строк телевизионного сигнала и неиспользуемых бордюров ЭЛТ."
+        });
+        list.Add(new SettingItem
+        {
+            CategoryId = "video", CategoryName = "Видео", CategoryIcon = "🖥️",
+            Title = "Запоминать размер и позицию окна", CfgKey = "video_window_save_positions", Kind = SettingControlKind.Toggle,
+            Description = "Автоматическое сохранение координат и габаритов окна при закрытии."
+        });
+        list.Add(new SettingItem
+        {
+            CategoryId = "video", CategoryName = "Видео", CategoryIcon = "🖥️",
+            Title = "Показывать системную рамку окна", CfgKey = "video_window_show_decorations", Kind = SettingControlKind.Toggle,
+            Description = "Отображение стандартного заголовка и кнопок управления окном в оконном режиме."
+        });
+        list.Add(new SettingItem
+        {
+            CategoryId = "video", CategoryName = "Видео", CategoryIcon = "🖥️",
+            Title = "Расширенный динамический диапазон (HDR10)", CfgKey = "video_hdr_enable", Kind = SettingControlKind.Toggle,
+            Description = "Активация 10-битного HDR вывода для повышенной контрастности и кинематографичной яркости."
+        });
+
         // 3. AUDIO (Аудио)
         list.Add(new SettingItem
         {
@@ -371,6 +464,26 @@ public static class SettingsRegistry
             CategoryId = "osd", CategoryName = "Экранное меню", CategoryIcon = "📺",
             Title = "Автомасштабирование виджетов", CfgKey = "menu_widget_scale_auto", Kind = SettingControlKind.Toggle,
             Description = "Автоматическая подгонка размера всплывающих окон под разрешение 1080p/4K."
+        });
+
+                list.Add(new SettingItem
+        {
+            CategoryId = "osd", CategoryName = "Экранное меню", CategoryIcon = "📺",
+            Title = "Скрывать рамку Bezel внутри меню", CfgKey = "input_overlay_hide_in_menu", Kind = SettingControlKind.Toggle,
+            Description = "Автоматически убирать рамку и оверлей при вызове игрового меню RetroArch."
+        });
+        list.Add(new SettingItem
+        {
+            CategoryId = "osd", CategoryName = "Экранное меню", CategoryIcon = "📺",
+            Title = "Авто-масштабирование рамки Bezel под экран", CfgKey = "input_overlay_auto_scale", Kind = SettingControlKind.Toggle,
+            Description = "Масштабировать оверлей и рамку под текущее разрешение монитора без искажения пропорций."
+        });
+        list.Add(new SettingItem
+        {
+            CategoryId = "osd", CategoryName = "Экранное меню", CategoryIcon = "📺",
+            Title = "Масштаб рамки Bezel (Landscape)", CfgKey = "input_overlay_scale_landscape", Kind = SettingControlKind.ComboBox,
+            Description = "Коэффициент масштаба горизонтального оверлея рамки Bezel.",
+            Options = new() { "0.800000", "0.900000", "1.000000", "1.050000", "1.100000", "1.250000" }
         });
 
         // 9. UI (Интерфейс)

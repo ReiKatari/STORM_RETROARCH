@@ -75,6 +75,10 @@ public partial class MainWindow : Window
     private CheatFileItem? _selectedCheatFile;
 
     private readonly ObservableCollection<NetplayRoomItem> _netplayLobby = new();
+
+    private readonly ObservableCollection<BezelPresetItem> _allBezels = new();
+    private readonly ObservableCollection<BezelPresetItem> _filteredBezels = new();
+    private string _selectedBezelPlatform = "Все рамки (12)";
     private string _selectedCoreManufacturer = "Все ядра (350+)";
 
     private List<SettingItem> _allSettings = new();
@@ -174,12 +178,14 @@ public partial class MainWindow : Window
         ListCheatFiles.ItemsSource = _filteredCheatFiles;
         ItemsCheatEntries.ItemsSource = _selectedCheats;
         ItemsNetplayLobby.ItemsSource = _netplayLobby;
+        ItemsBezels.ItemsSource = _filteredBezels;
 
         LoadShaders();
         LoadSaves();
         LoadBios();
         LoadCheats();
         RefreshLobby();
+        LoadBezels();
 
         // Load Settings and Real retroarch.cfg
         SettingsManager.Load();
@@ -231,10 +237,12 @@ public partial class MainWindow : Window
         {
             if (cmdArgs[i].Equals("--screenshot", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-settings", StringComparison.OrdinalIgnoreCase) ||
-                cmdArgs[i].Equals("--screenshot-bios", StringComparison.OrdinalIgnoreCase))
+                cmdArgs[i].Equals("--screenshot-bios", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-bezels", StringComparison.OrdinalIgnoreCase))
             {
                 bool isSettings = cmdArgs[i].Equals("--screenshot-settings", StringComparison.OrdinalIgnoreCase);
                 bool isBios = cmdArgs[i].Equals("--screenshot-bios", StringComparison.OrdinalIgnoreCase);
+                bool isBezels = cmdArgs[i].Equals("--screenshot-bezels", StringComparison.OrdinalIgnoreCase);
                 string shotPath = cmdArgs[i + 1];
 
                 Dispatcher.BeginInvoke(new Action(() =>
@@ -248,6 +256,10 @@ public partial class MainWindow : Window
                         else if (isBios)
                         {
                             NavBtn_Click(NavBtnBios, new RoutedEventArgs());
+                        }
+                        else if (isBezels)
+                        {
+                            NavBtn_Click(NavBtnBezels, new RoutedEventArgs());
                         }
                         UpdateLayout();
                         int w = Math.Max(1160, (int)ActualWidth);
@@ -434,6 +446,7 @@ public partial class MainWindow : Window
         NavBtnSaves.Tag = null;
         NavBtnBios.Tag = null;
         NavBtnCheats.Tag = null;
+        NavBtnBezels.Tag = null;
 
         btn.Tag = "Active";
 
@@ -451,6 +464,7 @@ public partial class MainWindow : Window
         ViewSaves.Visibility = Visibility.Collapsed;
         ViewBios.Visibility = Visibility.Collapsed;
         ViewCheats.Visibility = Visibility.Collapsed;
+        ViewBezels.Visibility = Visibility.Collapsed;
 
         if (btn == NavBtnMainMenu)
         {
@@ -523,6 +537,12 @@ public partial class MainWindow : Window
             _activeNavView = "Cheats";
             ViewCheats.Visibility = Visibility.Visible;
             LoadCheats();
+        }
+        else if (btn == NavBtnBezels)
+        {
+            _activeNavView = "Bezels";
+            ViewBezels.Visibility = Visibility.Visible;
+            LoadBezels();
         }
 
         UpdateViewModeLayout();
@@ -2037,6 +2057,126 @@ public partial class MainWindow : Window
             catch { }
         }
         return downloaded;
+    }
+
+
+    // ==================== SCREEN BEZELS & OVERLAYS ====================
+
+    private void LoadBezels()
+    {
+        var bezels = BezelManager.ScanBezels();
+        _allBezels.Clear();
+        foreach (var b in bezels) _allBezels.Add(b);
+        ApplyBezelsFilter();
+    }
+
+    private void ApplyBezelsFilter()
+    {
+        string query = TxtSearchBezels?.Text?.Trim().ToLowerInvariant() ?? "";
+        _filteredBezels.Clear();
+
+        foreach (var b in _allBezels)
+        {
+            bool matchPlatform = _selectedBezelPlatform switch
+            {
+                "Sony" => b.Platform.Contains("Sony", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("PlayStation", StringComparison.OrdinalIgnoreCase),
+                "Nintendo" => b.Platform.Contains("Nintendo", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Game Boy", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("SNES", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("NES", StringComparison.OrdinalIgnoreCase),
+                "Sega" => b.Platform.Contains("Sega", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Genesis", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Saturn", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Dreamcast", StringComparison.OrdinalIgnoreCase),
+                "Arcade / Other" => b.Platform.Contains("Arcade", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("STORM", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Custom", StringComparison.OrdinalIgnoreCase),
+                _ => true
+            };
+
+            bool matchQuery = string.IsNullOrEmpty(query) ||
+                              b.Name.ToLowerInvariant().Contains(query) ||
+                              b.Platform.ToLowerInvariant().Contains(query) ||
+                              b.Description.ToLowerInvariant().Contains(query);
+
+            if (matchPlatform && matchQuery)
+            {
+                _filteredBezels.Add(b);
+            }
+        }
+    }
+
+    private void TxtSearchBezels_TextChanged(object sender, TextChangedEventArgs e) => ApplyBezelsFilter();
+
+    private void BtnBezelPlatform_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+        if (btn.Parent is Panel p)
+        {
+            foreach (var child in p.Children)
+            {
+                if (child is Button b) b.Tag = null;
+            }
+        }
+        btn.Tag = "Active";
+        _selectedBezelPlatform = btn.Content?.ToString() ?? "Все рамки (12)";
+        ApplyBezelsFilter();
+    }
+
+    private void BtnApplyBezelPreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: BezelPresetItem item }) return;
+
+        BezelManager.ApplyBezel(item);
+        foreach (var b in _allBezels) b.IsActive = (b == item);
+
+        ShowNotification($"Рамка «{item.Name}» активирована! Разрешение viewport настроено под 4:3.");
+    }
+
+    private void BtnDisableBezel_Click(object sender, RoutedEventArgs e)
+    {
+        BezelManager.DisableBezel();
+        foreach (var b in _allBezels) b.IsActive = false;
+        ShowNotification("Рамка Bezel отключена (чистый экран без оверлея).");
+    }
+
+    private void BtnImportBezel_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter = "Рамки Bezel (*.png;*.cfg)|*.png;*.cfg|PNG изображения (*.png)|*.png|RetroArch Overlay (*.cfg)|*.cfg|Все файлы (*.*)|*.*",
+            Title = "Выберите файл рамки Bezel для импорта"
+        };
+        if (dlg.ShowDialog() == true)
+        {
+            var res = BezelManager.ImportBezel(dlg.FileName);
+            ShowNotification(res.Message);
+            LoadBezels();
+        }
+    }
+
+    private void BtnOpenBordersFolder_Click(object sender, RoutedEventArgs e)
+    {
+        try { Process.Start(new ProcessStartInfo { FileName = BezelManager.BordersDir, UseShellExecute = true }); }
+        catch (Exception ex) { ShowNotification($"Ошибка: {ex.Message}"); }
+    }
+
+    private void BtnRefreshBezels_Click(object sender, RoutedEventArgs e) => LoadBezels();
+
+    private void CmbBezelOpacity_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (CmbBezelOpacity.SelectedItem is ComboBoxItem item &&
+            item.Tag is string tagStr &&
+            float.TryParse(tagStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float op))
+        {
+            BezelManager.SetOpacity(op);
+        }
+    }
+
+    private void CmbBezelAspect_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (CmbBezelAspect.SelectedItem is ComboBoxItem item && item.Tag is string aspectIdx)
+        {
+            BezelManager.SetAspectRatio(aspectIdx);
+        }
+    }
+
+    private void ChkBezelIntegerScale_Click(object sender, RoutedEventArgs e)
+    {
+        bool enable = ChkBezelIntegerScale.IsChecked == true;
+        BezelManager.SetIntegerScale(enable);
     }
 
 }
