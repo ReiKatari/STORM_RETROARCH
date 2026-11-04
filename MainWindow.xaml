@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:StormRetroArch"
         Title="STORM RETROARCH 1.0.0"
-        Width="1480" Height="860"
-        MinWidth="1100" MinHeight="700"
+        Width="1480" Height="880"
+        MinWidth="1160" MinHeight="720"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         AllowsTransparency="False"
@@ -16,6 +16,9 @@
         AllowDrop="True">
 
     <Window.Resources>
+        <!-- Star Converter for Favorites -->
+        <local:BoolToStarConverter x:Key="StarConverter"/>
+
         <!-- Dark ScrollBar Style with >=16px margin and theme colors -->
         <Style x:Key="StormScrollBarThumb" TargetType="{x:Type Thumb}">
             <Setter Property="OverridesDefaultStyle" Value="true"/>
@@ -53,14 +56,21 @@
             <Setter Property="Background" Value="{DynamicResource ThemeAccent}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="FontSize" Value="12.5"/>
-            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="14,7"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="10" Color="#8B5CF6" Opacity="0.35" ShadowDepth="2"/>
+                            </Border.Effect>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -68,7 +78,10 @@
                                 <Setter TargetName="border" Property="Background" Value="{DynamicResource ThemeAccentGlow}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="border" Property="Opacity" Value="0.85"/>
+                                <Setter TargetName="border" Property="Margin" Value="0,1,0,-1"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Opacity" Value="0.45"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -76,20 +89,26 @@
             </Setter>
         </Style>
 
-        <!-- Secondary Elevated Button Style -->
+        <!-- Secondary Tactile Button Style -->
         <Style x:Key="StormSecondaryButton" TargetType="Button">
-            <Setter Property="Background" Value="{DynamicResource ThemeBgCard}"/>
+            <Setter Property="Background" Value="{DynamicResource ThemeBgElevated}"/>
             <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderSubtle}"/>
-            <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontSize" Value="11.5"/>
             <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderSubtle}"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="7"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -97,18 +116,125 @@
                                 <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource ThemeAccent}"/>
                                 <Setter TargetName="border" Property="Background" Value="{DynamicResource ThemeAccentSoft}"/>
                             </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Margin" Value="0,1,0,-1"/>
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
 
-        <!-- Window Caption Button Style -->
-        <Style x:Key="WindowCaptionButton" TargetType="Button">
-            <Setter Property="Width" Value="40"/>
-            <Setter Property="Height" Value="30"/>
+        <!-- Capsule Toggle Mode Button Style -->
+        <Style x:Key="CapsuleButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{DynamicResource ThemeTextSecondary}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource ThemeSurfaceHover}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="Active">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource ThemeAccent}"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter Property="FontWeight" Value="Bold"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Sidebar Navigation Button Style -->
+        <Style x:Key="SidebarNavButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource ThemeTextSecondary}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Padding" Value="12,9"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}"
+                                Margin="4,2"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{DynamicResource ThemeSurfaceHover}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="Active">
+                                <Setter TargetName="border" Property="Background" Value="{DynamicResource ThemeAccentSoft}"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource ThemeAccent}"/>
+                                <Setter TargetName="border" Property="BorderThickness" Value="1"/>
+                                <Setter Property="Foreground" Value="{DynamicResource ThemeAccentGlow}"/>
+                                <Setter Property="FontWeight" Value="Bold"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Category Chip Button Style -->
+        <Style x:Key="CategoryChipButton" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource ThemeSurface}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ThemeTextSecondary}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorder}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="14" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource ThemeAccent}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="Active">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource ThemeAccent}"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource ThemeAccentGlow}"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter Property="FontWeight" Value="Bold"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Window Caption Button Styles -->
+        <Style x:Key="WindowCaptionButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource ThemeTextSecondary}"/>
+            <Setter Property="Width" Value="38"/>
+            <Setter Property="Height" Value="28"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
@@ -119,7 +245,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="{DynamicResource ThemeAccentSoft}"/>
+                                <Setter TargetName="border" Property="Background" Value="{DynamicResource ThemeSurfaceHover}"/>
                                 <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -129,10 +255,10 @@
         </Style>
 
         <Style x:Key="WindowCloseButton" TargetType="Button">
-            <Setter Property="Width" Value="40"/>
-            <Setter Property="Height" Value="30"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{DynamicResource ThemeTextSecondary}"/>
+            <Setter Property="Width" Value="38"/>
+            <Setter Property="Height" Value="28"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
@@ -152,26 +278,100 @@
             </Setter>
         </Style>
 
-        <!-- ListViewItem Style -->
-        <Style TargetType="ListViewItem">
-            <Setter Property="Background" Value="Transparent"/>
+        <!-- 100% Dark Custom ComboBox Style & ControlTemplate (ZERO White System Chrome) -->
+        <Style TargetType="ComboBox">
             <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderSubtle}"/>
-            <Setter Property="BorderThickness" Value="0,0,0,1"/>
-            <Setter Property="Padding" Value="0,8"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Background" Value="{DynamicResource ThemeSurface}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Padding" Value="8,4"/>
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="ListViewItem">
-                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter/>
-                        </Border>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="ToggleButton" 
+                                          Focusable="false" 
+                                          IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" 
+                                          ClickMode="Press">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="TemplateRoot" 
+                                                Background="{DynamicResource ThemeSurface}" 
+                                                BorderBrush="{DynamicResource ThemeBorder}" 
+                                                BorderThickness="1" 
+                                                CornerRadius="7" 
+                                                SnapsToDevicePixels="true">
+                                            <Grid>
+                                                <Border x:Name="splitBorder" 
+                                                        Width="24" 
+                                                        HorizontalAlignment="Right" 
+                                                        Margin="0">
+                                                    <Path x:Name="arrow" 
+                                                          Data="M0,0 L4,4 L8,0" 
+                                                          Stroke="{DynamicResource ThemeTextSecondary}" 
+                                                          StrokeThickness="1.8" 
+                                                          HorizontalAlignment="Center" 
+                                                          VerticalAlignment="Center"/>
+                                                </Border>
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="true">
+                                                <Setter TargetName="TemplateRoot" Property="BorderBrush" Value="{DynamicResource ThemeAccent}" />
+                                                <Setter TargetName="arrow" Property="Stroke" Value="{DynamicResource ThemeAccent}" />
+                                            </Trigger>
+                                            <Trigger Property="IsChecked" Value="true">
+                                                <Setter TargetName="TemplateRoot" Property="BorderBrush" Value="{DynamicResource ThemeAccent}" />
+                                                <Setter TargetName="arrow" Property="Stroke" Value="{DynamicResource ThemeAccent}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            
+                            <ContentPresenter x:Name="contentPresenter" 
+                                              Content="{TemplateBinding SelectionBoxItem}" 
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" 
+                                              Margin="10,0,28,0" 
+                                              VerticalAlignment="Center" 
+                                              HorizontalAlignment="Left" 
+                                              IsHitTestVisible="False" 
+                                              TextElement.Foreground="{DynamicResource ThemeTextPrimary}"/>
+
+                            <Popup x:Name="PART_Popup" 
+                                   IsOpen="{TemplateBinding IsDropDownOpen}" 
+                                   AllowsTransparency="True" 
+                                   Placement="Bottom" 
+                                   PopupAnimation="Fade" 
+                                   Focusable="False">
+                                <Grid x:Name="DropDown" 
+                                      MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" 
+                                      MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                    <Border x:Name="DropDownBorder" 
+                                            Background="{DynamicResource ThemeHeader}" 
+                                            BorderBrush="{DynamicResource ThemeAccent}" 
+                                            BorderThickness="1" 
+                                            CornerRadius="8" 
+                                            Padding="4" 
+                                            Margin="0,3,0,0">
+                                        <Border.Effect>
+                                            <DropShadowEffect BlurRadius="12" Color="#000000" Opacity="0.6" ShadowDepth="3"/>
+                                        </Border.Effect>
+                                        <ScrollViewer SnapsToDevicePixels="True">
+                                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                                        </ScrollViewer>
+                                    </Border>
+                                </Grid>
+                            </Popup>
+                        </Grid>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="{DynamicResource ThemeAccentSoft}"/>
+                            <Trigger Property="HasItems" Value="false">
+                                <Setter TargetName="DropDownBorder" Property="MinHeight" Value="50"/>
                             </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="{DynamicResource ThemeAccentSoft}"/>
+                            <Trigger Property="IsEnabled" Value="false">
+                                <Setter Property="Opacity" Value="0.5"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -179,21 +379,225 @@
             </Setter>
         </Style>
 
-        <!-- GridViewColumnHeader Style -->
+        <!-- 100% Dark Custom ComboBoxItem Style -->
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="ItemBorder" 
+                                Background="{TemplateBinding Background}" 
+                                CornerRadius="5" 
+                                Padding="{TemplateBinding Padding}" 
+                                Margin="1">
+                            <ContentPresenter HorizontalAlignment="Left" 
+                                              VerticalAlignment="Center" 
+                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource ThemeSurfaceHover}"/>
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{DynamicResource ThemeAccent}"/>
+                                <Setter TargetName="ItemBorder" Property="BorderThickness" Value="1"/>
+                                <Setter Property="Foreground" Value="{DynamicResource ThemeAccentGlow}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource ThemeSurfaceHover}"/>
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{DynamicResource ThemeAccent}"/>
+                                <Setter TargetName="ItemBorder" Property="BorderThickness" Value="1"/>
+                                <Setter Property="Foreground" Value="{DynamicResource ThemeAccentGlow}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 100% Dark Custom CheckBox Style -->
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Grid Margin="0,3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="22"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border x:Name="CheckBorder" 
+                                    Width="18" Height="18" 
+                                    Background="{DynamicResource ThemeSurface}" 
+                                    BorderBrush="{DynamicResource ThemeBorder}" 
+                                    BorderThickness="1.5" 
+                                    CornerRadius="5" 
+                                    VerticalAlignment="Center" 
+                                    HorizontalAlignment="Left">
+                                <Path x:Name="CheckMark" 
+                                      Data="M2,6 L6,10 L12,2" 
+                                      Stroke="{DynamicResource ThemeAccent}" 
+                                      StrokeThickness="2.2" 
+                                      StrokeStartLineCap="Round" 
+                                      StrokeEndLineCap="Round" 
+                                      Visibility="Collapsed" 
+                                      HorizontalAlignment="Center" 
+                                      VerticalAlignment="Center"/>
+                            </Border>
+                            <ContentPresenter Grid.Column="1" 
+                                              Margin="8,0,0,0" 
+                                              VerticalAlignment="Center" 
+                                              TextElement.Foreground="{DynamicResource ThemeTextPrimary}"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="CheckBorder" Property="BorderBrush" Value="{DynamicResource ThemeAccent}"/>
+                                <Setter TargetName="CheckBorder" Property="Background" Value="{DynamicResource ThemeSurfaceHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="CheckBorder" Property="BorderBrush" Value="{DynamicResource ThemeAccent}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 100% Dark Custom Slider Style -->
+        <Style TargetType="Slider">
+            <Setter Property="Foreground" Value="{DynamicResource ThemeAccent}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid VerticalAlignment="Center">
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static Slider.DecreaseLarge}">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate>
+                                                <Border Height="6" Background="{DynamicResource ThemeAccent}" CornerRadius="3"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static Slider.IncreaseLarge}">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate>
+                                                <Border Height="6" Background="{DynamicResource ThemeSurfaceHover}" CornerRadius="3"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Width="16" Height="16" Cursor="Hand">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Ellipse Fill="{DynamicResource ThemeAccentGlow}" Stroke="{DynamicResource ThemeBgHeader}" StrokeThickness="2">
+                                                    <Ellipse.Effect>
+                                                        <DropShadowEffect BlurRadius="6" Color="#8B5CF6" Opacity="0.5" ShadowDepth="1"/>
+                                                    </Ellipse.Effect>
+                                                </Ellipse>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 100% Dark Custom TextBox Style -->
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource ThemeSurface}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource ThemeAccent}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Border" 
+                                Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                CornerRadius="6">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="2" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource ThemeAccent}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource ThemeAccent}"/>
+                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource ThemeHeader}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ListViewItem & GridViewColumnHeader Styles -->
+        <Style TargetType="ListViewItem">
+            <Setter Property="Foreground" Value="{DynamicResource ThemeTextPrimary}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Padding" Value="4,4"/>
+            <Setter Property="Margin" Value="0,2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="Transparent"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="true">
+                            <GridViewRowPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="true">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ThemeSurfaceHover}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource ThemeAccentSoft}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="true">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ThemeAccentSoft}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource ThemeAccent}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="GridViewColumnHeader">
             <Setter Property="Background" Value="{DynamicResource ThemeBgHeader}"/>
             <Setter Property="Foreground" Value="{DynamicResource ThemeTextSecondary}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize" Value="11.5"/>
-            <Setter Property="Padding" Value="8,10"/>
+            <Setter Property="Padding" Value="8,8"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
             <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderSubtle}"/>
-            <Setter Property="BorderThickness" Value="0,0,1,1"/>
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="GridViewColumnHeader">
-                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter VerticalAlignment="Center"/>
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
                 </Setter.Value>
@@ -201,502 +605,892 @@
         </Style>
     </Window.Resources>
 
-    <Grid x:Name="RootGrid" AllowDrop="True" Drop="RootGrid_Drop" DragOver="RootGrid_DragOver">
+    <!-- Main Window Root Layout -->
+    <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
-            <RowDefinition Height="38"/> <!-- Row 0: Custom TitleBar -->
-            <RowDefinition Height="Auto"/> <!-- Row 1: Hero Section & Subtitle -->
-            <RowDefinition Height="*"/> <!-- Row 2: Main Workspace -->
-            <RowDefinition Height="Auto"/> <!-- Row 3: Footer -->
+            <RowDefinition Height="40"/> <!-- Row 0: Custom TitleBar -->
+            <RowDefinition Height="46"/> <!-- Row 1: Unified Quick Actions & View Toolbar -->
+            <RowDefinition Height="*"/>  <!-- Row 2: Main Workspace (Sidebar + 9 Views) -->
+            <RowDefinition Height="28"/> <!-- Row 3: Status Footer -->
         </Grid.RowDefinitions>
 
         <!-- ==================== ROW 0: CUSTOM TITLEBAR ==================== -->
         <Border Grid.Row="0" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,0,0,1" MouseDown="TitleBar_MouseDown">
             <Grid Margin="12,0,8,0">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/> <!-- App Icon & Title -->
+                    <ColumnDefinition Width="Auto"/> <!-- App Icon & Title with Margin="10,0,24,0" -->
                     <ColumnDefinition Width="*"/>    <!-- Center Spacing / Drag Area -->
-                    <ColumnDefinition Width="Auto"/> <!-- Selectors & Top Buttons -->
+                    <ColumnDefinition Width="Auto"/> <!-- Selectors: Lang, Theme, Accent, Font -->
                     <ColumnDefinition Width="Auto"/> <!-- Window Caption Buttons -->
                 </Grid.ColumnDefinitions>
 
-                <!-- Left: App Icon & Title -->
+                <!-- Left: App Icon & Title with REQUIRED Margin="10,0,24,0" + Engine Status Pill -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Image Source="app_icon.png" Width="20" Height="20" Margin="0,0,8,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                    <TextBlock Text="STORM RETROARCH 1.0.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <Image Source="app_icon.png" Width="22" Height="22" Margin="0,0,8,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <TextBlock Text="STORM RETROARCH 1.0.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,24,0"/>
+
+                    <!-- Engine Status Pill -->
+                    <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="12" Padding="8,3" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="6" Height="6" Fill="#10B981" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="Libretro Ready" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
 
-                <!-- Right: Selectors & Header Action Buttons -->
+                <!-- Right: Selectors: Language, Theme, Accent, Font with ample spacing -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
                     <!-- Language Selector -->
-                    <TextBlock x:Name="LblLang" Text="Язык:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                    <ComboBox x:Name="CmbLanguage" Width="105" Height="26" Margin="0,0,10,0" VerticalAlignment="Center" SelectionChanged="CmbLanguage_SelectionChanged"/>
+                    <TextBlock x:Name="LblLang" Text="Язык:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <ComboBox x:Name="CmbLanguage" Width="105" Height="26" Margin="0,0,12,0" SelectionChanged="CmbLanguage_SelectionChanged"/>
 
                     <!-- Theme Selector -->
-                    <TextBlock x:Name="LblTheme" Text="Тема:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                    <ComboBox x:Name="CmbTheme" Width="110" Height="26" Margin="0,0,10,0" VerticalAlignment="Center" SelectionChanged="CmbTheme_SelectionChanged"/>
+                    <TextBlock x:Name="LblTheme" Text="Тема:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <ComboBox x:Name="CmbTheme" Width="105" Height="26" Margin="0,0,12,0" SelectionChanged="CmbTheme_SelectionChanged"/>
 
                     <!-- Accent Selector -->
-                    <TextBlock x:Name="LblAccent" Text="Цвет:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                    <ComboBox x:Name="CmbAccent" Width="95" Height="26" Margin="0,0,10,0" VerticalAlignment="Center" SelectionChanged="CmbAccent_SelectionChanged"/>
+                    <TextBlock x:Name="LblAccent" Text="Акцент:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <ComboBox x:Name="CmbAccent" Width="95" Height="26" Margin="0,0,12,0" SelectionChanged="CmbAccent_SelectionChanged"/>
 
                     <!-- Font Selector -->
-                    <TextBlock x:Name="LblFont" Text="Шрифт:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                    <ComboBox x:Name="CmbFont" Width="120" Height="26" Margin="0,0,14,0" VerticalAlignment="Center" SelectionChanged="CmbFont_SelectionChanged"/>
-
-                    <!-- Header Action Buttons -->
-                    <Button x:Name="BtnCheckUpdates" Style="{StaticResource StormSecondaryButton}" Content="Обновления" Margin="0,0,6,0" Click="BtnCheckUpdates_Click"/>
-                    <Button x:Name="BtnCoresManager" Style="{StaticResource StormSecondaryButton}" Content="Ядра Libretro" Margin="0,0,6,0" Click="BtnCoresManager_Click"/>
-                    <Button x:Name="BtnEngineSettings" Style="{StaticResource StormSecondaryButton}" Content="Движок" Margin="0,0,6,0" Click="BtnEngineSettings_Click"/>
-                    <Button x:Name="BtnAbout" Style="{StaticResource StormSecondaryButton}" Content="О программе" Margin="0,0,6,0" Click="BtnAbout_Click"/>
+                    <TextBlock x:Name="LblFont" Text="Шрифт:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <ComboBox x:Name="CmbFont" Width="125" Height="26" Margin="0,0,6,0" SelectionChanged="CmbFont_SelectionChanged"/>
                 </StackPanel>
 
-                <!-- Far Right: Caption Buttons (Min, Max, Close) -->
+                <!-- Window Caption Controls (Min, Max, Close) -->
                 <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button x:Name="BtnMin" Style="{StaticResource WindowCaptionButton}" Click="BtnMin_Click">
-                        <Path Data="M 0,5 L 10,5" Stroke="{DynamicResource ThemeTextPrimary}" StrokeThickness="1.5"/>
+                        <Path Data="M0,0 L10,0" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" SnapsToDevicePixels="True"/>
                     </Button>
                     <Button x:Name="BtnMax" Style="{StaticResource WindowCaptionButton}" Click="BtnMax_Click">
-                        <Path x:Name="PathMax" Data="M 0,0 L 9,0 L 9,9 L 0,9 Z" Stroke="{DynamicResource ThemeTextPrimary}" StrokeThickness="1.2"/>
+                        <Path x:Name="PathMax" Data="M0,0 L9,0 L9,9 L0,9 Z" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.2" SnapsToDevicePixels="True"/>
                     </Button>
                     <Button x:Name="BtnClose" Style="{StaticResource WindowCloseButton}" Click="BtnClose_Click">
-                        <Path Data="M 0,0 L 9,9 M 9,0 L 0,9" Stroke="{DynamicResource ThemeTextPrimary}" StrokeThickness="1.5"/>
+                        <Path Data="M0,0 L9,9 M9,0 L0,9" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5" SnapsToDevicePixels="True"/>
                     </Button>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- ==================== ROW 1: HERO SECTION ==================== -->
-        <Border Grid.Row="1" Background="{DynamicResource ThemeBgHeader}" Padding="24,14,24,14" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,0,0,1">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Grid.Column="0">
-                    <TextBlock FontSize="22" >
-                        <Run Text="STORM" Foreground="{DynamicResource ThemeAccent}" FontWeight="Black"/><Run Text=" RETROARCH" Foreground="{DynamicResource ThemeTextPrimary}" FontWeight="Black"/>
-                    </TextBlock>
-                    <TextBlock x:Name="TxtSubtitle" Text="Универсальный ультра-быстрый эмулятор и фронтенд Libretro с авто-докачкой ядер, нулевой задержкой ввода и поддержкой 30+ платформ" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5" Margin="0,4,0,0"/>
-                </StackPanel>
-
-                <!-- Fullscreen Ozone Button in Hero Section -->
-                <Button Grid.Column="1" x:Name="BtnFullscreenOzone" Style="{StaticResource StormAccentButton}" Height="38" Padding="18,0" VerticalAlignment="Center" Click="BtnFullscreenOzone_Click">
+        <!-- ==================== ROW 1: UNIFIED TOOLBAR & VIEW MODE SWITCHER ==================== -->
+        <Border Grid.Row="1" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,0,0,1" Padding="14,0">
+            <DockPanel LastChildFill="True">
+                <!-- Left: Dynamic View Mode Switcher Capsule -->
+                <Border DockPanel.Dock="Left" Background="{DynamicResource ThemeHeader}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="3" VerticalAlignment="Center" Margin="0,0,16,0">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="🎮 ПОЛНОЭКРАННЫЙ РЕЖИМ OZONE" FontSize="13" FontWeight="Bold"/>
-                    </StackPanel>
-                </Button>
-            </Grid>
-        </Border>
-
-        <!-- ==================== ROW 2: MAIN WORKSPACE ==================== -->
-        <Grid Grid.Row="2" Margin="24,16,24,12">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/> <!-- Toolbar Tier 1 -->
-                <RowDefinition Height="Auto"/> <!-- Badges Tier 2 -->
-                <RowDefinition Height="*"/>    <!-- Games Library Table / Empty View -->
-            </Grid.RowDefinitions>
-
-            <!-- Toolbar Tier 1: Action Buttons & Filters -->
-            <Grid Grid.Row="0" Margin="0,0,0,12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <!-- Left: Add Games, Add Folder, Clear -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <Button x:Name="BtnAddFiles" Style="{StaticResource StormAccentButton}" Height="36" Padding="16,0" Margin="0,0,8,0" Click="BtnAddFiles_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Path Data="M 6,0 L 6,12 M 0,6 L 12,6" Stroke="White" StrokeThickness="2" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBlock Text="Добавить игры..." VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Button x:Name="BtnAddFolder" Style="{StaticResource StormSecondaryButton}" Height="36" Padding="14,0" Margin="0,0,8,0" Click="BtnAddFolder_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Path Data="M 0,2 L 5,2 L 7,4 L 14,4 L 14,12 L 0,12 Z" Stroke="{DynamicResource ThemeTextPrimary}" StrokeThickness="1.2" Fill="Transparent" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBlock Text="Добавить папку..." VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-                    <Button x:Name="BtnClearList" Style="{StaticResource StormSecondaryButton}" Height="36" Padding="12,0" Margin="0,0,12,0" Click="BtnClearList_Click">
-                        <TextBlock Text="Очистить список" VerticalAlignment="Center"/>
-                    </Button>
-
-                    <!-- Auto-check on startup checkbox -->
-                    <CheckBox x:Name="ChkCheckUpdatesStartup" Content="Проверять обновления при запуске" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" Checked="ChkCheckUpdatesStartup_Changed" Unchecked="ChkCheckUpdatesStartup_Changed"/>
-                </StackPanel>
-
-                <!-- Right: Search & Dropdown Filters -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal">
-                    <!-- Search Box -->
-                    <Border Background="{DynamicResource ThemeBgCard}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="6" Height="36" Width="260" Margin="0,0,10,0" Padding="8,0">
-                        <Grid VerticalAlignment="Center">
-                            <TextBox x:Name="TxtSearch" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12" VerticalAlignment="Center" TextChanged="TxtSearch_TextChanged"/>
-                            <TextBlock x:Name="TxtSearchPlaceholder" Text="Поиск по названию или платформе..." Foreground="{DynamicResource ThemeTextMuted}" FontSize="12" IsHitTestVisible="False" VerticalAlignment="Center"/>
-                        </Grid>
-                    </Border>
-
-                    <!-- Platform Filter -->
-                    <ComboBox x:Name="CmbPlatformFilter" Width="170" Height="36" Margin="0,0,8,0" VerticalAlignment="Center" SelectionChanged="CmbPlatformFilter_SelectionChanged"/>
-
-                    <!-- Status Filter -->
-                    <ComboBox x:Name="CmbStatusFilter" Width="150" Height="36" VerticalAlignment="Center" SelectionChanged="CmbStatusFilter_SelectionChanged"/>
-                </StackPanel>
-            </Grid>
-
-            <!-- Badges Tier 2: Statistics & Engine Status -->
-            <Border Grid.Row="1" Background="{DynamicResource ThemeBgCard}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="14,8" Margin="0,0,0,12">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-
-                    <!-- Total Games -->
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,24,0">
-                        <TextBlock Text="Всего игр: " Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" FontWeight="SemiBold"/>
-                        <TextBlock x:Name="TxtStatTotalGames" Text="0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12" FontWeight="Bold"/>
-                    </StackPanel>
-
-                    <!-- Cores Ready -->
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,24,0">
-                        <TextBlock Text="Ядер готово: " Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" FontWeight="SemiBold"/>
-                        <TextBlock x:Name="TxtStatCoresReady" Text="0" Foreground="{DynamicResource ThemeAccent}" FontSize="12" FontWeight="Bold"/>
-                    </StackPanel>
-
-                    <!-- Total Size -->
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,24,0">
-                        <TextBlock Text="Общий объём: " Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" FontWeight="SemiBold"/>
-                        <TextBlock x:Name="TxtStatTotalSize" Text="0 B" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12" FontWeight="Bold"/>
-                    </StackPanel>
-
-                    <!-- Video Driver & Mode -->
-                    <StackPanel Grid.Column="3" Orientation="Horizontal">
-                        <TextBlock Text="Движок: " Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" FontWeight="SemiBold"/>
-                        <Border Background="{DynamicResource ThemeAccentSoft}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1" CornerRadius="4" Padding="6,1" Margin="4,0,0,0">
-                            <TextBlock x:Name="TxtStatDriver" Text="Vulkan / Low-Latency" Foreground="{DynamicResource ThemeAccent}" FontSize="11" FontWeight="Bold"/>
-                        </Border>
-                    </StackPanel>
-
-                    <!-- Quick Start Drag & Drop Hint -->
-                    <StackPanel Grid.Column="5" Orientation="Horizontal">
-                        <TextBlock Text="💡 Перетащите файлы ROM, архивы или ядра прямо в окно программы" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11.5" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Grid>
-            </Border>
-
-            <!-- Games Library ListView Table -->
-            <Grid Grid.Row="2">
-                <ListView x:Name="LvGames" Background="{DynamicResource ThemeBgCard}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" SelectionMode="Single" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto">
-                    <ListView.View>
-                        <GridView>
-                            <!-- Column 0: Icon -->
-                            <GridViewColumn Width="60">
-                                <GridViewColumn.Header>
-                                    <TextBlock Text="Иконка"/>
-                                </GridViewColumn.Header>
-                                <GridViewColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Border Width="36" Height="36" Background="{DynamicResource ThemeBgWindow}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="6" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <Image Source="{Binding Icon}" Width="32" Height="32" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
-                                        </Border>
-                                    </DataTemplate>
-                                </GridViewColumn.CellTemplate>
-                            </GridViewColumn>
-
-                            <!-- Column 1: Game Title & Path -->
-                            <GridViewColumn Width="480">
-                                <GridViewColumn.Header>
-                                    <TextBlock Text="Название игры"/>
-                                </GridViewColumn.Header>
-                                <GridViewColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel VerticalAlignment="Center" Margin="4,0">
-                                            <TextBlock Text="{Binding Name}" Foreground="{DynamicResource ThemeTextPrimary}" FontWeight="Bold" FontSize="13"/>
-                                            <TextBlock Text="{Binding FilePath}" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" TextTrimming="CharacterEllipsis"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </GridViewColumn.CellTemplate>
-                            </GridViewColumn>
-
-                            <!-- Column 2: Platform -->
-                            <GridViewColumn Width="200">
-                                <GridViewColumn.Header>
-                                    <TextBlock Text="Платформа"/>
-                                </GridViewColumn.Header>
-                                <GridViewColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Border Background="{DynamicResource ThemeAccentSoft}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1" CornerRadius="6" Padding="8,3" HorizontalAlignment="Left" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Platform}" Foreground="{DynamicResource ThemeAccent}" FontSize="11.5" FontWeight="SemiBold"/>
-                                        </Border>
-                                    </DataTemplate>
-                                </GridViewColumn.CellTemplate>
-                            </GridViewColumn>
-
-                            <!-- Column 3: Libretro Core -->
-                            <GridViewColumn Width="180">
-                                <GridViewColumn.Header>
-                                    <TextBlock Text="Ядро Libretro"/>
-                                </GridViewColumn.Header>
-                                <GridViewColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding CoreDisplayName}" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12" FontWeight="SemiBold"/>
-                                            <TextBlock Text="{Binding CoreDll}" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </GridViewColumn.CellTemplate>
-                            </GridViewColumn>
-
-                            <!-- Column 4: Status & Progress -->
-                            <GridViewColumn Width="180">
-                                <GridViewColumn.Header>
-                                    <TextBlock Text="Статус"/>
-                                </GridViewColumn.Header>
-                                <GridViewColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" FontWeight="SemiBold"/>
-                                            <ProgressBar Value="{Binding ProgressValue}" Maximum="100" Height="4" Margin="0,4,0,0" Background="{DynamicResource ThemeBgWindow}" Foreground="{DynamicResource ThemeAccent}" Visibility="{Binding IsDownloading, Converter={x:Static local:MainWindow.BoolToVisibility}}"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </GridViewColumn.CellTemplate>
-                            </GridViewColumn>
-
-                            <!-- Column 5: Size -->
-                            <GridViewColumn Width="100">
-                                <GridViewColumn.Header>
-                                    <TextBlock Text="Размер"/>
-                                </GridViewColumn.Header>
-                                <GridViewColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding FormattedSize}" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" FontFamily="Consolas" VerticalAlignment="Center"/>
-                                    </DataTemplate>
-                                </GridViewColumn.CellTemplate>
-                            </GridViewColumn>
-
-                            <!-- Column 6: Actions -->
-                            <GridViewColumn Width="190">
-                                <GridViewColumn.Header>
-                                    <TextBlock Text="Действия"/>
-                                </GridViewColumn.Header>
-                                <GridViewColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <!-- Play Button -->
-                                            <Button Style="{StaticResource StormAccentButton}" Height="28" Padding="12,0" Margin="0,0,6,0" Tag="{Binding}" Click="BtnItemPlay_Click">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <Path Data="M 0,0 L 8,5 L 0,10 Z" Fill="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                    <TextBlock Text="Играть" FontSize="11"/>
-                                                </StackPanel>
-                                            </Button>
-
-                                            <!-- Open Folder Button -->
-                                            <Button Style="{StaticResource StormSecondaryButton}" Height="28" Padding="8,0" Margin="0,0,6,0" Tag="{Binding}" Click="BtnItemFolder_Click" ToolTip="Открыть папку с файлом">
-                                                <Path Data="M 0,2 L 4,2 L 6,4 L 12,4 L 12,10 L 0,10 Z" Stroke="{DynamicResource ThemeTextPrimary}" StrokeThickness="1.2" Fill="Transparent"/>
-                                            </Button>
-
-                                            <!-- Delete Button -->
-                                            <Button Style="{StaticResource StormSecondaryButton}" Height="28" Padding="8,0" Tag="{Binding}" Click="BtnItemDelete_Click" ToolTip="Удалить из списка">
-                                                <Path Data="M 1,2 L 9,2 M 2,2 L 2,8 L 8,8 L 8,2 M 3,2 L 3,0 L 7,0 L 7,2" Stroke="#F43F5E" StrokeThickness="1.2" Fill="Transparent"/>
-                                            </Button>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </GridViewColumn.CellTemplate>
-                            </GridViewColumn>
-                        </GridView>
-                    </ListView.View>
-                </ListView>
-
-                <!-- Empty State Placeholder -->
-                <Border x:Name="EmptyStateBorder" Background="{DynamicResource ThemeBgCard}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Visibility="Visible">
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="500">
-                        <Border Width="64" Height="64" Background="{DynamicResource ThemeAccentSoft}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1.5" CornerRadius="16" HorizontalAlignment="Center" Margin="0,0,0,16">
-                            <Path Data="M 6,10 L 10,10 M 8,8 L 8,12 M 16,9 A 1,1 0 1 1 16,11 A 1,1 0 1 1 16,9 M 19,10 A 1,1 0 1 1 19,12 A 1,1 0 1 1 19,10 M 4,4 L 20,4 C 23,4 25,7 24,12 L 22,20 C 21.5,22 19.5,23 18,21 L 15,17 L 9,17 L 6,21 C 4.5,23 2.5,22 2,20 L 0,12 C -1,7 1,4 4,4 Z" Stroke="{DynamicResource ThemeAccent}" StrokeThickness="1.5" Fill="Transparent" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <TextBlock x:Name="TxtEmptyTitle" Text="Перетащите игры, папки или ядра сюда" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"/>
-                        <TextBlock x:Name="TxtEmptySubtitle" Text="Поддерживаются ROM-образы 30+ платформ, архивы (.zip/.7z/.rar), шейдеры (.slangp), читы и сохранения" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5" TextWrapping="Wrap" TextAlignment="Center" Margin="0,8,0,20"/>
-                        <Button Style="{StaticResource StormAccentButton}" Height="36" Padding="20,0" HorizontalAlignment="Center" Click="BtnAddFiles_Click">
-                            <TextBlock Text="Выбрать файлы на диске..."/>
-                        </Button>
+                        <Button x:Name="BtnViewBento" Content="⊞ Карточки (Bento)" Style="{StaticResource CapsuleButton}" Tag="Active" Click="BtnViewMode_Click"/>
+                        <Button x:Name="BtnViewOzone" Content="☰ Список (Ozone)" Style="{StaticResource CapsuleButton}" Click="BtnViewMode_Click"/>
+                        <Button x:Name="BtnViewCompact" Content="▤ Таблица" Style="{StaticResource CapsuleButton}" Click="BtnViewMode_Click"/>
                     </StackPanel>
                 </Border>
-            </Grid>
-        </Grid>
 
-        <!-- ==================== ROW 3: FOOTER ==================== -->
-        <Border Grid.Row="3" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,1,0,0" Padding="24,8">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock x:Name="TxtFooterStatus" Text="Готово к работе" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5"/>
+                <!-- Center Quick Actions Buttons -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="⚡ Ozone (F1)" Style="{StaticResource StormAccentButton}" Padding="11,5" Margin="0,0,8,0" Click="BtnFullscreenOzone_Click"/>
+                    <Button Content="🖥️ Меню Qt (F5)" Style="{StaticResource StormSecondaryButton}" Padding="10,5" Margin="0,0,8,0" Click="BtnDesktopQt_Click"/>
+                    <Button Content="🔄 Обновления" Style="{StaticResource StormSecondaryButton}" Padding="10,5" Margin="0,0,10,0" Click="BtnCheckUpdates_Click"/>
+                    <CheckBox x:Name="ChkToolbarAutoUpdates" Content="Автопроверка при запуске" VerticalAlignment="Center" Margin="0,0,12,0" Checked="ChkToolbarAutoUpdates_Changed" Unchecked="ChkToolbarAutoUpdates_Changed"/>
+                    <Button Content="ℹ️ О программе" Style="{StaticResource StormSecondaryButton}" Padding="10,5" Margin="0,0,14,0" Click="BtnAbout_Click"/>
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="STORM RETROARCH • STORM AURORA FLUID" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11.5"/>
+                <!-- Right: Active View Instant Search Box -->
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Border Background="{DynamicResource ThemeHeader}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Width="260" Height="30" Padding="8,0">
+                        <Grid>
+                            <TextBox x:Name="TxtSearch" Background="Transparent" BorderThickness="0" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextPrimary}" TextChanged="TxtSearch_TextChanged"/>
+                            <TextBlock x:Name="TxtSearchPlaceholder" Text="🔍 Поиск (игры, параметры, ядра)..." Foreground="{DynamicResource ThemeTextMuted}" FontSize="11.5" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                        </Grid>
+                    </Border>
                 </StackPanel>
-            </Grid>
+            </DockPanel>
         </Border>
 
-        <!-- ==================== MODALS & OVERLAYS (Closed by ESC) ==================== -->
-        <!-- Overlay 1: Libretro Cores Manager -->
-        <Grid x:Name="OverlayCoresManager" Background="#B0000000" Visibility="Collapsed" Grid.RowSpan="4">
-            <Border Width="820" Height="580" Background="{DynamicResource ThemeBgWindow}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1.5" CornerRadius="12" Padding="24">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
+        <!-- ==================== ROW 2: MAIN WORKSPACE (SIDEBAR + 9 VIEWS) ==================== -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220"/> <!-- Col 0: RetroArch Left Sidebar -->
+                <ColumnDefinition Width="*"/>   <!-- Col 1: Main Content Workspace -->
+            </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Row="0" Margin="0,0,0,16">
-                        <TextBlock x:Name="TxtModalCoresTitle" Text="МЕНЕДЖЕР ЯДЕР LIBRETRO" Foreground="{DynamicResource ThemeAccent}" FontSize="18" FontWeight="Bold"/>
-                        <TextBlock x:Name="TxtModalCoresSubtitle" Text="Официальные ядра Libretro Buildbot с автоматической фоновой загрузкой в cores/" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,4,0,0"/>
+            <!-- ==================== LEFT SIDEBAR ==================== -->
+            <Border Grid.Column="0" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,0,1,0">
+                <DockPanel LastChildFill="True">
+                    <!-- Top Logo Badge -->
+                    <Border DockPanel.Dock="Top" Margin="10,12,10,10" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Padding="10,8">
+                        <DockPanel>
+                            <Border Width="30" Height="30" CornerRadius="7" Background="{DynamicResource ThemeAccentSoft}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1" Margin="0,0,8,0">
+                                <Path Data="M5,14 L11,7 L17,14 L23,7" Stroke="{DynamicResource ThemeAccentGlow}" StrokeThickness="2" StrokeLineJoin="Round" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock FontSize="12.5">
+                                    <Run Text="STORM" Foreground="{DynamicResource ThemeAccent}" FontWeight="Black"/><Run Text=" RETROARCH" Foreground="{DynamicResource ThemeTextPrimary}" FontWeight="Black"/>
+                                </TextBlock>
+                                <TextBlock Text="МУЛЬТИПЛАТФОРМЕННЫЙ ЭМУЛЯТОР" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="9"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- Bottom Sidebar Actions -->
+                    <StackPanel DockPanel.Dock="Bottom" Margin="8,0,8,8">
+                        <Button Content="💾 Сохранить .cfg" Style="{StaticResource StormAccentButton}" Margin="0,0,0,4" Click="BtnSaveConfig_Click"/>
+                        <Button Content="↩ Сброс настроек" Style="{StaticResource StormSecondaryButton}" Margin="0,0,0,6" Click="BtnResetConfig_Click"/>
+                        
                     </StackPanel>
 
-                    <ListView Grid.Row="1" x:Name="LvCores" Background="{DynamicResource ThemeBgCard}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" Margin="0,0,0,16">
-                        <ListView.View>
-                            <GridView>
-                                <GridViewColumn Width="160" Header="Ядро" DisplayMemberBinding="{Binding Name}"/>
-                                <GridViewColumn Width="220" Header="Платформа" DisplayMemberBinding="{Binding Platform}"/>
-                                <GridViewColumn Width="190" Header="Файл DLL" DisplayMemberBinding="{Binding DllName}"/>
-                                <GridViewColumn Width="180" Header="Действие">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <Button Style="{StaticResource StormAccentButton}" Height="26" Padding="10,0" Tag="{Binding}" Click="BtnDownloadCoreItem_Click">
-                                                <TextBlock Text="Скачать / Обновить" FontSize="11"/>
-                                            </Button>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
+                    <!-- Navigation Items List (9 Sections) -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="4,2">
+                            <Button x:Name="NavBtnMainMenu" Content="🏠 Главное меню" Style="{StaticResource SidebarNavButton}" Tag="Active" Click="NavBtn_Click"/>
+                            <Button x:Name="NavBtnSettings" Content="⚙️ Настройки" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
+                            <Button x:Name="NavBtnLibrary" Content="🎮 Все игры" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
+                            <Button x:Name="NavBtnFavorites" Content="⭐ Избранное" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
+                            <Button x:Name="NavBtnHistory" Content="🕒 История" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
+                            <Button x:Name="NavBtnCores" Content="🧩 Менеджер ядер" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
+                            <Button x:Name="NavBtnNetplay" Content="🌐 Сетевая игра" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
+                            <Button x:Name="NavBtnScreenshots" Content="🖼️ Скриншоты" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
+                            <Button x:Name="NavBtnImport" Content="➕ Импорт контента" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
 
-                    <Grid Grid.Row="2">
-                        <Button Style="{StaticResource StormAccentButton}" Content="⭐ СКАЧАТЬ ЗОЛОТОЙ НАБОР ЯДЕР" HorizontalAlignment="Left" Height="36" Padding="18,0" Click="BtnDownloadGoldenCores_Click"/>
-                        <Button Style="{StaticResource StormSecondaryButton}" Content="Закрыть (ESC)" HorizontalAlignment="Right" Height="36" Padding="20,0" Click="BtnCloseModals_Click"/>
+            <!-- ==================== RIGHT CONTENT WORKSPACE ==================== -->
+            <Grid Grid.Column="1" Background="{DynamicResource ThemeBgWindow}">
+
+                <!-- VIEW 1: 🏠 ГЛАВНОЕ МЕНЮ (MAIN MENU) -->
+                <Grid x:Name="ViewMainMenu" Visibility="Visible" Margin="22,16">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel MaxWidth="1140" HorizontalAlignment="Left">
+                            <!-- Hero Title -->
+                            <TextBlock Text="Главное меню STORM RETROARCH" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="22" FontWeight="Bold" Margin="0,0,0,4"/>
+                            <TextBlock Text="Оперативное управление, запуск контента, стейты, онлайн-обновления и конфигурация" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="13" Margin="0,0,0,16"/>
+
+                            <!-- Bento Grid: Quick Actions & Quick Menu Cards -->
+                            <UniformGrid Columns="2" Margin="0,0,0,14">
+                                <!-- Card 1: Быстрые действия -->
+                                <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,0,8,0">
+                                    <StackPanel>
+                                        <TextBlock Text="📂 Быстрые действия" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,0,10"/>
+                                        <WrapPanel>
+                                            <Button Content="📂 Загрузить контент..." Style="{StaticResource StormAccentButton}" Margin="0,0,8,8" Click="BtnLoadContent_Click"/>
+                                            <Button Content="🧩 Загрузить ядро..." Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnLoadCore_Click"/>
+                                            <Button Content="⚡ Полноэкранный Ozone" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnFullscreenOzone_Click"/>
+                                            <Button Content="🖥️ Меню Qt (F5)" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnDesktopQt_Click"/>
+                                            <Button Content="🔄 Перезапустить" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnRestartApp_Click"/>
+                                            <Button Content="🚪 Выход" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnExitApp_Click"/>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Card 2: Быстрое меню (Quick Menu) -->
+                                <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="8,0,0,0">
+                                    <StackPanel>
+                                        <DockPanel Margin="0,0,0,10">
+                                            <TextBlock Text="🎮 Внутриигровое управление" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold"/>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                <TextBlock Text="Слот:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <ComboBox x:Name="CmbStateSlot" Width="60" Height="26"/>
+                                            </StackPanel>
+                                        </DockPanel>
+                                        <WrapPanel>
+                                            <Button Content="▶ Продолжить" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnQuickResume_Click"/>
+                                            <Button Content="💾 Сохранить стейт" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnQuickSaveState_Click"/>
+                                            <Button Content="📂 Загрузить стейт" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnQuickLoadState_Click"/>
+                                            <Button Content="📷 Скриншот (F8)" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnQuickScreenshot_Click"/>
+                                            <Button Content="🎨 Шейдеры" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnQuickShaders_Click"/>
+                                            <Button Content="⚡ Читы" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnQuickCheats_Click"/>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                            </UniformGrid>
+
+                            <!-- Bento Grid: Online Updater & Config File Cards -->
+                            <UniformGrid Columns="2" Margin="0,0,0,14">
+                                <!-- Card 3: Онлайн-обновления -->
+                                <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,0,8,0">
+                                    <StackPanel>
+                                        <TextBlock Text="🌐 Онлайн-обновления (Online Updater)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,0,10"/>
+                                        <WrapPanel>
+                                            <Button Content="🧩 Загрузчик ядер" Style="{StaticResource StormAccentButton}" Margin="0,0,8,8" Click="BtnGoToCores_Click"/>
+                                            <Button Content="📦 Ассеты RetroArch" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnUpdateAssets_Click"/>
+                                            <Button Content="🎨 Шейдеры Slang/GLSL" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnUpdateShaders_Click"/>
+                                            <Button Content="⚡ Читы Libretro" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnUpdateCheats_Click"/>
+                                            <Button Content="🗄️ Базы данных (RDB)" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnUpdateDatabases_Click"/>
+                                            <Button Content="🎮 Профили геймпадов" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnUpdateAutoconfig_Click"/>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Card 4: Конфигурационный файл -->
+                                <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="8,0,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="⚙️ Конфигурация (retroarch.cfg)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,0,4"/>
+                                        <TextBlock x:Name="TxtConfigPathDisplay" Text="Файл: retroarch.cfg" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" Margin="0,0,0,10"/>
+                                        <WrapPanel>
+                                            <Button Content="💾 Сохранить текущую" Style="{StaticResource StormAccentButton}" Margin="0,0,8,8" Click="BtnSaveConfig_Click"/>
+                                            <Button Content="📂 Загрузить файл..." Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnLoadConfig_Click"/>
+                                            <Button Content="↩ Заводские настройки" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnResetConfig_Click"/>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                            </UniformGrid>
+
+                            <!-- Card 5: Сведения о системе и окружении -->
+                            <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Padding="16">
+                                <StackPanel>
+                                    <TextBlock Text="ℹ️ Сведения о системе и библиотеке Libretro" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,0,10"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                            <TextBlock x:Name="TxtInfoOs" Text="ОС: Windows 11 x64" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,2"/>
+                                            <TextBlock x:Name="TxtInfoCpu" Text="Архитектура: x86_64 / Low-Latency" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,2"/>
+                                            <TextBlock x:Name="TxtInfoDriver" Text="Видеодрайвер: Vulkan" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,2"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock x:Name="TxtInfoCoresCount" Text="Установлено ядер: 25" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,2"/>
+                                            <TextBlock x:Name="TxtInfoCoresDir" Text="Директория ядер: cores/" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,2"/>
+                                            <TextBlock x:Name="TxtInfoCert" Text="Сертификат: STORM-AURORA-FLUID-2026" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,2"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- VIEW 2: ⚙️ НАСТРОЙКИ (SETTINGS — ВСЕ 16 КАТЕГОРИЙ + BENTO КАРТОЧКИ + OZONE + ТАБЛИЦА) -->
+                <Grid x:Name="ViewSettings" Visibility="Collapsed" Margin="22,14">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/> <!-- Category Chips & Live Filter -->
+                        <RowDefinition Height="*"/>    <!-- Settings Container (Bento / Ozone / Compact) -->
+                    </Grid.RowDefinitions>
+
+                    <!-- Top Bar: Horizontal Category Chips -->
+                    <Border Grid.Row="0" Margin="0,0,0,12">
+                        <WrapPanel x:Name="SettingsCategoryChips" Orientation="Horizontal" Margin="0,0,0,-6">
+                            <Button Content="Все категории (16)" Style="{StaticResource CategoryChipButton}" Tag="Active" Click="CategoryChip_Click" Margin="0,0,6,6"/>
+                            <Button Content="🎮 Драйверы" Style="{StaticResource CategoryChipButton}" Click="CategoryChip_Click" Margin="0,0,6,6"/>
+                            <Button Content="🖥️ Видео" Style="{StaticResource CategoryChipButton}" Click="CategoryChip_Click" Margin="0,0,6,6"/>
+                            <Button Content="🔊 Аудио" Style="{StaticResource CategoryChipButton}" Click="CategoryChip_Click" Margin="0,0,6,6"/>
+                            <Button Content="🕹️ Ввод" Style="{StaticResource CategoryChipButton}" Click="CategoryChip_Click" Margin="0,0,6,6"/>
+                            <Button Content="⚡ Задержка" Style="{StaticResource CategoryChipButton}" Click="CategoryChip_Click" Margin="0,0,6,6"/>
+                            <Button Content="💾 Сохранения" Style="{StaticResource CategoryChipButton}" Click="CategoryChip_Click" Margin="0,0,6,6"/>
+                            <Button Content="⏩ Кадры" Style="{StaticResource CategoryChipButton}" Click="CategoryChip_Click" Margin="0,0,6,6"/>
+                            <Button Content="📺 OSD" Style="{StaticResource CategoryChipButton}" Click="CategoryChip_Click" Margin="0,0,6,6"/>
+                            <Button Content="🎨 Интерфейс" Style="{StaticResource CategoryChipButton}" Click="CategoryChip_Click" Margin="0,0,6,6"/>
+                            <Button Content="🏆 Достижения" Style="{StaticResource CategoryChipButton}" Click="CategoryChip_Click" Margin="0,0,6,6"/>
+                            <Button Content="🌐 Сеть" Style="{StaticResource CategoryChipButton}" Click="CategoryChip_Click" Margin="0,0,6,6"/>
+                            <Button Content="🎥 Запись" Style="{StaticResource CategoryChipButton}" Click="CategoryChip_Click" Margin="0,0,6,6"/>
+                            <Button Content="🤖 Сервис ИИ" Style="{StaticResource CategoryChipButton}" Click="CategoryChip_Click" Margin="0,0,6,6"/>
+                            <Button Content="📋 Конфиг" Style="{StaticResource CategoryChipButton}" Click="CategoryChip_Click" Margin="0,0,6,6"/>
+                            <Button Content="📁 Каталоги" Style="{StaticResource CategoryChipButton}" Click="CategoryChip_Click" Margin="0,0,6,6"/>
+                            <Button Content="👤 Пользователь" Style="{StaticResource CategoryChipButton}" Click="CategoryChip_Click" Margin="0,0,6,6"/>
+                        </WrapPanel>
+                    </Border>
+
+                    <!-- Row 1: Settings View Containers (Bento Cards / Ozone / Compact Table) -->
+                    <Grid Grid.Row="1">
+
+                        <!-- 1. BENTO CARDS MODE (Default for Settings) -->
+                        <ScrollViewer x:Name="SettingsBentoScroll" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl x:Name="IcSettingsBento">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Width="560" MinHeight="110" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="0,0,12,12">
+                                            <DockPanel LastChildFill="True">
+                                                <!-- Top Row: Icon + Title + CfgKey Badge -->
+                                                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding CategoryIcon}" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="15" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{Binding Title}" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="13.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+
+                                                    <!-- Key Badge -->
+                                                    <Border Background="{DynamicResource ThemeBgElevated}" CornerRadius="5" Padding="6,2" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding CfgKey}" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontFamily="Consolas, monospace"/>
+                                                    </Border>
+                                                </DockPanel>
+
+                                                <!-- Description -->
+                                                <TextBlock DockPanel.Dock="Top" Text="{Binding Description}" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" TextWrapping="Wrap" Margin="0,0,0,10" LineHeight="16"/>
+
+                                                <!-- Control Area: Toggle / ComboBox / Slider / TextBox / Directory -->
+                                                <Grid VerticalAlignment="Center">
+                                                    <!-- Toggle Switch / CheckBox -->
+                                                    <CheckBox IsChecked="{Binding BoolValue, Mode=TwoWay}" 
+                                                              Content="Включено" 
+                                                              Visibility="{Binding ToggleVisibility}"/>
+
+                                                    <!-- ComboBox -->
+                                                    <ComboBox ItemsSource="{Binding Options}" 
+                                                              SelectedItem="{Binding StringValue, Mode=TwoWay}" 
+                                                              Height="28" 
+                                                              Visibility="{Binding ComboBoxVisibility}"/>
+
+                                                    <!-- Slider -->
+                                                    <Grid Visibility="{Binding SliderVisibility}">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="70"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Slider Minimum="{Binding Min}" 
+                                                                Maximum="{Binding Max}" 
+                                                                Value="{Binding NumericValue, Mode=TwoWay}" 
+                                                                VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding FormattedNumeric}" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="11.5" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                    </Grid>
+
+                                                    <!-- TextBox -->
+                                                    <TextBox Text="{Binding StringValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                                                             Height="28" 
+                                                             Visibility="{Binding TextBoxVisibility}"/>
+
+                                                    <!-- Directory Path with Browse Button -->
+                                                    <Grid Visibility="{Binding DirectoryVisibility}">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBox Text="{Binding StringValue, Mode=TwoWay}" Height="28"/>
+                                                        <Button Grid.Column="1" Content="Обзор..." Style="{StaticResource StormSecondaryButton}" Margin="6,0,0,0" Tag="{Binding}" Click="BtnBrowseSettingDir_Click"/>
+                                                    </Grid>
+                                                </Grid>
+                                            </DockPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <!-- 2. OZONE LIST MODE -->
+                        <ScrollViewer x:Name="SettingsOzoneScroll" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl x:Name="IcSettingsOzone">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,0,0,1" Padding="16,10">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="38"/>
+                                                    <ColumnDefinition Width="320"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="220"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding CategoryIcon}" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="16" VerticalAlignment="Center"/>
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Title}" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="13" FontWeight="Bold"/>
+                                                    <TextBlock Text="{Binding CfgKey}" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontFamily="Consolas, monospace"/>
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="2" Text="{Binding Description}" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0"/>
+
+                                                <!-- Control Area -->
+                                                <Grid Grid.Column="3" VerticalAlignment="Center">
+                                                    <CheckBox IsChecked="{Binding BoolValue, Mode=TwoWay}" Content="Включено" Visibility="{Binding ToggleVisibility}"/>
+                                                    <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding StringValue, Mode=TwoWay}" Height="28" Visibility="{Binding ComboBoxVisibility}"/>
+                                                    <Slider Minimum="{Binding Min}" Maximum="{Binding Max}" Value="{Binding NumericValue, Mode=TwoWay}" Visibility="{Binding SliderVisibility}"/>
+                                                    <TextBox Text="{Binding StringValue, Mode=TwoWay}" Height="28" Visibility="{Binding TextBoxVisibility}"/>
+                                                </Grid>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <!-- 3. COMPACT TABLE MODE -->
+                        <ListView x:Name="LvSettingsCompact" Visibility="Collapsed" BorderThickness="0" Background="Transparent">
+                            <ListView.View>
+                                <GridView>
+                                    <GridViewColumn Header="Категория" Width="140" DisplayMemberBinding="{Binding CategoryName}"/>
+                                    <GridViewColumn Header="Параметр" Width="260" DisplayMemberBinding="{Binding Title}"/>
+                                    <GridViewColumn Header="Ключ retroarch.cfg" Width="220">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding CfgKey}" Foreground="{DynamicResource ThemeAccentGlow}" FontFamily="Consolas, monospace"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn Header="Значение" Width="280">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <CheckBox IsChecked="{Binding BoolValue, Mode=TwoWay}" Visibility="{Binding ToggleVisibility}"/>
+                                                    <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding StringValue, Mode=TwoWay}" Height="24" Visibility="{Binding ComboBoxVisibility}"/>
+                                                    <Slider Minimum="{Binding Min}" Maximum="{Binding Max}" Value="{Binding NumericValue, Mode=TwoWay}" Visibility="{Binding SliderVisibility}"/>
+                                                    <TextBox Text="{Binding StringValue, Mode=TwoWay}" Height="24" Visibility="{Binding TextBoxVisibility}"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
                     </Grid>
                 </Grid>
-            </Border>
-        </Grid>
 
-        <!-- Overlay 2: Engine Settings & Turbo Profile -->
-        <Grid x:Name="OverlayEngineSettings" Background="#B0000000" Visibility="Collapsed" Grid.RowSpan="4">
-            <Border Width="640" Height="480" Background="{DynamicResource ThemeBgWindow}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1.5" CornerRadius="12" Padding="24">
-                <Grid>
+                <!-- VIEW 3: 🎮 ВСЕ ИГРЫ / БИБЛИОТЕКА (LIBRARY) -->
+                <Grid x:Name="ViewLibrary" Visibility="Collapsed" Margin="20,14">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/> <!-- Actions Bar -->
+                        <RowDefinition Height="Auto"/> <!-- Badges -->
+                        <RowDefinition Height="*"/>    <!-- Bento Cards or ListView -->
                     </Grid.RowDefinitions>
 
-                    <StackPanel Grid.Row="0" Margin="0,0,0,20">
-                        <TextBlock Text="НАСТРОЙКИ ДВИЖКА И ТУРБО-ПРОФИЛЬ" Foreground="{DynamicResource ThemeAccent}" FontSize="18" FontWeight="Bold"/>
-                        <TextBlock Text="Оптимизация задержки вывода, синхронизации кадров и звукового тракта" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,4,0,0"/>
-                    </StackPanel>
+                    <!-- Top Bar: Actions -->
+                    <DockPanel Grid.Row="0" Margin="0,0,0,10">
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                            <Button x:Name="BtnAddFiles" Content="+ Добавить файлы" Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnAddFiles_Click"/>
+                            <Button x:Name="BtnAddFolder" Content="📁 Папка с играми" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnAddFolder_Click"/>
+                            <Button x:Name="BtnClearList" Content="Очистить" Style="{StaticResource StormSecondaryButton}" Margin="0,0,14,0" Click="BtnClearList_Click"/>
+                        </StackPanel>
 
-                    <StackPanel Grid.Row="1">
-                        <!-- Video Driver -->
-                        <TextBlock Text="Графический драйвер:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                        <ComboBox x:Name="CmbVideoDriver" Height="34" Margin="0,0,0,16"/>
+                        <!-- Platform & Status Dropdown Filters -->
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
+                            <ComboBox x:Name="CmbPlatformFilter" Width="170" Height="28" Margin="0,0,8,0" SelectionChanged="CmbPlatformFilter_SelectionChanged"/>
+                            <ComboBox x:Name="CmbStatusFilter" Width="140" Height="28" SelectionChanged="CmbStatusFilter_SelectionChanged"/>
+                        </StackPanel>
+                    </DockPanel>
 
-                        <!-- Low Latency Switches -->
-                        <CheckBox x:Name="ChkPreemptive" Content="Preemptive Frames (Нулевая задержка ввода / Run-Ahead)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="SemiBold" Margin="0,0,0,12"/>
-                        <CheckBox x:Name="ChkVrr" Content="Синхронизация VRR / G-Sync / FreeSync (120–240 Гц)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="SemiBold" Margin="0,0,0,12"/>
-                        <CheckBox x:Name="ChkWasapi" Content="Аудиодрайвер WASAPI Low-Latency (минимальный буфер)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="SemiBold" Margin="0,0,0,12"/>
-                        <CheckBox x:Name="ChkInteger" Content="Целочисленное масштабирование 1:1 (Integer Scaling)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="SemiBold" Margin="0,0,0,16"/>
+                    <!-- Row 1: Stat Badges -->
+                    <Border Grid.Row="1" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="12,7" Margin="0,0,0,10">
+                        <DockPanel>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="Всего игр:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,0,4,0"/>
+                                <TextBlock x:Name="TxtStatTotalGames" Text="0" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="12" FontWeight="Bold" Margin="0,0,18,0"/>
 
-                        <!-- Shaders -->
-                        <TextBlock Text="Пресет шейдера:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                        <ComboBox x:Name="CmbShaders" Height="34"/>
-                    </StackPanel>
+                                <TextBlock Text="Готово к запуску:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,0,4,0"/>
+                                <TextBlock x:Name="TxtStatCoresReady" Text="0" Foreground="#10B981" FontSize="12" FontWeight="Bold" Margin="0,0,18,0"/>
 
+                                <TextBlock Text="Общий объём:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,0,4,0"/>
+                                <TextBlock x:Name="TxtStatTotalSize" Text="0 MB" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12" FontWeight="Bold" Margin="0,0,18,0"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <TextBlock Text="Драйвер:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,0,4,0"/>
+                                <TextBlock x:Name="TxtStatDriver" Text="Vulkan (Low-Latency)" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="12" FontWeight="Bold"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- Row 2: Games Display (Cards vs Table) -->
                     <Grid Grid.Row="2">
-                        <Button Style="{StaticResource StormAccentButton}" Content="Сохранить настройки" HorizontalAlignment="Left" Height="36" Padding="20,0" Click="BtnSaveEngineSettings_Click"/>
-                        <Button Style="{StaticResource StormSecondaryButton}" Content="Закрыть (ESC)" HorizontalAlignment="Right" Height="36" Padding="20,0" Click="BtnCloseModals_Click"/>
+                        <!-- Bento Cards Mode for Games -->
+                        <ScrollViewer x:Name="GamesBentoScroll" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl x:Name="IcGamesBento">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Width="265" Height="150" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,0,12,12">
+                                            <DockPanel LastChildFill="True">
+                                                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                                                    <Image Source="{Binding Icon}" Width="28" Height="28" RenderOptions.BitmapScalingMode="NearestNeighbor" Margin="0,0,8,0"/>
+                                                    <Button Content="{Binding IsFavorite, Converter={StaticResource StarConverter}}" 
+                                                            Style="{StaticResource StormSecondaryButton}" 
+                                                            Padding="4,1" FontSize="12" 
+                                                            Foreground="#F59E0B" 
+                                                            HorizontalAlignment="Right" 
+                                                            Click="BtnToggleFavorite_Click"/>
+                                                </DockPanel>
+                                                <TextBlock DockPanel.Dock="Top" Text="{Binding Name}" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="13" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock DockPanel.Dock="Top" Text="{Binding Platform}" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                                                <TextBlock DockPanel.Dock="Top" Text="{Binding CoreDisplayName}" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontWeight="SemiBold" Margin="0,1,0,8"/>
+                                                
+                                                <DockPanel VerticalAlignment="Bottom">
+                                                    <TextBlock Text="{Binding FormattedSize}" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" VerticalAlignment="Center"/>
+                                                    <Button Content="▶ Запуск" Style="{StaticResource StormAccentButton}" Padding="10,3" HorizontalAlignment="Right" Click="BtnPlayGame_Click"/>
+                                                </DockPanel>
+                                            </DockPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <!-- Table View Mode for Games -->
+                        <ListView x:Name="LvGames"
+                                  Visibility="Collapsed"
+                                  BorderThickness="0"
+                                  Background="Transparent"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                  SelectionMode="Single"
+                                  MouseDoubleClick="LvGames_MouseDoubleClick">
+                            <ListView.View>
+                                <GridView>
+                                    <GridViewColumn Width="46">
+                                        <GridViewColumn.Header>
+                                            <TextBlock Text="★" HorizontalAlignment="Center"/>
+                                        </GridViewColumn.Header>
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Button Content="{Binding IsFavorite, Converter={StaticResource StarConverter}}"
+                                                        Style="{StaticResource StormSecondaryButton}"
+                                                        Padding="4,2" FontSize="12"
+                                                        Foreground="#F59E0B"
+                                                        Click="BtnToggleFavorite_Click"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="Иконка" Width="52">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Image Source="{Binding Icon}" Width="24" Height="24" HorizontalAlignment="Center" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="Название игры" Width="360">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="Платформа" Width="200">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Platform}" Foreground="{DynamicResource ThemeTextSecondary}" VerticalAlignment="Center"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="Ядро Libretro" Width="170">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding CoreDisplayName}" Foreground="{DynamicResource ThemeAccentGlow}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="Статус" Width="140">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding StatusText}" Foreground="#10B981" VerticalAlignment="Center"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="Размер" Width="90">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding FormattedSize}" Foreground="{DynamicResource ThemeTextMuted}" VerticalAlignment="Center"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="Действия" Width="210">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Content="▶ Запуск" Style="{StaticResource StormAccentButton}" Padding="10,4" Margin="0,0,6,0" Click="BtnPlayGame_Click"/>
+                                                    <Button Content="📁 Папка" Style="{StaticResource StormSecondaryButton}" Padding="8,4" Margin="0,0,6,0" Click="BtnOpenRomFolder_Click"/>
+                                                    <Button Content="✕" Style="{StaticResource StormSecondaryButton}" Padding="8,4" Foreground="#F43F5E" Click="BtnRemoveGame_Click"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+
+                        <!-- Empty State Overlay -->
+                        <Border x:Name="EmptyStateBorder" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="32">
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock Text="🎮 Библиотека игр пуста" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                                <TextBlock Text="Перетащите файлы игр или архивы прямо сюда (Drag-and-Drop) или нажмите «+ Добавить файлы»" Foreground="{DynamicResource ThemeTextMuted}" FontSize="13" HorizontalAlignment="Center" Margin="0,0,0,16"/>
+                                <Button Content="+ Добавить файлы игр" Style="{StaticResource StormAccentButton}" HorizontalAlignment="Center" Click="BtnAddFiles_Click"/>
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </Grid>
-            </Border>
-        </Grid>
 
-        <!-- Overlay 3: Update Modal -->
-        <Grid x:Name="OverlayUpdate" Background="#B0000000" Visibility="Collapsed" Grid.RowSpan="4">
-            <Border Width="600" Height="420" Background="{DynamicResource ThemeBgWindow}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1.5" CornerRadius="12" Padding="24">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
+                <!-- VIEW 4: ⭐ ИЗБРАННОЕ (FAVORITES) -->
+                <Grid x:Name="ViewFavorites" Visibility="Collapsed" Margin="22,14">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top" Margin="0,0,0,12">
+                            <DockPanel>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Избранные игры (Favorites)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold"/>
+                                    <TextBlock Text="Быстрый запуск лучших игр серии, синхронизировано с content_favorites.lpl" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5"/>
+                                </StackPanel>
+                                <Button Content="Синхронизировать с content_favorites.lpl" Style="{StaticResource StormSecondaryButton}" HorizontalAlignment="Right" Click="BtnSyncFavorites_Click"/>
+                            </DockPanel>
+                        </Border>
+                        <ListView x:Name="LvFavorites" BorderThickness="0" Background="Transparent" MouseDoubleClick="LvFavorites_MouseDoubleClick">
+                        </ListView>
+                    </DockPanel>
+                </Grid>
 
-                    <StackPanel Grid.Row="0" Margin="0,0,0,14">
-                        <TextBlock Text="ДОСТУПНО ОБНОВЛЕНИЕ" Foreground="{DynamicResource ThemeAccent}" FontSize="18" FontWeight="Bold"/>
-                        <TextBlock x:Name="TxtUpdateSubtitle" Text="Найдена новая версия программы" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,4,0,0"/>
-                    </StackPanel>
+                <!-- VIEW 5: 🕒 ИСТОРИЯ (HISTORY) -->
+                <Grid x:Name="ViewHistory" Visibility="Collapsed" Margin="22,14">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top" Margin="0,0,0,12">
+                            <DockPanel>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="История запусков (History)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold"/>
+                                    <TextBlock Text="Список недавно запущенных игр, синхронизировано с content_history.lpl" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5"/>
+                                </StackPanel>
+                                <Button Content="Очистить историю" Style="{StaticResource StormSecondaryButton}" HorizontalAlignment="Right" Click="BtnClearHistory_Click"/>
+                            </DockPanel>
+                        </Border>
+                        <ListView x:Name="LvHistory" BorderThickness="0" Background="Transparent" MouseDoubleClick="LvHistory_MouseDoubleClick">
+                        </ListView>
+                    </DockPanel>
+                </Grid>
 
-                    <Border Grid.Row="1" Background="{DynamicResource ThemeBgCard}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,16">
+                <!-- VIEW 6: 🧩 МЕНЕДЖЕР ЯДЕР (CORE DOWNLOADER) -->
+                <Grid x:Name="ViewCores" Visibility="Collapsed" Margin="22,14">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top" Margin="0,0,0,14">
+                            <DockPanel>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Загрузчик ядер Libretro (Core Downloader)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold"/>
+                                    <TextBlock Text="Каталог официальных сборок Libretro Buildbot с авто-установкой в 1 клик" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5"/>
+                                </StackPanel>
+                                <Button Content="⚡ Установить Золотой набор ядер (25)" Style="{StaticResource StormAccentButton}" HorizontalAlignment="Right" Click="BtnDownloadGoldenCores_Click"/>
+                            </DockPanel>
+                        </Border>
+                        <ListView x:Name="LvCores" BorderThickness="0" Background="Transparent">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="14,10" Margin="0,3">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="220"/>
+                                                <ColumnDefinition Width="260"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="150"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="{Binding Name}" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="14" FontWeight="Bold"/>
+                                                <TextBlock Text="{Binding DllName}" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11"/>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="{Binding Platform}" Foreground="{DynamicResource ThemeAccentGlow}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding Description}" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                                            <Button Grid.Column="3" Content="Установить / Обновить" Style="{StaticResource StormSecondaryButton}" Click="BtnDownloadSingleCore_Click"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </DockPanel>
+                </Grid>
+
+                <!-- VIEW 7: 🌐 СЕТЕВАЯ ИГРА (NETPLAY) -->
+                <Grid x:Name="ViewNetplay" Visibility="Collapsed" Margin="22,14">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel MaxWidth="900" HorizontalAlignment="Left">
+                            <TextBlock Text="Сетевая игра (Netplay)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" Margin="0,0,0,4"/>
+                            <TextBlock Text="Совместное прохождение классических игр по локальной сети и через серверы Libretro" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="13" Margin="0,0,0,16"/>
+
+                            <!-- Host Room -->
+                            <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="18" Margin="0,0,0,14">
+                                <StackPanel>
+                                    <TextBlock Text="Создать комнату (Host Room)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,0,12"/>
+                                    <Grid Margin="0,4">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <TextBlock Text="Название комнаты:" Foreground="{DynamicResource ThemeTextSecondary}" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" x:Name="TxtNetplayHostRoom" Text="STORM Room #1"/>
+                                    </Grid>
+                                    <Grid Margin="0,4">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <TextBlock Text="Порт:" Foreground="{DynamicResource ThemeTextSecondary}" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" x:Name="TxtNetplayHostPort" Text="55435"/>
+                                    </Grid>
+                                    <Button Content="🚀 Запустить сервер комнаты" Style="{StaticResource StormAccentButton}" HorizontalAlignment="Left" Margin="0,12,0,0" Click="BtnStartNetplayHost_Click"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Join Room -->
+                            <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="18">
+                                <StackPanel>
+                                    <TextBlock Text="Подключиться к игре (Join Room)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,0,12"/>
+                                    <Grid Margin="0,4">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <TextBlock Text="IP или домен хоста:" Foreground="{DynamicResource ThemeTextSecondary}" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" x:Name="TxtNetplayJoinIp" Text="127.0.0.1"/>
+                                    </Grid>
+                                    <Grid Margin="0,4">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <TextBlock Text="Порт:" Foreground="{DynamicResource ThemeTextSecondary}" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" x:Name="TxtNetplayJoinPort" Text="55435"/>
+                                    </Grid>
+                                    <Button Content="🔗 Подключиться по IP" Style="{StaticResource StormSecondaryButton}" HorizontalAlignment="Left" Margin="0,12,0,0" Click="BtnJoinNetplay_Click"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- VIEW 8: 🖼️ СКРИНШОТЫ (SCREENSHOTS) -->
+                <Grid x:Name="ViewScreenshots" Visibility="Collapsed" Margin="22,14">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top" Margin="0,0,0,14">
+                            <DockPanel>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Галерея скриншотов (Screenshots)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold"/>
+                                    <TextBlock x:Name="TxtScreenshotsDirDisplay" Text="Папка: screenshots/" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button Content="📂 Открыть папку" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnOpenScreenshotsFolder_Click"/>
+                                    <Button Content="🔄 Обновить список" Style="{StaticResource StormSecondaryButton}" Click="BtnRefreshScreenshots_Click"/>
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <TextBlock x:Name="TxtUpdateChangelog" Text="" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12" TextWrapping="Wrap"/>
+                            <WrapPanel x:Name="WrapScreenshots" Margin="0,4"/>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Grid>
+
+                <!-- VIEW 9: ➕ ИМПОРТ КОНТЕНТА (IMPORT) -->
+                <Grid x:Name="ViewImport" Visibility="Collapsed" Margin="22,14">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel MaxWidth="900" HorizontalAlignment="Left">
+                            <TextBlock Text="Импорт контента (Scan Directory / File)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" Margin="0,0,0,4"/>
+                            <TextBlock Text="Сканирование каталогов и добавление ROM-файлов с автоматическим определением платформы" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="13" Margin="0,0,0,16"/>
+
+                            <!-- Card 1: Scan Directory -->
+                            <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="18" Margin="0,0,0,14">
+                                <StackPanel>
+                                    <TextBlock Text="Сканировать директорию (Scan Directory)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,6,0"/>
+                                    <TextBlock Text="Рекурсивно просканировать всю папку с играми и автоматически привязать оптимальные ядра Libretro" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5" Margin="0,0,0,12"/>
+                                    <Button Content="📁 Выбрать папку для сканирования..." Style="{StaticResource StormAccentButton}" HorizontalAlignment="Left" Click="BtnAddFolder_Click"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Card 2: Scan Single File -->
+                            <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="18">
+                                <StackPanel>
+                                    <TextBlock Text="Сканировать отдельный файл (Scan File)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,6,0"/>
+                                    <TextBlock Text="Добавить один образ игры (.nes, .sfc, .md, .bin, .iso, .chd, .n64, .gba, .zip)" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5" Margin="0,0,0,12"/>
+                                    <Button Content="📄 Выбрать файл игры..." Style="{StaticResource StormSecondaryButton}" HorizontalAlignment="Left" Click="BtnAddFiles_Click"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+
+            </Grid>
+        </Grid>
+
+        <!-- ==================== ROW 3: STATUS FOOTER ==================== -->
+        <Border Grid.Row="3" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,1,0,0" Padding="12,0">
+            <DockPanel LastChildFill="True">
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                    <TextBlock Text="STORM RETROARCH 1.0.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                    <TextBlock Text="100% LIBRETRO COMPATIBLE" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                </StackPanel>
+                <TextBlock x:Name="TxtFooterStatus" Text="Готово к работе" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
+
+        <!-- ==================== MODAL OVERLAYS ==================== -->
+
+        <!-- 1. STORM ALERT OVERLAY (100% Modal, ZERO MessageBox.Show) -->
+        <Grid x:Name="StormAlertOverlay" Visibility="Collapsed" Background="#C805050A">
+            <Border Background="{DynamicResource ThemeBgHeader}" 
+                    BorderBrush="{DynamicResource ThemeAccent}" 
+                    BorderThickness="1.5" 
+                    CornerRadius="12" 
+                    Width="480" 
+                    HorizontalAlignment="Center" 
+                    VerticalAlignment="Center" 
+                    Padding="24" 
+                    SnapsToDevicePixels="True">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="25" Color="#000000" Opacity="0.8" ShadowDepth="4"/>
+                </Border.Effect>
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,14">
+                        <Border Width="28" Height="28" CornerRadius="6" Background="{DynamicResource ThemeAccentSoft}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1" Margin="0,0,10,0">
+                            <Path Data="M12,2 C6.48,2 2,6.48 2,12 C2,17.52 6.48,22 12,22 C17.52,22 22,17.52 22,12 C22,6.48 17.52,2 12,2 Z M13,17 L11,17 L11,15 L13,15 L13,17 Z M13,13 L11,13 L11,7 L13,7 L13,13 Z" 
+                                  Fill="{DynamicResource ThemeAccentGlow}" 
+                                  Width="16" Height="16" 
+                                  Stretch="Uniform" 
+                                  HorizontalAlignment="Center" 
+                                  VerticalAlignment="Center"/>
+                        </Border>
+                        <TextBlock x:Name="TxtAlertTitle" Text="STORM RETROARCH" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" VerticalAlignment="Center"/>
+                    </DockPanel>
+                    
+                    <TextBlock x:Name="TxtAlertMessage" 
+                               Text="Сообщение" 
+                               Foreground="{DynamicResource ThemeTextSecondary}" 
+                               FontSize="13" 
+                               TextWrapping="Wrap" 
+                               Margin="0,0,0,22" 
+                               LineHeight="20"/>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button x:Name="BtnAlertCancel" Content="Отмена" Style="{StaticResource StormSecondaryButton}" Width="95" Margin="0,0,10,0" Visibility="Collapsed" Click="BtnAlertCancel_Click"/>
+                        <Button x:Name="BtnAlertOk" Content="OK" Style="{StaticResource StormAccentButton}" Width="95" Click="BtnAlertOk_Click"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- 2. OVERLAY: UPDATE MANAGER -->
+        <Grid x:Name="OverlayUpdate" Visibility="Collapsed" Background="#C805050A">
+            <Border Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1.5" CornerRadius="12" Width="520" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24">
+                <StackPanel>
+                    <TextBlock Text="Доступно обновление" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="18" FontWeight="Bold" Margin="0,0,0,4"/>
+                    <TextBlock x:Name="TxtUpdateSubtitle" Text="Новая версия STORM RETROARCH готова к загрузке" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="13" Margin="0,0,0,14"/>
+
+                    <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,14" MaxHeight="140">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <TextBlock x:Name="TxtUpdateChangelog" Text="Список изменений..." Foreground="{DynamicResource ThemeTextSecondary}" TextWrapping="Wrap" FontSize="12"/>
                         </ScrollViewer>
                     </Border>
 
-                    <ProgressBar Grid.Row="2" x:Name="PbUpdate" Maximum="100" Height="6" Margin="0,0,0,16" Visibility="Collapsed" Foreground="{DynamicResource ThemeAccent}" Background="{DynamicResource ThemeBgCard}"/>
+                    <ProgressBar x:Name="PbUpdate" Height="8" Margin="0,0,0,18" Visibility="Collapsed" Background="{DynamicResource ThemeBorderSubtle}" Foreground="{DynamicResource ThemeAccent}"/>
 
-                    <Grid Grid.Row="3">
-                        <Button x:Name="BtnUpdateConfirm" Style="{StaticResource StormAccentButton}" Content="Обновить" HorizontalAlignment="Left" Height="36" Padding="24,0" Click="BtnUpdateConfirm_Click"/>
-                        <Button Style="{StaticResource StormSecondaryButton}" Content="Закрыть (ESC)" HorizontalAlignment="Right" Height="36" Padding="20,0" Click="BtnCloseModals_Click"/>
-                    </Grid>
-                </Grid>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Позже" Style="{StaticResource StormSecondaryButton}" Width="95" Margin="0,0,10,0" Click="BtnCloseUpdate_Click"/>
+                        <Button x:Name="BtnUpdateConfirm" Content="Обновить" Style="{StaticResource StormAccentButton}" Width="110" Click="BtnUpdateConfirm_Click"/>
+                    </StackPanel>
+                </StackPanel>
             </Border>
         </Grid>
 
-        <!-- Overlay 4: About Modal -->
-        <Grid x:Name="OverlayAbout" Background="#B0000000" Visibility="Collapsed" Grid.RowSpan="4">
-            <Border Width="640" Height="460" Background="{DynamicResource ThemeBgWindow}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1.5" CornerRadius="12" Padding="24">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
+        <!-- 3. OVERLAY: ABOUT -->
+        <Grid x:Name="OverlayAbout" Visibility="Collapsed" Background="#C805050A">
+            <Border Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1.5" CornerRadius="12" Width="540" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="26">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,14">
+                        <Image Source="app_icon.png" Width="44" Height="44" Margin="0,0,14,0" RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="STORM RETROARCH 1.0.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="18" FontWeight="Bold"/>
+                            <TextBlock Text="STORM AURORA FLUID UNIFIED DESIGN SYSTEM" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="11" FontWeight="SemiBold"/>
+                        </StackPanel>
+                    </DockPanel>
 
-                    <StackPanel Grid.Row="0" Margin="0,0,0,16">
-                        <TextBlock Text="О ПРОГРАММЕ STORM RETROARCH" Foreground="{DynamicResource ThemeAccent}" FontSize="18" FontWeight="Bold"/>
-                        <TextBlock Text="Флагманский фронтенд и эмулятор экосистемы STORM GAMES WORLD" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,4,0,0"/>
-                    </StackPanel>
+                    <TextBlock Text="Полнофункциональная улучшенная реплика RetroArch с интеграцией Libretro ядер, поддержкой низких задержек (Preemptive Frames, VRR G-Sync/FreeSync, WASAPI), встроенным онлайн-обновлением, менеджером сейвов и 100% тёмной стилизацией всех элементов управления."
+                               Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5" TextWrapping="Wrap" LineHeight="18" Margin="0,0,0,14"/>
 
-                    <StackPanel Grid.Row="1">
-                        <Border Background="{DynamicResource ThemeBgCard}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,0,16">
-                            <StackPanel>
-                                <TextBlock Text="STORM RETROARCH 1.0.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,0,8"/>
-                                <TextBlock Text="Высокопроизводительный фронтенд Libretro с поддержкой более 30 консольных платформ, ультра-низкой задержкой вывода через Vulkan и Direct3D, встроенной системой фоновой загрузки ядер и универсальным Drag-and-Drop." Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" TextWrapping="Wrap" LineHeight="18"/>
-                            </StackPanel>
-                        </Border>
+                    <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,18">
+                        <StackPanel>
+                            <TextBlock Text="STORM-AURORA-FLUID-CERT-2026-RETROARCH-ORIGINAL-AUTHENTIC-BUILD-VERIFIED" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10" TextWrapping="Wrap"/>
+                            <TextBlock Text="Разработчик: STORM TEAM | 2026" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                        </StackPanel>
+                    </Border>
 
-                        <!-- Unified Hidden Certificate & Signature Badge -->
-                        <Border Background="{DynamicResource ThemeAccentSoft}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1" CornerRadius="8" Padding="14">
-                            <StackPanel>
-                                <TextBlock Text="ЕДИНЫЙ СКРЫТЫЙ СЕРТИФИКАТ ЭКОСИСТЕМЫ STORM" Foreground="{DynamicResource ThemeAccent}" FontSize="11" FontWeight="Bold" Margin="0,0,0,4"/>
-                                <TextBlock Text="STORM-AURORA-FLUID-CERT-2026-RETROARCH-ORIGINAL-AUTHENTIC-BUILD-VERIFIED" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="10" FontFamily="Consolas"/>
-                                <TextBlock Text="SIGNATURE: STORM TEAM 2026 • ALL RIGHTS SECURED" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10" Margin="0,4,0,0"/>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-
-                    <Button Grid.Row="2" Style="{StaticResource StormSecondaryButton}" Content="Закрыть (ESC)" HorizontalAlignment="Right" Height="36" Padding="24,0" Click="BtnCloseModals_Click"/>
-                </Grid>
+                    <Button Content="Закрыть" Style="{StaticResource StormAccentButton}" Width="100" HorizontalAlignment="Right" Click="BtnCloseAbout_Click"/>
+                </StackPanel>
             </Border>
         </Grid>
+
     </Grid>
 </Window>

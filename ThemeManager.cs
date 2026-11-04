@@ -135,6 +135,12 @@ public static class ThemeManager
             SetResourceBrush(res, "ThemeTextSecondary", pal.TextSecondary);
             SetResourceBrush(res, "ThemeTextMuted", pal.IsLight ? "#64748B" : "#7A7298");
 
+            // Aliases for ComboBox & Form Controls
+            SetResourceBrush(res, "ThemeSurface", pal.CardBg);
+            SetResourceBrush(res, "ThemeBorder", pal.CardBorder);
+            SetResourceBrush(res, "ThemeHeader", pal.HeaderBg);
+            SetResourceBrush(res, "ThemeSurfaceHover", pal.IsLight ? "#E2E8F0" : "#241D42");
+
             // Aliases
             SetResourceBrush(res, "BgPrimaryBrush", pal.WindowBg);
             SetResourceBrush(res, "BgSecondaryBrush", pal.HeaderBg);

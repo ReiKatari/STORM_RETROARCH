@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Windows;
 
 namespace StormRetroArch;
@@ -7,6 +8,11 @@ public partial class App : Application
 {
     protected override void OnStartup(StartupEventArgs e)
     {
+        AppDomain.CurrentDomain.UnhandledException += (s, ev) =>
+        {
+            try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log"), ev.ExceptionObject.ToString()); } catch { }
+        };
+
         base.OnStartup(e);
         try
         {
@@ -23,7 +29,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[App.OnStartup Error]: {ex.Message}");
+            try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log"), ex.ToString()); } catch { }
         }
     }
 }

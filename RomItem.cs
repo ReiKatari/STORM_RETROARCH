@@ -22,6 +22,9 @@ public class RomItem : INotifyPropertyChanged
     private double _progressValue;
     private bool _isDownloading;
     private ImageSource? _icon;
+    private bool _isFavorite;
+    private DateTime? _lastPlayed;
+    private string _lastPlayedFormatted = "-";
 
     public string Name
     {
@@ -105,6 +108,30 @@ public class RomItem : INotifyPropertyChanged
     {
         get => _icon;
         set => SetField(ref _icon, value);
+    }
+
+    public bool IsFavorite
+    {
+        get => _isFavorite;
+        set => SetField(ref _isFavorite, value);
+    }
+
+    public DateTime? LastPlayed
+    {
+        get => _lastPlayed;
+        set
+        {
+            if (SetField(ref _lastPlayed, value))
+            {
+                LastPlayedFormatted = value.HasValue ? value.Value.ToString("yyyy-MM-dd HH:mm") : "-";
+            }
+        }
+    }
+
+    public string LastPlayedFormatted
+    {
+        get => _lastPlayedFormatted;
+        set => SetField(ref _lastPlayedFormatted, value);
     }
 
     public static string FormatFileSize(long bytes)

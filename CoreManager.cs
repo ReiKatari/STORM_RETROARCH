@@ -5,7 +5,6 @@ using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
 using System.Threading.Tasks;
-using System.Windows;
 
 namespace StormRetroArch;
 
@@ -176,20 +175,58 @@ public static class CoreManager
 
     public static string FindRetroArchExecutable()
     {
-        string[] candidates =
+        // 1. Check user configured path
+        if (!string.IsNullOrWhiteSpace(SettingsManager.Current.RetroArchPath) &&
+            File.Exists(SettingsManager.Current.RetroArchPath))
+        {
+            return SettingsManager.Current.RetroArchPath;
+        }
+
+        // 2. Candidates in AppDir
+        string[] localCandidates =
         {
             Path.Combine(AppDir, "retroarch_engine.exe"),
             Path.Combine(AppDir, "retroarch.exe"),
-            Path.Combine(AppDir, "1.22.2 (04.11.2026).exe"),
-            @"C:\Program Files\RetroArchetroarch.exe",
-            @"C:\RetroArchetroarch.exe"
+            Path.Combine(AppDir, "STORM RETROARCH.exe")
         };
 
-        foreach (var c in candidates)
+        foreach (var c in localCandidates)
         {
             if (File.Exists(c)) return c;
         }
-        return "retroarch.exe";
+
+        // 3. Parent directory search (up to 3 levels)
+        try
+        {
+            var cur = new DirectoryInfo(AppDir);
+            for (int i = 0; i < 3 && cur.Parent != null; i++)
+            {
+                cur = cur.Parent;
+                string p1 = Path.Combine(cur.FullName, "retroarch_engine.exe");
+                if (File.Exists(p1)) return p1;
+                string p2 = Path.Combine(cur.FullName, "retroarch.exe");
+                if (File.Exists(p2)) return p2;
+            }
+        }
+        catch { }
+
+        // 4. Standard system install locations
+        string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        string[] systemCandidates =
+        {
+            Path.Combine(appData, "RetroArch", "retroarch.exe"),
+            @"C:\RetroArch-Win64\retroarch.exe",
+            @"C:\RetroArch\retroarch.exe",
+            @"C:\Program Files\RetroArch\retroarch.exe",
+            @"D:\RetroArch\retroarch.exe"
+        };
+
+        foreach (var c in systemCandidates)
+        {
+            if (File.Exists(c)) return c;
+        }
+
+        return Path.Combine(AppDir, "retroarch.exe");
     }
 
     public static async Task LaunchGameAsync(RomItem item)
@@ -212,12 +249,23 @@ public static class CoreManager
 
             if (!downloaded)
             {
-                MessageBox.Show($"Не удалось автоматически загрузить ядро {item.CoreDll}.", "STORM RETROARCH", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MainWindow.Instance?.ShowNotification(
+                    "STORM RETROARCH",
+                    $"Не удалось автоматически загрузить ядро {item.CoreDll}.\nПроверьте подключение к интернету или поместите ядро вручную в папку cores/.");
                 return;
             }
         }
 
         string exe = FindRetroArchExecutable();
+        if (!File.Exists(exe))
+        {
+            MainWindow.Instance?.ShowNotification(
+                "STORM RETROARCH",
+                $"Исполняемый файл RetroArch не найден:\n{exe}\nПожалуйста, укажите путь к retroarch.exe в Настройках или поместите его в папку приложения.");
+            return;
+        }
+
+        string workDir = Path.GetDirectoryName(exe) ?? AppDir;
         string args = $"-L \"{corePath}\" \"{item.FilePath}\"";
 
         try
@@ -226,40 +274,85 @@ public static class CoreManager
             {
                 FileName = exe,
                 Arguments = args,
-                WorkingDirectory = AppDir,
-                UseShellExecute = true
+                WorkingDirectory = workDir,
+                UseShellExecute = false
             };
 
-            // Inject Low-Latency settings
-            psi.Environment["LIBRETRO_VIDEO_DRIVER"] = SettingsManager.Current.VideoDriver;
-            if (SettingsManager.Current.PreemptiveFrames)
+            // Inject low-latency settings from RetroArchConfigManager or SettingsManager
+            psi.Environment["LIBRETRO_VIDEO_DRIVER"] = RetroArchConfigManager.GetString("video_driver", SettingsManager.Current.VideoDriver);
+            if (RetroArchConfigManager.GetBool("preemptive_frames_enable", SettingsManager.Current.PreemptiveFrames))
                 psi.Environment["LIBRETRO_RUNAHEAD"] = "1";
 
             Process.Start(psi);
             item.StatusText = LocalizationManager.GetString("StatusRunning");
+            item.LastPlayed = DateTime.Now;
+            MainWindow.Instance?.RecordGameHistory(item);
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Ошибка запуска эмулятора: {ex.Message}\nКоманда: {exe} {args}", "STORM RETROARCH", MessageBoxButton.OK, MessageBoxImage.Error);
+            MainWindow.Instance?.ShowNotification(
+                "STORM RETROARCH",
+                $"Ошибка запуска эмулятора:\n{ex.Message}\nКоманда: {exe} {args}");
         }
     }
 
     public static void LaunchOzone()
     {
         string exe = FindRetroArchExecutable();
+        if (!File.Exists(exe))
+        {
+            MainWindow.Instance?.ShowNotification(
+                "STORM RETROARCH",
+                $"Исполняемый файл RetroArch не найден:\n{exe}\nПожалуйста, укажите путь к retroarch.exe в Настройках.");
+            return;
+        }
+
+        string workDir = Path.GetDirectoryName(exe) ?? AppDir;
         try
         {
             Process.Start(new ProcessStartInfo
             {
                 FileName = exe,
                 Arguments = "--menu -f",
-                WorkingDirectory = AppDir,
-                UseShellExecute = true
+                WorkingDirectory = workDir,
+                UseShellExecute = false
             });
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Не удалось запустить RetroArch Ozone: {ex.Message}", "STORM RETROARCH", MessageBoxButton.OK, MessageBoxImage.Error);
+            MainWindow.Instance?.ShowNotification(
+                "STORM RETROARCH",
+                $"Не удалось запустить RetroArch Ozone:\n{ex.Message}");
+        }
+    }
+
+    public static void LaunchDesktopQt()
+    {
+        string exe = FindRetroArchExecutable();
+        if (!File.Exists(exe))
+        {
+            MainWindow.Instance?.ShowNotification(
+                "STORM RETROARCH",
+                $"Исполняемый файл RetroArch не найден:\n{exe}\nПожалуйста, укажите путь к retroarch.exe в Настройках.");
+            return;
+        }
+
+        string workDir = Path.GetDirectoryName(exe) ?? AppDir;
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = exe,
+                Arguments = "--menu --ui-companion-start-on-boot",
+                WorkingDirectory = workDir,
+                UseShellExecute = false
+            });
+        }
+        catch (Exception ex)
+        {
+            MainWindow.Instance?.ShowNotification(
+                "STORM RETROARCH",
+                $"Не удалось запустить десктопное меню Qt:\n{ex.Message}");
         }
     }
 }

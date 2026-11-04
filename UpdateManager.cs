@@ -292,12 +292,12 @@ public static class UpdateManager
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Не удалось запустить файл обновления: {ex.Message}", "STORM RETROARCH", MessageBoxButton.OK, MessageBoxImage.Error);
+                MainWindow.Instance?.ShowNotification("STORM RETROARCH", $"Не удалось запустить файл обновления: {ex.Message}");
             }
         }
         else
         {
-            MessageBox.Show("Не удалось загрузить файл установщика. Попробуйте обновиться вручную с сайта.", "STORM RETROARCH", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MainWindow.Instance?.ShowNotification("STORM RETROARCH", "Не удалось загрузить файл установщика. Попробуйте обновиться вручную с сайта.");
         }
     }
 
@@ -305,11 +305,7 @@ public static class UpdateManager
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            MessageBox.Show(
-                $"У вас установлена самая актуальная версия STORM RETROARCH {CurrentVersionString}.",
-                "STORM RETROARCH",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            MainWindow.Instance?.ShowNotification("STORM RETROARCH", $"У вас установлена самая актуальная версия STORM RETROARCH {CurrentVersionString}.");
         });
     }
 
@@ -317,11 +313,7 @@ public static class UpdateManager
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            MessageBox.Show(
-                "Не удалось проверить наличие обновлений. Проверьте подключение к сети.",
-                "STORM RETROARCH",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+            MainWindow.Instance?.ShowNotification("STORM RETROARCH", "Не удалось проверить наличие обновлений. Проверьте подключение к сети.");
         });
     }
 }
