@@ -26,6 +26,9 @@ public class RomItem : INotifyPropertyChanged
     private DateTime? _lastPlayed;
     private string _lastPlayedFormatted = "-";
 
+    public string Title => Name;
+    public string Crc32 { get; set; } = "";
+
     public string Name
     {
         get => _name;

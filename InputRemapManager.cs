@@ -18,6 +18,11 @@ public class RemapButtonBinding : INotifyPropertyChanged
     public string Icon { get; set; } = "🔘";
     public string CfgKey { get; set; } = "";
 
+    public string BadgeText { get; set; } = "B";
+    public string BadgeBg { get; set; } = "#258B5CF6";
+    public string BadgeBorder { get; set; } = "#8B5CF6";
+    public string BadgeFg { get; set; } = "#FFFFFF";
+
     public string BoundKey
     {
         get => _boundKey;
@@ -68,22 +73,22 @@ public static class InputRemapManager
 
         var list = new List<RemapButtonBinding>
         {
-            new() { ButtonName = "b", DisplayLabel = "Кнопка B (Низ)", RetroPadRole = "Действие / Отмена / Прыжок", Icon = "🅱️", CfgKey = p + "b" },
-            new() { ButtonName = "y", DisplayLabel = "Кнопка Y (Лево)", RetroPadRole = "Атака / Ускорение / Магия", Icon = "🇾", CfgKey = p + "y" },
-            new() { ButtonName = "select", DisplayLabel = "Select (Выбор)", RetroPadRole = "Переключение предметов / Карта", Icon = "🔘", CfgKey = p + "select" },
-            new() { ButtonName = "start", DisplayLabel = "Start (Старт)", RetroPadRole = "Пауза / Главное меню игры", Icon = "▶️", CfgKey = p + "start" },
-            new() { ButtonName = "up", DisplayLabel = "Крестовина Вверх", RetroPadRole = "Направление вверх", Icon = "⬆️", CfgKey = p + "up" },
-            new() { ButtonName = "down", DisplayLabel = "Крестовина Вниз", RetroPadRole = "Направление вниз / Присесть", Icon = "⬇️", CfgKey = p + "down" },
-            new() { ButtonName = "left", DisplayLabel = "Крестовина Влево", RetroPadRole = "Направление влево", Icon = "⬅️", CfgKey = p + "left" },
-            new() { ButtonName = "right", DisplayLabel = "Крестовина Вправо", RetroPadRole = "Направление вправо", Icon = "➡️", CfgKey = p + "right" },
-            new() { ButtonName = "a", DisplayLabel = "Кнопка A (Право)", RetroPadRole = "Подтверждение / Огонь", Icon = "🅰️", CfgKey = p + "a" },
-            new() { ButtonName = "x", DisplayLabel = "Кнопка X (Верх)", RetroPadRole = "Дополнительное действие / Инвентарь", Icon = "❌", CfgKey = p + "x" },
-            new() { ButtonName = "l", DisplayLabel = "Левый шифт L1", RetroPadRole = "Смена оружия влево / Блок", Icon = "◀️", CfgKey = p + "l" },
-            new() { ButtonName = "r", DisplayLabel = "Правый шифт R1", RetroPadRole = "Смена оружия вправо / Прицел", Icon = "▶️", CfgKey = p + "r" },
-            new() { ButtonName = "l2", DisplayLabel = "Левый триггер L2", RetroPadRole = "Аналоговый газ / Тормоз / Спецудар", Icon = "⏮️", CfgKey = p + "l2" },
-            new() { ButtonName = "r2", DisplayLabel = "Правый триггер R2", RetroPadRole = "Аналоговый огонь / Защита", Icon = "⏭️", CfgKey = p + "r2" },
-            new() { ButtonName = "l3", DisplayLabel = "Нажатие левого стика L3", RetroPadRole = "Бег / Центрирование камеры", Icon = "🕹️", CfgKey = p + "l3" },
-            new() { ButtonName = "r3", DisplayLabel = "Нажатие правого стика R3", RetroPadRole = "Присед / Смена вида", Icon = "🕹️", CfgKey = p + "r3" }
+            new() { ButtonName = "b", DisplayLabel = "Кнопка B (Низ)", RetroPadRole = "Действие / Отмена / Прыжок", Icon = "🅱️", CfgKey = p + "b", BadgeText = "B", BadgeBg = "#25EF4444", BadgeBorder = "#EF4444", BadgeFg = "#FCA5A5" },
+            new() { ButtonName = "y", DisplayLabel = "Кнопка Y (Лево)", RetroPadRole = "Атака / Ускорение / Магия", Icon = "🇾", CfgKey = p + "y", BadgeText = "Y", BadgeBg = "#2538BDF8", BadgeBorder = "#38BDF8", BadgeFg = "#7DD3FC" },
+            new() { ButtonName = "select", DisplayLabel = "Select (Выбор)", RetroPadRole = "Переключение предметов / Карта", Icon = "🔘", CfgKey = p + "select", BadgeText = "SEL", BadgeBg = "#2564748B", BadgeBorder = "#64748B", BadgeFg = "#E2E8F0" },
+            new() { ButtonName = "start", DisplayLabel = "Start (Старт)", RetroPadRole = "Пауза / Главное меню игры", Icon = "▶️", CfgKey = p + "start", BadgeText = "STA", BadgeBg = "#2564748B", BadgeBorder = "#64748B", BadgeFg = "#E2E8F0" },
+            new() { ButtonName = "up", DisplayLabel = "Крестовина Вверх", RetroPadRole = "Направление вверх", Icon = "⬆️", CfgKey = p + "up", BadgeText = "▲", BadgeBg = "#258B5CF6", BadgeBorder = "#8B5CF6", BadgeFg = "#C4B5FD" },
+            new() { ButtonName = "down", DisplayLabel = "Крестовина Вниз", RetroPadRole = "Направление вниз / Присесть", Icon = "⬇️", CfgKey = p + "down", BadgeText = "▼", BadgeBg = "#258B5CF6", BadgeBorder = "#8B5CF6", BadgeFg = "#C4B5FD" },
+            new() { ButtonName = "left", DisplayLabel = "Крестовина Влево", RetroPadRole = "Направление влево", Icon = "⬅️", CfgKey = p + "left", BadgeText = "◄", BadgeBg = "#258B5CF6", BadgeBorder = "#8B5CF6", BadgeFg = "#C4B5FD" },
+            new() { ButtonName = "right", DisplayLabel = "Крестовина Вправо", RetroPadRole = "Направление вправо", Icon = "➡️", CfgKey = p + "right", BadgeText = "►", BadgeBg = "#258B5CF6", BadgeBorder = "#8B5CF6", BadgeFg = "#C4B5FD" },
+            new() { ButtonName = "a", DisplayLabel = "Кнопка A (Право)", RetroPadRole = "Подтверждение / Огонь", Icon = "🅰️", CfgKey = p + "a", BadgeText = "A", BadgeBg = "#2510B981", BadgeBorder = "#10B981", BadgeFg = "#6EE7B7" },
+            new() { ButtonName = "x", DisplayLabel = "Кнопка X (Верх)", RetroPadRole = "Дополнительное действие / Инвентарь", Icon = "❌", CfgKey = p + "x", BadgeText = "X", BadgeBg = "#25FBBF24", BadgeBorder = "#FBBF24", BadgeFg = "#FDE047" },
+            new() { ButtonName = "l", DisplayLabel = "Левый шифт L1", RetroPadRole = "Смена оружия влево / Блок", Icon = "◀️", CfgKey = p + "l", BadgeText = "L1", BadgeBg = "#25EC4899", BadgeBorder = "#EC4899", BadgeFg = "#F472B6" },
+            new() { ButtonName = "r", DisplayLabel = "Правый шифт R1", RetroPadRole = "Смена оружия вправо / Прицел", Icon = "▶️", CfgKey = p + "r", BadgeText = "R1", BadgeBg = "#25EC4899", BadgeBorder = "#EC4899", BadgeFg = "#F472B6" },
+            new() { ButtonName = "l2", DisplayLabel = "Левый триггер L2", RetroPadRole = "Аналоговый газ / Тормоз / Спецудар", Icon = "⏮️", CfgKey = p + "l2", BadgeText = "L2", BadgeBg = "#25A855F7", BadgeBorder = "#A855F7", BadgeFg = "#C084FC" },
+            new() { ButtonName = "r2", DisplayLabel = "Правый триггер R2", RetroPadRole = "Аналоговый огонь / Защита", Icon = "⏭️", CfgKey = p + "r2", BadgeText = "R2", BadgeBg = "#25A855F7", BadgeBorder = "#A855F7", BadgeFg = "#C084FC" },
+            new() { ButtonName = "l3", DisplayLabel = "Нажатие левого стика L3", RetroPadRole = "Бег / Центрирование камеры", Icon = "🕹️", CfgKey = p + "l3", BadgeText = "L3", BadgeBg = "#2506B6D4", BadgeBorder = "#06B6D4", BadgeFg = "#67E8F9" },
+            new() { ButtonName = "r3", DisplayLabel = "Нажатие правого стика R3", RetroPadRole = "Присед / Смена вида", Icon = "🕹️", CfgKey = p + "r3", BadgeText = "R3", BadgeBg = "#2506B6D4", BadgeBorder = "#06B6D4", BadgeFg = "#67E8F9" }
         };
 
         // Load values from retroarch.cfg

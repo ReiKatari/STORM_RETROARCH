@@ -31,6 +31,35 @@ public class CoreOptionItem : INotifyPropertyChanged
         }
     }
 
+    public void EnsureValueInOptions()
+    {
+        if (Options == null) Options = new();
+        if (Options.Count == 0)
+        {
+            if (!string.IsNullOrEmpty(Value)) Options.Add(Value);
+            else Options.Add("enabled");
+        }
+
+        if (string.IsNullOrEmpty(Value))
+        {
+            Value = Options[0];
+            return;
+        }
+
+        if (!Options.Contains(Value))
+        {
+            var match = Options.FirstOrDefault(o => o.StartsWith(Value, StringComparison.OrdinalIgnoreCase) || Value.StartsWith(o, StringComparison.OrdinalIgnoreCase));
+            if (match != null)
+            {
+                Value = match;
+            }
+            else
+            {
+                Options.Insert(0, Value);
+            }
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
     protected void OnPropertyChanged([CallerMemberName] string? name = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
@@ -60,7 +89,7 @@ public static class CoreOptionsAndOverridesManager
             CoreName = "SwanStation", DisplayName = "SwanStation (Sony PlayStation 1)", Platform = "Sony PS1", Icon = "🎮",
             Options = new()
             {
-                new() { Key = "swanstation_ResolutionScale", Title = "Внутреннее разрешение 3D", Description = "Апскейл геометрии и полигонов (1x..8x 4K)", CoreName = "SwanStation", Value = "4x", Options = new() { "1x (Native 240p)", "2x (720p)", "3x (1080p)", "4x (1440p)", "8x (4K UHD)" } },
+                new() { Key = "swanstation_ResolutionScale", Title = "Внутреннее разрешение 3D", Description = "Апскейл геометрии и полигонов (1x..8x 4K)", CoreName = "SwanStation", Value = "4x (1440p)", Options = new() { "1x (Native 240p)", "2x (720p)", "3x (1080p)", "4x (1440p)", "8x (4K UHD)" } },
                 new() { Key = "swanstation_PGXP_Enable", Title = "PGXP коррекция геометрии", Description = "Устранение дрожания текстур и полигонов оригинальной PS1", CoreName = "SwanStation", Value = "enabled", Options = new() { "disabled", "enabled", "memory_only" } },
                 new() { Key = "swanstation_PGXP_TextureCorrection", Title = "PGXP коррекция перспективы текстур", Description = "Сглаживание растяжения текстур в 3D пространстве", CoreName = "SwanStation", Value = "enabled", Options = new() { "disabled", "enabled" } },
                 new() { Key = "swanstation_WidescreenHack", Title = "Широкоэкранный хак (16:9 Widescreen)", Description = "Рендеринг 3D-мира в формате 16:9 без растяжения 2D элементов", CoreName = "SwanStation", Value = "disabled", Options = new() { "disabled", "enabled" } },
@@ -178,6 +207,13 @@ public static class CoreOptionsAndOverridesManager
             }
         });
 
+        foreach (var p in profiles)
+        {
+            foreach (var opt in p.Options)
+            {
+                opt.EnsureValueInOptions();
+            }
+        }
         return profiles;
     }
 

@@ -77,10 +77,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private int _selectedRemapPlayerIndex = 1;
     private readonly ObservableCollection<RemapButtonBinding> _currentRemapBindings = new();
 
-    private readonly ObservableCollection<AchievementItem> _allAchievements = new();
-    private readonly ObservableCollection<AchievementItem> _filteredAchievements = new();
-    private string _selectedCheevosFilter = "Все трофеи";
-
+    private readonly ObservableCollection<CheevosGameSupportItem> _allAchievements = new();
+    private readonly ObservableCollection<CheevosGameSupportItem> _filteredAchievements = new();
+    
     private readonly List<string> _selectedM3uFiles = new();
 
     // Collections
@@ -215,7 +214,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ItemsBezels.ItemsSource = _filteredBezels;
         ItemsCoreOptions.ItemsSource = _currentCoreOptions;
         ItemsInputRemap.ItemsSource = _currentRemapBindings;
-        ItemsAchievements.ItemsSource = _filteredAchievements;
+        ItemsCheevosLibrary.ItemsSource = _filteredAchievements;
 
         // Ensure UDP Command Bridge
         UdpCommandBridge.EnsureNetworkCommandConfig();
@@ -265,7 +264,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         // Initialize 5 Flagship Systems
         InitSmartProfiles();
-        InitAiWalkthrough();
+        InitAiStudio();
         InitSaveSync();
         InitTelemetryTimer();
 
@@ -300,7 +299,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 cmdArgs[i].Equals("--screenshot-settings-vectors", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-about-modal", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-cores-populated", StringComparison.OrdinalIgnoreCase) ||
-                cmdArgs[i].Equals("--screenshot-new-features", StringComparison.OrdinalIgnoreCase))
+                cmdArgs[i].Equals("--screenshot-new-features", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-fix1-library", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-fix2-core-options", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-fix3-gamepads", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-fix4-bios", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-fix5-savesync", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-fix6-achievements", StringComparison.OrdinalIgnoreCase))
             {
                 bool isSettings = cmdArgs[i].Equals("--screenshot-settings", StringComparison.OrdinalIgnoreCase);
                 bool isBios = cmdArgs[i].Equals("--screenshot-bios", StringComparison.OrdinalIgnoreCase);
@@ -315,6 +320,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 bool isAboutModal = cmdArgs[i].Equals("--screenshot-about-modal", StringComparison.OrdinalIgnoreCase);
                 bool isCoresPopulated = cmdArgs[i].Equals("--screenshot-cores-populated", StringComparison.OrdinalIgnoreCase);
                 bool isNewFeatures = cmdArgs[i].Equals("--screenshot-new-features", StringComparison.OrdinalIgnoreCase);
+                bool isFix1 = cmdArgs[i].Equals("--screenshot-fix1-library", StringComparison.OrdinalIgnoreCase);
+                bool isFix2 = cmdArgs[i].Equals("--screenshot-fix2-core-options", StringComparison.OrdinalIgnoreCase);
+                bool isFix3 = cmdArgs[i].Equals("--screenshot-fix3-gamepads", StringComparison.OrdinalIgnoreCase);
+                bool isFix4 = cmdArgs[i].Equals("--screenshot-fix4-bios", StringComparison.OrdinalIgnoreCase);
+                bool isFix5 = cmdArgs[i].Equals("--screenshot-fix5-savesync", StringComparison.OrdinalIgnoreCase);
+                bool isFix6 = cmdArgs[i].Equals("--screenshot-fix6-achievements", StringComparison.OrdinalIgnoreCase);
                 string shotPath = cmdArgs[i + 1];
 
                 Dispatcher.BeginInvoke(new Action(() =>
@@ -374,6 +385,33 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                         {
                             PnlTelemetryOverlay.Visibility = Visibility.Visible;
                             NavBtn_Click(NavBtnSaveSync, new RoutedEventArgs());
+                        }
+                        else if (isFix1)
+                        {
+                            NavBtn_Click(NavBtnLibrary, new RoutedEventArgs());
+                            EmptyStateBorder.Visibility = Visibility.Visible;
+                        }
+                        else if (isFix2)
+                        {
+                            NavBtn_Click(NavBtnCoreOptions, new RoutedEventArgs());
+                            if (WrapCoreChips.Children.Count > 0 && WrapCoreChips.Children[0] is Button b)
+                                BtnCoreProfile_Click(b, new RoutedEventArgs());
+                        }
+                        else if (isFix3)
+                        {
+                            NavBtn_Click(NavBtnInputRemap, new RoutedEventArgs());
+                        }
+                        else if (isFix4)
+                        {
+                            NavBtn_Click(NavBtnBios, new RoutedEventArgs());
+                        }
+                        else if (isFix5)
+                        {
+                            NavBtn_Click(NavBtnSaveSync, new RoutedEventArgs());
+                        }
+                        else if (isFix6)
+                        {
+                            NavBtn_Click(NavBtnAchievements, new RoutedEventArgs());
                         }
                         UpdateLayout();
                         int w = Math.Max(1160, (int)ActualWidth);
@@ -751,13 +789,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ScrollSaveSyncCompact.Visibility = (_currentViewMode == ViewDisplayMode.Compact) ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        // AI Walkthrough views
-        if (ScrollAiHintsTiles != null)
-        {
-            ScrollAiHintsTiles.Visibility = (_currentViewMode == ViewDisplayMode.Bento) ? Visibility.Visible : Visibility.Collapsed;
-            ScrollAiHintsList.Visibility = (_currentViewMode == ViewDisplayMode.Ozone) ? Visibility.Visible : Visibility.Collapsed;
-            ScrollAiHintsCompact.Visibility = (_currentViewMode == ViewDisplayMode.Compact) ? Visibility.Visible : Visibility.Collapsed;
-        }
+
 
         // 2. Games library view modes
         GamesBentoScroll.Visibility = (_currentViewMode == ViewDisplayMode.Bento) ? Visibility.Visible : Visibility.Collapsed;
@@ -1715,6 +1747,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         RefreshCoresUi();
     }
 
+    private void BtnUpdateCores_Click(object sender, RoutedEventArgs e) => RefreshCoresUi();
+
     private void BtnCoreFilter_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button btn) return;
@@ -1799,6 +1833,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         try { Process.Start(new ProcessStartInfo { FileName = ShaderManager.ShadersDir, UseShellExecute = true }); }
         catch (Exception ex) { ShowNotification($"Ошибка открытия папки: {ex.Message}"); }
     }
+
+    private void BtnRefreshShaders_Click(object sender, RoutedEventArgs e) => BtnUpdateShadersDirect_Click(sender, e);
 
     private void BtnUpdateShadersDirect_Click(object sender, RoutedEventArgs e)
     {
@@ -1947,7 +1983,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             {
                 "Установленные" => b.IsInstalled,
                 "Отсутствующие" => !b.IsInstalled,
-                _ => true
+                "Все платформы" or "Все файлы" or "" => true,
+                _ => b.PlatformCategory.Equals(_selectedBiosFilter, StringComparison.OrdinalIgnoreCase) ||
+                     b.Platform.IndexOf(_selectedBiosFilter, StringComparison.OrdinalIgnoreCase) >= 0
             };
 
             bool matchQuery = string.IsNullOrEmpty(query) ||
@@ -2186,14 +2224,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Fallback authentic sample lobby rooms
-            list.Add(new NetplayRoomItem("RetroMaster_RU", "Super Mario Kart (USA)", "Snes9x", "RU", "185.12.94.10:55435", "1.19.1"));
-            list.Add(new NetplayRoomItem("SonicFan_EU", "Streets of Rage 2 (USA)", "Genesis Plus GX", "DE", "195.201.44.82:55435", "1.19.1"));
-            list.Add(new NetplayRoomItem("TekkenKing", "Tekken 3 (USA)", "SwanStation", "US", "192.168.1.100:55435", "1.19.1"));
-            list.Add(new NetplayRoomItem("MetalSlugger", "Metal Slug 3 (MVS)", "FBNeo", "JP", "210.140.10.55:55435", "1.19.1"));
-            list.Add(new NetplayRoomItem("Mario64_Racer", "F-Zero X (USA)", "Mupen64Plus-Next", "FR", "51.15.22.4:55435", "1.19.1"));
+            Debug.WriteLine($"[Netplay Lobby Fetch Error]: {ex.Message}");
         }
         return list;
     }
@@ -2513,56 +2546,62 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ShowNotification("STORM RETROARCH", $"Кнопки Игрока {_selectedRemapPlayerIndex} сброшены на стандартные.");
     }
 
-    // ==================== RETROACHIEVEMENTS ====================
+    // ==================== RETROACHIEVEMENTS STUDIO ====================
 
     private void LoadAchievements()
     {
-        var list = AchievementsManager.GetSampleAchievements();
-        _allAchievements.Clear();
-        foreach (var a in list) _allAchievements.Add(a);
-        ChkCheevosHardcore.IsChecked = AchievementsManager.IsHardcoreEnabled;
-        TxtCheevosUser.Text = AchievementsManager.Username;
-        ApplyAchievementsFilter();
+        TxtCheevosUsername.Text = AchievementsManager.Username;
+        TxtCheevosToken.Text = string.IsNullOrEmpty(AchievementsManager.Token) ? AchievementsManager.Password : AchievementsManager.Token;
+
+        ChkCheevosEnable.IsChecked = AchievementsManager.EnableCheevos;
+        ChkCheevosHardcore.IsChecked = AchievementsManager.HardcoreMode;
+        ChkCheevosLeaderboards.IsChecked = AchievementsManager.Leaderboards;
+        ChkCheevosRichPresence.IsChecked = AchievementsManager.RichPresence;
+        ChkCheevosBadges.IsChecked = AchievementsManager.Badges;
+        ChkCheevosAutoScreenshot.IsChecked = AchievementsManager.AutoScreenshot;
+        ChkCheevosTestUnofficial.IsChecked = AchievementsManager.TestUnofficial;
+
+        _filteredAchievements.Clear();
+        var scanned = AchievementsManager.ScanLibraryGamesForCheevos(_allGames);
+        foreach (var item in scanned) _filteredAchievements.Add(item);
+        TxtCheevosLibraryCount.Text = $"{_filteredAchievements.Count} игр в библиотеке";
+        ItemsCheevosLibrary.ItemsSource = _filteredAchievements;
     }
 
-    private void ApplyAchievementsFilter()
+    private void BtnSaveCheevosAccount_Click(object sender, RoutedEventArgs e)
     {
-        _filteredAchievements.Clear();
-        foreach (var a in _allAchievements)
-        {
-            bool match = _selectedCheevosFilter switch
-            {
-                "Открытые" => a.IsUnlocked,
-                "Закрытые" => !a.IsUnlocked,
-                _ => true
-            };
-            if (match) _filteredAchievements.Add(a);
-        }
+        AchievementsManager.Username = TxtCheevosUsername.Text.Trim();
+        string tokenOrPwd = TxtCheevosToken.Text.Trim();
+        AchievementsManager.Token = tokenOrPwd;
+        AchievementsManager.Password = tokenOrPwd;
+        ShowNotification("STORM RETROARCH", "Учётные данные RetroAchievements сохранены в retroarch.cfg!");
+    }
+
+    private void BtnOpenCheevosProfile_Click(object sender, RoutedEventArgs e)
+    {
+        AchievementsManager.OpenUserProfile();
+    }
+
+    private void ChkCheevosOption_Click(object sender, RoutedEventArgs e)
+    {
+        AchievementsManager.EnableCheevos = ChkCheevosEnable.IsChecked == true;
+        AchievementsManager.HardcoreMode = ChkCheevosHardcore.IsChecked == true;
+        AchievementsManager.Leaderboards = ChkCheevosLeaderboards.IsChecked == true;
+        AchievementsManager.RichPresence = ChkCheevosRichPresence.IsChecked == true;
+        AchievementsManager.Badges = ChkCheevosBadges.IsChecked == true;
+        AchievementsManager.AutoScreenshot = ChkCheevosAutoScreenshot.IsChecked == true;
+        AchievementsManager.TestUnofficial = ChkCheevosTestUnofficial.IsChecked == true;
+        ShowNotification("STORM RETROARCH", "Параметры RetroAchievements обновлены в конфигурации!");
     }
 
     private void BtnRefreshAchievements_Click(object sender, RoutedEventArgs e) => LoadAchievements();
 
     private void ChkCheevosHardcore_Click(object sender, RoutedEventArgs e)
     {
-        AchievementsManager.IsHardcoreEnabled = ChkCheevosHardcore.IsChecked == true;
-        ShowNotification("STORM RETROARCH", AchievementsManager.IsHardcoreEnabled
+        AchievementsManager.HardcoreMode = ChkCheevosHardcore.IsChecked == true;
+        ShowNotification("STORM RETROARCH", AchievementsManager.HardcoreMode
             ? "Режим Hardcore включён (блокировка читов, стейтов и перемотки)!"
             : "Режим Softcore включён.");
-    }
-
-    private void BtnCheevosFilter_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button btn) return;
-        if (btn.Parent is Panel p)
-        {
-            foreach (var child in p.Children)
-            {
-                if (child is Button b) b.Tag = null;
-            }
-        }
-        btn.Tag = "Active";
-        _selectedCheevosFilter = btn.Content?.ToString() ?? "Все трофеи";
-        ApplyAchievementsFilter();
     }
 
     // ==================== STREAM & AI SERVICE ====================
@@ -2993,54 +3032,88 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    // ==================== AI WALKTHROUGH & HINT BOOKS ====================
-    private void InitAiWalkthrough()
+    // ==================== AI STUDIO & WALKTHROUGH ENGINE ====================
+
+    private void InitAiStudio()
     {
-        CmbAiGameSelect.Items.Clear();
-        foreach (var hint in AiWalkthroughManager.KnowledgeBase)
+        var screenshots = AiWalkthroughManager.GetAvailableScreenshots();
+        CmbAiScreenshots.Items.Clear();
+        foreach (var s in screenshots)
         {
-            CmbAiGameSelect.Items.Add(new ComboBoxItem
+            CmbAiScreenshots.Items.Add(new ComboBoxItem { Content = Path.GetFileName(s), Tag = s });
+        }
+        if (CmbAiScreenshots.Items.Count > 0)
+        {
+            CmbAiScreenshots.SelectedIndex = 0;
+        }
+        else
+        {
+            TxtNoPreviewPlaceholder.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void CmbAiScreenshots_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (CmbAiScreenshots.SelectedItem is ComboBoxItem item && item.Tag is string path && File.Exists(path))
+        {
+            try
             {
-                Content = $"🎮 {hint.GameName} ({hint.LocationOrBoss})",
-                Tag = hint
-            });
-        }
-        if (CmbAiGameSelect.Items.Count > 0)
-        {
-            CmbAiGameSelect.SelectedIndex = 0;
-        }
-    }
-
-    private void CmbAiGameSelect_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (CmbAiGameSelect.SelectedItem is ComboBoxItem item && item.Tag is GameWalkthroughHint hint)
-        {
-            TxtActiveAiHint.Text = $"📍 Локация/Босс: {hint.LocationOrBoss}\n\n⚔️ Тактика победы:\n{hint.Tactic}\n\n🧩 Решение загадки: {hint.PuzzleSolution}\n\n💎 Секрет: {hint.Secret}";
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.UriSource = new Uri(path);
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.EndInit();
+                ImgAiPreview.Source = bmp;
+                TxtNoPreviewPlaceholder.Visibility = Visibility.Collapsed;
+            }
+            catch
+            {
+                TxtNoPreviewPlaceholder.Visibility = Visibility.Visible;
+            }
         }
     }
 
-    private async void BtnAnalyzeCurrentScene_Click(object sender, RoutedEventArgs e)
+    private async void BtnAskAi_Click(object sender, RoutedEventArgs e)
     {
-        TxtActiveAiHint.Text = "🔍 Анализ игрового кадра и поиск тактики в базе знаний...";
-        string? gameHint = (CmbAiGameSelect.SelectedItem as ComboBoxItem)?.Content?.ToString();
-        string result = await AiWalkthroughManager.GetAiHintForCurrentSceneAsync(gameHint);
-        TxtActiveAiHint.Text = result;
-        ShowNotification("STORM RETROARCH", "ИИ-анализ кадра успешно выполнен!");
+        string prompt = TxtAiPrompt.Text.Trim();
+        string? shotPath = null;
+        if (CmbAiScreenshots.SelectedItem is ComboBoxItem item && item.Tag is string p)
+        {
+            shotPath = p;
+        }
+
+        AiWalkthroughManager.Config.EndpointUrl = TxtAiEndpoint.Text.Trim();
+        AiWalkthroughManager.Config.ModelName = TxtAiModel.Text.Trim();
+
+        TxtAiResult.Text = "⏳ Выполняется анализ сцены и генерация тактики...";
+        TxtAiStatusBadge.Text = "⏳ Анализ...";
+
+        string answer = await AiWalkthroughManager.AskAiAssistantAsync(prompt, shotPath);
+        TxtAiResult.Text = answer;
+        TxtAiStatusBadge.Text = "✓ Анализ готов";
     }
 
     private void BtnSpeakAiHint_Click(object sender, RoutedEventArgs e)
     {
-        string textToSpeak = TxtActiveAiHint.Text;
-        AiWalkthroughManager.SpeakRussianTextAsync(textToSpeak);
-        ShowNotification("STORM RETROARCH", "Голосовое воспроизведение подсказки запущено!");
+        string text = TxtAiResult.Text;
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            AiWalkthroughManager.SpeakRussianTextAsync(text);
+            ShowNotification("STORM RETROARCH", "Голосовое воспроизведение тактики запущено (TTS)!");
+        }
     }
 
     private void BtnGenerateHintBook_Click(object sender, RoutedEventArgs e)
     {
-        string gameTitle = (CmbAiGameSelect.SelectedItem as ComboBoxItem)?.Tag is GameWalkthroughHint h ? h.GameName : "Chrono Trigger";
-        string htmlPath = AiWalkthroughManager.GenerateHtmlHintBook(gameTitle, Directory.GetFiles(Path.Combine(CoreManager.AppDir, "screenshots"), "*.png"));
+        string gameTitle = "Ретро-игра";
+        if (CmbAiScreenshots.SelectedItem is ComboBoxItem item && item.Tag is string p)
+        {
+            gameTitle = Path.GetFileNameWithoutExtension(p);
+        }
+        string? shot = (CmbAiScreenshots.SelectedItem is ComboBoxItem it && it.Tag is string sp) ? sp : null;
+        string htmlPath = AiWalkthroughManager.GenerateHtmlHintBook(gameTitle, shot, TxtAiResult.Text);
         Process.Start(new ProcessStartInfo { FileName = htmlPath, UseShellExecute = true });
-        ShowNotification("STORM RETROARCH", $"Книга подсказок для «{gameTitle}» успешно создана!\n{htmlPath}");
+        ShowNotification("STORM RETROARCH", $"Книга подсказок для «{gameTitle}» успешно создана!\n" + htmlPath);
     }
 
     private void BtnOpenGuidebooksFolder_Click(object sender, RoutedEventArgs e)
@@ -3052,81 +3125,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void RefreshAiWalkthroughUi()
     {
-        PanelAiHintsTiles.Children.Clear();
-        PanelAiHintsList.Children.Clear();
-        PanelAiHintsCompact.Children.Clear();
-
-        foreach (var hint in AiWalkthroughManager.KnowledgeBase)
-        {
-            // 1. Bento Card
-            var card = new Border
-            {
-                Background = (Brush)FindResource("ThemeSurface"),
-                BorderBrush = (Brush)FindResource("ThemeBorder"),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(14),
-                Margin = new Thickness(0, 0, 12, 12),
-                Width = 360
-            };
-            var sp = new StackPanel();
-            sp.Children.Add(new TextBlock { Text = hint.GameName, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("ThemeAccent"), FontSize = 14, Margin = new Thickness(0, 0, 0, 4) });
-            sp.Children.Add(new TextBlock { Text = $"Босс: {hint.LocationOrBoss}", FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("ThemeTextPrimary"), FontSize = 12.5, Margin = new Thickness(0, 0, 0, 6) });
-            sp.Children.Add(new TextBlock { Text = hint.Tactic, Foreground = (Brush)FindResource("ThemeTextSecondary"), TextWrapping = TextWrapping.Wrap, FontSize = 11.5, Margin = new Thickness(0, 0, 0, 8) });
-
-            var btnSelect = new Button { Content = "📋 Открыть тактику", Style = (Style)FindResource("StormAccentButton"), Padding = new Thickness(8, 4, 8, 4), HorizontalAlignment = HorizontalAlignment.Left };
-            btnSelect.Click += (s, e) =>
-            {
-                TxtActiveAiHint.Text = $"📍 Локация/Босс: {hint.LocationOrBoss}\n\n⚔️ Тактика победы:\n{hint.Tactic}\n\n🧩 Решение: {hint.PuzzleSolution}\n\n💎 Секрет: {hint.Secret}";
-            };
-            sp.Children.Add(btnSelect);
-            card.Child = sp;
-            PanelAiHintsTiles.Children.Add(card);
-
-            // 2. Ozone List Row
-            var rowBorder = new Border
-            {
-                Background = (Brush)FindResource("ThemeSurface"),
-                BorderBrush = (Brush)FindResource("ThemeBorder"),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(6),
-                Padding = new Thickness(12, 8, 12, 8),
-                Margin = new Thickness(0, 0, 0, 6)
-            };
-            var rowDock = new DockPanel { LastChildFill = true };
-            var rBtn = new Button { Content = "Выбрать", Style = (Style)FindResource("StormSecondaryButton"), Padding = new Thickness(10, 3, 10, 3) };
-            rBtn.Click += (s, e) =>
-            {
-                TxtActiveAiHint.Text = $"📍 {hint.GameName} • {hint.LocationOrBoss}\n\n⚔️ {hint.Tactic}\n\n🧩 Решение: {hint.PuzzleSolution}\n\n💎 Секрет: {hint.Secret}";
-            };
-            DockPanel.SetDock(rBtn, Dock.Right);
-            rowDock.Children.Add(rBtn);
-
-            var rInfo = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            rInfo.Children.Add(new TextBlock { Text = hint.GameName, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("ThemeAccent"), Width = 200, VerticalAlignment = VerticalAlignment.Center });
-            rInfo.Children.Add(new TextBlock { Text = hint.LocationOrBoss, Foreground = (Brush)FindResource("ThemeTextPrimary"), Width = 220, VerticalAlignment = VerticalAlignment.Center });
-            rInfo.Children.Add(new TextBlock { Text = hint.PuzzleSolution, Foreground = (Brush)FindResource("ThemeTextSecondary"), TextTrimming = TextTrimming.CharacterEllipsis, Width = 300, VerticalAlignment = VerticalAlignment.Center });
-            rowDock.Children.Add(rInfo);
-            rowBorder.Child = rowDock;
-            PanelAiHintsList.Children.Add(rowBorder);
-
-            // 3. Compact Icon Tile
-            var comp = new Border
-            {
-                Background = (Brush)FindResource("ThemeSurface"),
-                BorderBrush = (Brush)FindResource("ThemeBorder"),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(8),
-                Padding = new Thickness(10),
-                Margin = new Thickness(0, 0, 8, 8),
-                Width = 180
-            };
-            var cSp = new StackPanel();
-            cSp.Children.Add(new TextBlock { Text = "🎙️ " + hint.GameName, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("ThemeTextPrimary"), FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis });
-            cSp.Children.Add(new TextBlock { Text = hint.LocationOrBoss, Foreground = (Brush)FindResource("ThemeTextSecondary"), FontSize = 10, Margin = new Thickness(0, 4, 0, 0) });
-            comp.Child = cSp;
-            PanelAiHintsCompact.Children.Add(comp);
-        }
+        InitAiStudio();
     }
 
     // ==================== SHOWCASE & VIDEO CLIP ====================

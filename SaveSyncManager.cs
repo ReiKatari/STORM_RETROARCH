@@ -1,19 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace StormRetroArch;
 
 public enum SyncItemStatus
 {
-    Synchronized,
+    InSync,
     LocalNewer,
     RemoteNewer,
     Conflict,
@@ -23,12 +21,9 @@ public enum SyncItemStatus
 
 public class SyncEntryItem : INotifyPropertyChanged
 {
-    private SyncItemStatus _status = SyncItemStatus.Synchronized;
-    private string _statusText = "✓ Синхронизировано";
-
     public string GameName { get; set; } = "";
     public string FileName { get; set; } = "";
-    public string RelativePath { get; set; } = ""; // e.g. saves/Castlevania.srm
+    public string RelativePath { get; set; } = "";
     public string LocalPath { get; set; } = "";
     public string RemotePath { get; set; } = "";
 
@@ -40,6 +35,18 @@ public class SyncEntryItem : INotifyPropertyChanged
     public DateTime RemoteModifiedUtc { get; set; }
     public string RemoteSha256 { get; set; } = "";
 
+    public bool LocalExists => !string.IsNullOrEmpty(LocalPath) && File.Exists(LocalPath);
+    public bool RemoteExists => !string.IsNullOrEmpty(RemotePath) && File.Exists(RemotePath);
+
+    public string LocalDisplay => LocalExists 
+        ? $"{LocalSize / 1024.0:F1} КБ ({LocalModifiedUtc.ToLocalTime():yyyy-MM-dd HH:mm})"
+        : "Отсутствует на ПК";
+
+    public string RemoteDisplay => RemoteExists 
+        ? $"{RemoteSize / 1024.0:F1} КБ ({RemoteModifiedUtc.ToLocalTime():yyyy-MM-dd HH:mm})"
+        : "Отсутствует в облаке";
+
+    private SyncItemStatus _status;
     public SyncItemStatus Status
     {
         get => _status;
@@ -49,26 +56,68 @@ public class SyncEntryItem : INotifyPropertyChanged
             {
                 _status = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(StatusText));
                 OnPropertyChanged(nameof(StatusColor));
+                OnPropertyChanged(nameof(BadgeBg));
+                OnPropertyChanged(nameof(BadgeBorder));
+                OnPropertyChanged(nameof(BadgeText));
             }
         }
     }
 
-    public string StatusText
+    public string StatusText => Status switch
     {
-        get => _statusText;
-        set { if (_statusText != value) { _statusText = value; OnPropertyChanged(); } }
-    }
+        SyncItemStatus.InSync => "✓ Синхронизировано",
+        SyncItemStatus.LocalNewer => "⬆ На ПК новее",
+        SyncItemStatus.RemoteNewer => "⬇ В облаке новее",
+        SyncItemStatus.Conflict => "⚠️ Конфликт версий",
+        SyncItemStatus.LocalOnly => "Только на ПК",
+        SyncItemStatus.RemoteOnly => "Только в облаке",
+        _ => "Неизвестно"
+    };
 
     public string StatusColor => Status switch
     {
-        SyncItemStatus.Synchronized => "#10B981", // Green
-        SyncItemStatus.LocalNewer => "#38BDF8",    // Cyan
-        SyncItemStatus.RemoteNewer => "#A78BFA",   // Violet
-        SyncItemStatus.Conflict => "#F59E0B",      // Amber
-        SyncItemStatus.LocalOnly => "#60A5FA",     // Blue
-        SyncItemStatus.RemoteOnly => "#C084FC",    // Purple
-        _ => "#94A3B8"
+        SyncItemStatus.InSync => "#10B981",
+        SyncItemStatus.LocalNewer => "#38BDF8",
+        SyncItemStatus.RemoteNewer => "#A78BFA",
+        SyncItemStatus.Conflict => "#EF4444",
+        SyncItemStatus.LocalOnly => "#FBBF24",
+        SyncItemStatus.RemoteOnly => "#F59E0B",
+        _ => "#9CA3AF"
+    };
+
+    public string BadgeBg => Status switch
+    {
+        SyncItemStatus.InSync => "#1A10B981",
+        SyncItemStatus.LocalNewer => "#1A38BDF8",
+        SyncItemStatus.RemoteNewer => "#1AA78BFA",
+        SyncItemStatus.Conflict => "#1AEF4444",
+        SyncItemStatus.LocalOnly => "#1AFBBF24",
+        SyncItemStatus.RemoteOnly => "#1AF59E0B",
+        _ => "#1A9CA3AF"
+    };
+
+    public string BadgeBorder => Status switch
+    {
+        SyncItemStatus.InSync => "#10B981",
+        SyncItemStatus.LocalNewer => "#38BDF8",
+        SyncItemStatus.RemoteNewer => "#A78BFA",
+        SyncItemStatus.Conflict => "#EF4444",
+        SyncItemStatus.LocalOnly => "#FBBF24",
+        SyncItemStatus.RemoteOnly => "#F59E0B",
+        _ => "#9CA3AF"
+    };
+
+    public string BadgeText => Status switch
+    {
+        SyncItemStatus.InSync => "#6EE7B7",
+        SyncItemStatus.LocalNewer => "#7DD3FC",
+        SyncItemStatus.RemoteNewer => "#DDD6FE",
+        SyncItemStatus.Conflict => "#FCA5A5",
+        SyncItemStatus.LocalOnly => "#FDE047",
+        SyncItemStatus.RemoteOnly => "#FDE047",
+        _ => "#D1D5DB"
     };
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -91,19 +140,13 @@ public static class SaveSyncManager
                 return SettingsManager.Current.CloudSyncFolder;
             }
 
-            // Default to OneDrive or Documents\STORM RETROARCH Cloud
             string oneDrive = Environment.GetEnvironmentVariable("OneDrive") ?? "";
             if (!string.IsNullOrEmpty(oneDrive) && Directory.Exists(oneDrive))
             {
-                string p = Path.Combine(oneDrive, "STORM RETROARCH Cloud");
-                if (!Directory.Exists(p)) Directory.CreateDirectory(p);
-                return p;
+                return Path.Combine(oneDrive, "STORM RETROARCH Saves");
             }
 
-            string userDocs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            string cloud = Path.Combine(userDocs, "STORM RETROARCH Cloud");
-            if (!Directory.Exists(cloud)) Directory.CreateDirectory(cloud);
-            return cloud;
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "STORM RETROARCH Cloud");
         }
         set
         {
@@ -123,21 +166,18 @@ public static class SaveSyncManager
             if (!Directory.Exists(LocalStatesDir)) Directory.CreateDirectory(LocalStatesDir);
             if (!Directory.Exists(cloudDir)) Directory.CreateDirectory(cloudDir);
 
-            string cloudSavesDir = Path.Combine(cloudDir, "saves");
-            string cloudStatesDir = Path.Combine(cloudDir, "states");
-            if (!Directory.Exists(cloudSavesDir)) Directory.CreateDirectory(cloudSavesDir);
-            if (!Directory.Exists(cloudStatesDir)) Directory.CreateDirectory(cloudStatesDir);
-
-            // Gather local files
+            // Gather real local files
             var localFiles = Directory.GetFiles(LocalSavesDir, "*.*", SearchOption.AllDirectories)
                 .Concat(Directory.GetFiles(LocalStatesDir, "*.*", SearchOption.AllDirectories))
-                .Where(f => !f.EndsWith(".tmp") && !f.EndsWith(".bak"))
+                .Where(f => !f.EndsWith(".tmp") && !f.EndsWith(".bak") && !f.EndsWith(".gitkeep"))
                 .ToList();
 
-            // Gather cloud files
-            var cloudFiles = Directory.GetFiles(cloudDir, "*.*", SearchOption.AllDirectories)
-                .Where(f => !f.EndsWith(".tmp") && !f.EndsWith(".bak"))
-                .ToList();
+            // Gather real cloud files
+            var cloudFiles = Directory.Exists(cloudDir)
+                ? Directory.GetFiles(cloudDir, "*.*", SearchOption.AllDirectories)
+                    .Where(f => !f.EndsWith(".tmp") && !f.EndsWith(".bak") && !f.EndsWith(".gitkeep"))
+                    .ToList()
+                : new List<string>();
 
             var allRelativeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -170,71 +210,55 @@ public static class SaveSyncManager
                     RemotePath = remotePath
                 };
 
-                if (localExists && !remoteExists)
+                if (localExists)
                 {
                     var fi = new FileInfo(localPath);
                     item.LocalSize = fi.Length;
                     item.LocalModifiedUtc = fi.LastWriteTimeUtc;
                     item.LocalSha256 = ComputeSha256(localPath);
-                    item.Status = SyncItemStatus.LocalOnly;
-                    item.StatusText = "⬆️ Только на ПК (Готов к отправке)";
                 }
-                else if (!localExists && remoteExists)
+
+                if (remoteExists)
                 {
                     var fi = new FileInfo(remotePath);
                     item.RemoteSize = fi.Length;
                     item.RemoteModifiedUtc = fi.LastWriteTimeUtc;
                     item.RemoteSha256 = ComputeSha256(remotePath);
-                    item.Status = SyncItemStatus.RemoteOnly;
-                    item.StatusText = "⬇️ Только в Облаке/Android (Готов к загрузке)";
                 }
-                else if (localExists && remoteExists)
+
+                // Status classification
+                if (localExists && remoteExists)
                 {
-                    var fiLocal = new FileInfo(localPath);
-                    var fiRemote = new FileInfo(remotePath);
-
-                    item.LocalSize = fiLocal.Length;
-                    item.LocalModifiedUtc = fiLocal.LastWriteTimeUtc;
-                    item.LocalSha256 = ComputeSha256(localPath);
-
-                    item.RemoteSize = fiRemote.Length;
-                    item.RemoteModifiedUtc = fiRemote.LastWriteTimeUtc;
-                    item.RemoteSha256 = ComputeSha256(remotePath);
-
-                    if (item.LocalSha256.Equals(item.RemoteSha256, StringComparison.OrdinalIgnoreCase))
+                    if (item.LocalSha256 == item.RemoteSha256 && item.LocalSha256 != "")
                     {
-                        item.Status = SyncItemStatus.Synchronized;
-                        item.StatusText = "✓ Синхронизировано (Хэши идентичны)";
+                        item.Status = SyncItemStatus.InSync;
                     }
                     else
                     {
-                        var timeDiff = item.LocalModifiedUtc - item.RemoteModifiedUtc;
-                        if (Math.Abs(timeDiff.TotalSeconds) < 2)
-                        {
-                            item.Status = SyncItemStatus.Conflict;
-                            item.StatusText = "⚠️ Конфликт версий (Разное содержимое)";
-                        }
-                        else if (item.LocalModifiedUtc > item.RemoteModifiedUtc)
-                        {
-                            item.Status = SyncItemStatus.LocalNewer;
-                            item.StatusText = $"⬆️ ПК новее на {FormatTimeSpan(timeDiff)}";
-                        }
-                        else
-                        {
-                            item.Status = SyncItemStatus.RemoteNewer;
-                            item.StatusText = $"⬇️ Облако/Android новее на {FormatTimeSpan(-timeDiff)}";
-                        }
+                        var diff = (item.LocalModifiedUtc - item.RemoteModifiedUtc).TotalSeconds;
+                        if (diff > 5) item.Status = SyncItemStatus.LocalNewer;
+                        else if (diff < -5) item.Status = SyncItemStatus.RemoteNewer;
+                        else item.Status = SyncItemStatus.Conflict;
                     }
+                }
+                else if (localExists)
+                {
+                    item.Status = SyncItemStatus.LocalOnly;
+                }
+                else
+                {
+                    item.Status = SyncItemStatus.RemoteOnly;
                 }
 
                 result.Add(item);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[SaveSyncManager Error]: {ex.Message}");
+        }
 
-        return result.OrderBy(r => r.Status == SyncItemStatus.Conflict ? 0 : 1)
-                     .ThenBy(r => r.GameName)
-                     .ToList();
+        return result.OrderBy(x => x.GameName).ToList();
     }
 
     public static void SmartSyncAll(IEnumerable<SyncEntryItem> items)
@@ -243,16 +267,15 @@ public static class SaveSyncManager
         {
             switch (item.Status)
             {
-                case SyncItemStatus.LocalOnly:
                 case SyncItemStatus.LocalNewer:
+                case SyncItemStatus.LocalOnly:
                     UploadToRemote(item);
                     break;
-                case SyncItemStatus.RemoteOnly:
                 case SyncItemStatus.RemoteNewer:
+                case SyncItemStatus.RemoteOnly:
                     DownloadFromRemote(item);
                     break;
                 case SyncItemStatus.Conflict:
-                    // Keep both by backing up local version first, then downloading remote
                     KeepBoth(item);
                     break;
             }
@@ -261,47 +284,87 @@ public static class SaveSyncManager
 
     public static void UploadToRemote(SyncEntryItem item)
     {
+        if (!File.Exists(item.LocalPath)) return;
         try
         {
-            if (!File.Exists(item.LocalPath)) return;
-            string? dir = Path.GetDirectoryName(item.RemotePath);
+            var dir = Path.GetDirectoryName(item.RemotePath);
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-
             File.Copy(item.LocalPath, item.RemotePath, true);
-            item.Status = SyncItemStatus.Synchronized;
-            item.StatusText = "✓ Синхронизировано";
+
+            var fi = new FileInfo(item.RemotePath);
+            item.RemoteSize = fi.Length;
+            item.RemoteModifiedUtc = fi.LastWriteTimeUtc;
+            item.RemoteSha256 = item.LocalSha256;
+            item.Status = SyncItemStatus.InSync;
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Upload Error]: {ex.Message}");
+        }
     }
 
     public static void DownloadFromRemote(SyncEntryItem item)
     {
+        if (!File.Exists(item.RemotePath)) return;
         try
         {
-            if (!File.Exists(item.RemotePath)) return;
-            string? dir = Path.GetDirectoryName(item.LocalPath);
+            var dir = Path.GetDirectoryName(item.LocalPath);
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-
             File.Copy(item.RemotePath, item.LocalPath, true);
-            item.Status = SyncItemStatus.Synchronized;
-            item.StatusText = "✓ Синхронизировано";
+
+            var fi = new FileInfo(item.LocalPath);
+            item.LocalSize = fi.Length;
+            item.LocalModifiedUtc = fi.LastWriteTimeUtc;
+            item.LocalSha256 = item.RemoteSha256;
+            item.Status = SyncItemStatus.InSync;
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[Download Error]: {ex.Message}");
+        }
     }
 
     public static void KeepBoth(SyncEntryItem item)
     {
         try
         {
-            if (File.Exists(item.LocalPath))
+            if (File.Exists(item.RemotePath))
             {
                 string ext = Path.GetExtension(item.LocalPath);
-                string backup = Path.ChangeExtension(item.LocalPath, $".backup_{DateTime.Now:yyyyMMdd_HHmmss}{ext}");
-                File.Copy(item.LocalPath, backup, true);
+                string noExt = Path.ChangeExtension(item.LocalPath, null);
+                string backup = $"{noExt}_Remote_{item.RemoteModifiedUtc.ToLocalTime():yyyyMMdd_HHmmss}{ext}";
+                File.Copy(item.RemotePath, backup, true);
             }
-            DownloadFromRemote(item);
+            UploadToRemote(item);
         }
         catch { }
+    }
+
+    public static string CheckAdbDevices()
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "adb",
+                Arguments = "devices",
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var proc = Process.Start(psi);
+            if (proc != null)
+            {
+                string outText = proc.StandardOutput.ReadToEnd();
+                proc.WaitForExit(3000);
+                return outText;
+            }
+        }
+        catch
+        {
+            return "ADB утилита не найдена в системном PATH.";
+        }
+        return "Устройства не обнаружены.";
     }
 
     private static string ComputeSha256(string filePath)
@@ -309,21 +372,13 @@ public static class SaveSyncManager
         try
         {
             using var sha = SHA256.Create();
-            using var fs = File.OpenRead(filePath);
-            byte[] hash = sha.ComputeHash(fs);
+            using var stream = File.OpenRead(filePath);
+            byte[] hash = sha.ComputeHash(stream);
             return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
         }
         catch
         {
             return "";
         }
-    }
-
-    private static string FormatTimeSpan(TimeSpan ts)
-    {
-        if (ts.TotalDays >= 1) return $"{(int)ts.TotalDays} дн.";
-        if (ts.TotalHours >= 1) return $"{(int)ts.TotalHours} ч.";
-        if (ts.TotalMinutes >= 1) return $"{(int)ts.TotalMinutes} мин.";
-        return $"{(int)ts.TotalSeconds} сек.";
     }
 }
