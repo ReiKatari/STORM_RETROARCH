@@ -77,7 +77,7 @@ namespace StormRetroArch.Installer
     public sealed class InstallerForm : Form
     {
         private const string AppDisplayName = "STORM RETROARCH";
-        private const string AppVersion = "1.1.0";
+        private const string AppVersion = "1.2.0";
         private const string AppFolderName = "STORM RETROARCH";
         private const string ExeName = "STORM RETROARCH.exe";
         private const string IcoName = "AppIcon.ico";
@@ -641,7 +641,7 @@ namespace StormRetroArch.Installer
 
             txtInstallPath = new TextBox
             {
-                Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), AppFolderName),
+                Text = ResolveDefaultInstallPath(),
                 Location = new Point(4, 106),
                 Size = new Size(656, 28),
                 BackColor = Color.FromArgb(22, 18, 42),
@@ -915,10 +915,36 @@ namespace StormRetroArch.Installer
             }
             else
             {
-                txtInstallPath.Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), AppFolderName);
+                txtInstallPath.Text = ResolveDefaultInstallPath();
                 chkDesktop.Checked = true;
                 chkStartMenu.Checked = true;
             }
+        }
+
+        private static string ResolveDefaultInstallPath()
+        {
+            try
+            {
+                foreach (var arg in Environment.GetCommandLineArgs())
+                {
+                    if (arg.StartsWith("--install-dir=", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string p = arg.Substring("--install-dir=".Length).Trim('\"', ' ');
+                        if (!string.IsNullOrWhiteSpace(p)) return p;
+                    }
+                }
+                using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\STORM_RETROARCH");
+                if (key?.GetValue("InstallLocation") is string regLoc && !string.IsNullOrWhiteSpace(regLoc))
+                {
+                    return regLoc;
+                }
+                if (Directory.Exists(@"N:\STORM RETROARCH"))
+                {
+                    return @"N:\STORM RETROARCH";
+                }
+            }
+            catch { }
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), AppFolderName);
         }
 
         private void BtnBrowse_Click(object? sender, EventArgs e)
@@ -951,6 +977,7 @@ namespace StormRetroArch.Installer
                     targetDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), AppFolderName);
                 }
                 Directory.CreateDirectory(targetDir);
+                Directory.CreateDirectory(Path.Combine(targetDir, "save sync"));
 
                 lblStatus.Text = $"Остановка запущенных процессов {AppDisplayName}...";
                 progressBar.Value = 10;

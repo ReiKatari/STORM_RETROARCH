@@ -33,9 +33,18 @@ public static class CoreManager
         string? startDir = Path.GetDirectoryName(Environment.ProcessPath);
         if (string.IsNullOrEmpty(startDir)) startDir = AppDomain.CurrentDomain.BaseDirectory;
 
-        if (Directory.Exists(Path.Combine(startDir, "cores")) &&
-            Directory.Exists(Path.Combine(startDir, "info")))
+        if (File.Exists(Path.Combine(startDir, "STORM RETROARCH.exe")) ||
+            Directory.Exists(Path.Combine(startDir, "cores")))
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.Combine(startDir, "cores"));
+                Directory.CreateDirectory(Path.Combine(startDir, "info"));
+                Directory.CreateDirectory(Path.Combine(startDir, "save sync"));
+            }
+            catch { }
             return startDir;
+        }
 
         string? current = startDir;
         for (int i = 0; i < 4 && current != null; i++)

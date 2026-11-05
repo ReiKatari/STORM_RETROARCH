@@ -187,8 +187,29 @@ public class RomItem : INotifyPropertyChanged
     public bool IsFavorite
     {
         get => _isFavorite;
-        set => SetField(ref _isFavorite, value);
+        set
+        {
+            if (SetField(ref _isFavorite, value))
+            {
+                OnPropertyChanged(nameof(FavoriteIconData));
+                OnPropertyChanged(nameof(FavoriteStarBrush));
+                OnPropertyChanged(nameof(FavoriteBgBrush));
+                OnPropertyChanged(nameof(FavoriteBorderBrush));
+                OnPropertyChanged(nameof(FavoriteLabel));
+                OnPropertyChanged(nameof(FavoriteTooltip));
+            }
+        }
     }
+
+    public string FavoriteIconData => _isFavorite
+        ? "M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
+        : "M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z";
+
+    public string FavoriteStarBrush => _isFavorite ? "#FBBF24" : "#94A3B8";
+    public string FavoriteBgBrush => _isFavorite ? "#28F59E0B" : "#18142C";
+    public string FavoriteBorderBrush => _isFavorite ? "#F59E0B" : "#3A315E";
+    public string FavoriteLabel => _isFavorite ? "В избранном" : "В избранное";
+    public string FavoriteTooltip => _isFavorite ? "В избранном (нажмите, чтобы убрать из Избранного)" : "Добавить игру в Избранное";
 
     public DateTime? LastPlayed
     {

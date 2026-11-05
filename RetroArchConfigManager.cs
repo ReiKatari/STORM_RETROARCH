@@ -22,7 +22,12 @@ public static class RetroArchConfigManager
 
     public static string ResolveConfigPath()
     {
-        // 1. User specified path
+        // 1. Always prioritize the active root installation directory (e.g. N:\STORM RETROARCH\retroarch.cfg)
+        var appDir = CoreManager.AppDir;
+        var appDirCfg = Path.Combine(appDir, "retroarch.cfg");
+        if (File.Exists(appDirCfg)) return appDirCfg;
+
+        // 2. User specified path
         if (!string.IsNullOrWhiteSpace(SettingsManager.Current.RetroArchPath))
         {
             try
@@ -31,13 +36,16 @@ public static class RetroArchConfigManager
                 if (!string.IsNullOrEmpty(dir))
                 {
                     var cand = Path.Combine(dir, "retroarch.cfg");
-                    if (File.Exists(cand)) return cand;
+                    if (File.Exists(cand))
+                    {
+                        try { File.Copy(cand, appDirCfg, false); return appDirCfg; } catch { return cand; }
+                    }
                 }
             }
             catch { }
         }
 
-        // 2. Look next to retroarch executable
+        // 3. Look next to retroarch executable and copy to AppDir if needed
         try
         {
             var exe = CoreManager.FindRetroArchExecutable();
@@ -47,16 +55,14 @@ public static class RetroArchConfigManager
                 if (!string.IsNullOrEmpty(exeDir))
                 {
                     var cand = Path.Combine(exeDir, "retroarch.cfg");
-                    if (File.Exists(cand)) return cand;
+                    if (File.Exists(cand))
+                    {
+                        try { File.Copy(cand, appDirCfg, false); return appDirCfg; } catch { return cand; }
+                    }
                 }
             }
         }
         catch { }
-
-        // 3. AppDir
-        var appDir = CoreManager.AppDir;
-        var appDirCfg = Path.Combine(appDir, "retroarch.cfg");
-        if (File.Exists(appDirCfg)) return appDirCfg;
 
         // 4. Check AppData
         try
@@ -146,7 +152,7 @@ public static class RetroArchConfigManager
                 }
 
                 var sb = new StringBuilder();
-                sb.AppendLine("# STORM RETROARCH 1.1.0 — Unified RetroArch Configuration File");
+                sb.AppendLine("# STORM RETROARCH 1.2.0 — Unified RetroArch Configuration File");
                 sb.AppendLine($"# Last saved: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
                 sb.AppendLine();
 

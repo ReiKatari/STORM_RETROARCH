@@ -26,12 +26,12 @@ public class BoolToStarConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        return value is true ? "[+] " : "[ ] ";
+        return value is true ? "★ Избранное" : "☆ В избранное";
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        return value?.ToString() == "[+] ";
+        return value?.ToString()?.StartsWith("★") == true;
     }
 }
 
@@ -65,19 +65,40 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     protected void OnPropertyChanged([CallerMemberName] string? name = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
+    private bool _isTheaterMode;
+    private int _viewportScaleMode; // 0=Auto, 1=1x, 2=2x, 3=3x, 4=4x
+    private Point _cardDragStartPoint;
+    private bool _isSyncingQuickToggles;
+
     private double _dynamicCardWidth = 380;
     public double DynamicCardWidth
     {
         get => _dynamicCardWidth;
         set
         {
-            if (Math.Abs(_dynamicCardWidth - value) > 0.1)
+            double clamped = Math.Clamp(value, 240, 560);
+            if (Math.Abs(_dynamicCardWidth - clamped) > 0.1)
             {
-                _dynamicCardWidth = value;
+                _dynamicCardWidth = clamped;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(DynamicBentoWidth));
+                OnPropertyChanged(nameof(DynamicBentoHeight));
+                OnPropertyChanged(nameof(DynamicBentoCoverWidth));
+                OnPropertyChanged(nameof(DynamicBentoCoverHeight));
+                OnPropertyChanged(nameof(DynamicCompactWidth));
+                OnPropertyChanged(nameof(DynamicCompactHeight));
+                OnPropertyChanged(nameof(DynamicCompactCoverHeightGridLength));
             }
         }
     }
+
+    public double DynamicBentoWidth => _dynamicCardWidth;
+    public double DynamicBentoHeight => Math.Round(_dynamicCardWidth * 0.465, 0);
+    public double DynamicBentoCoverWidth => Math.Round(_dynamicCardWidth * 0.285, 0);
+    public double DynamicBentoCoverHeight => Math.Max(96, DynamicBentoHeight - 24);
+    public double DynamicCompactWidth => Math.Round(_dynamicCardWidth * 0.52, 0);
+    public double DynamicCompactHeight => Math.Round(DynamicCompactWidth * 1.48, 0);
+    public GridLength DynamicCompactCoverHeightGridLength => new GridLength(Math.Round(DynamicCompactHeight * 0.62, 0));
 
     // Subsystem Collections
     private List<CoreProfileItem> _allCoreProfiles = new();
@@ -397,6 +418,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         InitTelemetryTimer();
 
         ChkToolbarAutoUpdates.IsChecked = SettingsManager.Current.CheckUpdatesOnStartup;
+
+        // Initialize v1.2.0 Scalability, Sidebar, Card Slider, Quick Toggles & Reorderable Dashboard
+        ApplyUiScale(SettingsManager.Current.UiScale, save: false);
+        ApplySidebarState();
+        DynamicCardWidth = SettingsManager.Current.BentoCardWidth;
+        if (SliderCardScale != null) SliderCardScale.Value = DynamicCardWidth;
+        if (TxtCardScaleReadout != null) TxtCardScaleReadout.Text = $"{Math.Round(DynamicCardWidth)} px";
+        ApplyDashboardCardOrder();
+        SyncQuickSettingsCheckboxes();
 
         _isLoaded = true;
 
@@ -796,6 +826,41 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        // Ctrl + Plus / Minus / 0 Global Interface Zoom
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
+        {
+            if (actualKey is Key.OemPlus or Key.Add)
+            {
+                ApplyUiScale(SettingsManager.Current.UiScale + 0.05);
+                e.Handled = true;
+                return;
+            }
+            if (actualKey is Key.OemMinus or Key.Subtract)
+            {
+                ApplyUiScale(SettingsManager.Current.UiScale - 0.05);
+                e.Handled = true;
+                return;
+            }
+            if (actualKey is Key.D0 or Key.NumPad0)
+            {
+                ApplyUiScale(1.0);
+                e.Handled = true;
+                return;
+            }
+        }
+
+        // Strict Focus Lock when playing a game in ViewGamePlayer so keys like '1', '2', 'Space' never type into TxtSearch!
+        if (ViewGamePlayer != null && ViewGamePlayer.Visibility == Visibility.Visible &&
+            NativeLibretroHost.Current.IsRunning &&
+            (PnlInGameQuickMenu == null || PnlInGameQuickMenu.Visibility != Visibility.Visible))
+        {
+            if (Keyboard.FocusedElement == TxtSearch || Keyboard.FocusedElement == TxtLibrarySearch)
+            {
+                Keyboard.ClearFocus();
+                GameViewportContainer?.Focus();
+            }
+        }
+
         bool isDosGame = NativeLibretroHost.Current.IsRunning &&
             (NativeLibretroHost.Current.CurrentCoreName?.Contains("dosbox", StringComparison.OrdinalIgnoreCase) == true);
 
@@ -821,6 +886,22 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     e.Handled = true;
                     return;
                 }
+                if (actualKey == Key.T)
+                {
+                    BtnGameTheater_Click(sender, e);
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            // Prevent Space / Enter / Arrows from activating toolbar buttons while playing in ViewGamePlayer
+            if (NativeLibretroHost.Current.IsRunning &&
+                (PnlInGameQuickMenu == null || PnlInGameQuickMenu.Visibility != Visibility.Visible) &&
+                actualKey is Key.Space or Key.Enter or Key.Up or Key.Down or Key.Left or Key.Right or Key.Tab)
+            {
+                GameViewportContainer?.Focus();
+                e.Handled = true;
+                return;
             }
         }
     }
@@ -1131,14 +1212,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         LvGames.Visibility = (_currentViewMode == ViewDisplayMode.Ozone) ? Visibility.Visible : Visibility.Collapsed;
         GamesIconsScroll.Visibility = (_currentViewMode == ViewDisplayMode.Compact) ? Visibility.Visible : Visibility.Collapsed;
 
-        // 3. Dynamic Card Width across all Bento Cards & Item Controls
-        DynamicCardWidth = _currentViewMode switch
+        // 3. Dynamic Card Width across all Bento Cards & Item Controls (respects SliderCardScale)
+        if (_currentViewMode is ViewDisplayMode.Bento or ViewDisplayMode.Compact)
         {
-            ViewDisplayMode.Bento => 380,   // ⊞ Плитки: 2-3 колонки
-            ViewDisplayMode.Ozone => 1100,  // Список: 1 широкая строка
-            ViewDisplayMode.Compact => 210, // Иконки: 4-5 компактных колонок
-            _ => 380
-        };
+            DynamicCardWidth = SettingsManager.Current.BentoCardWidth > 240 ? SettingsManager.Current.BentoCardWidth : 380;
+        }
     }
 
     // ==================== SETTINGS REGISTRY & LIVE SEARCH ====================
@@ -3510,11 +3588,45 @@ private void LoadBezels()
 
     private void InitSaveSync()
     {
-        if (!string.IsNullOrEmpty(SettingsManager.Current.CloudSyncFolder))
+        SettingsManager.NormalizeRootPaths();
+        SaveSyncManager.CloudSyncDir = SettingsManager.Current.CloudSyncFolder;
+        if (TxtCloudSyncFolder != null)
+            TxtCloudSyncFolder.Text = SaveSyncManager.CloudSyncDir;
+        if (TxtHeroRootPathBadge != null)
+            TxtHeroRootPathBadge.Text = $"Корень: {CoreManager.AppDir}";
+        if (TxtHeroSaveSyncBadge != null)
+            TxtHeroSaveSyncBadge.Text = $"save sync ({SaveSyncManager.CloudSyncDir})";
+        if (TxtConfigPathDisplay != null)
+            TxtConfigPathDisplay.Text = $"Файл: {RetroArchConfigManager.ConfigFilePath}";
+    }
+
+    private void BtnResetCloudSyncRoot_Click(object sender, RoutedEventArgs e)
+    {
+        string rootSync = Path.Combine(CoreManager.AppDir, "save sync");
+        try
         {
-            SaveSyncManager.CloudSyncDir = SettingsManager.Current.CloudSyncFolder;
+            if (!Directory.Exists(rootSync)) Directory.CreateDirectory(rootSync);
         }
-        TxtCloudSyncFolder.Text = SaveSyncManager.CloudSyncDir;
+        catch { }
+        SaveSyncManager.CloudSyncDir = rootSync;
+        if (TxtCloudSyncFolder != null) TxtCloudSyncFolder.Text = rootSync;
+        if (TxtHeroSaveSyncBadge != null) TxtHeroSaveSyncBadge.Text = $"save sync ({rootSync})";
+        RefreshSaveSyncUi();
+        ShowNotification("STORM RETROARCH", $"Корневая папка синхронизации установлена:\n{rootSync}");
+    }
+
+    private void BtnOpenCloudSyncFolder_Click(object sender, RoutedEventArgs e)
+    {
+        string dir = SaveSyncManager.CloudSyncDir;
+        try
+        {
+            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+            Process.Start(new ProcessStartInfo { FileName = dir, UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            ShowNotification("STORM RETROARCH", $"Не удалось открыть папку save sync: {ex.Message}");
+        }
     }
 
     private void BtnBrowseCloudSyncFolder_Click(object sender, RoutedEventArgs e)
@@ -3936,10 +4048,12 @@ private void LoadBezels()
             _history.Insert(0, item);
         }
 
-        // Switch to Game Viewport
+        // Switch to Game Viewport & Lock Keyboard Focus to Game Viewport
+        Keyboard.ClearFocus();
         if (BtnNavGamePlayer != null) NavBtn_Click(BtnNavGamePlayer, new RoutedEventArgs());
         if (ViewGamePlayer != null) ViewGamePlayer.Visibility = Visibility.Visible;
         if (PnlInGameQuickMenu != null) PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
+        GameViewportContainer?.Focus();
 
         if (TxtActiveGameTitle != null) TxtActiveGameTitle.Text = item.Name;
         if (TxtActiveGamePlatform != null) TxtActiveGamePlatform.Text = item.Platform;
@@ -4307,7 +4421,9 @@ private void LoadBezels()
             if (RowDefTitleBar != null) RowDefTitleBar.Height = new GridLength(0);
             if (RowDefToolbar != null) RowDefToolbar.Height = new GridLength(0);
             if (RowDefFooter != null) RowDefFooter.Height = new GridLength(0);
-            if (ColDefSidebar != null) ColDefSidebar.Width = new GridLength(0);
+            if (ColDefSidebar != null) { ColDefSidebar.MinWidth = 0; ColDefSidebar.Width = new GridLength(0); }
+            if (ColDefSplitter != null) ColDefSplitter.Width = new GridLength(0);
+            if (SidebarSplitter != null) SidebarSplitter.Visibility = Visibility.Collapsed;
             if (WindowOuterBorder != null) WindowOuterBorder.BorderThickness = new Thickness(0);
 
             if (WindowState == WindowState.Maximized)
@@ -4327,8 +4443,9 @@ private void LoadBezels()
             if (RowDefTitleBar != null) RowDefTitleBar.Height = new GridLength(40);
             if (RowDefToolbar != null) RowDefToolbar.Height = GridLength.Auto;
             if (RowDefFooter != null) RowDefFooter.Height = new GridLength(28);
-            if (ColDefSidebar != null) ColDefSidebar.Width = new GridLength(238);
+            ApplySidebarState();
             if (WindowOuterBorder != null) WindowOuterBorder.BorderThickness = new Thickness(1);
+            _isTheaterMode = false;
 
             WindowState = _prevWindowState == WindowState.Minimized ? WindowState.Normal : _prevWindowState;
             ShowOsdToast("Оконный режим восстановлен");
@@ -4711,4 +4828,361 @@ private void LoadBezels()
         }
     }
 
+
+    // ==================== V1.2.0 UI SCALABILITY, RESIZING, MOVING & STUDIO CONTROLS ====================
+
+    private void ApplyUiScale(double scale, bool save = true)
+    {
+        double clamped = Math.Round(Math.Clamp(scale, 0.80, 1.40), 2);
+        SettingsManager.Current.UiScale = clamped;
+        if (RootScaleTransform != null)
+        {
+            RootScaleTransform.ScaleX = clamped;
+            RootScaleTransform.ScaleY = clamped;
+        }
+        if (BtnUiScaleReset != null)
+        {
+            BtnUiScaleReset.Content = $"{Math.Round(clamped * 100)}%";
+        }
+        if (save && _isLoaded)
+        {
+            SettingsManager.Save();
+            ShowOsdToast($"Масштаб интерфейса: {Math.Round(clamped * 100)}%");
+        }
+    }
+
+    private void BtnUiScaleDown_Click(object sender, RoutedEventArgs e) => ApplyUiScale(SettingsManager.Current.UiScale - 0.05);
+    private void BtnUiScaleUp_Click(object sender, RoutedEventArgs e) => ApplyUiScale(SettingsManager.Current.UiScale + 0.05);
+    private void BtnUiScaleReset_Click(object sender, RoutedEventArgs e) => ApplyUiScale(1.0);
+
+    private void Window_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
+        {
+            double delta = e.Delta > 0 ? 0.05 : -0.05;
+            if (ViewLibrary != null && ViewLibrary.Visibility == Visibility.Visible && (Keyboard.Modifiers & ModifierKeys.Shift) != 0)
+            {
+                double nextWidth = Math.Clamp(DynamicCardWidth + (e.Delta > 0 ? 20 : -20), 270, 540);
+                if (SliderCardScale != null) SliderCardScale.Value = nextWidth;
+            }
+            else
+            {
+                ApplyUiScale(SettingsManager.Current.UiScale + delta);
+            }
+            e.Handled = true;
+        }
+    }
+
+    private void ApplySidebarState()
+    {
+        if (ColDefSidebar == null || LeftSidebarBorder == null) return;
+        bool collapsed = SettingsManager.Current.SidebarCollapsed;
+        if (collapsed)
+        {
+            LeftSidebarBorder.Visibility = Visibility.Collapsed;
+            if (SidebarSplitter != null) SidebarSplitter.Visibility = Visibility.Collapsed;
+            ColDefSidebar.MinWidth = 0;
+            ColDefSidebar.Width = new GridLength(0);
+            if (ColDefSplitter != null) ColDefSplitter.Width = new GridLength(0);
+            if (TxtSidebarToggleIcon != null) TxtSidebarToggleIcon.Text = "» Панель";
+        }
+        else
+        {
+            double w = Math.Clamp(SettingsManager.Current.SidebarWidth, 248, 460);
+            LeftSidebarBorder.Visibility = Visibility.Visible;
+            if (SidebarSplitter != null) SidebarSplitter.Visibility = Visibility.Visible;
+            ColDefSidebar.MinWidth = 248;
+            ColDefSidebar.MaxWidth = 460;
+            ColDefSidebar.Width = new GridLength(w);
+            if (ColDefSplitter != null) ColDefSplitter.Width = new GridLength(6);
+            if (TxtSidebarToggleIcon != null) TxtSidebarToggleIcon.Text = "« Панель";
+        }
+    }
+
+    private void BtnToggleSidebar_Click(object sender, RoutedEventArgs e)
+    {
+        SettingsManager.Current.SidebarCollapsed = !SettingsManager.Current.SidebarCollapsed;
+        ApplySidebarState();
+        SettingsManager.Save();
+    }
+
+    private void SidebarSplitter_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+    {
+        if (ColDefSidebar != null && ColDefSidebar.ActualWidth >= 240)
+        {
+            SettingsManager.Current.SidebarWidth = Math.Round(ColDefSidebar.ActualWidth, 0);
+            SettingsManager.Save();
+        }
+    }
+
+    private void SliderCardScale_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        DynamicCardWidth = e.NewValue;
+        if (TxtCardScaleReadout != null)
+            TxtCardScaleReadout.Text = $"{Math.Round(DynamicCardWidth)} px";
+        if (_isLoaded)
+        {
+            SettingsManager.Current.BentoCardWidth = DynamicCardWidth;
+            SettingsManager.Save();
+        }
+    }
+
+    private void BtnCardScaleDown_Click(object sender, RoutedEventArgs e)
+    {
+        double next = Math.Max(270, DynamicCardWidth - 25);
+        if (SliderCardScale != null) SliderCardScale.Value = next;
+        else DynamicCardWidth = next;
+    }
+
+    private void BtnCardScaleUp_Click(object sender, RoutedEventArgs e)
+    {
+        double next = Math.Min(540, DynamicCardWidth + 25);
+        if (SliderCardScale != null) SliderCardScale.Value = next;
+        else DynamicCardWidth = next;
+    }
+
+    // Reorderable Game Cards (Buttons & Drag-and-Drop)
+    private void BtnMoveGameLeft_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is RomItem item)
+        {
+            MoveGameItem(item, -1);
+        }
+    }
+
+    private void BtnMoveGameRight_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is RomItem item)
+        {
+            MoveGameItem(item, +1);
+        }
+    }
+
+    private void MoveGameItem(RomItem item, int offset)
+    {
+        int idxFiltered = _filteredGames.IndexOf(item);
+        int targetFiltered = idxFiltered + offset;
+        if (idxFiltered >= 0 && targetFiltered >= 0 && targetFiltered < _filteredGames.Count)
+        {
+            _filteredGames.Move(idxFiltered, targetFiltered);
+        }
+
+        int idxAll = _allGames.IndexOf(item);
+        int targetAll = idxAll + offset;
+        if (idxAll >= 0 && targetAll >= 0 && targetAll < _allGames.Count)
+        {
+            _allGames.Move(idxAll, targetAll);
+            SaveLibraryToPlaylist();
+        }
+    }
+
+    private void GameCard_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton == MouseButtonState.Pressed && sender is FrameworkElement fe && fe.DataContext is RomItem item)
+        {
+            if (e.OriginalSource is DependencyObject dep)
+            {
+                var cur = dep;
+                while (cur != null)
+                {
+                    if (cur is Button) return;
+                    cur = VisualTreeHelper.GetParent(cur);
+                }
+            }
+            Point pos = e.GetPosition(null);
+            if (Math.Abs(pos.X - _cardDragStartPoint.X) > 14 || Math.Abs(pos.Y - _cardDragStartPoint.Y) > 14)
+            {
+                _cardDragStartPoint = pos;
+                DragDrop.DoDragDrop(fe, item, DragDropEffects.Move);
+            }
+        }
+        else
+        {
+            _cardDragStartPoint = e.GetPosition(null);
+        }
+    }
+
+    private void GameCard_Drop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(typeof(RomItem)) &&
+            e.Data.GetData(typeof(RomItem)) is RomItem sourceItem &&
+            sender is FrameworkElement fe &&
+            fe.DataContext is RomItem targetItem &&
+            !ReferenceEquals(sourceItem, targetItem))
+        {
+            int srcIdx = _filteredGames.IndexOf(sourceItem);
+            int dstIdx = _filteredGames.IndexOf(targetItem);
+            if (srcIdx >= 0 && dstIdx >= 0)
+            {
+                _filteredGames.Move(srcIdx, dstIdx);
+            }
+
+            int srcAll = _allGames.IndexOf(sourceItem);
+            int dstAll = _allGames.IndexOf(targetItem);
+            if (srcAll >= 0 && dstAll >= 0)
+            {
+                _allGames.Move(srcAll, dstAll);
+                SaveLibraryToPlaylist();
+            }
+            e.Handled = true;
+        }
+    }
+
+    // Reorderable Dashboard Cards (◀ / ▶)
+    private void ApplyDashboardCardOrder()
+    {
+        if (DashboardCardsGrid == null || DashCard0 == null || DashCard1 == null || DashCard2 == null || DashCard3 == null)
+            return;
+
+        var cardsMap = new Dictionary<int, Border>
+        {
+            [0] = DashCard0,
+            [1] = DashCard1,
+            [2] = DashCard2,
+            [3] = DashCard3
+        };
+
+        var order = SettingsManager.Current.DashboardCardOrder;
+        if (order == null || order.Count != 4 || order.Distinct().Count() != 4)
+        {
+            order = new List<int> { 0, 1, 2, 3 };
+            SettingsManager.Current.DashboardCardOrder = order;
+        }
+
+        DashboardCardsGrid.Children.Clear();
+        foreach (int id in order)
+        {
+            if (cardsMap.TryGetValue(id, out var border))
+                DashboardCardsGrid.Children.Add(border);
+        }
+    }
+
+    private void MoveDashboardCard(int cardId, int delta)
+    {
+        var order = SettingsManager.Current.DashboardCardOrder;
+        if (order == null || order.Count != 4)
+            order = new List<int> { 0, 1, 2, 3 };
+
+        int idx = order.IndexOf(cardId);
+        if (idx < 0) return;
+        int nextIdx = (idx + delta + order.Count) % order.Count;
+        (order[idx], order[nextIdx]) = (order[nextIdx], order[idx]);
+        SettingsManager.Current.DashboardCardOrder = order;
+        ApplyDashboardCardOrder();
+        SettingsManager.Save();
+        ShowOsdToast("Расположение блоков главного меню обновлено");
+    }
+
+    private void BtnMoveDashCardLeft_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && int.TryParse(btn.Tag?.ToString(), out int id))
+            MoveDashboardCard(id, -1);
+    }
+
+    private void BtnMoveDashCardRight_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && int.TryParse(btn.Tag?.ToString(), out int id))
+            MoveDashboardCard(id, +1);
+    }
+
+    // Quick Dashboard Navigation & Quick Hardware Toggles
+    private void BtnQuickNavSettings_Click(object sender, RoutedEventArgs e) => NavBtn_Click(NavBtnSettings, e);
+    private void BtnQuickNavSaveSync_Click(object sender, RoutedEventArgs e) => NavBtn_Click(NavBtnSaveSync, e);
+    private void BtnQuickNavGamepads_Click(object sender, RoutedEventArgs e) => NavBtn_Click(NavBtnInputRemap, e);
+
+    private void SyncQuickSettingsCheckboxes()
+    {
+        _isSyncingQuickToggles = true;
+        try
+        {
+            if (ChkQuickVsync != null) ChkQuickVsync.IsChecked = RetroArchConfigManager.GetBool("video_vsync", true);
+            if (ChkQuickSmooth != null) ChkQuickSmooth.IsChecked = RetroArchConfigManager.GetBool("video_smooth", false);
+            if (ChkQuickRewind != null) ChkQuickRewind.IsChecked = RetroArchConfigManager.GetBool("rewind_enable", true);
+            if (ChkQuickAutoSave != null) ChkQuickAutoSave.IsChecked = RetroArchConfigManager.GetInt("autosave_interval", 5) > 0;
+        }
+        finally
+        {
+            _isSyncingQuickToggles = false;
+        }
+    }
+
+    private void ChkQuickSetting_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!_isLoaded || _isSyncingQuickToggles) return;
+
+        bool vsync = ChkQuickVsync?.IsChecked == true;
+        bool smooth = ChkQuickSmooth?.IsChecked == true;
+        bool rewind = ChkQuickRewind?.IsChecked == true;
+        bool autosave = ChkQuickAutoSave?.IsChecked == true;
+
+        RetroArchConfigManager.SetBool("video_vsync", vsync);
+        RetroArchConfigManager.SetBool("video_smooth", smooth);
+        RetroArchConfigManager.SetBool("rewind_enable", rewind);
+        RetroArchConfigManager.SetInt("autosave_interval", autosave ? 5 : 0);
+        RetroArchConfigManager.Save();
+
+        if (ImgGameViewport != null)
+        {
+            RenderOptions.SetBitmapScalingMode(ImgGameViewport, smooth ? BitmapScalingMode.HighQuality : BitmapScalingMode.NearestNeighbor);
+        }
+        ShowOsdToast("Быстрые настройки эмулятора применены и сохранены в retroarch.cfg");
+    }
+
+    // In-Game Viewport Scale (Auto / 1x / 2x / 3x / 4x) & Theater Mode (T)
+    private void BtnGameViewportScale_Click(object sender, RoutedEventArgs e)
+    {
+        _viewportScaleMode = (_viewportScaleMode + 1) % 5;
+        if (ImgGameViewport != null)
+        {
+            if (_viewportScaleMode == 0)
+            {
+                ImgGameViewport.Width = double.NaN;
+                ImgGameViewport.Height = double.NaN;
+                NativeLibretroHost.Current.ApplyAspectMode(GameViewportContainer);
+            }
+            else
+            {
+                int factor = _viewportScaleMode;
+                ImgGameViewport.Stretch = Stretch.Fill;
+                ImgGameViewport.Width = 320 * factor;
+                ImgGameViewport.Height = 240 * factor;
+            }
+        }
+        string label = _viewportScaleMode == 0 ? "Авто" : $"{_viewportScaleMode}x";
+        if (TxtGameViewportScaleLabel != null) TxtGameViewportScaleLabel.Text = label;
+        ShowOsdToast($"Масштаб игрового экрана: {label}");
+        GameViewportContainer?.Focus();
+    }
+
+    private void BtnGameTheater_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isGameFullscreen)
+        {
+            SetFullscreenMode(false);
+            return;
+        }
+
+        _isTheaterMode = !_isTheaterMode;
+        if (_isTheaterMode)
+        {
+            if (TopToolbarBorder != null) TopToolbarBorder.Visibility = Visibility.Collapsed;
+            if (LeftSidebarBorder != null) LeftSidebarBorder.Visibility = Visibility.Collapsed;
+            if (SidebarSplitter != null) SidebarSplitter.Visibility = Visibility.Collapsed;
+            if (RowDefToolbar != null) RowDefToolbar.Height = new GridLength(0);
+            if (ColDefSidebar != null) { ColDefSidebar.MinWidth = 0; ColDefSidebar.Width = new GridLength(0); }
+            if (ColDefSplitter != null) ColDefSplitter.Width = new GridLength(0);
+            if (TxtGameTheaterLabel != null) TxtGameTheaterLabel.Text = "Панели";
+            ShowOsdToast("Режим театра включён (боковая и верхняя панели скрыты)");
+        }
+        else
+        {
+            if (TopToolbarBorder != null) TopToolbarBorder.Visibility = Visibility.Visible;
+            if (RowDefToolbar != null) RowDefToolbar.Height = GridLength.Auto;
+            ApplySidebarState();
+            if (TxtGameTheaterLabel != null) TxtGameTheaterLabel.Text = "Театр";
+            ShowOsdToast("Стандартные панели восстановлены");
+        }
+        NativeLibretroHost.Current.ApplyAspectMode(GameViewportContainer);
+        GameViewportContainer?.Focus();
+    }
 }

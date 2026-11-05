@@ -215,7 +215,7 @@ public static class AiWalkthroughManager
         <h1>📖 {gameTitle} — Интерактивная Книга Подсказок</h1>
         {imageHtml}
         <div class=""advice-box"">{aiAnalysisText}</div>
-        <div class=""footer"">Сгенерировано в STORM RETROARCH 1.1.0 • Дата: {DateTime.Now:yyyy-MM-dd HH:mm}</div>
+        <div class=""footer"">Сгенерировано в STORM RETROARCH 1.2.0 • Дата: {DateTime.Now:yyyy-MM-dd HH:mm}</div>
     </div>
 </body>
 </html>";

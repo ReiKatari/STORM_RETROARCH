@@ -286,6 +286,7 @@ public static class UpdateManager
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = filePath,
+                    Arguments = $"\"--install-dir={CoreManager.AppDir}\"",
                     UseShellExecute = true
                 });
                 Environment.Exit(0);

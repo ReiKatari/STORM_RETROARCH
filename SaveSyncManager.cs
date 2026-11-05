@@ -130,17 +130,25 @@ public static class SaveSyncManager
     public static readonly string LocalSavesDir = Path.Combine(CoreManager.AppDir, "saves");
     public static readonly string LocalStatesDir = Path.Combine(CoreManager.AppDir, "states");
 
+    public static string DefaultRootSaveSyncDir => Path.Combine(CoreManager.AppDir, "save sync");
+
     public static string CloudSyncDir
     {
         get
         {
-            if (!string.IsNullOrEmpty(SettingsManager.Current.CloudSyncFolder) &&
-                Directory.Exists(SettingsManager.Current.CloudSyncFolder))
+            SettingsManager.NormalizeRootPaths();
+            if (!string.IsNullOrEmpty(SettingsManager.Current.CloudSyncFolder))
             {
-                return SettingsManager.Current.CloudSyncFolder;
+                try
+                {
+                    if (!Directory.Exists(SettingsManager.Current.CloudSyncFolder))
+                        Directory.CreateDirectory(SettingsManager.Current.CloudSyncFolder);
+                    return SettingsManager.Current.CloudSyncFolder;
+                }
+                catch { }
             }
 
-            string defaultSync = Path.Combine(CoreManager.AppDir, "save sync");
+            string defaultSync = DefaultRootSaveSyncDir;
             try
             {
                 if (!Directory.Exists(defaultSync)) Directory.CreateDirectory(defaultSync);
