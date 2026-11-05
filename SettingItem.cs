@@ -21,6 +21,7 @@ public enum SettingControlKind
 /// </summary>
 public class SettingItem : INotifyPropertyChanged
 {
+    public static event Action<string, object>? SettingChanged;
     private bool _boolVal;
     private string _stringVal = "";
     private double _numVal;
@@ -57,6 +58,8 @@ public class SettingItem : INotifyPropertyChanged
             if (SetField(ref _boolVal, value))
             {
                 RetroArchConfigManager.SetBool(CfgKey, value);
+                RetroArchConfigManager.Save();
+                SettingChanged?.Invoke(CfgKey, value);
             }
         }
     }
@@ -69,6 +72,8 @@ public class SettingItem : INotifyPropertyChanged
             if (SetField(ref _stringVal, value))
             {
                 RetroArchConfigManager.SetString(CfgKey, value);
+                RetroArchConfigManager.Save();
+                SettingChanged?.Invoke(CfgKey, value);
             }
         }
     }
@@ -85,6 +90,8 @@ public class SettingItem : INotifyPropertyChanged
                     RetroArchConfigManager.SetFloat(CfgKey, (float)value);
                 else
                     RetroArchConfigManager.SetInt(CfgKey, (int)value);
+                RetroArchConfigManager.Save();
+                SettingChanged?.Invoke(CfgKey, value);
             }
         }
     }

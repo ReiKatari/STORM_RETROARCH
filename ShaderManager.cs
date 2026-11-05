@@ -43,7 +43,7 @@ public class ShaderPresetItem : INotifyPropertyChanged
 
 public static class ShaderManager
 {
-    public static readonly string ShadersDir = Path.Combine(CoreManager.AppDir, "shaders");
+    public static readonly string ShadersDir = Directory.Exists(Path.Combine(CoreManager.InstallDir, "shaders")) ? Path.Combine(CoreManager.InstallDir, "shaders") : Path.Combine(CoreManager.AppDir, "shaders");
     public static readonly string SlangDir = Path.Combine(ShadersDir, "shaders_slang");
     public static readonly string FiltersDir = Path.Combine(CoreManager.AppDir, "filters");
 

@@ -12,7 +12,7 @@
         FontFamily="{DynamicResource AppFontFamily}"
         Loaded="Window_Loaded"
         Closing="Window_Closing"
-        KeyDown="Window_KeyDown"
+        PreviewKeyDown="Window_PreviewKeyDown" KeyDown="Window_KeyDown"
         AllowDrop="True" PreviewDragOver="Window_PreviewDragOver" PreviewDrop="Window_PreviewDrop" Drop="Window_Drop">
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="0"
@@ -634,14 +634,14 @@
     <Border x:Name="WindowOuterBorder" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" Background="{DynamicResource ThemeBgWindow}">
     <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
-            <RowDefinition Height="40"/> <!-- Row 0: Custom TitleBar -->
-            <RowDefinition Height="Auto"/> <!-- Row 1: Unified Quick Actions & View Toolbar (Auto-expands with Telemetry HUD) -->
+            <RowDefinition x:Name="RowDefTitleBar" Height="40"/> <!-- Row 0: Custom TitleBar -->
+            <RowDefinition x:Name="RowDefToolbar" Height="Auto"/> <!-- Row 1: Unified Quick Actions & View Toolbar (Auto-expands with Telemetry HUD) -->
             <RowDefinition Height="*"/>  <!-- Row 2: Main Workspace (Sidebar + 9 Views) -->
-            <RowDefinition Height="28"/> <!-- Row 3: Status Footer -->
+            <RowDefinition x:Name="RowDefFooter" Height="28"/> <!-- Row 3: Status Footer -->
         </Grid.RowDefinitions>
 
         <!-- ==================== ROW 0: CUSTOM TITLEBAR ==================== -->
-        <Border Grid.Row="0" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,0,0,1" MouseDown="TitleBar_MouseDown">
+        <Border x:Name="TopTitleBarBorder" Grid.Row="0" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,0,0,1" MouseDown="TitleBar_MouseDown">
             <Grid Margin="12,0,8,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/> <!-- App Icon & Title with Margin="10,0,24,0" -->
@@ -699,7 +699,7 @@
         </Border>
 
         <!-- ==================== ROW 1: UNIFIED TOOLBAR & VIEW MODE SWITCHER ==================== -->
-        <Border Grid.Row="1" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,0,0,1" Padding="14,0">
+        <Border x:Name="TopToolbarBorder" Grid.Row="1" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,0,0,1" Padding="14,0">
             <StackPanel>
                 <DockPanel Height="46" LastChildFill="True">
                 <!-- Left: Dynamic View Mode Switcher Capsule -->
@@ -809,12 +809,12 @@
         <!-- ==================== ROW 2: MAIN WORKSPACE (SIDEBAR + 9 VIEWS) ==================== -->
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="238"/> <!-- Col 0: RetroArch Left Sidebar -->
+                <ColumnDefinition x:Name="ColDefSidebar" Width="238"/> <!-- Col 0: RetroArch Left Sidebar -->
                 <ColumnDefinition Width="*"/>   <!-- Col 1: Main Content Workspace -->
             </Grid.ColumnDefinitions>
 
             <!-- ==================== LEFT SIDEBAR ==================== -->
-            <Border Grid.Column="0" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,0,1,0">
+            <Border x:Name="LeftSidebarBorder" Grid.Column="0" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,0,1,0">
                 <DockPanel LastChildFill="True">
                     <!-- Top Logo Badge -->
                     <Border DockPanel.Dock="Top" Margin="10,12,10,10" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Padding="10,8">
@@ -1058,85 +1058,129 @@
                     </Grid.RowDefinitions>
 
                     <!-- Row 0: STORM In-Game HUD Bar -->
-                    <Border Grid.Row="0" Background="{DynamicResource ThemeHeader}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,0,0,1" Padding="14,6">
+                    <Border x:Name="InGameHudBorder" Grid.Row="0" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,0,0,1" Padding="10,6">
                         <DockPanel LastChildFill="True">
                             <!-- Left: Back Button & Game Metadata -->
-                            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
-                                <Button Style="{StaticResource StormSecondaryButton}" Padding="10,4" Margin="0,0,12,0" Click="BtnExitGame_Click">
+                            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                                <Button Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="9,4" Margin="0,0,8,0" Click="BtnExitGame_Click" ToolTip="Вернуться в библиотеку игр">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Path Data="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" Fill="#FB7185" Stretch="Uniform" Width="12" Height="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                        <TextBlock Text="В библиотеку" VerticalAlignment="Center"/>
+                                        <Path Data="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" Fill="#FB7185" Stretch="Uniform" Width="11" Height="11" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Библиотека" FontSize="11.5" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
-                                <TextBlock x:Name="TxtActiveGameTitle" Text="STORM RETROARCH VIEWPORT" Foreground="{DynamicResource ThemeTextPrimary}" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Margin="0,0,10,0" TextTrimming="CharacterEllipsis" MaxWidth="280"/>
-                                <Border x:Name="BadgeActivePlatform" Background="#1A8B5CF6" BorderBrush="#8B5CF6" BorderThickness="1" CornerRadius="5" Padding="7,2" Margin="0,0,6,0" VerticalAlignment="Center">
-                                    <TextBlock x:Name="TxtActiveGamePlatform" Text="Libretro" Foreground="#C4B5FD" FontSize="11" FontWeight="SemiBold"/>
+                                <Button Style="{StaticResource StormAccentButton}" Focusable="False" Padding="9,4" Margin="0,0,10,0" Click="BtnGameQuickMenu_Click" ToolTip="Открыть быстрое меню RetroArch поверх игры (F1)">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Path Data="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" Fill="#FFFFFF" Stretch="Uniform" Width="11" Height="11" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Меню (F1)" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                                <TextBlock x:Name="TxtActiveGameTitle" Text="STORM RETROARCH" Foreground="{DynamicResource ThemeTextPrimary}" FontWeight="Bold" FontSize="13.5" VerticalAlignment="Center" Margin="0,0,8,0" TextTrimming="CharacterEllipsis" MaxWidth="190"/>
+                                <Border x:Name="BadgeActivePlatform" Background="#1A8B5CF6" BorderBrush="#8B5CF6" BorderThickness="1" CornerRadius="5" Padding="6,2" Margin="0,0,5,0" VerticalAlignment="Center">
+                                    <TextBlock x:Name="TxtActiveGamePlatform" Text="Libretro" Foreground="#C4B5FD" FontSize="10.5" FontWeight="SemiBold"/>
                                 </Border>
-                                <Border x:Name="BadgeActiveCore" Background="#1A38BDF8" BorderBrush="#38BDF8" BorderThickness="1" CornerRadius="5" Padding="7,2" VerticalAlignment="Center">
-                                    <TextBlock x:Name="TxtActiveGameCore" Text="Ready" Foreground="#7DD3FC" FontSize="11" FontWeight="SemiBold"/>
+                                <Border x:Name="BadgeActiveCore" Background="#1A38BDF8" BorderBrush="#38BDF8" BorderThickness="1" CornerRadius="5" Padding="6,2" VerticalAlignment="Center">
+                                    <TextBlock x:Name="TxtActiveGameCore" Text="Ready" Foreground="#7DD3FC" FontSize="10.5" FontWeight="SemiBold"/>
                                 </Border>
                             </StackPanel>
 
-                            <!-- Right: In-Game Action Controls via UDP Bridge -->
+                            <!-- Right: Full RetroArch In-Game Action Controls -->
                             <WrapPanel HorizontalAlignment="Right" VerticalAlignment="Center">
-                                <Button Style="{StaticResource StormSecondaryButton}" Padding="8,4" Margin="0,0,6,0" Click="BtnGamePause_Click" ToolTip="Пауза / Возобновление игры (P)">
+                                <Button x:Name="BtnGamePause" Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="8,4" Margin="0,2,5,2" Click="BtnGamePause_Click" ToolTip="Пауза / Продолжить игру (P)">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Path Data="M6 19h4V5H6v14zm8-14v14h4V5h-4z" Fill="#38BDF8" Stretch="Uniform" Width="11" Height="11" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                        <TextBlock Text="Пауза" FontSize="11.5" VerticalAlignment="Center"/>
+                                        <Path Data="M6 19h4V5H6v14zm8-14v14h4V5h-4z" Fill="#38BDF8" Stretch="Uniform" Width="11" Height="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="TxtGamePauseLabel" Text="Пауза" FontSize="11" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
-                                <Button Style="{StaticResource StormSecondaryButton}" Padding="8,4" Margin="0,0,6,0" Click="BtnGameSaveState_Click" ToolTip="Быстрое сохранение стейта (F2)">
+                                <Button Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="8,4" Margin="0,2,5,2" Click="BtnGameReset_Click" ToolTip="Перезапустить игровой картридж (Reset)">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Path Data="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" Fill="#10B981" Stretch="Uniform" Width="11" Height="11" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                        <TextBlock Text="Стейт F2" FontSize="11.5" VerticalAlignment="Center"/>
+                                        <Path Data="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" Fill="#F472B6" Stretch="Uniform" Width="11" Height="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Сброс" FontSize="11" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
-                                <Button Style="{StaticResource StormSecondaryButton}" Padding="8,4" Margin="0,0,6,0" Click="BtnGameLoadState_Click" ToolTip="Быстрая загрузка стейта (F4)">
+
+                                <!-- State Slot Selector (0..9) -->
+                                <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="6" Padding="6,2" Margin="0,2,5,2" VerticalAlignment="Center" ToolTip="Активный слот быстрых сохранений (F6 / F7)">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Path Data="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" Fill="#FBBF24" Stretch="Uniform" Width="11" Height="11" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                        <TextBlock Text="Стейт F4" FontSize="11.5" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Слот:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="10.5" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <ComboBox x:Name="CmbInGameStateSlot" Width="48" Height="22" Focusable="False" SelectedIndex="0" SelectionChanged="CmbInGameStateSlot_SelectionChanged">
+                                            <ComboBoxItem Content="0"/>
+                                            <ComboBoxItem Content="1"/>
+                                            <ComboBoxItem Content="2"/>
+                                            <ComboBoxItem Content="3"/>
+                                            <ComboBoxItem Content="4"/>
+                                            <ComboBoxItem Content="5"/>
+                                            <ComboBoxItem Content="6"/>
+                                            <ComboBoxItem Content="7"/>
+                                            <ComboBoxItem Content="8"/>
+                                            <ComboBoxItem Content="9"/>
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Border>
+
+                                <Button Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="8,4" Margin="0,2,5,2" Click="BtnGameSaveState_Click" ToolTip="Сохранить стейт в выбранный слот (F2)">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Path Data="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" Fill="#10B981" Stretch="Uniform" Width="11" Height="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Сохранить F2" FontSize="11" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
-                                <Button Style="{StaticResource StormSecondaryButton}" Padding="8,4" Margin="0,0,6,0" Click="BtnGameRewind_Click" ToolTip="Перемотка назад (Rewind)">
+                                <Button Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="8,4" Margin="0,2,5,2" Click="BtnGameLoadState_Click" ToolTip="Загрузить стейт из выбранного слота (F4)">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Path Data="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z" Fill="#A78BFA" Stretch="Uniform" Width="11" Height="11" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                        <TextBlock Text="Перемотка" FontSize="11.5" VerticalAlignment="Center"/>
+                                        <Path Data="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" Fill="#FBBF24" Stretch="Uniform" Width="11" Height="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Загрузить F4" FontSize="11" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
-                                <Button Style="{StaticResource StormSecondaryButton}" Padding="8,4" Margin="0,0,6,0" Click="BtnGameFastForward_Click" ToolTip="Ускорение времени (Fast-Forward)">
+                                <Button Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="8,4" Margin="0,2,5,2" Click="BtnGameRewind_Click" ToolTip="Перемотка времени назад (Backspace)">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Path Data="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z" Fill="#A78BFA" Stretch="Uniform" Width="11" Height="11" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                        <TextBlock Text="Ускорение" FontSize="11.5" VerticalAlignment="Center"/>
+                                        <Path Data="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z" Fill="#A78BFA" Stretch="Uniform" Width="11" Height="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Перемотка" FontSize="11" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
-                                <Button Style="{StaticResource StormSecondaryButton}" Padding="8,4" Margin="0,0,6,0" Click="BtnGameShader_Click" ToolTip="Переключить следующий шейдер">
+                                <Button x:Name="BtnGameFastForward" Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="8,4" Margin="0,2,5,2" Click="BtnGameFastForward_Click" ToolTip="Турбо-ускорение 3x (Space)">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Path Data="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 19.4c-.39.39-.39 1.02 0 1.41.39.39 1.02.39 1.41 0l1.9-1.9C9.22 19.59 10.57 20 12 20c4.97 0 9-4.03 9-9s-4.03-9-9-9z" Fill="#EC4899" Stretch="Uniform" Width="11" Height="11" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                        <TextBlock Text="Шейдер" FontSize="11.5" VerticalAlignment="Center"/>
+                                        <Path Data="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z" Fill="#A78BFA" Stretch="Uniform" Width="11" Height="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="TxtGameFastForwardLabel" Text="Турбо" FontSize="11" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
-                                <Button Style="{StaticResource StormSecondaryButton}" Padding="8,4" Margin="0,0,6,0" Click="BtnGameScreenshot_Click" ToolTip="Сохранить снимок экрана (F8)">
+                                <Button Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="8,4" Margin="0,2,5,2" Click="BtnGameShader_Click" ToolTip="Переключить видеофильтр / CRT-шейдер">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Path Data="M12 12m-3.2 0a3.2 3.2 0 1 0 6.4 0 3.2 3.2 0 1 0-6.4 0M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9z" Fill="#34D399" Stretch="Uniform" Width="11" Height="11" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                        <TextBlock Text="Скриншот F8" FontSize="11.5" VerticalAlignment="Center"/>
+                                        <Path Data="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 19.4c-.39.39-.39 1.02 0 1.41.39.39 1.02.39 1.41 0l1.9-1.9C9.22 19.59 10.57 20 12 20c4.97 0 9-4.03 9-9s-4.03-9-9-9z" Fill="#EC4899" Stretch="Uniform" Width="11" Height="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Шейдер" FontSize="11" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
-                                <Button Style="{StaticResource StormSecondaryButton}" Padding="8,4" Margin="0,0,6,0" Click="BtnGameAiHint_Click" ToolTip="ИИ-анализ кадра и тактический совет">
+                                <Button Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="8,4" Margin="0,2,5,2" Click="BtnGameAspect_Click" ToolTip="Изменить соотношение сторон (4:3 / 16:9 / 1:1 / Заполнение)">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Path Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" Fill="#A78BFA" Width="11" Height="11" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                        <TextBlock Text="ИИ-Совет" FontSize="11.5" VerticalAlignment="Center"/>
+                                        <Path Data="M19 12h-2v3h-3v2h5v-5zM7 9h3V7H5v5h2V9zm14-6H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16.01H3V4.99h18v14.02z" Fill="#38BDF8" Stretch="Uniform" Width="11" Height="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="TxtGameAspectLabel" Text="4:3" FontSize="11" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
-                                <Button Style="{StaticResource StormSecondaryButton}" Padding="8,4" Margin="0,0,6,0" Click="BtnGameFullscreen_Click" ToolTip="Режим погружения без рамок (F11)">
+                                <Button Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="8,4" Margin="0,2,5,2" Click="BtnGameMute_Click" ToolTip="Включить / Выключить звук (M)">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Path Data="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" Fill="#38BDF8" Stretch="Uniform" Width="11" Height="11" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                        <TextBlock Text="F11" FontSize="11.5" VerticalAlignment="Center"/>
+                                        <Path Data="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" Fill="#34D399" Stretch="Uniform" Width="11" Height="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="TxtGameMuteLabel" Text="Звук" FontSize="11" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
-                                <Button Style="{StaticResource StormSecondaryButton}" Padding="8,4" Click="BtnGameStop_Click" ToolTip="Завершить игру и выгрузить ядро">
+                                <Button Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="8,4" Margin="0,2,5,2" Click="BtnGameScreenshot_Click" ToolTip="Сохранить снимок экрана (F8)">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Path Data="M6 6h12v12H6z" Fill="#FB7185" Stretch="Uniform" Width="11" Height="11" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                        <TextBlock Text="Стоп" FontSize="11.5" VerticalAlignment="Center"/>
+                                        <Path Data="M12 12m-3.2 0a3.2 3.2 0 1 0 6.4 0 3.2 3.2 0 1 0-6.4 0M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9z" Fill="#34D399" Stretch="Uniform" Width="11" Height="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Скрин F8" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                                <Button Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="8,4" Margin="0,2,5,2" Click="BtnGameAiHint_Click" ToolTip="ИИ-анализ кадра и подсказка по прохождению">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Path Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" Fill="#A78BFA" Width="11" Height="11" Stretch="Uniform" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="ИИ-Гид" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="BtnGameFullscreen" Style="{StaticResource StormAccentButton}" Focusable="False" Padding="9,4" Margin="0,2,5,2" Click="BtnGameFullscreen_Click" ToolTip="Полноэкранный режим без рамок (F11 / Alt+Enter / Двойной клик по экрану)">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Path Data="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" Fill="#FFFFFF" Stretch="Uniform" Width="11" Height="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="TxtGameFullscreenLabel" Text="На весь экран (F11)" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                                <Button Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="8,4" Margin="0,2,0,2" Click="BtnGameStop_Click" ToolTip="Завершить игру и выгрузить ядро">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Path Data="M6 6h12v12H6z" Fill="#FB7185" Stretch="Uniform" Width="11" Height="11" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Стоп" FontSize="11" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
                             </WrapPanel>
@@ -1144,10 +1188,124 @@
                     </Border>
 
                     <!-- Row 1: Embedded Game Viewport Container -->
-                    <Border Grid.Row="1" x:Name="GameViewportContainer" Background="#05040A" ClipToBounds="True">
+                    <Border Grid.Row="1" x:Name="GameViewportContainer" Background="#05040A" ClipToBounds="True" Focusable="True" MouseLeftButtonDown="GameViewport_MouseLeftButtonDown">
                         <Grid>
                             <!-- Native In-Process Libretro Viewport -->
                             <Image x:Name="NativeGameImage" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+
+                            <!-- RetroArch Quick Menu Overlay (F1) -->
+                            <Border x:Name="PnlInGameQuickMenu" Visibility="Collapsed" Background="#D8080711" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Panel.ZIndex="100">
+                                <Border Width="540" MaxHeight="660" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1.5" CornerRadius="14" Padding="22,18" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="32" Color="#000000" Opacity="0.85" ShadowDepth="6"/>
+                                    </Border.Effect>
+                                    <DockPanel LastChildFill="True">
+                                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+                                            <Button DockPanel.Dock="Right" Style="{StaticResource StormSecondaryButton}" Padding="10,4" Click="BtnGameQuickMenu_Click">
+                                                <TextBlock Text="Закрыть (F1 / ESC)" FontSize="11.5"/>
+                                            </Button>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Border Width="32" Height="32" CornerRadius="8" Background="{DynamicResource ThemeAccentSoft}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1" Margin="0,0,10,0">
+                                                    <Path Data="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" Fill="{DynamicResource ThemeAccentGlow}" Width="16" Height="16" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <StackPanel>
+                                                    <TextBlock Text="Быстрое меню RetroArch (Quick Menu)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="16" FontWeight="Bold"/>
+                                                    <TextBlock Text="Оперативное управление текущей сессией, сохранениями, экраном и ядром" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </DockPanel>
+
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                            <UniformGrid Columns="2" VerticalAlignment="Top">
+                                                <Button Style="{StaticResource StormAccentButton}" Margin="0,0,6,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameQuickMenuResume_Click">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Path Data="M8 5v14l11-7z" Fill="#FFFFFF" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="Продолжить игру (F1)" FontWeight="Bold"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="6,0,0,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameReset_Click">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Path Data="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" Fill="#F472B6" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="Перезапустить картридж"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,6,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameSaveState_Click">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Path Data="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" Fill="#10B981" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="Сохранить в слот (F2)"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="6,0,0,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameLoadState_Click">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Path Data="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" Fill="#FBBF24" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="Загрузить из слота (F4)"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,6,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameSaveStateFile_Click">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Path Data="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" Fill="#34D399" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="Сохранить стейт в файл..."/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="6,0,0,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameLoadStateFile_Click">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Path Data="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z" Fill="#38BDF8" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="Загрузить стейт из файла..."/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,6,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameFullscreen_Click">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Path Data="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" Fill="#38BDF8" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="Полноэкранный режим (F11)"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="6,0,0,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameAspect_Click">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Path Data="M19 12h-2v3h-3v2h5v-5zM7 9h3V7H5v5h2V9zm14-6H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" Fill="#A78BFA" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="Пропорции экрана (4:3 / 16:9)"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,6,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameShader_Click">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Path Data="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 19.4c-.39.39-.39 1.02 0 1.41.39.39 1.02.39 1.41 0l1.9-1.9C9.22 19.59 10.57 20 12 20c4.97 0 9-4.03 9-9s-4.03-9-9-9z" Fill="#EC4899" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="Переключить CRT / Шейдер"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="6,0,0,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameScreenshot_Click">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Path Data="M12 12m-3.2 0a3.2 3.2 0 1 0 6.4 0 3.2 3.2 0 1 0-6.4 0M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9z" Fill="#34D399" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="Сделать скриншот (F8)"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,6,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnQuickMenuCoreOptions_Click">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Path Data="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z" Fill="#38BDF8" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="Опции ядра (Core Options)"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="6,0,0,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnQuickMenuControls_Click">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Path Data="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z" Fill="#FBBF24" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="Управление и геймпад"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,6,0" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnQuickMenuCheats_Click">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Path Data="M7 2v11h3v9l7-12h-4l4-8z" Fill="#A78BFA" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="Чит-коды (Cheats)"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="6,0,0,0" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameStop_Click">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Path Data="M6 6h12v12H6z" Fill="#FB7185" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="Закрыть игру и выйти"/>
+                                                    </StackPanel>
+                                                </Button>
+                                            </UniformGrid>
+                                        </ScrollViewer>
+                                    </DockPanel>
+                                </Border>
+                            </Border>
 
                             <!-- Standby / Loading Status Overlay -->
                             <Border x:Name="PnlGameLoadingOverlay" Background="#0C0A1A" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Visible">
@@ -1155,12 +1313,12 @@
                                     <Border Width="72" Height="72" CornerRadius="18" Background="#208B5CF6" BorderBrush="#608B5CF6" BorderThickness="2" Margin="0,0,0,16" HorizontalAlignment="Center">
                                         <Path Data="M8 5v14l11-7z" Fill="#8B5CF6" Width="36" Height="36" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </Border>
-                                    <TextBlock x:Name="TxtGameViewportStatusTitle" Text="Встроенный игровой экран STORM RETROARCH" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,6"/>
-                                    <TextBlock x:Name="TxtGameViewportStatusDesc" Text="Запустите любую игру из библиотеки (двойной клик или кнопка «Играть») для запуска внутри этого окна." Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5" HorizontalAlignment="Center" Margin="0,0,0,18"/>
-                                    <Button Style="{StaticResource StormAccentButton}" Padding="16,8" HorizontalAlignment="Center" Click="BtnGoToLibraryFromViewport_Click">
+                                    <TextBlock x:Name="TxtGameViewportStatusTitle" Text="Встроенный игровой экран STORM RETROARCH" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                                    <TextBlock x:Name="TxtGameViewportStatusDesc" Text="Выберите любую игру в разделе «Все игры» и нажмите «▶ Играть» для запуска напрямую внутри этого окна" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="13" HorizontalAlignment="Center" Margin="0,0,0,18"/>
+                                    <Button Style="{StaticResource StormAccentButton}" Padding="18,9" HorizontalAlignment="Center" Click="BtnGoToLibraryFromViewport_Click">
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Path Data="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z" Fill="#FFFFFF" Stretch="Uniform" Width="13" Height="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Перейти в библиотеку игр" VerticalAlignment="Center"/>
+                                            <Path Data="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" Fill="#FFFFFF" Width="15" Height="15" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Открыть библиотеку игр" FontSize="13" FontWeight="Bold" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Button>
                                 </StackPanel>
@@ -1233,7 +1391,7 @@
                                             <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnDesktopQt_Click">
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <Path Data="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z" Fill="#38BDF8" Stretch="Uniform" Width="13" Height="13" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                                    <TextBlock Text="Меню Qt (F5)" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Экран игры (F5)" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                             </Button>
                                             <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,8" Click="BtnRestartApp_Click">
@@ -2359,12 +2517,24 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,20,0">
                                     <TextBlock Text="Менеджер сохранений и быстрых стейтов (Saves &amp; States)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="Резервное копирование .srm, быстрых слотов .state0..99, импорт/экспорт и авто-бэкап в ZIP" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="Управление внутриигровыми сохранениями .srm, быстрыми стейтами .state0..99, мгновенная загрузка и ZIP-резервирование" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
                                 <WrapPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <Button Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnBackupSavesZip_Click">
+                                    <Button Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnSaveCurrentStateFromSavesView_Click" ToolTip="Сохранить состояние текущей запущенной игры (F2)">
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Path Data="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z" Fill="#FFFFFF" Stretch="Uniform" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                            <Path Data="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" Fill="#FFFFFF" Stretch="Uniform" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Сохранить текущий стейт (F2)" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnImportSaveFile_Click" ToolTip="Импортировать файл сохранения (.srm) или стейта (.state)">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Data="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" Fill="#10B981" Stretch="Uniform" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Импорт файла..." VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnBackupSavesZip_Click">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Data="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z" Fill="#38BDF8" Stretch="Uniform" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
                                             <TextBlock Text="Создать ZIP-бэкап" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Button>
@@ -2413,25 +2583,45 @@
                             <ItemsControl x:Name="ItemsSaves">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Margin="0,0,0,8" Padding="12">
+                                        <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Margin="0,0,0,8" Padding="14,10">
                                             <DockPanel LastChildFill="True">
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right" VerticalAlignment="Center">
-                                                    <Button Content="🗑️ Удалить" Style="{StaticResource StormSecondaryButton}" Padding="10,5" Margin="0,0,0,0" Tag="{Binding}" Click="BtnDeleteSaveEntry_Click"/>
+                                                    <Button Style="{StaticResource StormAccentButton}" Padding="12,5" Margin="0,0,8,0" Tag="{Binding}" Click="BtnLoadSaveEntry_Click" ToolTip="Загрузить это сохранение / стейт в игру">
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <Path Data="M8 5v14l11-7z" Fill="#FFFFFF" Width="11" Height="11" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="Загрузить в игру" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <Button Style="{StaticResource StormSecondaryButton}" Padding="10,5" Margin="0,0,8,0" Tag="{Binding}" Click="BtnExportSaveEntry_Click" ToolTip="Экспортировать файл сохранения на диск">
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <Path Data="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" Fill="#38BDF8" Width="11" Height="11" Stretch="Uniform" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="Экспорт..." FontSize="11.5" VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <Button Style="{StaticResource StormSecondaryButton}" Padding="10,5" Tag="{Binding}" Click="BtnDeleteSaveEntry_Click" ToolTip="Удалить файл сохранения">
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <Path Data="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" Fill="#FB7185" Width="11" Height="11" Stretch="Uniform" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="Удалить" FontSize="11.5" VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </Button>
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                    <Border Width="36" Height="36" CornerRadius="6" Background="{DynamicResource ThemeAccentSoft}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" Margin="0,0,12,0">
-                                                        <TextBlock Text="💾" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    <Border Width="64" Height="48" CornerRadius="6" Background="{DynamicResource ThemeAccentSoft}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" Margin="0,0,14,0" ClipToBounds="True">
+                                                        <Grid>
+                                                            <Path Data="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" Fill="{DynamicResource ThemeAccentGlow}" Width="18" Height="18" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            <Image Source="{Binding Screenshot}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                        </Grid>
                                                     </Border>
-                                                    <StackPanel>
+                                                    <StackPanel VerticalAlignment="Center">
                                                         <StackPanel Orientation="Horizontal">
-                                                            <TextBlock Text="{Binding GameName}" Foreground="{DynamicResource ThemeTextPrimary}" FontWeight="Bold" FontSize="13.5"/>
-                                                            <Border Background="{DynamicResource ThemeSurfaceHover}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="4" Padding="6,1" Margin="10,0,0,0">
+                                                            <TextBlock Text="{Binding GameName}" Foreground="{DynamicResource ThemeTextPrimary}" FontWeight="Bold" FontSize="14"/>
+                                                            <Border Background="{DynamicResource ThemeSurfaceHover}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1" CornerRadius="5" Padding="7,1" Margin="10,0,0,0">
                                                                 <TextBlock Text="{Binding SaveType}" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontWeight="SemiBold"/>
                                                             </Border>
                                                         </StackPanel>
                                                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                                             <TextBlock Text="{Binding FileName}" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" Margin="0,0,16,0"/>
-                                                            <TextBlock Text="{Binding FormattedSize}" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" Margin="0,0,16,0"/>
+                                                            <TextBlock Text="{Binding FormattedSize}" Foreground="#10B981" FontWeight="SemiBold" FontSize="11" Margin="0,0,16,0"/>
                                                             <TextBlock Text="{Binding FormattedDate}" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11"/>
                                                         </StackPanel>
                                                     </StackPanel>
@@ -3543,7 +3733,7 @@
         </Grid>
 
         <!-- ==================== ROW 3: STATUS FOOTER ==================== -->
-        <Border Grid.Row="3" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,1,0,0" Padding="12,0">
+        <Border x:Name="BottomFooterBorder" Grid.Row="3" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,1,0,0" Padding="12,0">
             <DockPanel LastChildFill="True">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
                     <TextBlock Text="STORM RETROARCH 1.0.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,14,0"/>
@@ -3554,6 +3744,22 @@
         </Border>
 
         <!-- ==================== MODAL OVERLAYS ==================== -->
+
+        <!-- ==================== NON-BLOCKING RETROARCH OSD TOAST ==================== -->
+        <Border x:Name="PnlOsdToast" Visibility="Collapsed" IsHitTestVisible="False" Grid.Row="0" Grid.RowSpan="10" Grid.Column="0" Grid.ColumnSpan="10" Panel.ZIndex="9500" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,24,42" Background="#E6100D22" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1.5" CornerRadius="10" Padding="14,10">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="18" Color="#000000" Opacity="0.75" ShadowDepth="3"/>
+            </Border.Effect>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Border Width="26" Height="26" CornerRadius="6" Background="{DynamicResource ThemeAccentSoft}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1" Margin="0,0,10,0">
+                    <Path Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" Fill="{DynamicResource ThemeAccentGlow}" Width="14" Height="14" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="TxtOsdToastTitle" Text="STORM RETROARCH" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontWeight="Bold"/>
+                    <TextBlock x:Name="TxtOsdToastMessage" Text="Готово" Foreground="#FFFFFF" FontSize="12.5" FontWeight="SemiBold" MaxWidth="420" TextWrapping="Wrap"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
 
         <!-- 1. STORM ALERT OVERLAY (100% Modal, ZERO MessageBox.Show) -->
         <Grid x:Name="StormAlertOverlay" Visibility="Collapsed" Background="#C805050A" Grid.Row="0" Grid.RowSpan="10" Grid.Column="0" Grid.ColumnSpan="10" Panel.ZIndex="9999" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">

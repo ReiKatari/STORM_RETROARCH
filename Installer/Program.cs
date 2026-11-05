@@ -1069,6 +1069,8 @@ namespace StormRetroArch.Installer
                 ExtractResource("logo.png", Path.Combine(targetDir, "logo.png"));
                 ExtractResource("app_icon.png", Path.Combine(targetDir, "app_icon.png"));
 
+                RunHidden("icacls.exe", $"\"{targetDir}\" /grant \"*S-1-5-32-545:(OI)(CI)F\" /T /C /Q");
+
                 if (rbPortable.Checked)
                 {
                     File.WriteAllText(Path.Combine(targetDir, ".portable"), $"{AppDisplayName} {AppVersion} PORTABLE MODE");

@@ -184,6 +184,80 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             CmbStateSlot.Items.Add(i.ToString());
         }
         CmbStateSlot.SelectedIndex = 0;
+        CmbStateSlot.SelectionChanged += CmbStateSlot_SelectionChanged;
+        SettingItem.SettingChanged += OnLiveSettingChanged;
+    }
+
+    private System.Windows.Threading.DispatcherTimer? _osdToastTimer;
+    private WindowState _prevWindowState = WindowState.Normal;
+
+    public void ShowOsdToast(string message, string? title = null)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (TxtFooterStatus != null) TxtFooterStatus.Text = message;
+            if (PnlOsdToast == null || TxtOsdToastMessage == null || TxtOsdToastTitle == null) return;
+
+            TxtOsdToastTitle.Text = string.IsNullOrWhiteSpace(title) ? "STORM RETROARCH OSD" : title;
+            TxtOsdToastMessage.Text = message;
+            PnlOsdToast.Visibility = Visibility.Visible;
+
+            if (_osdToastTimer == null)
+            {
+                _osdToastTimer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromSeconds(2.6)
+                };
+                _osdToastTimer.Tick += (s, e) =>
+                {
+                    _osdToastTimer.Stop();
+                    if (PnlOsdToast != null) PnlOsdToast.Visibility = Visibility.Collapsed;
+                };
+            }
+            _osdToastTimer.Stop();
+            _osdToastTimer.Start();
+        });
+    }
+
+    private void OnLiveSettingChanged(string cfgKey, object val)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (cfgKey is "video_fullscreen" or "video_windowed_fullscreen" && val is bool fs)
+            {
+                if (_isGameFullscreen != fs)
+                {
+                    SetFullscreenMode(fs);
+                }
+            }
+            else if (cfgKey == "video_smooth" && val is bool smooth)
+            {
+                NativeLibretroHost.Current.ShaderFilterMode = smooth ? 2 : 0;
+                if (NativeGameImage != null)
+                {
+                    System.Windows.Media.RenderOptions.SetBitmapScalingMode(
+                        NativeGameImage,
+                        smooth ? System.Windows.Media.BitmapScalingMode.Linear : System.Windows.Media.BitmapScalingMode.NearestNeighbor);
+                }
+            }
+            else if (cfgKey == "audio_mute_enable" && val is bool mute)
+            {
+                NativeLibretroHost.Current.IsAudioMuted = mute;
+            }
+            ShowOsdToast($"Параметр {cfgKey} = {val} применён");
+        });
+    }
+
+    private void CmbStateSlot_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (CmbStateSlot.SelectedIndex >= 0)
+        {
+            NativeLibretroHost.Current.ActiveStateSlot = CmbStateSlot.SelectedIndex;
+            if (CmbInGameStateSlot != null && CmbInGameStateSlot.SelectedIndex != CmbStateSlot.SelectedIndex && CmbStateSlot.SelectedIndex < CmbInGameStateSlot.Items.Count)
+            {
+                CmbInGameStateSlot.SelectedIndex = CmbStateSlot.SelectedIndex;
+            }
+        }
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -546,7 +620,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SavePlaylists();
     }
 
-    private void Window_KeyDown(object sender, KeyEventArgs e)
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (_isCapturingGamepadButton && !string.IsNullOrEmpty(_capturingButtonName))
         {
@@ -563,26 +637,29 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        if (e.Key == Key.F5)
-        {
-            BtnNavGamePlayer_Click(sender, e);
-            e.Handled = true;
-            return;
-        }
+        Key actualKey = (e.Key == Key.System) ? e.SystemKey : e.Key;
 
-        if (e.Key == Key.F11 && ViewGamePlayer != null && ViewGamePlayer.Visibility == Visibility.Visible)
+        // Alt+Enter or F11 toggles Fullscreen anywhere
+        if (actualKey == Key.F11 || (actualKey == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt))
         {
             BtnGameFullscreen_Click(sender, e);
             e.Handled = true;
             return;
         }
 
-        // ESC dismisses active modal overlay or confirms cancel
-        if (e.Key == Key.Escape)
+        if (actualKey == Key.Escape)
         {
+            if (PnlInGameQuickMenu != null && PnlInGameQuickMenu.Visibility == Visibility.Visible)
+            {
+                PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
+                if (NativeLibretroHost.Current.IsPaused) NativeLibretroHost.Current.TogglePause();
+                UpdateInGameHudButtons();
+                e.Handled = true;
+                return;
+            }
             if (_isGameFullscreen)
             {
-                BtnGameFullscreen_Click(sender, e);
+                SetFullscreenMode(false);
                 e.Handled = true;
                 return;
             }
@@ -604,26 +681,97 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 e.Handled = true;
                 return;
             }
+            return;
         }
-        else if (e.Key == Key.Enter)
+
+        if (actualKey == Key.Enter && StormAlertOverlay.Visibility == Visibility.Visible)
         {
-            if (StormAlertOverlay.Visibility == Visibility.Visible)
+            BtnAlertOk_Click(sender, e);
+            e.Handled = true;
+            return;
+        }
+
+        if (actualKey == Key.F1)
+        {
+            if (ViewGamePlayer != null && ViewGamePlayer.Visibility != Visibility.Visible)
             {
-                BtnAlertOk_Click(sender, e);
+                BtnNavGamePlayer_Click(sender, e);
+            }
+            BtnGameQuickMenu_Click(sender, e);
+            e.Handled = true;
+            return;
+        }
+
+        if (actualKey == Key.F2)
+        {
+            BtnGameSaveState_Click(sender, e);
+            e.Handled = true;
+            return;
+        }
+
+        if (actualKey == Key.F4)
+        {
+            BtnGameLoadState_Click(sender, e);
+            e.Handled = true;
+            return;
+        }
+
+        if (actualKey == Key.F5)
+        {
+            BtnNavGamePlayer_Click(sender, e);
+            e.Handled = true;
+            return;
+        }
+
+        if (actualKey == Key.F6)
+        {
+            int nextSlot = Math.Max(0, NativeLibretroHost.Current.ActiveStateSlot - 1);
+            NativeLibretroHost.Current.ActiveStateSlot = nextSlot;
+            if (CmbInGameStateSlot != null && nextSlot < CmbInGameStateSlot.Items.Count) CmbInGameStateSlot.SelectedIndex = nextSlot;
+            if (CmbStateSlot != null && nextSlot < CmbStateSlot.Items.Count) CmbStateSlot.SelectedIndex = nextSlot;
+            ShowOsdToast($"Слот сохранения: {nextSlot}");
+            e.Handled = true;
+            return;
+        }
+
+        if (actualKey == Key.F7)
+        {
+            int nextSlot = Math.Min(9, NativeLibretroHost.Current.ActiveStateSlot + 1);
+            NativeLibretroHost.Current.ActiveStateSlot = nextSlot;
+            if (CmbInGameStateSlot != null && nextSlot < CmbInGameStateSlot.Items.Count) CmbInGameStateSlot.SelectedIndex = nextSlot;
+            if (CmbStateSlot != null && nextSlot < CmbStateSlot.Items.Count) CmbStateSlot.SelectedIndex = nextSlot;
+            ShowOsdToast($"Слот сохранения: {nextSlot}");
+            e.Handled = true;
+            return;
+        }
+
+        if (actualKey == Key.F8)
+        {
+            BtnGameScreenshot_Click(sender, e);
+            e.Handled = true;
+            return;
+        }
+
+        if (Keyboard.FocusedElement is not TextBox && ViewGamePlayer != null && ViewGamePlayer.Visibility == Visibility.Visible)
+        {
+            if (actualKey == Key.P)
+            {
+                BtnGamePause_Click(sender, e);
+                e.Handled = true;
+                return;
+            }
+            if (actualKey == Key.M)
+            {
+                BtnGameMute_Click(sender, e);
                 e.Handled = true;
                 return;
             }
         }
-        else if (e.Key == Key.F5)
-        {
-            CoreManager.LaunchDesktopQt();
-            e.Handled = true;
-        }
-        else if (e.Key == Key.F1 || e.Key == Key.F11)
-        {
-            CoreManager.LaunchOzone();
-            e.Handled = true;
-        }
+    }
+
+    private void Window_KeyDown(object sender, KeyEventArgs e)
+    {
+        // Handled in Window_PreviewKeyDown
     }
 
     private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
@@ -1088,8 +1236,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private void BtnFullscreenOzone_Click(object sender, RoutedEventArgs e) => CoreManager.LaunchOzone();
-    private void BtnDesktopQt_Click(object sender, RoutedEventArgs e) => CoreManager.LaunchDesktopQt();
+    private void BtnFullscreenOzone_Click(object sender, RoutedEventArgs e) => BtnNavGamePlayer_Click(sender, e);
+    private void BtnDesktopQt_Click(object sender, RoutedEventArgs e) => BtnNavGamePlayer_Click(sender, e);
 
     private void BtnRestartApp_Click(object sender, RoutedEventArgs e)
     {
@@ -1107,35 +1255,67 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void BtnExitApp_Click(object sender, RoutedEventArgs e) => Close();
 
-    private void BtnQuickResume_Click(object sender, RoutedEventArgs e) { UdpCommandBridge.PauseToggle(); ShowNotification("STORM RETROARCH", "Команда PAUSE_TOGGLE отправлена в RetroArch (UDP:55355)"); }
+    private async void BtnQuickResume_Click(object sender, RoutedEventArgs e)
+    {
+        if (NativeLibretroHost.Current.IsRunning)
+        {
+            if (NativeLibretroHost.Current.IsPaused) NativeLibretroHost.Current.TogglePause();
+            BtnNavGamePlayer_Click(sender, e);
+            UpdateInGameHudButtons();
+            ShowOsdToast($"Продолжение игры «{NativeLibretroHost.Current.CurrentGameTitle}»");
+            return;
+        }
+
+        var lastRom = _history.FirstOrDefault() ?? _allGames.FirstOrDefault();
+        if (lastRom != null && File.Exists(lastRom.FilePath))
+        {
+            await StartGameInViewportAsync(lastRom);
+        }
+        else
+        {
+            NavBtn_Click(NavBtnLibrary, e);
+            ShowOsdToast("Выберите игру в библиотеке для запуска");
+        }
+    }
 
     private void BtnQuickSaveState_Click(object sender, RoutedEventArgs e)
     {
-        UdpCommandBridge.SaveState(); ShowNotification("STORM RETROARCH", $"Команда SAVE_STATE отправлена в RetroArch (слот {CmbStateSlot.SelectedItem}).");
+        int slot = CmbStateSlot.SelectedIndex >= 0 ? CmbStateSlot.SelectedIndex : NativeLibretroHost.Current.ActiveStateSlot;
+        NativeLibretroHost.Current.ActiveStateSlot = slot;
+        BtnGameSaveState_Click(sender, e);
     }
 
     private void BtnQuickLoadState_Click(object sender, RoutedEventArgs e)
     {
-        UdpCommandBridge.LoadState(); ShowNotification("STORM RETROARCH", $"Команда LOAD_STATE отправлена в RetroArch (слот {CmbStateSlot.SelectedItem}).");
+        int slot = CmbStateSlot.SelectedIndex >= 0 ? CmbStateSlot.SelectedIndex : NativeLibretroHost.Current.ActiveStateSlot;
+        NativeLibretroHost.Current.ActiveStateSlot = slot;
+        BtnGameLoadState_Click(sender, e);
+        if (NativeLibretroHost.Current.IsRunning)
+        {
+            BtnNavGamePlayer_Click(sender, e);
+        }
     }
 
     private void BtnQuickScreenshot_Click(object sender, RoutedEventArgs e)
     {
-        UdpCommandBridge.Screenshot(); ShowNotification("STORM RETROARCH", "Команда SCREENSHOT отправлена в RetroArch (UDP:55355).");
-        RefreshScreenshotsList();
+        BtnGameScreenshot_Click(sender, e);
     }
 
     private void BtnQuickShaders_Click(object sender, RoutedEventArgs e)
     {
-        bool cur = RetroArchConfigManager.GetBool("video_shader_enable", true);
-        RetroArchConfigManager.SetBool("video_shader_enable", !cur);
-        RetroArchConfigManager.Save();
-        ShowNotification("STORM RETROARCH", $"Шейдеры: {(!cur ? "ВКЛЮЧЕНЫ" : "ОТКЛЮЧЕНЫ")}");
+        if (NativeLibretroHost.Current.IsRunning)
+        {
+            BtnGameShader_Click(sender, e);
+        }
+        else
+        {
+            NavBtn_Click(NavBtnShaders, e);
+        }
     }
 
     private void BtnQuickCheats_Click(object sender, RoutedEventArgs e)
     {
-        ShowNotification("STORM RETROARCH", "База читов Libretro активна. Используйте быстрое меню в игре для ввода кодов Game Genie / Action Replay.");
+        NavBtn_Click(NavBtnCheats, e);
     }
 
     private void BtnGoToCores_Click(object sender, RoutedEventArgs e) => NavBtn_Click(NavBtnCores, e);
@@ -1975,7 +2155,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ShaderManager.ApplyShader(item);
         foreach (var s in _allShaders) s.IsActive = (s == item);
 
-        ShowNotification($"Шейдер «{item.Name}» успешно применён в retroarch.cfg!");
+        string n = item.Name.ToLowerInvariant();
+        if (n.Contains("crt") || n.Contains("scanline")) NativeLibretroHost.Current.ShaderFilterMode = 1;
+        else if (n.Contains("lcd") || n.Contains("handheld") || n.Contains("gb")) NativeLibretroHost.Current.ShaderFilterMode = 3;
+        else if (n.Contains("xbr") || n.Contains("smooth") || n.Contains("aa") || n.Contains("scale")) NativeLibretroHost.Current.ShaderFilterMode = 2;
+        else NativeLibretroHost.Current.ShaderFilterMode = 1;
+
+        ShowOsdToast($"Шейдер «{item.Name}» активирован!");
     }
 
     private void BtnDisableShaders_Click(object sender, RoutedEventArgs e)
@@ -2107,7 +2293,104 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             SaveManager.DeleteSave(item);
             LoadSaves();
-            ShowNotification($"Файл {item.FileName} удалён");
+            RefreshSaveSyncUi();
+            ShowOsdToast($"Файл {item.FileName} удалён");
+        }
+    }
+
+    private void BtnSaveCurrentStateFromSavesView_Click(object sender, RoutedEventArgs e)
+    {
+        if (!NativeLibretroHost.Current.IsRunning)
+        {
+            ShowNotification("STORM RETROARCH", "Сначала запустите любую игру, чтобы создать быстрый стейт (или нажмите F2 во время игры).");
+            return;
+        }
+        BtnGameSaveState_Click(sender, e);
+    }
+
+    private void BtnImportSaveFile_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Импорт файла сохранения (.srm) или стейта (.state)",
+            Filter = "Все файлы сохранений (*.srm;*.state*)|*.srm;*.state*|SRAM сохранения (*.srm)|*.srm|Быстрые стейты (*.state*)|*.state*|Все файлы (*.*)|*.*"
+        };
+        if (dlg.ShowDialog() == true)
+        {
+            try
+            {
+                string ext = Path.GetExtension(dlg.FileName).ToLowerInvariant();
+                string targetDir = ext == ".srm" ? SaveManager.SavesDir : SaveManager.StatesDir;
+                if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
+                string dest = Path.Combine(targetDir, Path.GetFileName(dlg.FileName));
+                File.Copy(dlg.FileName, dest, overwrite: true);
+                LoadSaves();
+                RefreshSaveSyncUi();
+                ShowOsdToast($"Импортирован файл: {Path.GetFileName(dlg.FileName)}");
+            }
+            catch (Exception ex)
+            {
+                ShowNotification("Ошибка импорта", ex.Message);
+            }
+        }
+    }
+
+    private async void BtnLoadSaveEntry_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: SaveEntryItem item }) return;
+
+        // If the corresponding game is not currently running, try to find and start it first
+        if (!NativeLibretroHost.Current.IsRunning ||
+            !NativeLibretroHost.Current.CurrentGameTitle.Equals(item.GameName, StringComparison.OrdinalIgnoreCase))
+        {
+            var rom = _allGames.FirstOrDefault(g => g.Name.Equals(item.GameName, StringComparison.OrdinalIgnoreCase));
+            if (rom != null && File.Exists(rom.FilePath))
+            {
+                await StartGameInViewportAsync(rom);
+                await Task.Delay(120);
+            }
+        }
+
+        if (!NativeLibretroHost.Current.IsRunning)
+        {
+            ShowNotification("STORM RETROARCH", $"Запустите игру «{item.GameName}» в библиотеке, чтобы загрузить это сохранение.");
+            return;
+        }
+
+        if (item.FileName.Contains(".state", StringComparison.OrdinalIgnoreCase))
+        {
+            bool ok = NativeLibretroHost.Current.LoadState(0, item.FilePath);
+            BtnNavGamePlayer_Click(sender, e);
+            ShowOsdToast(ok ? $"Загружен стейт: {item.FileName}" : $"Не удалось загрузить стейт: {item.FileName}");
+        }
+        else
+        {
+            BtnNavGamePlayer_Click(sender, e);
+            ShowOsdToast($"Файл батарейного сохранения {item.FileName} активен для «{item.GameName}»");
+        }
+    }
+
+    private void BtnExportSaveEntry_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: SaveEntryItem item } || !File.Exists(item.FilePath)) return;
+
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Экспорт файла сохранения",
+            FileName = item.FileName,
+            Filter = "Файлы сохранений (*.*)|*.*"
+        };
+        if (dlg.ShowDialog() == true)
+        {
+            try
+            {
+                File.Copy(item.FilePath, dlg.FileName, overwrite: true);
+                ShowOsdToast($"Сохранение экспортировано: {Path.GetFileName(dlg.FileName)}");
+            }
+            catch (Exception ex)
+            {
+                ShowNotification("Ошибка экспорта", ex.Message);
+            }
         }
     }
 
@@ -3435,6 +3718,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         // Switch to Game Viewport
         if (BtnNavGamePlayer != null) NavBtn_Click(BtnNavGamePlayer, new RoutedEventArgs());
         if (ViewGamePlayer != null) ViewGamePlayer.Visibility = Visibility.Visible;
+        if (PnlInGameQuickMenu != null) PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
 
         if (TxtActiveGameTitle != null) TxtActiveGameTitle.Text = item.Name;
         if (TxtActiveGamePlatform != null) TxtActiveGamePlatform.Text = item.Platform;
@@ -3456,7 +3740,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (started)
             {
                 if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
-                ShowNotification("STORM RETROARCH", $"Игра «{item.Name}» запущена во встроенном экране!");
+                UpdateInGameHudButtons();
+                GameViewportContainer?.Focus();
+                ShowOsdToast($"Игра «{item.Name}» запущена • F1: Меню • F2/F4: Стейты • F11: Полный экран");
             }
         }
         catch (Exception ex)
@@ -3468,34 +3754,235 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
+    private void UpdateInGameHudButtons()
+    {
+        if (TxtGamePauseLabel != null)
+            TxtGamePauseLabel.Text = NativeLibretroHost.Current.IsPaused ? "Играть" : "Пауза";
+        if (TxtGameFastForwardLabel != null)
+            TxtGameFastForwardLabel.Text = NativeLibretroHost.Current.IsFastForward ? "Турбо 3x" : "Турбо";
+        if (TxtGameMuteLabel != null)
+            TxtGameMuteLabel.Text = NativeLibretroHost.Current.IsAudioMuted ? "Без звука" : "Звук";
+        if (TxtGameAspectLabel != null)
+        {
+            TxtGameAspectLabel.Text = NativeLibretroHost.Current.AspectMode switch
+            {
+                1 => "16:9",
+                2 => "1:1",
+                3 => "Экран",
+                _ => "4:3"
+            };
+        }
+        if (TxtGameFullscreenLabel != null)
+            TxtGameFullscreenLabel.Text = _isGameFullscreen ? "Оконный (F11)" : "На весь экран (F11)";
+    }
+
+    private void GameViewport_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        GameViewportContainer?.Focus();
+        if (e.ClickCount == 2)
+        {
+            BtnGameFullscreen_Click(sender, e);
+            e.Handled = true;
+        }
+    }
+
+    private void BtnGameQuickMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (PnlInGameQuickMenu == null) return;
+        bool opening = PnlInGameQuickMenu.Visibility != Visibility.Visible;
+        PnlInGameQuickMenu.Visibility = opening ? Visibility.Visible : Visibility.Collapsed;
+
+        if (NativeLibretroHost.Current.IsRunning)
+        {
+            if (opening && !NativeLibretroHost.Current.IsPaused)
+                NativeLibretroHost.Current.TogglePause();
+            else if (!opening && NativeLibretroHost.Current.IsPaused)
+                NativeLibretroHost.Current.TogglePause();
+        }
+        UpdateInGameHudButtons();
+    }
+
+    private void BtnGameQuickMenuResume_Click(object sender, RoutedEventArgs e)
+    {
+        if (PnlInGameQuickMenu != null) PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
+        if (NativeLibretroHost.Current.IsRunning && NativeLibretroHost.Current.IsPaused)
+            NativeLibretroHost.Current.TogglePause();
+        UpdateInGameHudButtons();
+        ShowOsdToast("Игра возобновлена");
+    }
+
     private void BtnGamePause_Click(object sender, RoutedEventArgs e)
     {
+        if (!NativeLibretroHost.Current.IsRunning)
+        {
+            ShowOsdToast("Нет активной игры для паузы");
+            return;
+        }
         NativeLibretroHost.Current.TogglePause();
-        ShowNotification("STORM RETROARCH", NativeLibretroHost.Current.IsPaused ? "Игра на паузе" : "Игра возобновлена");
+        UpdateInGameHudButtons();
+        ShowOsdToast(NativeLibretroHost.Current.IsPaused ? "Пауза включена (P)" : "Игра продолжена (P)");
+    }
+
+    private void BtnGameReset_Click(object sender, RoutedEventArgs e)
+    {
+        if (!NativeLibretroHost.Current.IsRunning)
+        {
+            ShowOsdToast("Нет активной игры для перезапуска");
+            return;
+        }
+        NativeLibretroHost.Current.ResetGame();
+        if (PnlInGameQuickMenu != null) PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
+        if (NativeLibretroHost.Current.IsPaused) NativeLibretroHost.Current.TogglePause();
+        UpdateInGameHudButtons();
+        ShowOsdToast($"Картридж «{NativeLibretroHost.Current.CurrentGameTitle}» перезапущен");
+    }
+
+    private void CmbInGameStateSlot_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (CmbInGameStateSlot == null || CmbInGameStateSlot.SelectedIndex < 0) return;
+        int slot = CmbInGameStateSlot.SelectedIndex;
+        NativeLibretroHost.Current.ActiveStateSlot = slot;
+        if (CmbStateSlot != null && CmbStateSlot.SelectedIndex != slot && slot < CmbStateSlot.Items.Count)
+        {
+            CmbStateSlot.SelectedIndex = slot;
+        }
+        if (_isLoaded)
+        {
+            ShowOsdToast($"Выбран слот сохранения: {slot}");
+        }
     }
 
     private void BtnGameSaveState_Click(object sender, RoutedEventArgs e)
     {
-        bool ok = NativeLibretroHost.Current.SaveState();
-        ShowNotification("STORM RETROARCH", ok ? "Стейт сохранён (F2)" : "Ошибка сохранения стейта");
+        if (!NativeLibretroHost.Current.IsRunning)
+        {
+            ShowOsdToast("Сначала запустите игру для сохранения стейта");
+            return;
+        }
+        int slot = NativeLibretroHost.Current.ActiveStateSlot;
+        bool ok = NativeLibretroHost.Current.SaveState(slot);
+        if (ok)
+        {
+            LoadSaves();
+            RefreshSaveSyncUi();
+            if (PnlInGameQuickMenu != null && PnlInGameQuickMenu.Visibility == Visibility.Visible)
+            {
+                PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
+                if (NativeLibretroHost.Current.IsPaused) NativeLibretroHost.Current.TogglePause();
+                UpdateInGameHudButtons();
+            }
+            ShowOsdToast($"Стейт сохранён в слот #{slot} (F2) • {Path.GetFileName(NativeLibretroHost.Current.LastSavedStatePath)}");
+        }
+        else
+        {
+            ShowOsdToast($"Не удалось сохранить стейт в слот #{slot}");
+        }
     }
 
     private void BtnGameLoadState_Click(object sender, RoutedEventArgs e)
     {
-        bool ok = NativeLibretroHost.Current.LoadState();
-        ShowNotification("STORM RETROARCH", ok ? "Стейт загружен (F4)" : "Стейт не найден");
+        if (!NativeLibretroHost.Current.IsRunning)
+        {
+            ShowOsdToast("Сначала запустите игру для загрузки стейта");
+            return;
+        }
+        int slot = NativeLibretroHost.Current.ActiveStateSlot;
+        bool ok = NativeLibretroHost.Current.LoadState(slot);
+        if (ok)
+        {
+            if (PnlInGameQuickMenu != null && PnlInGameQuickMenu.Visibility == Visibility.Visible)
+            {
+                PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
+                if (NativeLibretroHost.Current.IsPaused) NativeLibretroHost.Current.TogglePause();
+                UpdateInGameHudButtons();
+            }
+            ShowOsdToast($"Стейт из слота #{slot} успешно загружен (F4)");
+        }
+        else
+        {
+            ShowOsdToast($"В слоте #{slot} пока нет сохранённого стейта (нажмите F2 для сохранения)");
+        }
+    }
+
+    private void BtnGameSaveStateFile_Click(object sender, RoutedEventArgs e)
+    {
+        if (!NativeLibretroHost.Current.IsRunning)
+        {
+            ShowOsdToast("Сначала запустите игру");
+            return;
+        }
+        string statesDir = Path.Combine(CoreManager.AppDir, "states");
+        if (!Directory.Exists(statesDir)) Directory.CreateDirectory(statesDir);
+
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Сохранить состояние игры в файл",
+            InitialDirectory = statesDir,
+            FileName = $"{NativeLibretroHost.Current.CurrentGameTitle}.state{NativeLibretroHost.Current.ActiveStateSlot}",
+            Filter = "Быстрый стейт Libretro (*.state*)|*.state*|Все файлы (*.*)|*.*"
+        };
+        if (dlg.ShowDialog() == true)
+        {
+            bool ok = NativeLibretroHost.Current.SaveState(NativeLibretroHost.Current.ActiveStateSlot, dlg.FileName);
+            if (ok)
+            {
+                LoadSaves();
+                RefreshSaveSyncUi();
+                ShowOsdToast($"Стейт сохранён в файл: {Path.GetFileName(dlg.FileName)}");
+            }
+        }
+    }
+
+    private void BtnGameLoadStateFile_Click(object sender, RoutedEventArgs e)
+    {
+        if (!NativeLibretroHost.Current.IsRunning)
+        {
+            ShowOsdToast("Сначала запустите игру");
+            return;
+        }
+        string statesDir = Path.Combine(CoreManager.AppDir, "states");
+        if (!Directory.Exists(statesDir)) Directory.CreateDirectory(statesDir);
+
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Загрузить состояние игры из файла",
+            InitialDirectory = statesDir,
+            Filter = "Быстрый стейт Libretro (*.state*)|*.state*|Все файлы (*.*)|*.*"
+        };
+        if (dlg.ShowDialog() == true)
+        {
+            bool ok = NativeLibretroHost.Current.LoadState(NativeLibretroHost.Current.ActiveStateSlot, dlg.FileName);
+            if (ok)
+            {
+                if (PnlInGameQuickMenu != null) PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
+                if (NativeLibretroHost.Current.IsPaused) NativeLibretroHost.Current.TogglePause();
+                UpdateInGameHudButtons();
+                ShowOsdToast($"Стейт загружен: {Path.GetFileName(dlg.FileName)}");
+            }
+        }
     }
 
     private void BtnGameRewind_Click(object sender, RoutedEventArgs e)
     {
+        if (!NativeLibretroHost.Current.IsRunning)
+        {
+            ShowOsdToast("Нет запущенной игры для перемотки");
+            return;
+        }
         NativeLibretroHost.Current.StepRewind();
-        ShowNotification("STORM RETROARCH", "Перемотка назад");
+        ShowOsdToast("Перемотка времени назад (Rewind)");
     }
 
     private void BtnGameFastForward_Click(object sender, RoutedEventArgs e)
     {
+        if (!NativeLibretroHost.Current.IsRunning)
+        {
+            ShowOsdToast("Нет запущенной игры");
+            return;
+        }
         NativeLibretroHost.Current.ToggleFastForward();
-        ShowNotification("STORM RETROARCH", NativeLibretroHost.Current.IsFastForward ? "Ускорение ВКЛ (3x)" : "Ускорение ВЫКЛ (1x)");
+        UpdateInGameHudButtons();
+        ShowOsdToast(NativeLibretroHost.Current.IsFastForward ? "Турбо-ускорение: ВКЛ (3x)" : "Турбо-ускорение: ВЫКЛ (1x)");
     }
 
     private void BtnGameShader_Click(object sender, RoutedEventArgs e)
@@ -3505,44 +3992,153 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             1 => "CRT Scanlines (-25%)",
             2 => "Smooth Bilinear",
-            3 => "LCD Grid",
+            3 => "Handheld LCD Grid",
             _ => "Pixel-Perfect (Nearest)"
         };
-        ShowNotification("STORM RETROARCH", $"Фильтр: {filterName}");
+        ShowOsdToast($"Видеофильтр: {filterName}");
+    }
+
+    private void BtnGameAspect_Click(object sender, RoutedEventArgs e)
+    {
+        NativeLibretroHost.Current.CycleAspectMode(GameViewportContainer);
+        UpdateInGameHudButtons();
+        string aspectName = NativeLibretroHost.Current.AspectMode switch
+        {
+            1 => "16:9 Широкоэкранный",
+            2 => "1:1 Целочисленный (Пиксель-в-пиксель)",
+            3 => "Растянуть во весь экран",
+            _ => "4:3 Оригинальные пропорции"
+        };
+        ShowOsdToast($"Пропорции экрана: {aspectName}");
+    }
+
+    private void BtnGameMute_Click(object sender, RoutedEventArgs e)
+    {
+        NativeLibretroHost.Current.ToggleMute();
+        UpdateInGameHudButtons();
+        ShowOsdToast(NativeLibretroHost.Current.IsAudioMuted ? "Звук отключён (Mute)" : "Звук включён");
     }
 
     private void BtnGameScreenshot_Click(object sender, RoutedEventArgs e)
     {
         string ssDir = Path.Combine(CoreManager.AppDir, "screenshots");
-        string path = Path.Combine(ssDir, $"{NativeLibretroHost.Current.CurrentGameTitle}_{DateTime.Now:yyyyMMdd_HHmmss}.png");
+        string title = string.IsNullOrWhiteSpace(NativeLibretroHost.Current.CurrentGameTitle) ? "StormRetroArch" : NativeLibretroHost.Current.CurrentGameTitle;
+        foreach (char c in Path.GetInvalidFileNameChars()) title = title.Replace(c, '_');
+        string path = Path.Combine(ssDir, $"{title}_{DateTime.Now:yyyyMMdd_HHmmss}.png");
         bool ok = NativeLibretroHost.Current.CaptureScreenshot(path);
-        ShowNotification("STORM RETROARCH", ok ? $"Скриншот сохранён: {Path.GetFileName(path)}" : "Ошибка сохранения скриншота");
+        if (ok)
+        {
+            RefreshScreenshotsList();
+            ShowOsdToast($"Скриншот сохранён (F8): {Path.GetFileName(path)}");
+        }
+        else
+        {
+            ShowOsdToast("Не удалось сохранить скриншот (запустите игру)");
+        }
     }
 
     private void BtnGameAiHint_Click(object sender, RoutedEventArgs e)
     {
+        if (_isGameFullscreen) SetFullscreenMode(false);
         NavBtn_Click(NavBtnAiWalkthrough, e);
-        ShowNotification("ИИ-Помощник STORM", "Анализ текущей игровой ситуации...");
+        BtnAskAi_Click(sender, e);
+    }
+
+    private void BtnQuickMenuCoreOptions_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isGameFullscreen) SetFullscreenMode(false);
+        if (PnlInGameQuickMenu != null) PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
+        NavBtn_Click(NavBtnCoreOptions, e);
+    }
+
+    private void BtnQuickMenuControls_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isGameFullscreen) SetFullscreenMode(false);
+        if (PnlInGameQuickMenu != null) PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
+        NavBtn_Click(NavBtnInputRemap, e);
+    }
+
+    private void BtnQuickMenuCheats_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isGameFullscreen) SetFullscreenMode(false);
+        if (PnlInGameQuickMenu != null) PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
+        NavBtn_Click(NavBtnCheats, e);
+    }
+
+    private void SetFullscreenMode(bool fullscreen)
+    {
+        _isGameFullscreen = fullscreen;
+
+        if (fullscreen)
+        {
+            _prevWindowState = WindowState;
+            if (ViewGamePlayer != null && ViewGamePlayer.Visibility != Visibility.Visible && NativeLibretroHost.Current.IsRunning)
+            {
+                BtnNavGamePlayer_Click(BtnNavGamePlayer!, new RoutedEventArgs());
+            }
+
+            if (TopTitleBarBorder != null) TopTitleBarBorder.Visibility = Visibility.Collapsed;
+            if (TopToolbarBorder != null) TopToolbarBorder.Visibility = Visibility.Collapsed;
+            if (LeftSidebarBorder != null) LeftSidebarBorder.Visibility = Visibility.Collapsed;
+            if (BottomFooterBorder != null) BottomFooterBorder.Visibility = Visibility.Collapsed;
+
+            if (RowDefTitleBar != null) RowDefTitleBar.Height = new GridLength(0);
+            if (RowDefToolbar != null) RowDefToolbar.Height = new GridLength(0);
+            if (RowDefFooter != null) RowDefFooter.Height = new GridLength(0);
+            if (ColDefSidebar != null) ColDefSidebar.Width = new GridLength(0);
+            if (WindowOuterBorder != null) WindowOuterBorder.BorderThickness = new Thickness(0);
+
+            if (WindowState == WindowState.Maximized)
+            {
+                WindowState = WindowState.Normal;
+            }
+            WindowState = WindowState.Maximized;
+            ShowOsdToast("Полноэкранный режим включён (F11 или ESC для выхода)");
+        }
+        else
+        {
+            if (TopTitleBarBorder != null) TopTitleBarBorder.Visibility = Visibility.Visible;
+            if (TopToolbarBorder != null) TopToolbarBorder.Visibility = Visibility.Visible;
+            if (LeftSidebarBorder != null) LeftSidebarBorder.Visibility = Visibility.Visible;
+            if (BottomFooterBorder != null) BottomFooterBorder.Visibility = Visibility.Visible;
+
+            if (RowDefTitleBar != null) RowDefTitleBar.Height = new GridLength(40);
+            if (RowDefToolbar != null) RowDefToolbar.Height = GridLength.Auto;
+            if (RowDefFooter != null) RowDefFooter.Height = new GridLength(28);
+            if (ColDefSidebar != null) ColDefSidebar.Width = new GridLength(238);
+            if (WindowOuterBorder != null) WindowOuterBorder.BorderThickness = new Thickness(1);
+
+            WindowState = _prevWindowState == WindowState.Minimized ? WindowState.Normal : _prevWindowState;
+            ShowOsdToast("Оконный режим восстановлен");
+        }
+
+        UpdateInGameHudButtons();
+        NativeLibretroHost.Current.ApplyAspectMode(GameViewportContainer);
     }
 
     private void BtnGameFullscreen_Click(object sender, RoutedEventArgs e)
     {
-        _isGameFullscreen = !_isGameFullscreen;
-        var sidebar = FindName("LeftSidebar") as UIElement;
-        var topBar = FindName("TopBarGrid") as UIElement;
-
-        if (sidebar != null) sidebar.Visibility = _isGameFullscreen ? Visibility.Collapsed : Visibility.Visible;
-        if (topBar != null) topBar.Visibility = _isGameFullscreen ? Visibility.Collapsed : Visibility.Visible;
+        SetFullscreenMode(!_isGameFullscreen);
     }
 
     private void BtnGameStop_Click(object sender, RoutedEventArgs e)
     {
+        if (_isGameFullscreen) SetFullscreenMode(false);
+        if (PnlInGameQuickMenu != null) PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
         NativeLibretroHost.Current.StopGame();
+        LoadSaves();
+        RefreshSaveSyncUi();
         if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Visible;
         NavBtn_Click(NavBtnLibrary, e);
+        ShowOsdToast("Игра остановлена, батарейные сохранения (.srm) записаны");
     }
 
-    private void BtnExitGame_Click(object sender, RoutedEventArgs e) => BtnGameStop_Click(sender, e);
+    private void BtnExitGame_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isGameFullscreen) SetFullscreenMode(false);
+        if (PnlInGameQuickMenu != null) PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
+        NavBtn_Click(NavBtnLibrary, e);
+    }
 
     // ==================== DRAG AND DROP & LIBRARY PERSISTENCE ====================
 

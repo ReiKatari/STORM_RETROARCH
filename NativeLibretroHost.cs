@@ -90,6 +90,7 @@ public class NativeLibretroHost
     public delegate void RetroGetSystemAvInfo(out RetroSystemAvInfo info);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
     public delegate bool RetroEnvironmentCallback(uint cmd, IntPtr data);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -138,12 +139,15 @@ public class NativeLibretroHost
     public delegate nuint RetroSerializeSize();
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
     public delegate bool RetroSerialize(IntPtr data, nuint size);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
     public delegate bool RetroUnserialize(IntPtr data, nuint size);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
     public delegate bool RetroLoadGame(ref RetroGameInfo game);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -254,13 +258,19 @@ public class NativeLibretroHost
     private IntPtr _ptrSaveDir = IntPtr.Zero;
     private IntPtr _ptrContentDir = IntPtr.Zero;
 
+    private readonly object _coreLock = new();
     private Image? _targetImage;
     private WriteableBitmap? _bitmap;
     private byte[] _bgraBuffer = new byte[0];
+    private int _lastWidth = 256;
+    private int _lastHeight = 240;
     private int _isRendering = 0;
     private double _targetFps = 60.0;
     private uint _sampleRate = 44100;
     private nuint _serializeSize = 0;
+    private int _activeStateSlot = 0;
+    private volatile bool _isAudioMuted = false;
+    private int _aspectMode = 0; // 0 = 4:3 (Uniform), 1 = 16:9, 2 = 1:1 Pixel, 3 = Fill
 
     // Rewind ring buffer
     private readonly List<byte[]> _rewindHistory = new();
@@ -281,6 +291,22 @@ public class NativeLibretroHost
     public bool IsRunning => _isRunning;
     public bool IsPaused => _isPaused;
     public bool IsFastForward => _isFastForward;
+    public int ActiveStateSlot
+    {
+        get => _activeStateSlot;
+        set => _activeStateSlot = Math.Clamp(value, 0, 99);
+    }
+    public bool IsAudioMuted
+    {
+        get => _isAudioMuted;
+        set => _isAudioMuted = value;
+    }
+    public int AspectMode
+    {
+        get => _aspectMode;
+        set => _aspectMode = value;
+    }
+    public string LastSavedStatePath { get; private set; } = "";
     public int ShaderFilterMode
     {
         get => _shaderFilterMode;
@@ -452,7 +478,7 @@ public class NativeLibretroHost
         {
             IsBackground = true,
             Name = "NativeLibretroEmulationThread",
-            Priority = ThreadPriority.AboveNormal
+            Priority = ThreadPriority.Normal
         };
         _emulationThread.Start();
 
@@ -659,7 +685,8 @@ public class NativeLibretroHost
             byte[] frameCopy = ArrayPool<byte>.Shared.Rent(requiredBytes);
             Buffer.BlockCopy(_bgraBuffer, 0, frameCopy, 0, requiredBytes);
 
-            Application.Current?.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render, new Action(() =>
+            _lastWidth = w; _lastHeight = h;
+            Application.Current?.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
             {
                 try
                 {
@@ -713,6 +740,11 @@ public class NativeLibretroHost
 
     private void FlushAudioChunk()
     {
+        if (_isAudioMuted)
+        {
+            _audioBufferPos = 0;
+            return;
+        }
         if (_hWaveOut == IntPtr.Zero || _audioBufferPos == 0)
         {
             _audioBufferPos = 0;
@@ -853,15 +885,23 @@ public class NativeLibretroHost
             }
 
             int framesToRun = _isFastForward ? 3 : 1;
-            for (int i = 0; i < framesToRun; i++)
+            lock (_coreLock)
             {
-                _retroRun!();
-            }
+                for (int i = 0; i < framesToRun && _isRunning; i++)
+                {
+                    _retroRun!();
+                }
 
-            _frameCount++;
-            if (_frameCount % 15 == 0 && _serializeSize > 0)
-            {
-                CaptureRewindFrame();
+                if (_serializeSize == 0 && _retroSerializeSize != null)
+                {
+                    try { _serializeSize = _retroSerializeSize(); } catch { }
+                }
+
+                _frameCount++;
+                if (_frameCount % 15 == 0 && _serializeSize > 0)
+                {
+                    CaptureRewindFrameLocked();
+                }
             }
 
             nextTickMs += targetFrameMs;
@@ -877,7 +917,7 @@ public class NativeLibretroHost
         }
     }
 
-    private void CaptureRewindFrame()
+    private void CaptureRewindFrameLocked()
     {
         if (_retroSerialize == null || _serializeSize == 0) return;
         try
@@ -916,6 +956,24 @@ public class NativeLibretroHost
         _isFastForward = !_isFastForward;
     }
 
+    public void ToggleMute()
+    {
+        _isAudioMuted = !_isAudioMuted;
+        if (_isAudioMuted && _hWaveOut != IntPtr.Zero)
+        {
+            try { waveOutReset(_hWaveOut); } catch { }
+        }
+    }
+
+    public void ResetGame()
+    {
+        if (!_isRunning || _retroReset == null) return;
+        lock (_coreLock)
+        {
+            try { _retroReset(); } catch { }
+        }
+    }
+
     public void CycleShaderFilter()
     {
         _shaderFilterMode = (_shaderFilterMode + 1) % 4;
@@ -926,51 +984,147 @@ public class NativeLibretroHost
         }
     }
 
-    public bool SaveState(string? slotOrPath = null)
+    public void CycleAspectMode(FrameworkElement? viewportContainer = null)
     {
-        if (!_isRunning || _retroSerialize == null || _serializeSize == 0) return false;
+        _aspectMode = (_aspectMode + 1) % 4;
+        ApplyAspectMode(viewportContainer);
+    }
+
+    public void ApplyAspectMode(FrameworkElement? viewportContainer = null)
+    {
+        if (_targetImage == null) return;
+        switch (_aspectMode)
+        {
+            case 0: // 4:3 Standard
+                _targetImage.Stretch = Stretch.Uniform;
+                _targetImage.Width = double.NaN;
+                _targetImage.Height = double.NaN;
+                break;
+            case 1: // 16:9 Widescreen
+                _targetImage.Stretch = Stretch.Fill;
+                if (viewportContainer != null && viewportContainer.ActualHeight > 100)
+                {
+                    double h = viewportContainer.ActualHeight;
+                    double w = Math.Min(viewportContainer.ActualWidth, h * 16.0 / 9.0);
+                    _targetImage.Width = w;
+                    _targetImage.Height = h;
+                }
+                else
+                {
+                    _targetImage.Width = double.NaN;
+                    _targetImage.Height = double.NaN;
+                }
+                break;
+            case 2: // 1:1 Integer / Original Pixel Scale (2x/3x)
+                _targetImage.Stretch = Stretch.Uniform;
+                _targetImage.Width = _lastWidth * 2;
+                _targetImage.Height = _lastHeight * 2;
+                break;
+            case 3: // Full Stretch
+                _targetImage.Stretch = Stretch.Fill;
+                _targetImage.Width = double.NaN;
+                _targetImage.Height = double.NaN;
+                break;
+        }
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "Game";
+        foreach (char c in Path.GetInvalidFileNameChars())
+        {
+            name = name.Replace(c, '_');
+        }
+        return name.Trim();
+    }
+
+    public bool SaveState(string? slotOrPath = null) => SaveState(_activeStateSlot, slotOrPath);
+
+    public bool SaveState(int slot, string? customPath = null)
+    {
+        if (!_isRunning || _retroSerialize == null) return false;
         try
         {
-            string statePath = slotOrPath ?? Path.Combine(CoreManager.AppDir, "states", $"{CurrentGameTitle}.state0");
+            string safeTitle = SanitizeFileName(CurrentGameTitle);
+            string statesDir = Path.Combine(CoreManager.AppDir, "states");
+            if (!Directory.Exists(statesDir)) Directory.CreateDirectory(statesDir);
+
+            string statePath = !string.IsNullOrWhiteSpace(customPath)
+                ? customPath
+                : Path.Combine(statesDir, $"{safeTitle}.state{slot}");
+
             string? d = Path.GetDirectoryName(statePath);
             if (!string.IsNullOrEmpty(d) && !Directory.Exists(d)) Directory.CreateDirectory(d);
 
-            byte[] state = new byte[(int)_serializeSize];
-            GCHandle pin = GCHandle.Alloc(state, GCHandleType.Pinned);
-            try
+            lock (_coreLock)
             {
-                if (_retroSerialize(pin.AddrOfPinnedObject(), _serializeSize))
+                nuint sz = _retroSerializeSize != null ? _retroSerializeSize() : _serializeSize;
+                if (sz == 0) sz = _serializeSize;
+                if (sz == 0) return false;
+                _serializeSize = sz;
+
+                byte[] state = new byte[(int)sz];
+                GCHandle pin = GCHandle.Alloc(state, GCHandleType.Pinned);
+                try
                 {
-                    File.WriteAllBytes(statePath, state);
-                    return true;
+                    if (_retroSerialize(pin.AddrOfPinnedObject(), sz))
+                    {
+                        File.WriteAllBytes(statePath, state);
+                        LastSavedStatePath = statePath;
+
+                        // Also save battery SRAM (.srm)
+                        SaveBatterySave(safeTitle);
+
+                        // Also save PNG state preview thumbnail
+                        CaptureScreenshot(statePath + ".png");
+                        return true;
+                    }
                 }
-            }
-            finally
-            {
-                pin.Free();
+                finally
+                {
+                    pin.Free();
+                }
             }
         }
         catch { }
         return false;
     }
 
-    public bool LoadState(string? slotOrPath = null)
+    public bool LoadState(string? slotOrPath = null) => LoadState(_activeStateSlot, slotOrPath);
+
+    public bool LoadState(int slot, string? customPath = null)
     {
         if (!_isRunning || _retroUnserialize == null) return false;
         try
         {
-            string statePath = slotOrPath ?? Path.Combine(CoreManager.AppDir, "states", $"{CurrentGameTitle}.state0");
+            string safeTitle = SanitizeFileName(CurrentGameTitle);
+            string statesDir = Path.Combine(CoreManager.AppDir, "states");
+            string statePath = !string.IsNullOrWhiteSpace(customPath)
+                ? customPath
+                : Path.Combine(statesDir, $"{safeTitle}.state{slot}");
+
+            if (!File.Exists(statePath) && string.IsNullOrWhiteSpace(customPath) && Directory.Exists(statesDir))
+            {
+                // Fallback: look for any state of the current game if this exact slot was not found
+                var match = Directory.GetFiles(statesDir, $"{safeTitle}.state*")
+                    .FirstOrDefault(f => !f.EndsWith(".png", StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrEmpty(match)) statePath = match;
+            }
+
             if (!File.Exists(statePath)) return false;
 
             byte[] state = File.ReadAllBytes(statePath);
-            GCHandle pin = GCHandle.Alloc(state, GCHandleType.Pinned);
-            try
+            lock (_coreLock)
             {
-                return _retroUnserialize(pin.AddrOfPinnedObject(), (nuint)state.Length);
-            }
-            finally
-            {
-                pin.Free();
+                GCHandle pin = GCHandle.Alloc(state, GCHandleType.Pinned);
+                try
+                {
+                    return _retroUnserialize(pin.AddrOfPinnedObject(), (nuint)state.Length);
+                }
+                finally
+                {
+                    pin.Free();
+                }
             }
         }
         catch { }
@@ -992,14 +1146,17 @@ public class NativeLibretroHost
 
         if (prev != null)
         {
-            GCHandle pin = GCHandle.Alloc(prev, GCHandleType.Pinned);
-            try
+            lock (_coreLock)
             {
-                _retroUnserialize(pin.AddrOfPinnedObject(), (nuint)prev.Length);
-            }
-            finally
-            {
-                pin.Free();
+                GCHandle pin = GCHandle.Alloc(prev, GCHandleType.Pinned);
+                try
+                {
+                    _retroUnserialize(pin.AddrOfPinnedObject(), (nuint)prev.Length);
+                }
+                finally
+                {
+                    pin.Free();
+                }
             }
         }
     }
@@ -1011,7 +1168,21 @@ public class NativeLibretroHost
             string? d = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(d) && !Directory.Exists(d)) Directory.CreateDirectory(d);
 
-            if (_bitmap != null)
+            int w = _lastWidth;
+            int h = _lastHeight;
+            int req = w * h * 4;
+            if (w > 0 && h > 0 && _bgraBuffer.Length >= req)
+            {
+                byte[] copy = new byte[req];
+                Buffer.BlockCopy(_bgraBuffer, 0, copy, 0, req);
+                var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, copy, w * 4);
+                var enc = new PngBitmapEncoder();
+                enc.Frames.Add(BitmapFrame.Create(bmp));
+                using var fs = File.Create(path);
+                enc.Save(fs);
+                return true;
+            }
+            else if (_bitmap != null)
             {
                 var enc = new PngBitmapEncoder();
                 enc.Frames.Add(BitmapFrame.Create(_bitmap));

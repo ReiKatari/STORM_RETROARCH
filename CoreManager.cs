@@ -19,40 +19,88 @@ public static class CoreManager
 {
     public const string BuildbotBaseUrl = "https://buildbot.libretro.com/nightly/windows/x86_64/latest/";
     
-    public static readonly string AppDir = ResolveAppDir();
+    public static readonly string InstallDir = ResolveInstallDir();
+    public static readonly string AppDir = EnsureWritableAppDir(InstallDir);
     public static readonly string CoresDir = Path.Combine(AppDir, "cores");
     public static readonly string DownloadsDir = Path.Combine(AppDir, "downloads");
-    public static readonly string InfoDir = Path.Combine(AppDir, "info");
+    public static readonly string InfoDir = Directory.Exists(Path.Combine(InstallDir, "info")) ? Path.Combine(InstallDir, "info") : Path.Combine(AppDir, "info");
 
     private static readonly List<CoreInfo> _allCoresCatalog = new();
     private static readonly Dictionary<string, CoreInfo> _extensionToCoreMap = new(StringComparer.OrdinalIgnoreCase);
 
-    private static string ResolveAppDir()
+    private static string ResolveInstallDir()
     {
         string? startDir = Path.GetDirectoryName(Environment.ProcessPath);
         if (string.IsNullOrEmpty(startDir)) startDir = AppDomain.CurrentDomain.BaseDirectory;
 
-        // Check if retroarch.exe AND populated info/ exist directly here
-        if (File.Exists(Path.Combine(startDir, "retroarch.exe")) &&
-            Directory.Exists(Path.Combine(startDir, "info")) &&
-            Directory.GetFiles(Path.Combine(startDir, "info"), "*.info").Length > 10)
+        if (Directory.Exists(Path.Combine(startDir, "cores")) &&
+            Directory.Exists(Path.Combine(startDir, "info")))
             return startDir;
 
-        // Check up to 4 parent directories and their subdirectories (e.g. bin\Release\net10.0-windows)
         string? current = startDir;
         for (int i = 0; i < 4 && current != null; i++)
         {
-            if (File.Exists(Path.Combine(current, "retroarch.exe")))
+            if (Directory.Exists(Path.Combine(current, "cores")) &&
+                Directory.Exists(Path.Combine(current, "info")))
                 return current;
-
-            string relPath = Path.Combine(current, "bin", "Release", "net10.0-windows");
-            if (File.Exists(Path.Combine(relPath, "retroarch.exe")))
-                return relPath;
 
             current = Directory.GetParent(current)?.FullName;
         }
 
         return startDir;
+    }
+
+    private static bool IsDirectoryWritable(string dirPath)
+    {
+        try
+        {
+            if (!Directory.Exists(dirPath)) Directory.CreateDirectory(dirPath);
+            string probe = Path.Combine(dirPath, ".storm_write_probe.tmp");
+            File.WriteAllText(probe, "ok");
+            File.Delete(probe);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string EnsureWritableAppDir(string installDir)
+    {
+        if (IsDirectoryWritable(installDir))
+            return installDir;
+
+        string userDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "STORM RETROARCH");
+        try
+        {
+            if (!Directory.Exists(userDir)) Directory.CreateDirectory(userDir);
+            string dstCores = Path.Combine(userDir, "cores");
+            if (!Directory.Exists(dstCores)) Directory.CreateDirectory(dstCores);
+
+            string srcCores = Path.Combine(installDir, "cores");
+            if (Directory.Exists(srcCores))
+            {
+                foreach (var dll in Directory.GetFiles(srcCores, "*.dll"))
+                {
+                    string target = Path.Combine(dstCores, Path.GetFileName(dll));
+                    if (!File.Exists(target))
+                    {
+                        try { File.Copy(dll, target, false); } catch { }
+                    }
+                }
+            }
+
+            string srcCfg = Path.Combine(installDir, "retroarch.cfg");
+            string dstCfg = Path.Combine(userDir, "retroarch.cfg");
+            if (File.Exists(srcCfg) && !File.Exists(dstCfg))
+            {
+                try { File.Copy(srcCfg, dstCfg, false); } catch { }
+            }
+        }
+        catch { }
+
+        return userDir;
     }
 
     static CoreManager()
