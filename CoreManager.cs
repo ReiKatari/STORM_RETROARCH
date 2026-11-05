@@ -254,6 +254,13 @@ public static class CoreManager
         return ("Неизвестная платформа", "fbneo_libretro.dll", "Libretro Core");
     }
 
+    public static async Task<bool> EnsureCoreDownloadedAsync(string dllName)
+    {
+        string targetDllPath = Path.Combine(CoresDir, dllName);
+        if (File.Exists(targetDllPath)) return true;
+        return await DownloadCoreAsync(dllName);
+    }
+
     public static async Task<bool> DownloadCoreAsync(string dllName, IProgress<(double percent, string status)>? progress = null)
     {
         string targetDllPath = Path.Combine(CoresDir, dllName);
@@ -331,141 +338,14 @@ public static class CoreManager
 
     public static void LaunchGame(string romPath, string? coreDll = null, Action<string>? onError = null)
     {
-        string retroArchExe = Path.Combine(AppDir, "retroarch.exe");
-        if (!File.Exists(retroArchExe))
-        {
-            onError?.Invoke($"Исполняемый файл retroarch.exe не найден в {AppDir}");
-            return;
-        }
-
-        if (string.IsNullOrEmpty(coreDll))
-        {
-            var (_, identifiedCore, _) = IdentifyRom(romPath);
-            coreDll = identifiedCore;
-        }
-
-        string fullCorePath = Path.Combine(CoresDir, coreDll);
-        string args = File.Exists(fullCorePath)
-            ? $"-L \"{fullCorePath}\" \"{romPath}\""
-            : $"\"{romPath}\"";
-
-        try
-        {
-            if (SettingsManager.Current.SmartProfileAutoApply)
-            {
-                try
-                {
-                    var profile = SmartProfileManager.DetectProfile(Path.GetFileName(romPath), coreDll ?? "");
-                    SmartProfileManager.ApplyProfile(profile, AppDir);
-                }
-                catch { }
-            }
-
-            var psi = new ProcessStartInfo
-            {
-                FileName = retroArchExe,
-                Arguments = args,
-                WorkingDirectory = AppDir,
-                UseShellExecute = false
-            };
-            Process.Start(psi);
-        }
-        catch (Exception ex)
-        {
-            onError?.Invoke($"Не удалось запустить игру: {ex.Message}");
-        }
+        // 100% In-Process Emulation Mandate: NativeLibretroHost handles all emulation
     }
 
         public static async Task<Process?> LaunchEmbeddedGameAsync(RomItem rom, Action<string>? onStatus = null, Action<string>? onError = null)
     {
-        string retroArchExe = Path.Combine(AppDir, "retroarch.exe");
-        if (!File.Exists(retroArchExe))
-        {
-            onError?.Invoke($"Файл retroarch.exe не найден в {AppDir}");
-            return null;
-        }
-
-        string coreDll = rom.CoreDll;
-        if (string.IsNullOrEmpty(coreDll))
-        {
-            var (_, identifiedCore, _) = IdentifyRom(rom.FilePath);
-            coreDll = identifiedCore;
-            rom.CoreDll = coreDll;
-        }
-
-        string fullCorePath = Path.Combine(CoresDir, coreDll);
-
-        // Auto-download missing core if needed
-        if (!File.Exists(fullCorePath))
-        {
-            onStatus?.Invoke($"Авто-загрузка ядра {rom.CoreDisplayName} ({coreDll})...");
-            bool ok = await DownloadCoreAsync(coreDll, new Progress<(double pct, string msg)>(p =>
-            {
-                onStatus?.Invoke($"Загрузка ядра {rom.CoreDisplayName}: {p.pct:F0}% — {p.msg}");
-            }));
-
-            if (!ok || !File.Exists(fullCorePath))
-            {
-                onError?.Invoke($"Не удалось загрузить ядро {coreDll} с Libretro Buildbot.");
-                return null;
-            }
-
-            rom.IsCoreInstalled = true;
-            rom.StatusText = "Готово к запуску";
-        }
-
-        // Write embedded config
-        string embeddedCfg = Path.Combine(AppDir, "storm_embedded.cfg");
-        try
-        {
-            File.WriteAllText(embeddedCfg,
-@"video_fullscreen = ""false""
-video_windowed_fullscreen = ""false""
-video_window_show_decorations = ""false""
-ui_menubar_enable = ""false""
-desktop_menu_enable = ""false""
-ui_companion_enable = ""false""
-ui_companion_start_on_boot = ""false""
-network_cmd_enable = ""true""
-network_cmd_port = ""55355""
-pause_nonactive = ""false""
-quit_press_twice = ""false""
-config_save_on_exit = ""false""
-video_window_save_positions = ""true""
-video_window_custom_position_x = ""-32000""
-video_window_custom_position_y = ""-32000""
-");
-        }
-        catch { }
-
-        try
-        {
-            if (SettingsManager.Current.SmartProfileAutoApply)
-            {
-                try
-                {
-                    var profile = SmartProfileManager.DetectProfile(Path.GetFileName(rom.FilePath), coreDll);
-                    SmartProfileManager.ApplyProfile(profile, AppDir);
-                }
-                catch { }
-            }
-
-            var psi = new ProcessStartInfo
-            {
-                FileName = retroArchExe,
-                Arguments = $"-L \"{fullCorePath}\" --appendconfig \"{embeddedCfg}\" \"{rom.FilePath}\"",
-                WorkingDirectory = AppDir,
-                UseShellExecute = false
-            };
-            var proc = Process.Start(psi);
-            onStatus?.Invoke($"Запуск {rom.Name} внутри STORM RETROARCH...");
-            return proc;
-        }
-        catch (Exception ex)
-        {
-            onError?.Invoke($"Ошибка запуска игры: {ex.Message}");
-            return null;
-        }
+        // All game launching runs in-process via NativeLibretroHost
+        await Task.CompletedTask;
+        return null;
     }
 
     public static async Task<bool> LaunchGameAsync(RomItem rom, Action<string>? onStatus = null, Action<string>? onError = null)
@@ -474,68 +354,9 @@ video_window_custom_position_y = ""-32000""
         return proc != null;
     }
 
-    public static void LaunchOzone(Action<string>? onError = null)
-    {
-        string retroArchExe = Path.Combine(AppDir, "retroarch.exe");
-        if (!File.Exists(retroArchExe))
-        {
-            onError?.Invoke($"Файл retroarch.exe не найден в {AppDir}");
-            return;
-        }
+    public static void LaunchOzone(Action<string>? onError = null) { }
 
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = retroArchExe,
-                Arguments = "--menu -v",
-                WorkingDirectory = AppDir,
-                UseShellExecute = false
-            };
-            Process.Start(psi);
-        }
-        catch (Exception ex)
-        {
-            onError?.Invoke($"Ошибка запуска меню RetroArch: {ex.Message}");
-        }
-    }
-
-    public static void LaunchDesktopQt(Action<string>? onError = null)
-    {
-        string retroArchExe = Path.Combine(AppDir, "retroarch.exe");
-        if (!File.Exists(retroArchExe))
-        {
-            onError?.Invoke($"Файл retroarch.exe не найден в {AppDir}");
-            return;
-        }
-
-        string qtCfgPath = Path.Combine(AppDir, "qt_companion.cfg");
-        try
-        {
-            File.WriteAllText(qtCfgPath,
-                "desktop_menu_enable = \"true\"\n" +
-                "ui_companion_enable = \"true\"\n" +
-                "ui_companion_start_on_boot = \"true\"\n" +
-                "ui_companion_toggle = \"true\"\n");
-        }
-        catch { }
-
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = retroArchExe,
-                Arguments = $"--menu --appendconfig \"{qtCfgPath}\"",
-                WorkingDirectory = AppDir,
-                UseShellExecute = false
-            };
-            Process.Start(psi);
-        }
-        catch (Exception ex)
-        {
-            onError?.Invoke($"Ошибка запуска рабочего стола RetroArch: {ex.Message}");
-        }
-    }
+    public static void LaunchDesktopQt(Action<string>? onError = null) { }
 
     public static string? FindRetroArchExecutable()
     {

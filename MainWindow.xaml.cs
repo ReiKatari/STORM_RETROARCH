@@ -47,7 +47,6 @@ public record NetplayRoomItem(string Username, string GameName, string CoreName,
 public partial class MainWindow : Window, INotifyPropertyChanged
 {
     // In-App Embedded Game Viewport & Interactive Controller Fields
-    private Process? _activeGameProcess;
     private RomItem? _activeRomItem;
     private bool _isGameFullscreen;
     private bool _isCapturingGamepadButton;
@@ -170,6 +169,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         // Bind Collections
         LvGames.ItemsSource = _filteredGames;
         IcGamesBento.ItemsSource = _filteredGames;
+        IcGamesIcons.ItemsSource = _filteredGames;
         LvFavorites.ItemsSource = _favorites;
         LvHistory.ItemsSource = _history;
         // LvCores replaced with dynamic ViewMode panels
@@ -268,8 +268,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         LoadPlaylists();
 
         // Refresh UI Stats & Screenshots
-        UpdateStats();
         LoadLibraryFromPlaylist();
+        PopulateFilters();
+        ApplyGamesFilter();
+        UpdateStats();
         RefreshScreenshotsList();
 
         // Initialize 5 Flagship Systems
@@ -322,7 +324,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 cmdArgs[i].Equals("--screenshot-v2-shaders", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-v2-bios", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-v2-savesync", StringComparison.OrdinalIgnoreCase) ||
-                cmdArgs[i].Equals("--screenshot-v2-gameplayer", StringComparison.OrdinalIgnoreCase))
+                cmdArgs[i].Equals("--screenshot-v2-gameplayer", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-v3-tiles", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-v3-list", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-v3-icons", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-v3-running", StringComparison.OrdinalIgnoreCase))
             {
                 bool isSettings = cmdArgs[i].Equals("--screenshot-settings", StringComparison.OrdinalIgnoreCase);
                 bool isBios = cmdArgs[i].Equals("--screenshot-bios", StringComparison.OrdinalIgnoreCase);
@@ -471,6 +477,34 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                             if (TxtActiveGamePlatform != null) TxtActiveGamePlatform.Text = "Super Nintendo (SNES)";
                             if (TxtActiveGameCore != null) TxtActiveGameCore.Text = "Snes9x";
                             if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-v3-tiles", StringComparison.OrdinalIgnoreCase))
+                        {
+                            NavBtn_Click(NavBtnLibrary, new RoutedEventArgs());
+                            EnsureBattletoadsTestGame();
+                            BtnViewMode_Click(BtnViewBento, new RoutedEventArgs());
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-v3-list", StringComparison.OrdinalIgnoreCase))
+                        {
+                            NavBtn_Click(NavBtnLibrary, new RoutedEventArgs());
+                            EnsureBattletoadsTestGame();
+                            BtnViewMode_Click(BtnViewOzone, new RoutedEventArgs());
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-v3-icons", StringComparison.OrdinalIgnoreCase))
+                        {
+                            NavBtn_Click(NavBtnLibrary, new RoutedEventArgs());
+                            EnsureBattletoadsTestGame();
+                            BtnViewMode_Click(BtnViewCompact, new RoutedEventArgs());
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-v3-running", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (BtnNavGamePlayer != null) NavBtn_Click(BtnNavGamePlayer, new RoutedEventArgs());
+                            if (ViewGamePlayer != null) ViewGamePlayer.Visibility = Visibility.Visible;
+                            if (TxtActiveGameTitle != null) TxtActiveGameTitle.Text = "Battletoads";
+                            if (TxtActiveGamePlatform != null) TxtActiveGamePlatform.Text = "Nintendo Entertainment System";
+                            if (TxtActiveGameCore != null) TxtActiveGameCore.Text = "FCEUmm";
+                            if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
+                            EnsureBattletoadsRunningPreview();
                         }
                         UpdateLayout();
                         int w = Math.Max(1160, (int)ActualWidth);
@@ -888,9 +922,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
 
 
-        // 2. Games library view modes
+        // 2. Games library view modes (3 modes: Bento, List, Poster Grid)
         GamesBentoScroll.Visibility = (_currentViewMode == ViewDisplayMode.Bento) ? Visibility.Visible : Visibility.Collapsed;
-        LvGames.Visibility = (_currentViewMode != ViewDisplayMode.Bento) ? Visibility.Visible : Visibility.Collapsed;
+        LvGames.Visibility = (_currentViewMode == ViewDisplayMode.Ozone) ? Visibility.Visible : Visibility.Collapsed;
+        GamesIconsScroll.Visibility = (_currentViewMode == ViewDisplayMode.Compact) ? Visibility.Visible : Visibility.Collapsed;
 
         // 3. Dynamic Card Width across all Bento Cards & Item Controls
         DynamicCardWidth = _currentViewMode switch
@@ -1019,7 +1054,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 var rom = _allGames.FirstOrDefault(g => g.FilePath.Equals(dlg.FileName, StringComparison.OrdinalIgnoreCase));
                 if (rom != null)
                 {
-                    _ = CoreManager.LaunchGameAsync(rom);
+                    _ = StartGameInViewportAsync(rom);
                 }
             }
         }
@@ -1169,6 +1204,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (dlg.ShowDialog() == true)
         {
             foreach (var f in dlg.FileNames) AddRomFile(f);
+            SaveLibraryToPlaylist();
             ApplyGamesFilter();
             UpdateStats();
         }
@@ -1184,6 +1220,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (dlg.ShowDialog() == true)
         {
             ScanDirectory(dlg.FolderName);
+            SaveLibraryToPlaylist();
             ApplyGamesFilter();
             UpdateStats();
         }
@@ -1239,7 +1276,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             var item = new RomItem
             {
-                Name = Path.GetFileNameWithoutExtension(filePath),
                 FilePath = filePath,
                 Extension = fi.Extension.ToLowerInvariant(),
                 Platform = platform,
@@ -1250,7 +1286,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 StatusText = CoreManager.IsCoreInstalled(coreDll) ? "Готово к запуску" : "Требуется ядро"
             };
 
+            item.ParseAndUpdateFromFileName(fi.Name);
             item.GeneratePixelIcon();
+            _ = CoverArtService.LoadCoverAsync(item);
             _allGames.Add(item);
         }
         catch { }
@@ -1312,6 +1350,20 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void UpdateStats()
     {
+        if (CmbPlatformFilter != null)
+        {
+            string currentPlat = CmbPlatformFilter.SelectedItem?.ToString() ?? "Все платформы";
+            var distinctPlats = _allGames.Select(g => g.Platform).Where(p => !string.IsNullOrWhiteSpace(p)).Distinct().OrderBy(p => p).ToList();
+            if (CmbPlatformFilter.Items.Count != distinctPlats.Count + 1)
+            {
+                CmbPlatformFilter.SelectionChanged -= CmbPlatformFilter_SelectionChanged;
+                CmbPlatformFilter.Items.Clear();
+                CmbPlatformFilter.Items.Add("Все платформы");
+                foreach (var p in distinctPlats) CmbPlatformFilter.Items.Add(p);
+                CmbPlatformFilter.SelectedItem = CmbPlatformFilter.Items.Contains(currentPlat) ? currentPlat : "Все платформы";
+                CmbPlatformFilter.SelectionChanged += CmbPlatformFilter_SelectionChanged;
+            }
+        }
         TxtStatTotalGames.Text = _allGames.Count.ToString();
         TxtStatCoresReady.Text = _allGames.Count(g => g.IsCoreInstalled).ToString();
         long totalBytes = _allGames.Sum(g => g.FileSizeBytes);
@@ -1323,7 +1375,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (LvGames.SelectedItem is RomItem item)
         {
-            _ = CoreManager.LaunchGameAsync(item);
+            _ = StartGameInViewportAsync(item);
         }
     }
 
@@ -1331,7 +1383,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (LvFavorites.SelectedItem is RomItem item)
         {
-            _ = CoreManager.LaunchGameAsync(item);
+            _ = StartGameInViewportAsync(item);
         }
     }
 
@@ -1339,7 +1391,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (LvHistory.SelectedItem is RomItem item)
         {
-            _ = CoreManager.LaunchGameAsync(item);
+            _ = StartGameInViewportAsync(item);
         }
     }
 
@@ -3354,7 +3406,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (ViewGamePlayer != null)
         {
             ViewGamePlayer.Visibility = Visibility.Visible;
-            GameHost?.ResizeEmbeddedGame();
         }
     }
 
@@ -3390,79 +3441,82 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (TxtActiveGameCore != null) TxtActiveGameCore.Text = item.CoreDisplayName;
         if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Visible;
         if (TxtGameViewportStatusTitle != null) TxtGameViewportStatusTitle.Text = $"Запуск «{item.Name}»...";
-        if (TxtGameViewportStatusDesc != null) TxtGameViewportStatusDesc.Text = $"Подготовка ядра {item.CoreDisplayName} ({item.CoreDll}) и запуск во встроенном экране STORM RETROARCH...";
+        if (TxtGameViewportStatusDesc != null) TxtGameViewportStatusDesc.Text = $"Загрузка ядра {item.CoreDisplayName} и запуск во встроенном движке STORM RETROARCH...";
 
-        var proc = await CoreManager.LaunchEmbeddedGameAsync(item, 
-            status => Dispatcher.Invoke(() => { if (TxtGameViewportStatusDesc != null) TxtGameViewportStatusDesc.Text = status; }),
-            err => Dispatcher.Invoke(() => ShowNotification("Ошибка запуска", err)));
+        try
+        {
+            bool started = await NativeLibretroHost.Current.StartGameAsync(item, NativeGameImage, status =>
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    if (TxtGameViewportStatusDesc != null) TxtGameViewportStatusDesc.Text = status;
+                });
+            });
 
-        if (proc == null)
+            if (started)
+            {
+                if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
+                ShowNotification("STORM RETROARCH", $"Игра «{item.Name}» запущена во встроенном экране!");
+            }
+        }
+        catch (Exception ex)
         {
             if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Visible;
             if (TxtGameViewportStatusTitle != null) TxtGameViewportStatusTitle.Text = "Ошибка запуска игры";
-            if (TxtGameViewportStatusDesc != null) TxtGameViewportStatusDesc.Text = "Не удалось запустить эмулятор Libretro.";
-            return;
+            if (TxtGameViewportStatusDesc != null) TxtGameViewportStatusDesc.Text = ex.Message;
+            ShowNotification("Ошибка запуска", ex.Message);
         }
-
-        _activeGameProcess = proc;
-
-        _ = Task.Run(async () =>
-        {
-            IntPtr gameHwnd = IntPtr.Zero;
-            for (int i = 0; i < 300; i++)
-            {
-                if (proc.HasExited) break;
-                proc.Refresh();
-                if (proc.MainWindowHandle != IntPtr.Zero)
-                {
-                    gameHwnd = proc.MainWindowHandle;
-                    break;
-                }
-                await Task.Delay(20);
-            }
-
-            if (gameHwnd != IntPtr.Zero)
-            {
-                await Dispatcher.InvokeAsync(() =>
-                {
-                    GameHost?.AttachGameWindow(gameHwnd);
-                    if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
-                    ShowNotification("STORM RETROARCH", $"Игра «{item.Name}» активна во встроенном экране!");
-                });
-            }
-
-            await proc.WaitForExitAsync();
-
-            await Dispatcher.InvokeAsync(() =>
-            {
-                GameHost?.DetachGameWindow();
-                if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Visible;
-                if (TxtGameViewportStatusTitle != null) TxtGameViewportStatusTitle.Text = "Игра завершена";
-                if (TxtGameViewportStatusDesc != null) TxtGameViewportStatusDesc.Text = $"Сессия «{item.Name}» завершена. Выберите следующую игру.";
-                _activeGameProcess = null;
-                _activeRomItem = null;
-            });
-        });
     }
 
-    private void BtnGamePause_Click(object sender, RoutedEventArgs e) => UdpCommandBridge.PauseToggle();
+    private void BtnGamePause_Click(object sender, RoutedEventArgs e)
+    {
+        NativeLibretroHost.Current.TogglePause();
+        ShowNotification("STORM RETROARCH", NativeLibretroHost.Current.IsPaused ? "Игра на паузе" : "Игра возобновлена");
+    }
+
     private void BtnGameSaveState_Click(object sender, RoutedEventArgs e)
     {
-        UdpCommandBridge.SaveState();
-        ShowNotification("STORM RETROARCH", "Стейт сохранён (F2)");
+        bool ok = NativeLibretroHost.Current.SaveState();
+        ShowNotification("STORM RETROARCH", ok ? "Стейт сохранён (F2)" : "Ошибка сохранения стейта");
     }
+
     private void BtnGameLoadState_Click(object sender, RoutedEventArgs e)
     {
-        UdpCommandBridge.LoadState();
-        ShowNotification("STORM RETROARCH", "Стейт загружен (F4)");
+        bool ok = NativeLibretroHost.Current.LoadState();
+        ShowNotification("STORM RETROARCH", ok ? "Стейт загружен (F4)" : "Стейт не найден");
     }
-    private void BtnGameRewind_Click(object sender, RoutedEventArgs e) => UdpCommandBridge.Rewind();
-    private void BtnGameFastForward_Click(object sender, RoutedEventArgs e) => UdpCommandBridge.FastForward();
-    private void BtnGameShader_Click(object sender, RoutedEventArgs e) => UdpCommandBridge.ShaderNext();
+
+    private void BtnGameRewind_Click(object sender, RoutedEventArgs e)
+    {
+        NativeLibretroHost.Current.StepRewind();
+        ShowNotification("STORM RETROARCH", "Перемотка назад");
+    }
+
+    private void BtnGameFastForward_Click(object sender, RoutedEventArgs e)
+    {
+        NativeLibretroHost.Current.ToggleFastForward();
+        ShowNotification("STORM RETROARCH", NativeLibretroHost.Current.IsFastForward ? "Ускорение ВКЛ (3x)" : "Ускорение ВЫКЛ (1x)");
+    }
+
+    private void BtnGameShader_Click(object sender, RoutedEventArgs e)
+    {
+        NativeLibretroHost.Current.CycleShaderFilter();
+        string filterName = NativeLibretroHost.Current.ShaderFilterMode switch
+        {
+            1 => "CRT Scanlines (-25%)",
+            2 => "Smooth Bilinear",
+            3 => "LCD Grid",
+            _ => "Pixel-Perfect (Nearest)"
+        };
+        ShowNotification("STORM RETROARCH", $"Фильтр: {filterName}");
+    }
+
     private void BtnGameScreenshot_Click(object sender, RoutedEventArgs e)
     {
-        UdpCommandBridge.Screenshot();
-        ShowNotification("STORM RETROARCH", "Снимок экрана сохранён (F8)");
+        string ssDir = Path.Combine(CoreManager.AppDir, "screenshots");
+        string path = Path.Combine(ssDir, $"{NativeLibretroHost.Current.CurrentGameTitle}_{DateTime.Now:yyyyMMdd_HHmmss}.png");
+        bool ok = NativeLibretroHost.Current.CaptureScreenshot(path);
+        ShowNotification("STORM RETROARCH", ok ? $"Скриншот сохранён: {Path.GetFileName(path)}" : "Ошибка сохранения скриншота");
     }
 
     private void BtnGameAiHint_Click(object sender, RoutedEventArgs e)
@@ -3479,24 +3533,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         if (sidebar != null) sidebar.Visibility = _isGameFullscreen ? Visibility.Collapsed : Visibility.Visible;
         if (topBar != null) topBar.Visibility = _isGameFullscreen ? Visibility.Collapsed : Visibility.Visible;
-
-        GameHost?.ResizeEmbeddedGame();
     }
 
     private void BtnGameStop_Click(object sender, RoutedEventArgs e)
     {
-        UdpCommandBridge.Quit();
-        Task.Run(async () =>
-        {
-            await Task.Delay(400);
-            try
-            {
-                if (_activeGameProcess != null && !_activeGameProcess.HasExited)
-                    _activeGameProcess.Kill();
-            }
-            catch { }
-        });
-
+        NativeLibretroHost.Current.StopGame();
+        if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Visible;
         NavBtn_Click(NavBtnLibrary, e);
     }
 
@@ -3651,6 +3693,65 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
         }
         catch { }
+    }
+
+    private void EnsureBattletoadsTestGame()
+    {
+        string zipPath = Path.Combine(CoreManager.AppDir, "test_roms", "Battletoads (1991) [JP] [MOD - M. RUS] (1.0 - 9806CB84) (1G+1M).zip");
+        string nesPath = @"Q:\CONSOLES\Nintendo Entertainment System\GAMES\Battletoads (1991) [JP] [MOD - M. RUS] (1.0 - HVC-8T - 67B49C3F) (1G+1M).nes";
+        string filePath = File.Exists(zipPath) ? zipPath : (File.Exists(nesPath) ? nesPath : @"C:\Games\Battletoads.nes");
+
+        var existing = _allGames.FirstOrDefault(g => g.Name.Equals("Battletoads", StringComparison.OrdinalIgnoreCase));
+        if (existing == null)
+        {
+            var item = new RomItem
+            {
+                FilePath = filePath,
+                Platform = "Nintendo Entertainment System",
+                CoreDll = "fceumm_libretro.dll",
+                CoreDisplayName = "FCEUmm",
+                FileSizeBytes = File.Exists(filePath) ? new FileInfo(filePath).Length : 393232,
+                IsCoreInstalled = true,
+                StatusText = "Готово к запуску"
+            };
+            item.ParseAndUpdateFromFileName("Battletoads (1991) [JP] [MOD - M. RUS] (1.0 - 9806CB84) (1G+1M).zip");
+            System.Threading.Tasks.Task.Run(() => CoverArtService.LoadCoverAsync(item)).GetAwaiter().GetResult();
+            _allGames.Insert(0, item);
+            ApplyGamesFilter();
+            UpdateStats();
+        }
+        else
+        {
+            existing.FilePath = filePath;
+            existing.ParseAndUpdateFromFileName("Battletoads (1991) [JP] [MOD - M. RUS] (1.0 - 9806CB84) (1G+1M).zip");
+            System.Threading.Tasks.Task.Run(() => CoverArtService.LoadCoverAsync(existing)).GetAwaiter().GetResult();
+        }
+    }
+
+    private void EnsureBattletoadsRunningPreview()
+    {
+        EnsureBattletoadsTestGame();
+        var item = _allGames.FirstOrDefault(g => g.Name.Equals("Battletoads", StringComparison.OrdinalIgnoreCase));
+        if (item != null && File.Exists(item.FilePath))
+        {
+            try
+            {
+                NativeLibretroHost.Current.StartGameAsync(item, NativeGameImage).GetAwaiter().GetResult();
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                while (sw.ElapsedMilliseconds < 700)
+                {
+                    var frame = new System.Windows.Threading.DispatcherFrame();
+                    Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new System.Windows.Threading.DispatcherOperationCallback(f =>
+                    {
+                        ((System.Windows.Threading.DispatcherFrame)f).Continue = false;
+                        return null;
+                    }), frame);
+                    System.Windows.Threading.Dispatcher.PushFrame(frame);
+                    Thread.Sleep(25);
+                }
+            }
+            catch { }
+        }
     }
 
     // ==================== INTERACTIVE GAMEPAD STUDIO ====================

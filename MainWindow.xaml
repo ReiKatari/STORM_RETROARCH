@@ -73,6 +73,7 @@
 
         <!-- Star Converter for Favorites -->
         <local:BoolToStarConverter x:Key="StarConverter"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
 
         <!-- Dark ScrollBar Style with >=16px margin and theme colors -->
         <Style x:Key="StormScrollBarThumb" TargetType="{x:Type Thumb}">
@@ -1145,8 +1146,8 @@
                     <!-- Row 1: Embedded Game Viewport Container -->
                     <Border Grid.Row="1" x:Name="GameViewportContainer" Background="#05040A" ClipToBounds="True">
                         <Grid>
-                            <!-- Embedded Win32 HwndHost Canvas -->
-                            <local:EmbeddedGameHost x:Name="GameHost" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                            <!-- Native In-Process Libretro Viewport -->
+                            <Image x:Name="NativeGameImage" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
 
                             <!-- Standby / Loading Status Overlay -->
                             <Border x:Name="PnlGameLoadingOverlay" Background="#0C0A1A" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Visible">
@@ -1645,9 +1646,9 @@
                         </DockPanel>
                     </Border>
 
-                    <!-- Row 2: Games Display (Cards vs Table) -->
+                    <!-- Row 2: Games Display (Cards vs Table vs Poster Grid) -->
                     <Grid Grid.Row="2">
-                        <!-- Bento Cards Mode for Games -->
+                        <!-- Mode 1: Bento Cards Mode for Games (Width 345, Height 162) -->
                         <ScrollViewer x:Name="GamesBentoScroll" VerticalScrollBarVisibility="Auto">
                             <ItemsControl x:Name="IcGamesBento">
                                 <ItemsControl.ItemsPanel>
@@ -1657,25 +1658,67 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Width="265" Height="150" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,0,12,12">
+                                        <Border Width="345" Height="162" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,0,12,12">
                                             <DockPanel LastChildFill="True">
-                                                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
-                                                    <Image Source="{Binding Icon}" Width="28" Height="28" RenderOptions.BitmapScalingMode="NearestNeighbor" Margin="0,0,8,0"/>
-                                                    <Button Content="{Binding IsFavorite, Converter={StaticResource StarConverter}}" 
-                                                            Style="{StaticResource StormSecondaryButton}" 
-                                                            Padding="4,1" FontSize="12" 
-                                                            Foreground="#F59E0B" 
-                                                            HorizontalAlignment="Right" 
-                                                            Click="BtnToggleFavorite_Click"/>
-                                                </DockPanel>
-                                                <TextBlock DockPanel.Dock="Top" Text="{Binding Name}" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="13" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
-                                                <TextBlock DockPanel.Dock="Top" Text="{Binding Platform}" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
-                                                <TextBlock DockPanel.Dock="Top" Text="{Binding CoreDisplayName}" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontWeight="SemiBold" Margin="0,1,0,8"/>
-                                                
-                                                <DockPanel VerticalAlignment="Bottom">
-                                                    <TextBlock Text="{Binding FormattedSize}" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" VerticalAlignment="Center"/>
-                                                    <Button Content="▶ Запуск" Style="{StaticResource StormAccentButton}" Padding="10,3" HorizontalAlignment="Right" Click="BtnPlayGame_Click"/>
-                                                </DockPanel>
+                                                <!-- Left: High-Res Boxart Cover (Width 98, Height 136) -->
+                                                <Border DockPanel.Dock="Left" Width="98" Height="136" CornerRadius="8" ClipToBounds="True" Background="#0F172A" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" Margin="0,0,12,0" VerticalAlignment="Center">
+                                                    <Image Source="{Binding Icon}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                </Border>
+
+                                                <!-- Right: Metadata & Controls -->
+                                                <Grid VerticalAlignment="Center">
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                    </Grid.RowDefinitions>
+
+                                                    <!-- Row 0: Clean Name (Before Year) + Favorite Star -->
+                                                    <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,3">
+                                                        <Button DockPanel.Dock="Right" Content="{Binding IsFavorite, Converter={StaticResource StarConverter}}"
+                                                                Style="{StaticResource StormSecondaryButton}" Padding="4,1" FontSize="12" Foreground="#F59E0B"
+                                                                Click="BtnToggleFavorite_Click"/>
+                                                        <TextBlock Text="{Binding Name}" Foreground="#F8FAFC" FontSize="15" FontWeight="Bold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                                    </DockPanel>
+
+                                                    <!-- Row 1: Platform & Core -->
+                                                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,4">
+                                                        <TextBlock Text="{Binding Platform}" Foreground="#94A3B8" FontSize="11.5" TextTrimming="CharacterEllipsis" MaxWidth="130" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="•" Foreground="#64748B" FontSize="10" Margin="4,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{Binding CoreDisplayName}" Foreground="#A78BFA" FontSize="11" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="90" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+
+                                                    <!-- Row 2: Metadata Badges -->
+                                                    <WrapPanel Grid.Row="2" Margin="0,2,0,6">
+                                                        <!-- Year Badge -->
+                                                        <Border Background="#268B5CF6" BorderBrush="#8B5CF6" BorderThickness="1" CornerRadius="4" Padding="5,1" Margin="0,0,4,4"
+                                                                Visibility="{Binding HasYear, Converter={StaticResource BoolToVis}}">
+                                                            <TextBlock Text="{Binding Year}" Foreground="#DDD6FE" FontSize="10.5" FontWeight="Bold"/>
+                                                        </Border>
+                                                        <!-- Region Badge -->
+                                                        <Border Background="#2638BDF8" BorderBrush="#38BDF8" BorderThickness="1" CornerRadius="4" Padding="5,1" Margin="0,0,4,4"
+                                                                Visibility="{Binding HasRegion, Converter={StaticResource BoolToVis}}">
+                                                            <TextBlock Text="{Binding Region}" Foreground="#BAE6FD" FontSize="10.5" FontWeight="Bold"/>
+                                                        </Border>
+                                                        <!-- Language / Mod Badge -->
+                                                        <Border Background="#2610B981" BorderBrush="#10B981" BorderThickness="1" CornerRadius="4" Padding="5,1" Margin="0,0,4,4"
+                                                                Visibility="{Binding HasLanguageBadge, Converter={StaticResource BoolToVis}}">
+                                                            <TextBlock Text="{Binding LanguageBadge}" Foreground="#A7F3D0" FontSize="10.5" FontWeight="Bold"/>
+                                                        </Border>
+                                                        <!-- Version / Content Badge -->
+                                                        <Border Background="#26F59E0B" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="4" Padding="5,1" Margin="0,0,4,4"
+                                                                Visibility="{Binding HasVersionBadge, Converter={StaticResource BoolToVis}}">
+                                                            <TextBlock Text="{Binding VersionBadge}" Foreground="#FDE68A" FontSize="10" FontWeight="SemiBold"/>
+                                                        </Border>
+                                                    </WrapPanel>
+
+                                                    <!-- Row 3: Size & Action -->
+                                                    <DockPanel Grid.Row="3" LastChildFill="True">
+                                                        <TextBlock Text="{Binding FormattedSize}" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" VerticalAlignment="Center"/>
+                                                        <Button Content="▶ Играть" Style="{StaticResource StormAccentButton}" Padding="12,3" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right" Click="BtnPlayGame_Click"/>
+                                                    </DockPanel>
+                                                </Grid>
                                             </DockPanel>
                                         </Border>
                                     </DataTemplate>
@@ -1683,7 +1726,7 @@
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <!-- Table View Mode for Games -->
+                        <!-- Mode 2: Table / List View for Games -->
                         <ListView x:Name="LvGames"
                                   Visibility="Collapsed"
                                   BorderThickness="0"
@@ -1709,15 +1752,17 @@
                                         </GridViewColumn.CellTemplate>
                                     </GridViewColumn>
 
-                                    <GridViewColumn Header="Иконка" Width="52">
+                                    <GridViewColumn Header="Обложка" Width="56">
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
-                                                <Image Source="{Binding Icon}" Width="24" Height="24" HorizontalAlignment="Center" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                                                <Border Width="40" Height="50" CornerRadius="4" ClipToBounds="True" Background="#0F172A">
+                                                    <Image Source="{Binding Icon}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                </Border>
                                             </DataTemplate>
                                         </GridViewColumn.CellTemplate>
                                     </GridViewColumn>
 
-                                    <GridViewColumn Header="Название игры" Width="360">
+                                    <GridViewColumn Header="Название игры" Width="230">
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
                                                 <TextBlock Text="{Binding Name}" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
@@ -1725,7 +1770,43 @@
                                         </GridViewColumn.CellTemplate>
                                     </GridViewColumn>
 
-                                    <GridViewColumn Header="Платформа" Width="200">
+                                    <GridViewColumn Header="Год" Width="60">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Year}" Foreground="#DDD6FE" FontWeight="Bold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="Регион" Width="65">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Border Background="#2638BDF8" BorderBrush="#38BDF8" BorderThickness="1" CornerRadius="4" Padding="4,1" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding HasRegion, Converter={StaticResource BoolToVis}}">
+                                                    <TextBlock Text="{Binding Region}" Foreground="#BAE6FD" FontSize="10.5" FontWeight="Bold"/>
+                                                </Border>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="Язык / Перевод" Width="130">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Border Background="#2610B981" BorderBrush="#10B981" BorderThickness="1" CornerRadius="4" Padding="5,1" HorizontalAlignment="Left" VerticalAlignment="Center" Visibility="{Binding HasLanguageBadge, Converter={StaticResource BoolToVis}}">
+                                                    <TextBlock Text="{Binding LanguageBadge}" Foreground="#A7F3D0" FontSize="10.5" FontWeight="Bold"/>
+                                                </Border>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="Версия" Width="110">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding VersionBadge}" Foreground="#FDE68A" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+
+                                    <GridViewColumn Header="Платформа" Width="170">
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
                                                 <TextBlock Text="{Binding Platform}" Foreground="{DynamicResource ThemeTextSecondary}" VerticalAlignment="Center"/>
@@ -1733,7 +1814,7 @@
                                         </GridViewColumn.CellTemplate>
                                     </GridViewColumn>
 
-                                    <GridViewColumn Header="Ядро Libretro" Width="170">
+                                    <GridViewColumn Header="Ядро Libretro" Width="130">
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
                                                 <TextBlock Text="{Binding CoreDisplayName}" Foreground="{DynamicResource ThemeAccentGlow}" FontWeight="SemiBold" VerticalAlignment="Center"/>
@@ -1741,15 +1822,7 @@
                                         </GridViewColumn.CellTemplate>
                                     </GridViewColumn>
 
-                                    <GridViewColumn Header="Статус" Width="140">
-                                        <GridViewColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding StatusText}" Foreground="#10B981" VerticalAlignment="Center"/>
-                                            </DataTemplate>
-                                        </GridViewColumn.CellTemplate>
-                                    </GridViewColumn>
-
-                                    <GridViewColumn Header="Размер" Width="90">
+                                    <GridViewColumn Header="Размер" Width="80">
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
                                                 <TextBlock Text="{Binding FormattedSize}" Foreground="{DynamicResource ThemeTextMuted}" VerticalAlignment="Center"/>
@@ -1760,8 +1833,8 @@
                                     <GridViewColumn Header="Действия" Width="210">
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <Button Content="▶ Запуск" Style="{StaticResource StormAccentButton}" Padding="10,4" Margin="0,0,6,0" Click="BtnPlayGame_Click"/>
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Button Content="▶ Играть" Style="{StaticResource StormAccentButton}" Padding="10,4" Margin="0,0,6,0" Click="BtnPlayGame_Click"/>
                                                     <Button Content="📁 Папка" Style="{StaticResource StormSecondaryButton}" Padding="8,4" Margin="0,0,6,0" Click="BtnOpenRomFolder_Click"/>
                                                     <Button Content="✕" Style="{StaticResource StormSecondaryButton}" Padding="8,4" Foreground="#F43F5E" Click="BtnRemoveGame_Click"/>
                                                 </StackPanel>
@@ -1771,6 +1844,63 @@
                                 </GridView>
                             </ListView.View>
                         </ListView>
+
+                        <!-- Mode 3: Poster Grid Mode for Games (Width 185, Height 278) -->
+                        <ScrollViewer x:Name="GamesIconsScroll" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl x:Name="IcGamesIcons">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Width="185" Height="278" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Padding="10" Margin="0,0,12,12">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="175"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="*"/>
+                                                </Grid.RowDefinitions>
+
+                                                <!-- Top: Cover Art -->
+                                                <Border Grid.Row="0" CornerRadius="8" ClipToBounds="True" Background="#0F172A" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" Margin="0,0,0,8">
+                                                    <Grid>
+                                                        <Image Source="{Binding Icon}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                        <Button Content="{Binding IsFavorite, Converter={StaticResource StarConverter}}"
+                                                                Style="{StaticResource StormSecondaryButton}"
+                                                                Padding="4,2" FontSize="11"
+                                                                Foreground="#F59E0B"
+                                                                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4"
+                                                                Click="BtnToggleFavorite_Click"/>
+                                                    </Grid>
+                                                </Border>
+
+                                                <!-- Title -->
+                                                <TextBlock Grid.Row="1" Text="{Binding Name}" Foreground="#F8FAFC" FontSize="13.5" FontWeight="Bold" TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" TextAlignment="Center" Margin="0,0,0,4"/>
+
+                                                <!-- Badges Row -->
+                                                <WrapPanel Grid.Row="2" HorizontalAlignment="Center" Margin="0,0,0,6">
+                                                    <Border Background="#268B5CF6" BorderBrush="#8B5CF6" BorderThickness="1" CornerRadius="4" Padding="4,1" Margin="0,0,3,2" Visibility="{Binding HasYear, Converter={StaticResource BoolToVis}}">
+                                                        <TextBlock Text="{Binding Year}" Foreground="#DDD6FE" FontSize="9.5" FontWeight="Bold"/>
+                                                    </Border>
+                                                    <Border Background="#2638BDF8" BorderBrush="#38BDF8" BorderThickness="1" CornerRadius="4" Padding="4,1" Margin="0,0,3,2" Visibility="{Binding HasRegion, Converter={StaticResource BoolToVis}}">
+                                                        <TextBlock Text="{Binding Region}" Foreground="#BAE6FD" FontSize="9.5" FontWeight="Bold"/>
+                                                    </Border>
+                                                    <Border Background="#2610B981" BorderBrush="#10B981" BorderThickness="1" CornerRadius="4" Padding="4,1" Margin="0,0,3,2" Visibility="{Binding HasLanguageBadge, Converter={StaticResource BoolToVis}}">
+                                                        <TextBlock Text="{Binding LanguageBadge}" Foreground="#A7F3D0" FontSize="9.5" FontWeight="Bold"/>
+                                                    </Border>
+                                                </WrapPanel>
+
+                                                <!-- Play Button -->
+                                                <Button Grid.Row="3" Content="▶ Играть" Style="{StaticResource StormAccentButton}" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Padding="0,5" FontSize="12" FontWeight="Bold" Click="BtnPlayGame_Click"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
 
                         <!-- Empty State Overlay -->
                         <Border x:Name="EmptyStateBorder" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="32">
