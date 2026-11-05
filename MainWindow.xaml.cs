@@ -122,7 +122,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly ObservableCollection<RomItem> _history = new();
     private readonly ObservableCollection<CoreInfo> _cores = new();
 
-    // 1.4.0 Fast Navigation & Command Palette Collections
+    // 1.4.1 Fast Navigation & Command Palette Collections
     private readonly List<CommandPaletteItem> _allPaletteItems = new();
     private readonly ObservableCollection<CommandPaletteItem> _filteredPaletteItems = new();
     private readonly DispatcherTimer _searchDebounceTimer;
@@ -183,6 +183,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
 
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern bool SetWindowText(IntPtr hWnd, string lpString);
+
     [DllImport("user32.dll")]
     private static extern bool BringWindowToTop(IntPtr hWnd);
 
@@ -227,7 +230,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         CmbStateSlot.SelectionChanged += CmbStateSlot_SelectionChanged;
         SettingItem.SettingChanged += OnLiveSettingChanged;
 
-        // 1.4.0 Debounced Search Timer (120ms)
+        // 1.4.1 Debounced Search Timer (120ms)
         _searchDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         _searchDebounceTimer.Tick += (s, e) =>
         {
@@ -352,6 +355,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         IntPtr hwnd = helper.Handle;
         try
         {
+            SetWindowText(hwnd, Title ?? "STORM RETROARCH 1.4.1");
             ChangeWindowMessageFilterEx(hwnd, WM_DROPFILES, MSGFLT_ALLOW, IntPtr.Zero);
             ChangeWindowMessageFilterEx(hwnd, WM_COPYDATA, MSGFLT_ALLOW, IntPtr.Zero);
             ChangeWindowMessageFilterEx(hwnd, WM_COPYGLOBALDATA, MSGFLT_ALLOW, IntPtr.Zero);
@@ -445,7 +449,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         ChkToolbarAutoUpdates.IsChecked = SettingsManager.Current.CheckUpdatesOnStartup;
 
-        // Initialize v1.4.0 Scalability, Sidebar, Card Slider, Quick Toggles & Reorderable Dashboard
+        // Initialize v1.4.1 Scalability, Sidebar, Card Slider, Quick Toggles & Reorderable Dashboard
         ApplyUiScale(SettingsManager.Current.UiScale, save: false);
         ApplySidebarState();
 
@@ -1716,8 +1720,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private void CmbPlatformFilter_SelectionChanged(object sender, SelectionChangedEventArgs e) => ApplyGamesFilter();
-    private void CmbStatusFilter_SelectionChanged(object sender, SelectionChangedEventArgs e) => ApplyGamesFilter();
+    private void CmbPlatformFilter_SelectionChanged(object sender, SelectionChangedEventArgs e) { if (IsLoaded) ApplyGamesFilter(); }
+    private void CmbStatusFilter_SelectionChanged(object sender, SelectionChangedEventArgs e) { if (IsLoaded) ApplyGamesFilter(); }
 
     private void ApplyGamesFilter()
     {
@@ -1770,7 +1774,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _filteredGames.Add(item);
         }
 
-        EmptyStateBorder.Visibility = _filteredGames.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (EmptyStateBorder != null) EmptyStateBorder.Visibility = _filteredGames.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void PopulateFilters()
@@ -5127,7 +5131,7 @@ private void LoadBezels()
     }
 
 
-    // ==================== V1.4.0 UI SCALABILITY, RESIZING, MOVING & STUDIO CONTROLS ====================
+    // ==================== V1.4.1 UI SCALABILITY, RESIZING, MOVING & STUDIO CONTROLS ====================
 
     private void ApplyUiScale(double scale, bool save = true)
     {
@@ -5484,7 +5488,7 @@ private void LoadBezels()
         GameViewportContainer?.Focus();
     }
 
-    // ==================== PER-GAME & PER-PLATFORM CORE SELECTION (1.4.0) ====================
+    // ==================== PER-GAME & PER-PLATFORM CORE SELECTION (1.4.1) ====================
 
     private RomItem? _coreModalTargetRom;
     private bool _isSyncingPlatformCoreCombo;
@@ -5725,7 +5729,7 @@ private void LoadBezels()
         await StartGameInViewportAsync(rom);
     }
 
-    // ==================== 1.4.0 COMMAND PALETTE (CTRL+K) ====================
+    // ==================== 1.4.1 COMMAND PALETTE (CTRL+K) ====================
 
     private void BtnCommandPalette_Click(object sender, RoutedEventArgs e)
     {
@@ -6009,10 +6013,11 @@ private void LoadBezels()
     }
 
 
-    // ==================== 1.4.0 PLATFORM FILTER CHIPS & SORTING ====================
+    // ==================== 1.4.1 PLATFORM FILTER CHIPS & SORTING ====================
 
     private void CmbLibrarySort_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (!IsLoaded) return;
         ApplyGamesFilter();
     }
 
@@ -6125,7 +6130,7 @@ private void LoadBezels()
     }
 
 
-    // ==================== 1.4.0 GAME CONTEXT ACTIONS & CHEATS BUTTON ====================
+    // ==================== 1.4.1 GAME CONTEXT ACTIONS & CHEATS BUTTON ====================
 
     private RomItem? GetRomFromSender(object sender)
     {
@@ -6256,7 +6261,7 @@ private void LoadBezels()
     }
 
 
-    // ==================== 1.4.0 DASHBOARD RECENT GAMES STRIP ====================
+    // ==================== 1.4.1 DASHBOARD RECENT GAMES STRIP ====================
 
     private void UpdateDashboardRecentGames()
     {
@@ -6271,7 +6276,7 @@ private void LoadBezels()
     }
 
 
-    // ==================== 1.4.0 QUICK MENU LIVE STATE STATUS ====================
+    // ==================== 1.4.1 QUICK MENU LIVE STATE STATUS ====================
 
     private void InitQuickMenuStateSlots()
     {
@@ -6285,14 +6290,23 @@ private void LoadBezels()
         CmbQuickMenuStateSlot.SelectedIndex = active;
     }
 
+    private bool _syncingQuickStateSlot = false;
     private void CmbQuickMenuStateSlot_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (CmbQuickMenuStateSlot == null || CmbQuickMenuStateSlot.SelectedIndex < 0) return;
-        int slot = CmbQuickMenuStateSlot.SelectedIndex;
-        NativeLibretroHost.Current.ActiveStateSlot = slot;
-        if (CmbInGameStateSlot != null && slot < CmbInGameStateSlot.Items.Count) CmbInGameStateSlot.SelectedIndex = slot;
-        if (CmbStateSlot != null && slot < CmbStateSlot.Items.Count) CmbStateSlot.SelectedIndex = slot;
-        UpdateQuickSlotStatus();
+        if (!IsLoaded || _syncingQuickStateSlot || CmbQuickMenuStateSlot == null || CmbQuickMenuStateSlot.SelectedIndex < 0) return;
+        _syncingQuickStateSlot = true;
+        try
+        {
+            int slot = CmbQuickMenuStateSlot.SelectedIndex;
+            NativeLibretroHost.Current.ActiveStateSlot = slot;
+            if (CmbInGameStateSlot != null && slot < CmbInGameStateSlot.Items.Count && CmbInGameStateSlot.SelectedIndex != slot) CmbInGameStateSlot.SelectedIndex = slot;
+            if (CmbStateSlot != null && slot < CmbStateSlot.Items.Count && CmbStateSlot.SelectedIndex != slot) CmbStateSlot.SelectedIndex = slot;
+            UpdateQuickSlotStatus();
+        }
+        finally
+        {
+            _syncingQuickStateSlot = false;
+        }
     }
 
     public void UpdateQuickSlotStatus()

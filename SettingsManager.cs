@@ -42,7 +42,7 @@ public class UserSettings
     public bool CloudSyncEnabled { get; set; } = false;
     public string CloudSyncFolder { get; set; } = string.Empty;
 
-    // UI Scalability, Layout & Customization (1.4.0)
+    // UI Scalability, Layout & Customization (1.4.1)
     public double UiScale { get; set; } = 1.0;
     public double BentoCardWidth { get; set; } = 380.0;
     public double CompactCardWidth { get; set; } = 200.0;

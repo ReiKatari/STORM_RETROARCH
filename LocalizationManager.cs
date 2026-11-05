@@ -65,7 +65,7 @@ public static class LocalizationManager
     {
         ["ru"] = new()
         {
-            ["AppTitle"] = "STORM RETROARCH 1.4.0",
+            ["AppTitle"] = "STORM RETROARCH 1.4.1",
             ["HeroTitle"] = "STORM RETROARCH",
             ["Subtitle"] = "Универсальный ультра-быстрый эмулятор и фронтенд Libretro с авто-докачкой ядер, нулевой задержкой ввода и поддержкой 30+ платформ",
             ["Theme"] = "Тема",
@@ -127,7 +127,7 @@ public static class LocalizationManager
         },
         ["en"] = new()
         {
-            ["AppTitle"] = "STORM RETROARCH 1.4.0",
+            ["AppTitle"] = "STORM RETROARCH 1.4.1",
             ["HeroTitle"] = "STORM RETROARCH",
             ["Subtitle"] = "Universal ultra-fast Libretro emulator and frontend with auto-core downloader, zero input latency and 30+ platform support",
             ["Theme"] = "Theme",
@@ -189,7 +189,7 @@ public static class LocalizationManager
         },
         ["de"] = new()
         {
-            ["AppTitle"] = "STORM RETROARCH 1.4.0",
+            ["AppTitle"] = "STORM RETROARCH 1.4.1",
             ["HeroTitle"] = "STORM RETROARCH",
             ["Subtitle"] = "Universeller ultra-schneller Libretro-Emulator & Frontend mit Core-Download, Null-Latenz und 30+ Plattformen",
             ["Theme"] = "Design",
@@ -251,7 +251,7 @@ public static class LocalizationManager
         },
         ["fr"] = new()
         {
-            ["AppTitle"] = "STORM RETROARCH 1.4.0",
+            ["AppTitle"] = "STORM RETROARCH 1.4.1",
             ["HeroTitle"] = "STORM RETROARCH",
             ["Subtitle"] = "Émulateur et frontend Libretro ultra-rapide avec téléchargement de cœurs, latence zéro et 30+ consoles",
             ["Theme"] = "Thème",
@@ -313,7 +313,7 @@ public static class LocalizationManager
         },
         ["zh"] = new()
         {
-            ["AppTitle"] = "STORM RETROARCH 1.4.0",
+            ["AppTitle"] = "STORM RETROARCH 1.4.1",
             ["HeroTitle"] = "STORM RETROARCH",
             ["Subtitle"] = "通用超快 Libretro 前端与模拟器，具备核心自动下载、零输入延迟和 30+ 平台支持",
             ["Theme"] = "主题",
@@ -375,7 +375,7 @@ public static class LocalizationManager
         },
         ["ko"] = new()
         {
-            ["AppTitle"] = "STORM RETROARCH 1.4.0",
+            ["AppTitle"] = "STORM RETROARCH 1.4.1",
             ["HeroTitle"] = "STORM RETROARCH",
             ["Subtitle"] = "코어 자동 다운로드, 제로 레이턴시 및 30개 이상의 플랫폼을 지원하는 초고속 Libretro 프론트엔드",
             ["Theme"] = "테마",
@@ -437,7 +437,7 @@ public static class LocalizationManager
         },
         ["ja"] = new()
         {
-            ["AppTitle"] = "STORM RETROARCH 1.4.0",
+            ["AppTitle"] = "STORM RETROARCH 1.4.1",
             ["HeroTitle"] = "STORM RETROARCH",
             ["Subtitle"] = "コア自動取得、ゼロ遅延、30以上のゲーム機に対応した超高速 Libretro フロントエンド",
             ["Theme"] = "テーマ",
@@ -499,7 +499,7 @@ public static class LocalizationManager
         },
         ["es"] = new()
         {
-            ["AppTitle"] = "STORM RETROARCH 1.4.0",
+            ["AppTitle"] = "STORM RETROARCH 1.4.1",
             ["HeroTitle"] = "STORM RETROARCH",
             ["Subtitle"] = "Emulador y frontend Libretro ultrarrápido con descarga automática de núcleos, latencia cero y más de 30 consolas",
             ["Theme"] = "Tema",
@@ -561,7 +561,7 @@ public static class LocalizationManager
         },
         ["it"] = new()
         {
-            ["AppTitle"] = "STORM RETROARCH 1.4.0",
+            ["AppTitle"] = "STORM RETROARCH 1.4.1",
             ["HeroTitle"] = "STORM RETROARCH",
             ["Subtitle"] = "Emulatore e frontend Libretro ultra-rapido con download automatico dei core, latenza zero e oltre 30 piattaforme",
             ["Theme"] = "Tema",
@@ -623,7 +623,7 @@ public static class LocalizationManager
         },
         ["pt"] = new()
         {
-            ["AppTitle"] = "STORM RETROARCH 1.4.0",
+            ["AppTitle"] = "STORM RETROARCH 1.4.1",
             ["HeroTitle"] = "STORM RETROARCH",
             ["Subtitle"] = "Emulador e frontend Libretro ultrarrápido com download automático de núcleos, latência zero e 30+ plataformas",
             ["Theme"] = "Tema",
@@ -685,7 +685,7 @@ public static class LocalizationManager
         },
         ["hi"] = new()
         {
-            ["AppTitle"] = "STORM RETROARCH 1.4.0",
+            ["AppTitle"] = "STORM RETROARCH 1.4.1",
             ["HeroTitle"] = "STORM RETROARCH",
             ["Subtitle"] = "कोर ऑटो-डाउनलोड, शून्य इनपुट विलंबता और 30+ प्लेटफॉर्म समर्थन के साथ सुपर-फास्ट Libretro एमुलेटर",
             ["Theme"] = "थीम",

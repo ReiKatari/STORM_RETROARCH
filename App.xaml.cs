@@ -7,15 +7,27 @@ namespace StormRetroArch;
 
 public partial class App : Application
 {
+    private static void LogCrash(string content)
+    {
+        try
+        {
+            string targetDir = !string.IsNullOrEmpty(CoreManager.AppDir) && Directory.Exists(CoreManager.AppDir)
+                ? CoreManager.AppDir
+                : (AppContext.BaseDirectory ?? AppDomain.CurrentDomain.BaseDirectory);
+            File.WriteAllText(Path.Combine(targetDir, "crash.log"), content);
+        }
+        catch { }
+    }
+
     protected override void OnStartup(StartupEventArgs e)
     {
         AppDomain.CurrentDomain.UnhandledException += (s, ev) =>
         {
-            try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log"), ev.ExceptionObject.ToString()); } catch { }
+            LogCrash(ev.ExceptionObject?.ToString() ?? "Unknown unhandled exception");
         };
         this.DispatcherUnhandledException += (s, ev) =>
         {
-            try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log"), ev.Exception.ToString()); } catch { }
+            LogCrash(ev.Exception?.ToString() ?? "Unknown dispatcher exception");
         };
 
         try
@@ -47,7 +59,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log"), ex.ToString()); } catch { }
+            LogCrash(ex.ToString());
         }
     }
 }
