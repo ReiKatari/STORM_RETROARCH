@@ -8,14 +8,22 @@ namespace StormRetroArch;
 
 public class UserSettings
 {
-    public string ThemeName { get; set; } = "MIDNIGHT";
-    public int AccentIndex { get; set; } = 0;
-    public int FontIndex { get; set; } = 0;
-    public string LanguageCode { get; set; } = "ru";
-    public bool CheckUpdatesOnStartup { get; set; } = true;
-    public string RetroArchPath { get; set; } = string.Empty;
-    public bool TelemetryOverlayVisible { get; set; } = false;
-
+    public string ThemeName { get; set; } = "MIDNIGHT";
+
+    public int AccentIndex { get; set; } = 0;
+
+    public int FontIndex { get; set; } = 0;
+
+    public string LanguageCode { get; set; } = "ru";
+
+    public bool CheckUpdatesOnStartup { get; set; } = true;
+
+    public string RetroArchPath { get; set; } = string.Empty;
+
+    public bool TelemetryOverlayVisible { get; set; } = false;
+
+
+
     public string Language { get; set; } = string.Empty;
     public string Theme { get; set; } = "MIDNIGHT";
     public string Accent { get; set; } = "Violet";
@@ -34,7 +42,7 @@ public class UserSettings
     public bool CloudSyncEnabled { get; set; } = false;
     public string CloudSyncFolder { get; set; } = string.Empty;
 
-    // UI Scalability, Layout & Customization (1.3.0)
+    // UI Scalability, Layout & Customization (1.4.0)
     public double UiScale { get; set; } = 1.0;
     public double BentoCardWidth { get; set; } = 380.0;
     public double CompactCardWidth { get; set; } = 200.0;

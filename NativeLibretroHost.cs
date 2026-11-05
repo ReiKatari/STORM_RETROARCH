@@ -1616,7 +1616,7 @@ public class NativeLibretroHost
         }
     }
 
-    private static string SanitizeFileName(string name)
+    public static string SanitizeFileName(string name)
     {
         if (string.IsNullOrWhiteSpace(name)) return "Game";
         foreach (char c in Path.GetInvalidFileNameChars())

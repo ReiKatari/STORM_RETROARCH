@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+using System.Windows.Threading;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Net.Http;
@@ -120,6 +122,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly ObservableCollection<RomItem> _history = new();
     private readonly ObservableCollection<CoreInfo> _cores = new();
 
+    // 1.4.0 Fast Navigation & Command Palette Collections
+    private readonly List<CommandPaletteItem> _allPaletteItems = new();
+    private readonly ObservableCollection<CommandPaletteItem> _filteredPaletteItems = new();
+    private readonly DispatcherTimer _searchDebounceTimer;
+    private string _selectedChipPlatform = "Все платформы";
+
     // Extended Feature Collections: Shaders, Saves, BIOS, Cheats, Netplay
     private readonly ObservableCollection<ShaderPresetItem> _allShaders = new();
     private readonly ObservableCollection<ShaderPresetItem> _filteredShaders = new();
@@ -218,6 +226,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         CmbStateSlot.SelectedIndex = 0;
         CmbStateSlot.SelectionChanged += CmbStateSlot_SelectionChanged;
         SettingItem.SettingChanged += OnLiveSettingChanged;
+
+        // 1.4.0 Debounced Search Timer (120ms)
+        _searchDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+        _searchDebounceTimer.Tick += (s, e) =>
+        {
+            _searchDebounceTimer.Stop();
+            ApplyActiveViewSearch();
+        };
+
+        if (LstCommandPaletteResults != null)
+            LstCommandPaletteResults.ItemsSource = _filteredPaletteItems;
+
+        InitQuickMenuStateSlots();
     }
 
     private System.Windows.Threading.DispatcherTimer? _osdToastTimer;
@@ -405,6 +426,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         LoadLibraryFromPlaylist();
         LoadPlaylists();
         InitPlatformDefaultCoreSelectors();
+        UpdatePlatformFilterChips();
+        UpdateDashboardRecentGames();
+        InitCommandPaletteItems();
         LoadCheats();
         PopulateFilters();
         ApplyGamesFilter();
@@ -421,9 +445,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         ChkToolbarAutoUpdates.IsChecked = SettingsManager.Current.CheckUpdatesOnStartup;
 
-        // Initialize v1.2.0 Scalability, Sidebar, Card Slider, Quick Toggles & Reorderable Dashboard
+        // Initialize v1.4.0 Scalability, Sidebar, Card Slider, Quick Toggles & Reorderable Dashboard
         ApplyUiScale(SettingsManager.Current.UiScale, save: false);
         ApplySidebarState();
+
+
         DynamicCardWidth = SettingsManager.Current.BentoCardWidth;
         if (SliderCardScale != null) SliderCardScale.Value = DynamicCardWidth;
         if (TxtCardScaleReadout != null) TxtCardScaleReadout.Text = $"{Math.Round(DynamicCardWidth)} px";
@@ -723,8 +749,22 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        // Ctrl+K opens Command Palette anywhere
+        if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && actualKey == Key.K)
+        {
+            ToggleCommandPaletteModal();
+            e.Handled = true;
+            return;
+        }
+
         if (actualKey == Key.Escape)
         {
+            if (PnlCommandPaletteModal != null && PnlCommandPaletteModal.Visibility == Visibility.Visible)
+            {
+                CloseCommandPaletteModal();
+                e.Handled = true;
+                return;
+            }
             if (PnlInGameQuickMenu != null && PnlInGameQuickMenu.Visibility == Visibility.Visible)
             {
                 PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
@@ -1624,11 +1664,56 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e)
     {
-        TxtSearchPlaceholder.Visibility = string.IsNullOrEmpty(TxtSearch.Text) ? Visibility.Visible : Visibility.Collapsed;
-        if (_activeNavView == "Settings")
-            ApplySettingsFilter();
-        else
+        if (TxtSearchPlaceholder != null)
+            TxtSearchPlaceholder.Visibility = string.IsNullOrEmpty(TxtSearch.Text) ? Visibility.Visible : Visibility.Collapsed;
+        _searchDebounceTimer.Stop();
+        _searchDebounceTimer.Start();
+    }
+
+    private void TxtLibrarySearch_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        _searchDebounceTimer.Stop();
+        _searchDebounceTimer.Start();
+    }
+
+    private void ApplyActiveViewSearch()
+    {
+        if (_activeNavView == "Library" || (ViewLibrary != null && ViewLibrary.Visibility == Visibility.Visible))
+        {
             ApplyGamesFilter();
+        }
+        else if (_activeNavView == "Settings" || (ViewSettings != null && ViewSettings.Visibility == Visibility.Visible))
+        {
+            ApplySettingsFilter();
+        }
+        else if (_activeNavView == "Cheats" || (ViewCheats != null && ViewCheats.Visibility == Visibility.Visible))
+        {
+            ApplyCheatsFilter();
+        }
+        else if (_activeNavView == "Shaders" || (ViewShaders != null && ViewShaders.Visibility == Visibility.Visible))
+        {
+            ApplyShadersFilter();
+        }
+        else if (_activeNavView == "Saves" || (ViewSaves != null && ViewSaves.Visibility == Visibility.Visible))
+        {
+            ApplySavesFilter();
+        }
+        else if (_activeNavView == "Bios" || (ViewBios != null && ViewBios.Visibility == Visibility.Visible))
+        {
+            ApplyBiosFilter();
+        }
+        else if (_activeNavView == "Bezels" || (ViewBezels != null && ViewBezels.Visibility == Visibility.Visible))
+        {
+            ApplyBezelsFilter();
+        }
+        else if (_activeNavView == "Cores" || (ViewCores != null && ViewCores.Visibility == Visibility.Visible))
+        {
+            PopulateCoresList("Все ядра (350+)");
+        }
+        else
+        {
+            ApplyGamesFilter();
+        }
     }
 
     private void CmbPlatformFilter_SelectionChanged(object sender, SelectionChangedEventArgs e) => ApplyGamesFilter();
@@ -1643,7 +1728,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         string platform = CmbPlatformFilter?.SelectedItem?.ToString() ?? "Все платформы";
         string status = CmbStatusFilter?.SelectedItem?.ToString() ?? "Все статусы";
 
-        _filteredGames.Clear();
+        var matchingGames = new List<RomItem>();
         foreach (var g in _allGames)
         {
             if (!string.IsNullOrEmpty(search))
@@ -1666,7 +1751,23 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (status == "Требуют ядра" && g.IsCoreInstalled)
                 continue;
 
-            _filteredGames.Add(g);
+            matchingGames.Add(g);
+        }
+
+        // Apply Library Sort (0: Название А-Я, 1: По платформе, 2: По ядру Libretro, 3: По размеру файла)
+        int sortIdx = CmbLibrarySort?.SelectedIndex ?? 0;
+        IEnumerable<RomItem> sorted = sortIdx switch
+        {
+            1 => matchingGames.OrderBy(g => g.Platform).ThenBy(g => g.Name),
+            2 => matchingGames.OrderBy(g => g.CoreDisplayName).ThenBy(g => g.Name),
+            3 => matchingGames.OrderByDescending(g => g.FileSizeBytes),
+            _ => matchingGames.OrderBy(g => g.Name)
+        };
+
+        _filteredGames.Clear();
+        foreach (var item in sorted)
+        {
+            _filteredGames.Add(item);
         }
 
         EmptyStateBorder.Visibility = _filteredGames.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -3201,10 +3302,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private void TxtLibrarySearch_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        ApplyGamesFilter();
-    }
+
 
 private void LoadBezels()
     {
@@ -5029,7 +5127,7 @@ private void LoadBezels()
     }
 
 
-    // ==================== V1.2.0 UI SCALABILITY, RESIZING, MOVING & STUDIO CONTROLS ====================
+    // ==================== V1.4.0 UI SCALABILITY, RESIZING, MOVING & STUDIO CONTROLS ====================
 
     private void ApplyUiScale(double scale, bool save = true)
     {
@@ -5386,7 +5484,7 @@ private void LoadBezels()
         GameViewportContainer?.Focus();
     }
 
-    // ==================== PER-GAME & PER-PLATFORM CORE SELECTION (1.3.0) ====================
+    // ==================== PER-GAME & PER-PLATFORM CORE SELECTION (1.4.0) ====================
 
     private RomItem? _coreModalTargetRom;
     private bool _isSyncingPlatformCoreCombo;
@@ -5572,6 +5670,9 @@ private void LoadBezels()
         rom.StatusText = installed ? "Готово к запуску" : "Требуется ядро";
 
         InitPlatformDefaultCoreSelectors();
+        UpdatePlatformFilterChips();
+        UpdateDashboardRecentGames();
+        InitCommandPaletteItems();
         SavePlaylists();
         UpdateStats();
         ShowOsdToast($"Для игры «{rom.Name}» установлено ядро: {selectedCore.Name}");
@@ -5623,4 +5724,635 @@ private void LoadBezels()
         ShowOsdToast($"Ядро изменено на {selectedCore.Name}. Перезапуск игры...");
         await StartGameInViewportAsync(rom);
     }
+
+    // ==================== 1.4.0 COMMAND PALETTE (CTRL+K) ====================
+
+    private void BtnCommandPalette_Click(object sender, RoutedEventArgs e)
+    {
+        ToggleCommandPaletteModal();
+    }
+
+    public void ToggleCommandPaletteModal()
+    {
+        if (PnlCommandPaletteModal == null) return;
+        if (PnlCommandPaletteModal.Visibility == Visibility.Visible)
+            CloseCommandPaletteModal();
+        else
+            OpenCommandPaletteModal();
+    }
+
+    public void OpenCommandPaletteModal()
+    {
+        if (PnlCommandPaletteModal == null) return;
+        InitCommandPaletteItems();
+        FilterCommandPalette("");
+        if (TxtCommandPaletteSearch != null)
+        {
+            TxtCommandPaletteSearch.Text = "";
+            TxtCommandPaletteSearch.Focus();
+        }
+        PnlCommandPaletteModal.Visibility = Visibility.Visible;
+    }
+
+    public void CloseCommandPaletteModal()
+    {
+        if (PnlCommandPaletteModal != null)
+            PnlCommandPaletteModal.Visibility = Visibility.Collapsed;
+    }
+
+    private void BtnCloseCommandPaletteModal_Click(object sender, RoutedEventArgs e)
+    {
+        CloseCommandPaletteModal();
+    }
+
+    private void PnlCommandPaletteModal_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource == PnlCommandPaletteModal)
+            CloseCommandPaletteModal();
+    }
+
+    private void InitCommandPaletteItems()
+    {
+        _allPaletteItems.Clear();
+
+        // 1. All Navigation Sections (17 sections)
+        var sections = new List<(string title, string desc, Button navBtn)>
+        {
+            ("Главное меню", "Командный центр, быстрый старт и профили оптимизации", NavBtnMainMenu),
+            ("Все игры", "Библиотека игр, фильтры платформ и карточки коллекции", NavBtnLibrary),
+            ("Избранное", "Избранные игры коллекции для быстрого доступа", NavBtnFavorites),
+            ("История", "Журнал последних запущенных игровых сессий", NavBtnHistory),
+            ("Менеджер ядер", "Загрузка и обновление ядер Libretro", NavBtnCores),
+            ("Опции ядер", "Тонкая настройка видео, аудио и параметров активного ядра", NavBtnCoreOptions),
+            ("Читы и тренеры", "База чит-кодов Libretro CHT и встроенный редактор", NavBtnCheats),
+            ("Диски и патчи", "Импорт многодисковых игр, сжатие CHD и патчи IPS/BPS", NavBtnImport),
+            ("Экранные рамки", "4-сторонние экранные рамки (Bezels) для ретро-консолей", NavBtnBezels),
+            ("Шейдеры и фильтры", "Графические фильтры CRT, Scanlines, VHS и GLSL-пресеты", NavBtnShaders),
+            ("Сохранения", "Стейты, файлы батарейной памяти SRM и облачный Sync", NavBtnSaves),
+            ("Геймпады (1-8)", "Калибровка геймпадов DirectInput/XInput и клавиатуры", NavBtnInputRemap),
+            ("BIOS и система", "Проверка наличия дампов BIOS и системных прошивок", NavBtnBios),
+            ("Ретро-достижения", "Интеграция с сервисом RetroAchievements и трофеи", NavBtnAchievements),
+            ("Сетевая игра", "Лобби Netplay, хостинг комнат и подключение по IP", NavBtnNetplay),
+            ("ИИ и Стриминг", "ИИ-помощник прохождения и захват видео 60 FPS", NavBtnStreamAi),
+            ("Настройки", "16 категорий системных конфигураций RetroArch", NavBtnSettings)
+        };
+
+        foreach (var sec in sections)
+        {
+            var btn = sec.navBtn;
+            _allPaletteItems.Add(new CommandPaletteItem
+            {
+                Title = sec.title,
+                Subtitle = sec.desc,
+                Category = "Раздел",
+                IconGeometry = "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",
+                IconBrush = new SolidColorBrush(Color.FromRgb(167, 139, 250)), // #A78BFA
+                IconBgBrush = new SolidColorBrush(Color.FromArgb(40, 139, 92, 246)),
+                BadgeTextBrush = new SolidColorBrush(Color.FromRgb(196, 181, 253)),
+                BadgeBgBrush = new SolidColorBrush(Color.FromArgb(40, 139, 92, 246)),
+                BadgeBorderBrush = new SolidColorBrush(Color.FromRgb(139, 92, 246)),
+                ExecuteAction = () => NavBtn_Click(btn, new RoutedEventArgs())
+            });
+        }
+
+        // 2. Studio Quick Commands
+        _allPaletteItems.Add(new CommandPaletteItem
+        {
+            Title = "Синхронизировать сохранения (save sync)",
+            Subtitle = "Синхронизация сохранений с папкой облака / NAS",
+            Category = "Команда",
+            IconGeometry = "M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z",
+            IconBrush = new SolidColorBrush(Color.FromRgb(52, 211, 153)), // #34D399
+            IconBgBrush = new SolidColorBrush(Color.FromArgb(40, 16, 185, 129)),
+            BadgeTextBrush = new SolidColorBrush(Color.FromRgb(110, 231, 183)),
+            BadgeBgBrush = new SolidColorBrush(Color.FromArgb(40, 16, 185, 129)),
+            BadgeBorderBrush = new SolidColorBrush(Color.FromRgb(16, 185, 129)),
+            ExecuteAction = () => BtnOpenCloudSyncFolder_Click(this, new RoutedEventArgs())
+        });
+
+        _allPaletteItems.Add(new CommandPaletteItem
+        {
+            Title = @"Открыть корневую папку N:\STORM RETROARCH",
+            Subtitle = @"Проводник Windows по установленному пути N:\STORM RETROARCH",
+            Category = "Команда",
+            IconGeometry = "M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z",
+            IconBrush = new SolidColorBrush(Color.FromRgb(56, 189, 248)), // #38BDF8
+            IconBgBrush = new SolidColorBrush(Color.FromArgb(40, 14, 165, 233)),
+            BadgeTextBrush = new SolidColorBrush(Color.FromRgb(186, 230, 253)),
+            BadgeBgBrush = new SolidColorBrush(Color.FromArgb(40, 14, 165, 233)),
+            BadgeBorderBrush = new SolidColorBrush(Color.FromRgb(14, 165, 233)),
+            ExecuteAction = () =>
+            {
+                try { Process.Start(new ProcessStartInfo { FileName = @"N:\STORM RETROARCH", UseShellExecute = true }); } catch { }
+            }
+        });
+
+        _allPaletteItems.Add(new CommandPaletteItem
+        {
+            Title = "Скачать рекомендуемые ядра",
+            Subtitle = "Загрузить официальный Золотой набор из 25 ядер Libretro",
+            Category = "Команда",
+            IconGeometry = "M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z",
+            IconBrush = new SolidColorBrush(Color.FromRgb(251, 191, 36)), // #FBBF24
+            IconBgBrush = new SolidColorBrush(Color.FromArgb(40, 245, 158, 11)),
+            BadgeTextBrush = new SolidColorBrush(Color.FromRgb(253, 230, 138)),
+            BadgeBgBrush = new SolidColorBrush(Color.FromArgb(40, 245, 158, 11)),
+            BadgeBorderBrush = new SolidColorBrush(Color.FromRgb(245, 158, 11)),
+            ExecuteAction = () => BtnDownloadGoldenCores_Click(this, new RoutedEventArgs())
+        });
+
+        _allPaletteItems.Add(new CommandPaletteItem
+        {
+            Title = "Сканировать папки с играми",
+            Subtitle = "Добавить ROM-файлы и папки в библиотеку коллекции",
+            Category = "Команда",
+            IconGeometry = "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z",
+            IconBrush = new SolidColorBrush(Color.FromRgb(52, 211, 153)),
+            IconBgBrush = new SolidColorBrush(Color.FromArgb(40, 16, 185, 129)),
+            BadgeTextBrush = new SolidColorBrush(Color.FromRgb(110, 231, 183)),
+            BadgeBgBrush = new SolidColorBrush(Color.FromArgb(40, 16, 185, 129)),
+            BadgeBorderBrush = new SolidColorBrush(Color.FromRgb(16, 185, 129)),
+            ExecuteAction = () => BtnAddFolder_Click(this, new RoutedEventArgs())
+        });
+
+        _allPaletteItems.Add(new CommandPaletteItem
+        {
+            Title = "Сбросить масштаб интерфейса (100%)",
+            Subtitle = "Вернуть стандартный масштаб интерфейса 1.0x (Ctrl+0)",
+            Category = "Команда",
+            IconGeometry = "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z",
+            IconBrush = new SolidColorBrush(Color.FromRgb(56, 189, 248)),
+            IconBgBrush = new SolidColorBrush(Color.FromArgb(40, 14, 165, 233)),
+            BadgeTextBrush = new SolidColorBrush(Color.FromRgb(186, 230, 253)),
+            BadgeBgBrush = new SolidColorBrush(Color.FromArgb(40, 14, 165, 233)),
+            BadgeBorderBrush = new SolidColorBrush(Color.FromRgb(14, 165, 233)),
+            ExecuteAction = () => BtnUiScaleReset_Click(this, new RoutedEventArgs())
+        });
+
+        // 3. All Games
+        foreach (var g in _allGames)
+        {
+            var game = g;
+            _allPaletteItems.Add(new CommandPaletteItem
+            {
+                Title = game.Name,
+                Subtitle = $"{game.Platform} • {game.CoreDisplayName} • {game.FormattedSize}",
+                Category = "Игра",
+                IconGeometry = "M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z",
+                IconBrush = new SolidColorBrush(Color.FromRgb(245, 158, 11)), // #F59E0B
+                IconBgBrush = new SolidColorBrush(Color.FromArgb(40, 245, 158, 11)),
+                BadgeTextBrush = new SolidColorBrush(Color.FromRgb(253, 230, 138)),
+                BadgeBgBrush = new SolidColorBrush(Color.FromArgb(40, 245, 158, 11)),
+                BadgeBorderBrush = new SolidColorBrush(Color.FromRgb(245, 158, 11)),
+                Game = game,
+                ExecuteAction = async () => await StartGameInViewportAsync(game)
+            });
+        }
+    }
+
+    private void FilterCommandPalette(string query)
+    {
+        _filteredPaletteItems.Clear();
+        string q = query.Trim().ToLowerInvariant();
+
+        if (string.IsNullOrEmpty(q))
+        {
+            // Show first 15 games + all sections + all commands
+            foreach (var item in _allPaletteItems.Where(i => i.Category != "Игра"))
+                _filteredPaletteItems.Add(item);
+            foreach (var item in _allPaletteItems.Where(i => i.Category == "Игра").Take(25))
+                _filteredPaletteItems.Add(item);
+        }
+        else
+        {
+            var matches = _allPaletteItems.Where(i =>
+                i.Title.ToLowerInvariant().Contains(q) ||
+                i.Subtitle.ToLowerInvariant().Contains(q) ||
+                i.Category.ToLowerInvariant().Contains(q)
+            ).Take(40);
+
+            foreach (var m in matches)
+                _filteredPaletteItems.Add(m);
+        }
+
+        if (LstCommandPaletteResults != null && _filteredPaletteItems.Count > 0)
+        {
+            LstCommandPaletteResults.SelectedIndex = 0;
+        }
+    }
+
+    private void TxtCommandPaletteSearch_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        FilterCommandPalette(TxtCommandPaletteSearch?.Text ?? "");
+    }
+
+    private void TxtCommandPaletteSearch_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Down)
+        {
+            if (LstCommandPaletteResults != null && LstCommandPaletteResults.Items.Count > 0)
+            {
+                int next = Math.Min(LstCommandPaletteResults.Items.Count - 1, LstCommandPaletteResults.SelectedIndex + 1);
+                LstCommandPaletteResults.SelectedIndex = next;
+                LstCommandPaletteResults.ScrollIntoView(LstCommandPaletteResults.SelectedItem);
+            }
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Up)
+        {
+            if (LstCommandPaletteResults != null && LstCommandPaletteResults.Items.Count > 0)
+            {
+                int prev = Math.Max(0, LstCommandPaletteResults.SelectedIndex - 1);
+                LstCommandPaletteResults.SelectedIndex = prev;
+                LstCommandPaletteResults.ScrollIntoView(LstCommandPaletteResults.SelectedItem);
+            }
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Enter)
+        {
+            ExecuteSelectedCommandPaletteItem();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            CloseCommandPaletteModal();
+            e.Handled = true;
+        }
+    }
+
+    private void LstCommandPaletteResults_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        ExecuteSelectedCommandPaletteItem();
+    }
+
+    private void LstCommandPaletteResults_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            ExecuteSelectedCommandPaletteItem();
+            e.Handled = true;
+        }
+    }
+
+    private async void ExecuteSelectedCommandPaletteItem()
+    {
+        if (LstCommandPaletteResults?.SelectedItem is not CommandPaletteItem item) return;
+        CloseCommandPaletteModal();
+        if (item.Game != null)
+        {
+            await StartGameInViewportAsync(item.Game);
+        }
+        else
+        {
+            item.ExecuteAction?.Invoke();
+        }
+    }
+
+
+    // ==================== 1.4.0 PLATFORM FILTER CHIPS & SORTING ====================
+
+    private void CmbLibrarySort_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        ApplyGamesFilter();
+    }
+
+    private void UpdatePlatformFilterChips()
+    {
+        if (PnlPlatformFilterChips == null) return;
+        PnlPlatformFilterChips.Children.Clear();
+
+        var distinctPlats = _allGames
+            .Select(g => g.Platform)
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .GroupBy(p => p)
+            .OrderBy(g => g.Key)
+            .Select(g => new { Platform = g.Key, Count = g.Count() })
+            .ToList();
+
+        // 1. All Platforms Chip
+        var allBtn = CreatePlatformChipButton("Все платформы", _allGames.Count, _selectedChipPlatform == "Все платформы");
+        allBtn.Click += (s, e) =>
+        {
+            _selectedChipPlatform = "Все платформы";
+            if (CmbPlatformFilter != null) CmbPlatformFilter.SelectedItem = "Все платформы";
+            UpdatePlatformFilterChips();
+            ApplyGamesFilter();
+        };
+        PnlPlatformFilterChips.Children.Add(allBtn);
+
+        // 2. Specific Platform Chips
+        foreach (var plat in distinctPlats)
+        {
+            bool isSelected = _selectedChipPlatform.Equals(plat.Platform, StringComparison.OrdinalIgnoreCase);
+            var chipBtn = CreatePlatformChipButton(plat.Platform, plat.Count, isSelected);
+            string capturedPlat = plat.Platform;
+            chipBtn.Click += (s, e) =>
+            {
+                _selectedChipPlatform = capturedPlat;
+                if (CmbPlatformFilter != null)
+                {
+                    for (int i = 0; i < CmbPlatformFilter.Items.Count; i++)
+                    {
+                        if (CmbPlatformFilter.Items[i]?.ToString() == capturedPlat)
+                        {
+                            CmbPlatformFilter.SelectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+                UpdatePlatformFilterChips();
+                ApplyGamesFilter();
+            };
+            PnlPlatformFilterChips.Children.Add(chipBtn);
+        }
+    }
+
+    private Button CreatePlatformChipButton(string name, int count, bool isSelected)
+    {
+        var btn = new Button
+        {
+            Style = (Style)FindResource("CapsuleButton"),
+            Padding = new Thickness(10, 4, 10, 4),
+            Margin = new Thickness(0, 0, 6, 0),
+            Tag = name,
+            Cursor = Cursors.Hand,
+            ToolTip = $"Фильтровать по платформе {name} ({count} игр)"
+        };
+
+        if (isSelected)
+        {
+            btn.Background = new SolidColorBrush(Color.FromArgb(60, 124, 58, 237));
+            btn.BorderBrush = new SolidColorBrush(Color.FromRgb(167, 139, 250));
+            btn.BorderThickness = new Thickness(1.5);
+        }
+        else
+        {
+            btn.Background = (Brush)FindResource("ThemeSurface");
+            btn.BorderBrush = (Brush)FindResource("ThemeBorder");
+            btn.BorderThickness = new Thickness(1);
+        }
+
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        var txtName = new TextBlock
+        {
+            Text = name,
+            FontSize = 11.5,
+            FontWeight = isSelected ? FontWeights.Bold : FontWeights.Normal,
+            Foreground = isSelected ? new SolidColorBrush(Color.FromRgb(248, 250, 252)) : (Brush)FindResource("ThemeTextPrimary"),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        var badgeBorder = new Border
+        {
+            Background = isSelected ? new SolidColorBrush(Color.FromArgb(80, 139, 92, 246)) : new SolidColorBrush(Color.FromArgb(30, 255, 255, 255)),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(5, 1, 5, 1),
+            Margin = new Thickness(6, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        var txtCount = new TextBlock
+        {
+            Text = count.ToString(),
+            FontSize = 10,
+            FontWeight = FontWeights.Bold,
+            Foreground = isSelected ? new SolidColorBrush(Color.FromRgb(221, 214, 254)) : (Brush)FindResource("ThemeTextSecondary")
+        };
+        badgeBorder.Child = txtCount;
+        sp.Children.Add(txtName);
+        sp.Children.Add(badgeBorder);
+        btn.Content = sp;
+
+        return btn;
+    }
+
+
+    // ==================== 1.4.0 GAME CONTEXT ACTIONS & CHEATS BUTTON ====================
+
+    private RomItem? GetRomFromSender(object sender)
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is RomItem r1) return r1;
+        if (sender is MenuItem mi)
+        {
+            if (mi.DataContext is RomItem r2) return r2;
+            if (mi.Parent is ContextMenu cm && cm.PlacementTarget is FrameworkElement pt && pt.DataContext is RomItem r3)
+                return r3;
+        }
+        return null;
+    }
+
+    private async void ContextPlayGame_Click(object sender, RoutedEventArgs e)
+    {
+        var game = GetRomFromSender(sender);
+        if (game != null) await StartGameInViewportAsync(game);
+    }
+
+    private void ContextChangeCore_Click(object sender, RoutedEventArgs e)
+    {
+        var game = GetRomFromSender(sender);
+        if (game != null) OpenCoreSelectorForGame(game);
+    }
+
+    private void ContextGameCheats_Click(object sender, RoutedEventArgs e)
+    {
+        var game = GetRomFromSender(sender);
+        if (game != null) OpenCheatsForGame(game);
+    }
+
+    private void ContextGameSaves_Click(object sender, RoutedEventArgs e)
+    {
+        var game = GetRomFromSender(sender);
+        if (game != null) OpenSavesForGame(game);
+    }
+
+    private void ContextToggleFavorite_Click(object sender, RoutedEventArgs e)
+    {
+        var game = GetRomFromSender(sender);
+        if (game == null) return;
+        game.IsFavorite = !game.IsFavorite;
+        if (game.IsFavorite)
+        {
+            if (!_favorites.Any(f => f.FilePath.Equals(game.FilePath, StringComparison.OrdinalIgnoreCase)))
+                _favorites.Add(game);
+            ShowOsdToast($"Игра «{game.Name}» добавлена в Избранное ★");
+        }
+        else
+        {
+            var existing = _favorites.FirstOrDefault(f => f.FilePath.Equals(game.FilePath, StringComparison.OrdinalIgnoreCase));
+            if (existing != null) _favorites.Remove(existing);
+            ShowOsdToast($"Игра «{game.Name}» убрана из Избранного");
+        }
+    }
+
+    private void ContextOpenRomFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var game = GetRomFromSender(sender);
+        if (game == null) return;
+        try
+        {
+            if (File.Exists(game.FilePath))
+                Process.Start("explorer.exe", $"/select,\"{game.FilePath}\"");
+            else if (Directory.Exists(Path.GetDirectoryName(game.FilePath)))
+                Process.Start("explorer.exe", $"\"{Path.GetDirectoryName(game.FilePath)}\"");
+        }
+        catch { }
+    }
+
+    private void BtnGameCheats_Click(object sender, RoutedEventArgs e)
+    {
+        var game = GetRomFromSender(sender);
+        if (game != null) OpenCheatsForGame(game);
+    }
+
+    public void OpenCoreSelectorForGame(RomItem item)
+    {
+        if (item == null) return;
+        _coreModalTargetRom = item;
+        if (TxtCoreModalTitle != null) TxtCoreModalTitle.Text = $"Выбор ядра: {item.Name}";
+        if (TxtCoreModalSubtitle != null) TxtCoreModalSubtitle.Text = $"Платформа: {item.Platform} • Текущее ядро: {item.CoreDisplayName}";
+
+        var cores = CoreManager.GetCompatibleCoresForPlatform(item.Platform, item.Extension);
+        if (LstModalCompatibleCores != null)
+        {
+            LstModalCompatibleCores.ItemsSource = cores;
+            var currentMatch = cores.FirstOrDefault(c => c.DllName.Equals(item.CoreDll, StringComparison.OrdinalIgnoreCase));
+            LstModalCompatibleCores.SelectedItem = currentMatch ?? cores.FirstOrDefault();
+        }
+
+        if (ChkSetCoreDefaultForPlatform != null)
+        {
+            ChkSetCoreDefaultForPlatform.Content = $"Сделать выбранное ядро стандартным по умолчанию для всех игр платформы «{item.Platform}»";
+            ChkSetCoreDefaultForPlatform.IsChecked = false;
+        }
+
+        if (PnlCoreSelectorModal != null)
+            PnlCoreSelectorModal.Visibility = Visibility.Visible;
+    }
+
+    public void OpenCheatsForGame(RomItem game)
+    {
+        NavBtn_Click(NavBtnCheats, new RoutedEventArgs());
+        if (TxtSearchCheats != null)
+        {
+            TxtSearchCheats.Text = game.Name;
+        }
+
+        var match = _allCheatFiles.FirstOrDefault(f =>
+            f.GameName.Equals(game.Name, StringComparison.OrdinalIgnoreCase) ||
+            f.FilePath.Contains(Path.GetFileNameWithoutExtension(game.FilePath), StringComparison.OrdinalIgnoreCase));
+
+        if (match != null && ListCheatFiles != null)
+        {
+            ListCheatFiles.SelectedItem = match;
+            ListCheatFiles.ScrollIntoView(match);
+        }
+    }
+
+    public void OpenSavesForGame(RomItem game)
+    {
+        NavBtn_Click(NavBtnSaves, new RoutedEventArgs());
+        if (TxtSearchSaves != null)
+        {
+            TxtSearchSaves.Text = Path.GetFileNameWithoutExtension(game.FilePath);
+        }
+    }
+
+
+    // ==================== 1.4.0 DASHBOARD RECENT GAMES STRIP ====================
+
+    private void UpdateDashboardRecentGames()
+    {
+        if (IcDashboardRecentGames == null) return;
+        var source = _history.Count > 0 ? _history.Take(8).ToList() : _allGames.Take(8).ToList();
+        IcDashboardRecentGames.ItemsSource = source;
+    }
+
+    private void BtnGoToHistory_Click(object sender, RoutedEventArgs e)
+    {
+        NavBtn_Click(NavBtnHistory, e);
+    }
+
+
+    // ==================== 1.4.0 QUICK MENU LIVE STATE STATUS ====================
+
+    private void InitQuickMenuStateSlots()
+    {
+        if (CmbQuickMenuStateSlot == null) return;
+        CmbQuickMenuStateSlot.Items.Clear();
+        for (int i = 0; i <= 9; i++)
+        {
+            CmbQuickMenuStateSlot.Items.Add($"#{i}");
+        }
+        int active = Math.Clamp(NativeLibretroHost.Current.ActiveStateSlot, 0, 9);
+        CmbQuickMenuStateSlot.SelectedIndex = active;
+    }
+
+    private void CmbQuickMenuStateSlot_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (CmbQuickMenuStateSlot == null || CmbQuickMenuStateSlot.SelectedIndex < 0) return;
+        int slot = CmbQuickMenuStateSlot.SelectedIndex;
+        NativeLibretroHost.Current.ActiveStateSlot = slot;
+        if (CmbInGameStateSlot != null && slot < CmbInGameStateSlot.Items.Count) CmbInGameStateSlot.SelectedIndex = slot;
+        if (CmbStateSlot != null && slot < CmbStateSlot.Items.Count) CmbStateSlot.SelectedIndex = slot;
+        UpdateQuickSlotStatus();
+    }
+
+    public void UpdateQuickSlotStatus()
+    {
+        if (TxtQuickSlotStatus == null) return;
+        int slot = NativeLibretroHost.Current.ActiveStateSlot;
+        string gameTitle = NativeLibretroHost.Current.CurrentGameTitle;
+        if (string.IsNullOrWhiteSpace(gameTitle))
+        {
+            TxtQuickSlotStatus.Text = $"Слот #{slot}: Игра не запущена";
+            TxtQuickSlotStatus.Foreground = (Brush)FindResource("ThemeTextMuted");
+            return;
+        }
+
+        try
+        {
+            string safeTitle = NativeLibretroHost.SanitizeFileName(gameTitle);
+            string statesDir = Path.Combine(CoreManager.AppDir, "states");
+            string statePath = Path.Combine(statesDir, $"{safeTitle}.state{slot}");
+
+            if (File.Exists(statePath))
+            {
+                var fi = new FileInfo(statePath);
+                long bytes = fi.Length;
+                string sizeStr = bytes < 1024 * 1024 ? $"{bytes / 1024.0:F0} КБ" : $"{bytes / (1024.0 * 1024.0):F1} МБ";
+                string timeStr = fi.LastWriteTime.Date == DateTime.Today
+                    ? $"сегодня {fi.LastWriteTime:HH:mm}"
+                    : (fi.LastWriteTime.Date == DateTime.Today.AddDays(-1)
+                        ? $"вчера {fi.LastWriteTime:HH:mm}"
+                        : fi.LastWriteTime.ToString("dd.MM.yyyy HH:mm"));
+
+                TxtQuickSlotStatus.Text = $"Слот #{slot}: Стейт найден ({sizeStr}, {timeStr})";
+                TxtQuickSlotStatus.Foreground = new SolidColorBrush(Color.FromRgb(52, 211, 153)); // #34D399
+            }
+            else
+            {
+                TxtQuickSlotStatus.Text = $"Слот #{slot}: Пусто";
+                TxtQuickSlotStatus.Foreground = (Brush)FindResource("ThemeTextMuted");
+            }
+        }
+        catch
+        {
+            TxtQuickSlotStatus.Text = $"Слот #{slot}: Пусто";
+            TxtQuickSlotStatus.Foreground = (Brush)FindResource("ThemeTextMuted");
+        }
+    }
+
+}
+
+public class CommandPaletteItem
+{
+    public string Title { get; set; } = "";
+    public string Subtitle { get; set; } = "";
+    public string Category { get; set; } = "";
+    public string IconGeometry { get; set; } = "";
+    public Brush IconBrush { get; set; } = Brushes.White;
+    public Brush IconBgBrush { get; set; } = Brushes.Transparent;
+    public Brush BadgeTextBrush { get; set; } = Brushes.White;
+    public Brush BadgeBgBrush { get; set; } = Brushes.Transparent;
+    public Brush BadgeBorderBrush { get; set; } = Brushes.Transparent;
+    public RomItem? Game { get; set; }
+    public Action? ExecuteAction { get; set; }
 }

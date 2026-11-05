@@ -106,6 +106,7 @@ public static class CoverArtService
                 var bmp = new BitmapImage();
                 bmp.BeginInit();
                 bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.DecodePixelWidth = 260;
                 bmp.StreamSource = ms;
                 bmp.EndInit();
                 bmp.Freeze();
