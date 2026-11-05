@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:StormRetroArch"
         x:Name="RootWindow"
-        Title="STORM RETROARCH 1.2.0"
+        Title="STORM RETROARCH 1.3.0"
         Width="1500" Height="890"
         MinWidth="960" MinHeight="620"
         WindowStartupLocation="CenterScreen"
@@ -672,7 +672,7 @@
                 <!-- Left: App Icon & Title with REQUIRED Margin="10,0,24,0" + Engine Status Pill -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Image Source="app_icon.png" Width="22" Height="22" Margin="0,0,8,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                    <TextBlock Text="STORM RETROARCH 1.2.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,24,0"/>
+                    <TextBlock Text="STORM RETROARCH 1.3.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,24,0"/>
 
                     <!-- Engine Status Pill -->
                     <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="12" Padding="8,3" VerticalAlignment="Center">
@@ -964,12 +964,21 @@
                                 </StackPanel>
                             </Button>
 
+                            <Button x:Name="NavBtnCheats" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Width="26" Height="26" CornerRadius="6" Background="#20FBBF24" BorderBrush="#60FBBF24" BorderThickness="1" Margin="0,0,10,0" VerticalAlignment="Center">
+                                        <Path Data="M7 2v11h3v9l7-12h-4l4-8z" Fill="#FBBF24" Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock Text="Читы и тренеры" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Button>
+
                             <Button x:Name="NavBtnImport" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click">
                                 <StackPanel Orientation="Horizontal">
                                     <Border Width="26" Height="26" CornerRadius="6" Background="#20818CF8" BorderBrush="#60818CF8" BorderThickness="1" Margin="0,0,10,0" VerticalAlignment="Center">
                                         <Path Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" Fill="#818CF8" Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </Border>
-                                    <TextBlock Text="Диски и Патчи" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Диски и патчи" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="SemiBold"/>
                                 </StackPanel>
                             </Button>
 
@@ -978,7 +987,7 @@
                                     <Border Width="26" Height="26" CornerRadius="6" Background="#2038BDF8" BorderBrush="#6038BDF8" BorderThickness="1" Margin="0,0,10,0" VerticalAlignment="Center">
                                         <Path Data="M6 3h12v2H6V3zm0 16h12v2H6v-2zm14-8V9h-2V7h-2V5h-2v2h-4V5H8v2H6v2H4v2h2v2H4v2h2v2h2v2h2v-2h4v2h2v-2h2v-2h2v-2h-2v-2h2zm-4 4H8V9h8v6z" Fill="#38BDF8" Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </Border>
-                                    <TextBlock Text="BIOS и система" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Системные файлы" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="SemiBold"/>
                                 </StackPanel>
                             </Button>
 
@@ -999,7 +1008,7 @@
                                     <Border Width="26" Height="26" CornerRadius="6" Background="#20A78BFA" BorderBrush="#60A78BFA" BorderThickness="1" Margin="0,0,10,0" VerticalAlignment="Center">
                                         <Path Data="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-2-2H7V7h10v10z" Fill="#A78BFA" Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </Border>
-                                    <TextBlock Text="Рамки (Bezels)" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Экранные рамки" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="SemiBold"/>
                                 </StackPanel>
                             </Button>
 
@@ -1020,7 +1029,7 @@
                                     <Border Width="26" Height="26" CornerRadius="6" Background="#2038BDF8" BorderBrush="#6038BDF8" BorderThickness="1" Margin="0,0,10,0" VerticalAlignment="Center">
                                         <Path Data="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z" Fill="#38BDF8" Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </Border>
-                                    <TextBlock Text="STORM SAVE SYNC" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Синхронизация сохранений" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="SemiBold"/>
                                 </StackPanel>
                             </Button>
 
@@ -1042,14 +1051,7 @@
                                 </StackPanel>
                             </Button>
 
-                            <Button x:Name="NavBtnCheats" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click">
-                                <StackPanel Orientation="Horizontal">
-                                    <Border Width="26" Height="26" CornerRadius="6" Background="#20FBBF24" BorderBrush="#60FBBF24" BorderThickness="1" Margin="0,0,10,0" VerticalAlignment="Center">
-                                        <Path Data="M7 2v11h3v9l7-12h-4l4-8z" Fill="#FBBF24" Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    </Border>
-                                    <TextBlock Text="Читы и патчи" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="SemiBold"/>
-                                </StackPanel>
-                            </Button>
+
 
                             <Button x:Name="NavBtnAchievements" Style="{StaticResource SidebarNavButton}" Click="NavBtn_Click">
                                 <StackPanel Orientation="Horizontal">
@@ -1074,7 +1076,7 @@
                                     <Border Width="26" Height="26" CornerRadius="6" Background="#20FB7185" BorderBrush="#60FB7185" BorderThickness="1" Margin="0,0,10,0" VerticalAlignment="Center">
                                         <Path Data="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z" Fill="#FB7185" Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </Border>
-                                    <TextBlock Text="Стрим и AI" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Трансляция и ИИ" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="SemiBold"/>
                                 </StackPanel>
                             </Button>
 
@@ -1168,19 +1170,19 @@
                                                 <TextBlock x:Name="TxtGamePauseLabel" Text="Пауза" FontSize="11" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Button>
-                                        <Button Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="7,4" Margin="0,0,4,0" Click="BtnGameReset_Click" ToolTip="Перезапустить игровой картридж / систему (Reset)">
+                                        <Button Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="7,4" Margin="0,0,4,0" Click="BtnGameReset_Click" ToolTip="Перезапустить игровой картридж">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                 <Path Data="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" Fill="#FBBF24" Stretch="Uniform" Width="10" Height="10" Margin="0,0,4,0" VerticalAlignment="Center"/>
                                                 <TextBlock Text="Сброс" FontSize="11" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Button>
-                                        <Button Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="7,4" Margin="0,0,4,0" Click="BtnGameRewind_Click" ToolTip="Перемотка времени назад (Rewind)">
+                                        <Button Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="7,4" Margin="0,0,4,0" Click="BtnGameRewind_Click" ToolTip="Перемотка времени назад">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                 <Path Data="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z" Fill="#F472B6" Stretch="Uniform" Width="10" Height="10" Margin="0,0,4,0" VerticalAlignment="Center"/>
                                                 <TextBlock Text="Перемотка" FontSize="11" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Button>
-                                        <Button x:Name="BtnGameFastForward" Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="7,4" Margin="0,0,4,0" Click="BtnGameFastForward_Click" ToolTip="Турбо-ускорение 3x (Fast Forward)">
+                                        <Button x:Name="BtnGameFastForward" Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="7,4" Margin="0,0,4,0" Click="BtnGameFastForward_Click" ToolTip="Турбо-ускорение 3x">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                 <Path Data="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z" Fill="#F59E0B" Stretch="Uniform" Width="10" Height="10" Margin="0,0,4,0" VerticalAlignment="Center"/>
                                                 <TextBlock x:Name="TxtGameFastForwardLabel" Text="Турбо" FontSize="11" VerticalAlignment="Center"/>
@@ -1230,7 +1232,7 @@
                                 <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="5,3" Margin="0,2,0,2">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                         <TextBlock Text="ЭКРАН" Foreground="{DynamicResource ThemeTextMuted}" FontSize="9" FontWeight="Bold" VerticalAlignment="Center" Margin="3,0,5,0"/>
-                                        <Button Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="7,4" Margin="0,0,4,0" Click="BtnGameShader_Click" ToolTip="Переключить видео-фильтр (Pixel-Perfect / CRT Scanlines / Bilinear / LCD)">
+                                        <Button Style="{StaticResource StormSecondaryButton}" Focusable="False" Padding="7,4" Margin="0,0,4,0" Click="BtnGameShader_Click" ToolTip="Переключить графический фильтр экрана">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                 <Path Data="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8z" Fill="#EC4899" Stretch="Uniform" Width="10" Height="10" Margin="0,0,4,0" VerticalAlignment="Center"/>
                                                 <TextBlock Text="Фильтр" FontSize="11" VerticalAlignment="Center"/>
@@ -1296,123 +1298,182 @@
                             <!-- Native In-Process Libretro Viewport -->
                             <Image x:Name="ImgGameViewport" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                             <!-- Bezel Overlay Layer -->
-                            <Image x:Name="ImgGameBezelOverlay" Stretch="Fill" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False" Visibility="Collapsed" Panel.ZIndex="5"/>
+                            <Image x:Name="ImgGameBezelOverlay" Stretch="Fill" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False" Visibility="Collapsed" Panel.ZIndex="25" RenderOptions.BitmapScalingMode="HighQuality"/>
 
                             <!-- RetroArch Quick Menu Overlay (F1) -->
-                            <Border x:Name="PnlInGameQuickMenu" Visibility="Collapsed" Background="#D8080711" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Panel.ZIndex="100">
-                                <Border Width="540" MaxHeight="660" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1.5" CornerRadius="14" Padding="22,18" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Border x:Name="PnlInGameQuickMenu" Visibility="Collapsed" Background="#E007060F" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Panel.ZIndex="100">
+                                <Border Width="680" MaxHeight="620" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1.5" CornerRadius="14" Padding="22,18" HorizontalAlignment="Center" VerticalAlignment="Center">
                                     <Border.Effect>
-                                        <DropShadowEffect BlurRadius="32" Color="#000000" Opacity="0.85" ShadowDepth="6"/>
+                                        <DropShadowEffect Color="#000000" BlurRadius="32" ShadowDepth="8" Opacity="0.85"/>
                                     </Border.Effect>
                                     <DockPanel LastChildFill="True">
-                                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,14">
-                                            <Button DockPanel.Dock="Right" Style="{StaticResource StormSecondaryButton}" Padding="10,4" Click="BtnGameQuickMenu_Click">
-                                                <TextBlock Text="Закрыть (F1 / ESC)" FontSize="11.5"/>
-                                            </Button>
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <Border Width="32" Height="32" CornerRadius="8" Background="{DynamicResource ThemeAccentSoft}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1" Margin="0,0,10,0">
-                                                    <Path Data="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" Fill="{DynamicResource ThemeAccentGlow}" Width="16" Height="16" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                </Border>
-                                                <StackPanel>
-                                                    <TextBlock Text="Быстрое меню RetroArch (Quick Menu)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="16" FontWeight="Bold"/>
-                                                    <TextBlock Text="Оперативное управление текущей сессией, сохранениями, экраном и ядром" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5"/>
-                                                </StackPanel>
+                                        <!-- Top Header: Clean 2-Column Layout with Zero Overlap -->
+                                        <Grid DockPanel.Dock="Top" Margin="0,0,0,12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Width="38" Height="38" CornerRadius="9" Background="#258B5CF6" BorderBrush="#708B5CF6" BorderThickness="1" Margin="0,0,12,0" VerticalAlignment="Center">
+                                                <Path Data="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" Fill="#A78BFA" Width="18" Height="18" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,14,0">
+                                                <TextBlock Text="Быстрое меню игровой сессии" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="16.5" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="Управление эмуляцией, быстрыми сохранениями, экранными рамками и читами" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
                                             </StackPanel>
-                                        </DockPanel>
+                                            <Button Grid.Column="2" Content="✕ Закрыть (F1 / ESC)" Style="{StaticResource StormSecondaryButton}" Height="32" Padding="12,0" VerticalAlignment="Center" Click="BtnGameQuickMenuResume_Click"/>
+                                        </Grid>
 
+                                        <!-- Active Game & Live Core Switcher Bar -->
+                                        <Border DockPanel.Dock="Top" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="0,0,0,12">
+                                            <DockPanel LastChildFill="True">
+                                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock Text="Ядро эмулятора:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                    <ComboBox x:Name="CmbQuickMenuCore" Width="165" Height="26" Margin="0,0,6,0" DisplayMemberPath="Name"/>
+                                                    <Button Content="Сменить ядро" Style="{StaticResource StormAccentButton}" Height="26" Padding="10,0" FontSize="11" Click="BtnApplyQuickMenuCore_Click" ToolTip="Применить выбранное ядро к текущей игре и перезапустить"/>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Border Width="8" Height="8" CornerRadius="4" Background="#10B981" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                    <TextBlock x:Name="TxtQuickMenuActiveGame" Text="Активная сессия эмуляции" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="230"/>
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+
+                                        <!-- 4 Structured Symmetrical Card Groups -->
                                         <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                            <UniformGrid Columns="2" VerticalAlignment="Top">
-                                                <Button Style="{StaticResource StormAccentButton}" Margin="0,0,6,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameQuickMenuResume_Click">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Path Data="M8 5v14l11-7z" Fill="#FFFFFF" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="Продолжить игру (F1)" FontWeight="Bold"/>
+                                            <StackPanel>
+                                                <!-- GROUP 1: СЕССИЯ И ЯДРО -->
+                                                <Border Background="{DynamicResource ThemeBgWindow}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="10" Padding="12,10" Margin="0,0,0,10">
+                                                    <StackPanel>
+                                                        <TextBlock Text="1. ИГРОВАЯ СЕССИЯ И ЯДРО" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontWeight="Bold" Margin="2,0,0,8"/>
+                                                        <UniformGrid Columns="2">
+                                                            <Button Style="{StaticResource StormAccentButton}" Height="36" Margin="0,0,5,6" Padding="12,0" HorizontalContentAlignment="Left" Click="BtnGameQuickMenuResume_Click">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Path Data="M8 5v14l11-7z" Fill="#FFFFFF" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="Продолжить игру (F1)" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                            <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="5,0,0,6" Padding="12,0" HorizontalContentAlignment="Left" Click="BtnGameReset_Click">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Path Data="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" Fill="#F43F5E" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="Перезапустить картридж" VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                            <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="0,0,5,0" Padding="12,0" HorizontalContentAlignment="Left" Click="BtnQuickMenuCoreOptions_Click">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Path Data="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z" Fill="#38BDF8" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="Параметры и опции ядра" VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                            <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="5,0,0,0" Padding="12,0" HorizontalContentAlignment="Left" Click="BtnGameStop_Click">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Path Data="M6 6h12v12H6z" Fill="#FB7185" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="Завершить игру и выйти" VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                        </UniformGrid>
                                                     </StackPanel>
-                                                </Button>
-                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="6,0,0,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameReset_Click">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Path Data="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" Fill="#F472B6" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="Перезапустить картридж"/>
+                                                </Border>
+
+                                                <!-- GROUP 2: БЫСТРЫЕ СОХРАНЕНИЯ -->
+                                                <Border Background="{DynamicResource ThemeBgWindow}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="10" Padding="12,10" Margin="0,0,0,10">
+                                                    <StackPanel>
+                                                        <TextBlock Text="2. БЫСТРЫЕ СОХРАНЕНИЯ И СТЕЙТЫ" Foreground="#10B981" FontSize="10.5" FontWeight="Bold" Margin="2,0,0,8"/>
+                                                        <UniformGrid Columns="2">
+                                                            <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="0,0,5,6" Padding="12,0" HorizontalContentAlignment="Left" Click="BtnGameSaveState_Click">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Path Data="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" Fill="#10B981" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="Сохранить в слот (F2)" VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                            <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="5,0,0,6" Padding="12,0" HorizontalContentAlignment="Left" Click="BtnGameLoadState_Click">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Path Data="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" Fill="#F59E0B" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="Загрузить из слота (F4)" VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                            <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="0,0,5,0" Padding="12,0" HorizontalContentAlignment="Left" Click="BtnGameSaveStateFile_Click">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Path Data="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" Fill="#34D399" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="Сохранить стейт в файл..." VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                            <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="5,0,0,0" Padding="12,0" HorizontalContentAlignment="Left" Click="BtnGameLoadStateFile_Click">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Path Data="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z" Fill="#38BDF8" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="Загрузить стейт из файла..." VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                        </UniformGrid>
                                                     </StackPanel>
-                                                </Button>
-                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,6,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameSaveState_Click">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Path Data="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" Fill="#10B981" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="Сохранить в слот (F2)"/>
+                                                </Border>
+
+                                                <!-- GROUP 3: ЭКРАН, РАМКИ И ШЕЙДЕРЫ -->
+                                                <Border Background="{DynamicResource ThemeBgWindow}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="10" Padding="12,10" Margin="0,0,0,10">
+                                                    <StackPanel>
+                                                        <TextBlock Text="3. ЭКРАН, РАМКИ И ГРАФИЧЕСКИЕ ФИЛЬТРЫ" Foreground="#38BDF8" FontSize="10.5" FontWeight="Bold" Margin="2,0,0,8"/>
+                                                        <UniformGrid Columns="2">
+                                                            <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="0,0,5,6" Padding="12,0" HorizontalContentAlignment="Left" Click="BtnGameFullscreen_Click">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Path Data="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" Fill="#38BDF8" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="Полноэкранный режим (F11)" VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                            <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="5,0,0,6" Padding="12,0" HorizontalContentAlignment="Left" Click="BtnGameAspect_Click">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Path Data="M19 12h-2v3h-3v2h5v-5zM7 9h3V7H5v5h2V9zm14-6H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" Fill="#A78BFA" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="Пропорции экрана (4:3 / 16:9)" VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                            <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="0,0,5,0" Padding="12,0" HorizontalContentAlignment="Left" Click="BtnGameBezel_Click">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Path Data="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zm-10-7h9v6h-9z" Fill="#38BDF8" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="Переключить рамку экрана (B)" VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                            <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="5,0,0,0" Padding="12,0" HorizontalContentAlignment="Left" Click="BtnGameShader_Click">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Path Data="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 19.4c-.39.39-.39 1.02 0 1.41.39.39 1.02.39 1.41 0l1.9-1.9C9.22 19.59 10.57 20 12 20c4.97 0 9-4.03 9-9s-4.03-9-9-9z" Fill="#EC4899" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="Переключить ЭЛТ-фильтр" VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                        </UniformGrid>
                                                     </StackPanel>
-                                                </Button>
-                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="6,0,0,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameLoadState_Click">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Path Data="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" Fill="#FBBF24" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="Загрузить из слота (F4)"/>
+                                                </Border>
+
+                                                <!-- GROUP 4: УПРАВЛЕНИЕ, ЧИТЫ И ЗАХВАТ -->
+                                                <Border Background="{DynamicResource ThemeBgWindow}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="10" Padding="12,10">
+                                                    <StackPanel>
+                                                        <TextBlock Text="4. ЧИТЫ, УПРАВЛЕНИЕ И СКРИНШОТЫ" Foreground="#FBBF24" FontSize="10.5" FontWeight="Bold" Margin="2,0,0,8"/>
+                                                        <UniformGrid Columns="2">
+                                                            <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="0,0,5,6" Padding="12,0" HorizontalContentAlignment="Left" Click="BtnQuickMenuCheats_Click">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Path Data="M7 2v11h3v9l7-12h-4l4-8z" Fill="#FBBF24" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="Читы и тренеры игры" VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                            <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="5,0,0,6" Padding="12,0" HorizontalContentAlignment="Left" Click="BtnQuickMenuControls_Click">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Path Data="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z" Fill="#F59E0B" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="Управление и геймпад" VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                            <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="0,0,5,0" Padding="12,0" HorizontalContentAlignment="Left" Click="BtnGameScreenshot_Click">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Path Data="M12 12m-3.2 0a3.2 3.2 0 1 0 6.4 0 3.2 3.2 0 1 0-6.4 0M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9z" Fill="#34D399" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="Сделать скриншот (F8)" VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                            <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="5,0,0,0" Padding="12,0" HorizontalContentAlignment="Left" Click="BtnGameAiHint_Click">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Path Data="M12 2L9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2z" Fill="#A78BFA" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="ИИ-Помощник прохождения" VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                        </UniformGrid>
                                                     </StackPanel>
-                                                </Button>
-                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,6,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameSaveStateFile_Click">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Path Data="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" Fill="#34D399" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="Сохранить стейт в файл..."/>
-                                                    </StackPanel>
-                                                </Button>
-                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="6,0,0,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameLoadStateFile_Click">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Path Data="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z" Fill="#38BDF8" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="Загрузить стейт из файла..."/>
-                                                    </StackPanel>
-                                                </Button>
-                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,6,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameFullscreen_Click">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Path Data="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" Fill="#38BDF8" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="Полноэкранный режим (F11)"/>
-                                                    </StackPanel>
-                                                </Button>
-                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="6,0,0,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameAspect_Click">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Path Data="M19 12h-2v3h-3v2h5v-5zM7 9h3V7H5v5h2V9zm14-6H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" Fill="#A78BFA" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="Пропорции экрана (4:3 / 16:9)"/>
-                                                    </StackPanel>
-                                                </Button>
-                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,6,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameBezel_Click">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Path Data="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zm-10-7h9v6h-9z" Fill="#38BDF8" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="Переключить рамку Bezel (B)"/>
-                                                    </StackPanel>
-                                                </Button>
-                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,6,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameShader_Click">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Path Data="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 19.4c-.39.39-.39 1.02 0 1.41.39.39 1.02.39 1.41 0l1.9-1.9C9.22 19.59 10.57 20 12 20c4.97 0 9-4.03 9-9s-4.03-9-9-9z" Fill="#EC4899" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="Переключить CRT / Шейдер"/>
-                                                    </StackPanel>
-                                                </Button>
-                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="6,0,0,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameScreenshot_Click">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Path Data="M12 12m-3.2 0a3.2 3.2 0 1 0 6.4 0 3.2 3.2 0 1 0-6.4 0M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9z" Fill="#34D399" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="Сделать скриншот (F8)"/>
-                                                    </StackPanel>
-                                                </Button>
-                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,6,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnQuickMenuCoreOptions_Click">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Path Data="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z" Fill="#38BDF8" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="Опции ядра (Core Options)"/>
-                                                    </StackPanel>
-                                                </Button>
-                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="6,0,0,8" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnQuickMenuControls_Click">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Path Data="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z" Fill="#FBBF24" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="Управление и геймпад"/>
-                                                    </StackPanel>
-                                                </Button>
-                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,6,0" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnQuickMenuCheats_Click">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Path Data="M7 2v11h3v9l7-12h-4l4-8z" Fill="#A78BFA" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="Чит-коды (Cheats)"/>
-                                                    </StackPanel>
-                                                </Button>
-                                                <Button Style="{StaticResource StormSecondaryButton}" Margin="6,0,0,0" Padding="12,9" HorizontalContentAlignment="Left" Click="BtnGameStop_Click">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Path Data="M6 6h12v12H6z" Fill="#FB7185" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="Закрыть игру и выйти"/>
-                                                    </StackPanel>
-                                                </Button>
-                                            </UniformGrid>
+                                                </Border>
+                                            </StackPanel>
                                         </ScrollViewer>
                                     </DockPanel>
                                 </Border>
@@ -1454,7 +1515,7 @@
                                             <Border Background="#1A10B981" BorderBrush="#10B981" BorderThickness="1" CornerRadius="6" Padding="10,4" Margin="0,0,8,0" VerticalAlignment="Center">
                                                 <TextBlock x:Name="TxtHeroRootPathBadge" Text="Корень: N:\STORM RETROARCH" Foreground="#6EE7B7" FontSize="11" FontWeight="SemiBold"/>
                                             </Border>
-                                            <Button Style="{StaticResource StormSecondaryButton}" Padding="10,5" Click="BtnOpenCloudSyncFolder_Click" ToolTip="Открыть корневую папку синхронизации сохранений (save sync)">
+                                            <Button Style="{StaticResource StormSecondaryButton}" Padding="10,5" Click="BtnOpenCloudSyncFolder_Click" ToolTip="Открыть корневую папку синхронизации сохранений">
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <Path Data="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" Fill="#38BDF8" Stretch="Uniform" Width="12" Height="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
                                                     <TextBlock x:Name="TxtHeroSaveSyncBadge" Text="save sync" FontSize="11.5" FontWeight="SemiBold" VerticalAlignment="Center"/>
@@ -1462,7 +1523,7 @@
                                             </Button>
                                         </StackPanel>
                                         <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Text="Командный центр STORM RETROARCH 1.2.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="21" FontWeight="Bold" Margin="0,0,0,3"/>
+                                            <TextBlock Text="Командный центр STORM RETROARCH 1.3.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="21" FontWeight="Bold" Margin="0,0,0,3"/>
                                             <TextBlock Text="Быстрые переходы, оперативная настройка движка Libretro, управление сохранениями и перестраиваемые панели" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5"/>
                                         </StackPanel>
                                     </DockPanel>
@@ -1493,10 +1554,10 @@
                                                 <TextBlock Text="Настройки" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Button>
-                                        <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="4,0" Click="BtnQuickNavSaveSync_Click" ToolTip="Перейти к синхронизации сохранений (save sync)">
+                                        <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="4,0" Click="BtnQuickNavSaveSync_Click" ToolTip="Перейти к синхронизации сохранений">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                 <Path Data="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" Fill="#34D399" Width="13" Height="13" Stretch="Uniform" Margin="0,0,7,0" VerticalAlignment="Center"/>
-                                                <TextBlock Text="Save Sync" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Синхронизация" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Button>
                                         <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="4,0" Click="BtnQuickNavGamepads_Click" ToolTip="Настройка геймпадов и клавиатуры (1–8 игроков)">
@@ -1518,8 +1579,8 @@
                                                 <Path Data="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z" Fill="#8B5CF6" Width="18" Height="18" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                             </Border>
                                             <StackPanel VerticalAlignment="Center">
-                                                <TextBlock Text="Smart Per-System Profile &amp; Быстрые переключатели" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="14.5" FontWeight="Bold"/>
-                                                <TextBlock x:Name="TxtSmartProfileStatus" Text="Текущий профиль: 8/16-бит 2D (Zero-Latency) • Драйвер: VULKAN • Run-Ahead 1к" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12"/>
+                                                <TextBlock Text="Профили оптимизации систем и быстрые переключатели" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="14.5" FontWeight="Bold"/>
+                                                <TextBlock x:Name="TxtSmartProfileStatus" Text="Текущий профиль: 8/16-бит 2D (Минимальная задержка) • Драйвер: VULKAN • Run-Ahead 1к" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12"/>
                                             </StackPanel>
                                         </StackPanel>
                                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
@@ -1547,9 +1608,9 @@
                                     <Border Background="{DynamicResource ThemeHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="12,7">
                                         <WrapPanel VerticalAlignment="Center">
                                             <TextBlock Text="Быстрые опции:" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,14,0"/>
-                                            <CheckBox x:Name="ChkQuickVsync" Content="Вертикальная синхр. (VSync)" IsChecked="True" Margin="0,0,18,0" Checked="ChkQuickSetting_Changed" Unchecked="ChkQuickSetting_Changed"/>
-                                            <CheckBox x:Name="ChkQuickSmooth" Content="Сглаживание картинки (Bilinear)" IsChecked="False" Margin="0,0,18,0" Checked="ChkQuickSetting_Changed" Unchecked="ChkQuickSetting_Changed"/>
-                                            <CheckBox x:Name="ChkQuickRewind" Content="Перемотка времени (Rewind)" IsChecked="True" Margin="0,0,18,0" Checked="ChkQuickSetting_Changed" Unchecked="ChkQuickSetting_Changed"/>
+                                            <CheckBox x:Name="ChkQuickVsync" Content="Вертикальная синхронизация" IsChecked="True" Margin="0,0,18,0" Checked="ChkQuickSetting_Changed" Unchecked="ChkQuickSetting_Changed"/>
+                                            <CheckBox x:Name="ChkQuickSmooth" Content="Билинейное сглаживание" IsChecked="False" Margin="0,0,18,0" Checked="ChkQuickSetting_Changed" Unchecked="ChkQuickSetting_Changed"/>
+                                            <CheckBox x:Name="ChkQuickRewind" Content="Перемотка времени назад" IsChecked="True" Margin="0,0,18,0" Checked="ChkQuickSetting_Changed" Unchecked="ChkQuickSetting_Changed"/>
                                             <CheckBox x:Name="ChkQuickAutoSave" Content="Автосохранение SRAM (5 сек)" IsChecked="True" Margin="0,0,18,0" Checked="ChkQuickSetting_Changed" Unchecked="ChkQuickSetting_Changed"/>
                                         </WrapPanel>
                                     </Border>
@@ -1703,7 +1764,7 @@
                                             <Button Style="{StaticResource StormSecondaryButton}" Height="34" Margin="4" HorizontalContentAlignment="Left" Padding="12,0" Click="BtnUpdateShaders_Click">
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <Path Data="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 19H7v-2.65C8.54 17.58 10.22 18 12 18c4.97 0 9-4.03 9-9s-4.03-9-9-9z" Fill="#A78BFA" Stretch="Uniform" Width="13" Height="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                    <TextBlock Text="Шейдеры Slang/GLSL" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Графические шейдеры" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                             </Button>
                                             <Button Style="{StaticResource StormSecondaryButton}" Height="34" Margin="4" HorizontalContentAlignment="Left" Padding="12,0" Click="BtnUpdateCheats_Click">
@@ -1715,7 +1776,7 @@
                                             <Button Style="{StaticResource StormSecondaryButton}" Height="34" Margin="4" HorizontalContentAlignment="Left" Padding="12,0" Click="BtnUpdateDatabases_Click">
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <Path Data="M12 3C7.58 3 4 4.79 4 7v10c0 2.21 3.58 4 8 4s8-1.79 8-4V7c0-2.21-3.58-4-8-4z" Fill="#38BDF8" Stretch="Uniform" Width="13" Height="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                    <TextBlock Text="Базы данных (RDB)" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Базы данных игр" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                             </Button>
                                             <Button Style="{StaticResource StormSecondaryButton}" Height="34" Margin="4" HorizontalContentAlignment="Left" Padding="12,0" Click="BtnUpdateAutoconfig_Click">
@@ -1740,7 +1801,7 @@
                                                 <Border Width="28" Height="28" CornerRadius="7" Background="#20F59E0B" BorderBrush="#60F59E0B" BorderThickness="1" Margin="0,0,10,0">
                                                     <Path Data="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4z" Fill="#FBBF24" Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                 </Border>
-                                                <TextBlock Text="Конфигурация (retroarch.cfg и save sync)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Конфигурация и синхронизация сохранений" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </DockPanel>
                                         <TextBlock x:Name="TxtConfigPathDisplay" Text="Файл: N:\STORM RETROARCH\retroarch.cfg" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" Margin="0,0,0,10" TextTrimming="CharacterEllipsis"/>
@@ -2024,31 +2085,40 @@
                         </StackPanel>
                     </DockPanel>
 
-                    <!-- Row 1: Stat Badges & Live Card Scale Slider -->
+                    <!-- Row 1: Stat Badges, Platform Default Core Selector & Live Card Scale Slider -->
                     <Border Grid.Row="1" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="12,7" Margin="0,0,0,10">
                         <DockPanel LastChildFill="True">
                             <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock Text="Всего игр:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,0,4,0" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="TxtStatTotalGames" Text="0" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="12" FontWeight="Bold" Margin="0,0,16,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TxtStatTotalGames" Text="0" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="12" FontWeight="Bold" Margin="0,0,14,0" VerticalAlignment="Center"/>
 
                                 <TextBlock Text="Готово к запуску:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,0,4,0" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="TxtStatCoresReady" Text="0" Foreground="#10B981" FontSize="12" FontWeight="Bold" Margin="0,0,16,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TxtStatCoresReady" Text="0" Foreground="#10B981" FontSize="12" FontWeight="Bold" Margin="0,0,14,0" VerticalAlignment="Center"/>
 
-                                <TextBlock Text="Общий объём:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,0,4,0" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="TxtStatTotalSize" Text="0 MB" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12" FontWeight="Bold" Margin="0,0,16,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Объём:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TxtStatTotalSize" Text="0 MB" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12" FontWeight="Bold" Margin="0,0,14,0" VerticalAlignment="Center"/>
+
+                                <Border Width="1" Height="16" Background="{DynamicResource ThemeBorder}" Margin="0,0,12,0" VerticalAlignment="Center"/>
+
+                                <!-- Per-Platform Default Core Quick Switcher -->
+                                <TextBlock Text="Ядро платформы:" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="11.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <ComboBox x:Name="CmbPlatformCoreTarget" Width="175" Height="25" Margin="0,0,6,0" SelectionChanged="CmbPlatformCoreTarget_SelectionChanged" ToolTip="Выберите платформу для смены эмуляторного ядра по умолчанию"/>
+                                <ComboBox x:Name="CmbPlatformDefaultCore" Width="145" Height="25" Margin="0,0,6,0" DisplayMemberPath="Name" ToolTip="Выберите эмуляторное ядро по умолчанию для выбранной платформы"/>
+                                <Button Content="✔ Назначить" Style="{StaticResource CapsuleButton}" Padding="9,3" FontSize="11" FontWeight="SemiBold" Click="BtnApplyPlatformDefaultCore_Click" ToolTip="Назначить выбранное ядро по умолчанию для всех игр этой платформы"/>
                             </StackPanel>
 
                             <!-- Right: Live Card Zoom Slider + Driver Info -->
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                 <TextBlock Text="Размер карточек:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                 <Button Content="−" Style="{StaticResource CapsuleButton}" Padding="6,1" FontSize="12" FontWeight="Bold" Margin="0,0,4,0" Click="BtnCardScaleDown_Click" ToolTip="Уменьшить размер карточек игр"/>
-                                <Slider x:Name="SliderCardScale" Width="110" Minimum="270" Maximum="540" Value="380" VerticalAlignment="Center" Margin="0,0,4,0" ValueChanged="SliderCardScale_ValueChanged" ToolTip="Плавно изменить размер карточек и обложек"/>
+                                <Slider x:Name="SliderCardScale" Width="95" Minimum="270" Maximum="540" Value="380" VerticalAlignment="Center" Margin="0,0,4,0" ValueChanged="SliderCardScale_ValueChanged" ToolTip="Плавно изменить размер карточек и обложек"/>
                                 <Button Content="+" Style="{StaticResource CapsuleButton}" Padding="6,1" FontSize="12" FontWeight="Bold" Margin="0,0,6,0" Click="BtnCardScaleUp_Click" ToolTip="Увеличить размер карточек игр"/>
-                                <TextBlock x:Name="TxtCardScaleReadout" Text="380 px" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="11" FontWeight="SemiBold" Width="42" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                                <TextBlock x:Name="TxtCardScaleReadout" Text="380 px" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="11" FontWeight="SemiBold" Width="42" VerticalAlignment="Center" Margin="0,0,10,0"/>
 
-                                <Border Width="1" Height="16" Background="{DynamicResource ThemeBorder}" Margin="0,0,12,0"/>
-                                <TextBlock Text="Драйвер:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,0,4,0" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="TxtStatDriver" Text="VULKAN" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
+                                <Border Width="1" Height="16" Background="{DynamicResource ThemeBorder}" Margin="0,0,10,0" VerticalAlignment="Center"/>
+
+                                <TextBlock Text="Драйвер:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TxtStatDriver" Text="VULKAN" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center"/>
                             </StackPanel>
                         </DockPanel>
                     </Border>
@@ -2121,12 +2191,17 @@
                                                         <TextBlock Text="{Binding Name}" Foreground="#F8FAFC" FontSize="15" FontWeight="Bold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
                                                     </DockPanel>
 
-                                                    <!-- Row 1: Platform & Core -->
-                                                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,5">
-                                                        <TextBlock Text="{Binding Platform}" Foreground="#94A3B8" FontSize="11.5" TextTrimming="CharacterEllipsis" MaxWidth="145" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="•" Foreground="#64748B" FontSize="10" Margin="5,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="{Binding CoreDisplayName}" Foreground="#A78BFA" FontSize="11.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="105" VerticalAlignment="Center"/>
-                                                    </StackPanel>
+                                                    <!-- Row 1: Platform & Clickable Core Switcher Button -->
+                                                    <WrapPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,5">
+                                                        <TextBlock Text="{Binding Platform}" Foreground="#94A3B8" FontSize="11.5" TextTrimming="CharacterEllipsis" MaxWidth="135" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                        <Button Style="{StaticResource CapsuleButton}" Padding="7,2" Click="BtnChangeGameCore_Click" ToolTip="Нажмите, чтобы сменить эмуляторное ядро для этой игры или всей платформы">
+                                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                <TextBlock Text="🧩 " FontSize="10" VerticalAlignment="Center"/>
+                                                                <TextBlock Text="{Binding CoreDisplayName}" Foreground="#C4B5FD" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                                <TextBlock Text=" ▾" Foreground="#94A3B8" FontSize="10" VerticalAlignment="Center"/>
+                                                            </StackPanel>
+                                                        </Button>
+                                                    </WrapPanel>
 
                                                     <!-- Row 2: Metadata Badges -->
                                                     <WrapPanel Grid.Row="2" VerticalAlignment="Top" Margin="0,2,0,4">
@@ -2281,11 +2356,17 @@
                                         </GridViewColumn.CellTemplate>
                                     </GridViewColumn>
 
-                                    <GridViewColumn Header="Ядро Libretro" Width="115">
+                                    <GridViewColumn Header="Ядро эмулятора" Width="150">
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
-                                                <Border BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,0,1,0" Margin="-6,0" Padding="10,4" MinHeight="54" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                                                    <TextBlock Text="{Binding CoreDisplayName}" Foreground="{DynamicResource ThemeAccentGlow}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                <Border BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,0,1,0" Margin="-6,0" Padding="8,4" MinHeight="54" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                                    <Button Style="{StaticResource CapsuleButton}" Padding="8,4" HorizontalAlignment="Left" VerticalAlignment="Center" Click="BtnChangeGameCore_Click" ToolTip="Нажмите, чтобы сменить ядро для этой игры или всей платформы">
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <TextBlock Text="🧩 " FontSize="10.5" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="{Binding CoreDisplayName}" Foreground="#C4B5FD" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                            <TextBlock Text=" ▾" Foreground="#94A3B8" FontSize="10.5" VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </Button>
                                                 </Border>
                                             </DataTemplate>
                                         </GridViewColumn.CellTemplate>
@@ -2398,7 +2479,7 @@
                                     <Path Data="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm3-3c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" Fill="#8B5CF6" Width="34" Height="34" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <TextBlock Text="Библиотека игр пуста" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,6"/>
-                                <TextBlock Text="Перетащите файлы игр или архивы прямо сюда (Drag-and-Drop) или нажмите «Добавить файлы»" Foreground="{DynamicResource ThemeTextMuted}" FontSize="13" HorizontalAlignment="Center" Margin="0,0,0,16"/>
+                                <TextBlock Text="Перетащите файлы игр или архивы прямо сюда мышью или нажмите «Добавить файлы»" Foreground="{DynamicResource ThemeTextMuted}" FontSize="13" HorizontalAlignment="Center" Margin="0,0,0,16"/>
                                 <Button Style="{StaticResource StormAccentButton}" HorizontalAlignment="Center" Padding="16,8" Click="BtnAddFiles_Click">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                         <Path Data="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" Fill="#FFFFFF" Stretch="Uniform" Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center"/>
@@ -2420,23 +2501,113 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,20,0">
-                                    <TextBlock Text="Избранные игры (Favorites)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="Быстрый запуск лучших игр серии, синхронизировано с content_favorites.lpl" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="Избранные игры" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="Быстрый запуск любимых игр вашей коллекции (отметьте звездой любую игру в разделе «Все игры»)" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
                                 <Button Grid.Column="1" Style="{StaticResource StormSecondaryButton}" Padding="12,6" Click="BtnSyncFavorites_Click">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                         <Path Data="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" Fill="#FBBF24" Stretch="Uniform" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
-                                        <TextBlock Text="Синхронизировать с content_favorites.lpl" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Обновить список избранного" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
                             </Grid>
                         </Border>
-                        <ListView x:Name="LvFavorites" BorderThickness="0" Background="Transparent" MouseDoubleClick="LvFavorites_MouseDoubleClick">
-                        </ListView>
+                        <Grid>
+                            <ListView x:Name="LvFavorites" BorderThickness="0" Background="Transparent" MouseDoubleClick="LvFavorites_MouseDoubleClick">
+                                <ListView.View>
+                                    <GridView>
+                                        <GridViewColumn Header="Избр." Width="58">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,0,1,0" Margin="-6,0" Padding="6,4" MinHeight="54" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                                        <Button Background="{Binding FavoriteBgBrush}" BorderBrush="{Binding FavoriteBorderBrush}" BorderThickness="1" Style="{StaticResource StormSecondaryButton}" Padding="6,4" Click="BtnToggleFavorite_Click" ToolTip="Убрать из избранного">
+                                                            <Path Data="{Binding FavoriteIconData}" Fill="{Binding FavoriteStarBrush}" Stretch="Uniform" Width="13" Height="13"/>
+                                                        </Button>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Обложка" Width="72">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,0,1,0" Margin="-6,0" Padding="10,4" MinHeight="54">
+                                                        <Border Width="40" Height="50" CornerRadius="4" ClipToBounds="True" Background="#0F172A">
+                                                            <Image Source="{Binding Icon}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                        </Border>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Название игры" Width="250">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,0,1,0" Margin="-6,0" Padding="10,4" MinHeight="54">
+                                                        <TextBlock Text="{Binding Name}" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Платформа" Width="180">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,0,1,0" Margin="-6,0" Padding="10,4" MinHeight="54">
+                                                        <TextBlock Text="{Binding Platform}" Foreground="{DynamicResource ThemeTextSecondary}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Ядро эмулятора" Width="155">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,0,1,0" Margin="-6,0" Padding="8,4" MinHeight="54">
+                                                        <Button Style="{StaticResource CapsuleButton}" Padding="8,4" HorizontalAlignment="Left" VerticalAlignment="Center" Click="BtnChangeGameCore_Click" ToolTip="Нажмите, чтобы сменить эмуляторное ядро">
+                                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                <TextBlock Text="🧩 " FontSize="10.5" VerticalAlignment="Center"/>
+                                                                <TextBlock Text="{Binding CoreDisplayName}" Foreground="#C4B5FD" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                                <TextBlock Text=" ▾" Foreground="#94A3B8" FontSize="10.5" VerticalAlignment="Center"/>
+                                                            </StackPanel>
+                                                        </Button>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Размер" Width="90">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,0,1,0" Margin="-6,0" Padding="10,4" MinHeight="54">
+                                                        <TextBlock Text="{Binding FormattedSize}" Foreground="{DynamicResource ThemeTextMuted}" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Действия" Width="160">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border Padding="8,4" MinHeight="54">
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <Button Content="▶ Играть" Style="{StaticResource StormAccentButton}" Padding="10,4" Margin="0,0,6,0" Click="BtnPlayGame_Click"/>
+                                                            <Button Style="{StaticResource StormSecondaryButton}" Padding="7,4" Click="BtnOpenRomFolder_Click" ToolTip="Открыть папку с файлом игры">
+                                                                <Path Data="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" Fill="#38BDF8" Stretch="Uniform" Width="12" Height="12"/>
+                                                            </Button>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+                            <Border x:Name="EmptyFavoritesBorder" Visibility="Collapsed" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="12" Padding="32" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock Text="★ В избранном пока нет игр" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                                    <TextBlock Text="Нажмите кнопку «☆ В избранное» на любой карточке игры в разделе «Все игры», чтобы добавить её сюда" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
                     </DockPanel>
                 </Grid>
 
-                <!-- VIEW 5:  ИСТОРИЯ (HISTORY) -->
+                <!-- VIEW 5: ИСТОРИЯ ЗАПУСКОВ -->
                 <Grid x:Name="ViewHistory" Visibility="Collapsed" Margin="22,14">
                     <DockPanel>
                         <Border DockPanel.Dock="Top" Margin="0,0,0,14">
@@ -2446,8 +2617,8 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,20,0">
-                                    <TextBlock Text="История запусков (History)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="Список недавно запущенных игр, синхронизировано с content_history.lpl" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="История запусков" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="Журнал недавно запущенных игр с мгновенным продолжением сессии и выбором ядра" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
                                 <Button Grid.Column="1" Style="{StaticResource StormSecondaryButton}" Padding="12,6" Click="BtnClearHistory_Click">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -2457,8 +2628,96 @@
                                 </Button>
                             </Grid>
                         </Border>
-                        <ListView x:Name="LvHistory" BorderThickness="0" Background="Transparent" MouseDoubleClick="LvHistory_MouseDoubleClick">
-                        </ListView>
+                        <Grid>
+                            <ListView x:Name="LvHistory" BorderThickness="0" Background="Transparent" MouseDoubleClick="LvHistory_MouseDoubleClick">
+                                <ListView.View>
+                                    <GridView>
+                                        <GridViewColumn Header="Обложка" Width="72">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,0,1,0" Margin="-6,0" Padding="10,4" MinHeight="54">
+                                                        <Border Width="40" Height="50" CornerRadius="4" ClipToBounds="True" Background="#0F172A">
+                                                            <Image Source="{Binding Icon}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                        </Border>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Название игры" Width="250">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,0,1,0" Margin="-6,0" Padding="10,4" MinHeight="54">
+                                                        <TextBlock Text="{Binding Name}" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Платформа" Width="180">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,0,1,0" Margin="-6,0" Padding="10,4" MinHeight="54">
+                                                        <TextBlock Text="{Binding Platform}" Foreground="{DynamicResource ThemeTextSecondary}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Ядро эмулятора" Width="155">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,0,1,0" Margin="-6,0" Padding="8,4" MinHeight="54">
+                                                        <Button Style="{StaticResource CapsuleButton}" Padding="8,4" HorizontalAlignment="Left" VerticalAlignment="Center" Click="BtnChangeGameCore_Click" ToolTip="Нажмите, чтобы сменить эмуляторное ядро">
+                                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                <TextBlock Text="🧩 " FontSize="10.5" VerticalAlignment="Center"/>
+                                                                <TextBlock Text="{Binding CoreDisplayName}" Foreground="#C4B5FD" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                                <TextBlock Text=" ▾" Foreground="#94A3B8" FontSize="10.5" VerticalAlignment="Center"/>
+                                                            </StackPanel>
+                                                        </Button>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Последний запуск" Width="150">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,0,1,0" Margin="-6,0" Padding="10,4" MinHeight="54">
+                                                        <TextBlock Text="{Binding LastPlayedFormatted}" Foreground="#34D399" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Размер" Width="90">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,0,1,0" Margin="-6,0" Padding="10,4" MinHeight="54">
+                                                        <TextBlock Text="{Binding FormattedSize}" Foreground="{DynamicResource ThemeTextMuted}" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Header="Действия" Width="160">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border Padding="8,4" MinHeight="54">
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <Button Content="▶ Играть" Style="{StaticResource StormAccentButton}" Padding="10,4" Margin="0,0,6,0" Click="BtnPlayGame_Click"/>
+                                                            <Button Style="{StaticResource StormSecondaryButton}" Padding="7,4" Click="BtnOpenRomFolder_Click" ToolTip="Открыть папку с файлом игры">
+                                                                <Path Data="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" Fill="#38BDF8" Stretch="Uniform" Width="12" Height="12"/>
+                                                            </Button>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+                            <Border x:Name="EmptyHistoryBorder" Visibility="Collapsed" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="12" Padding="32" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock Text="История запусков пуста" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                                    <TextBlock Text="Запустите любую игру из раздела «Все игры», чтобы она автоматически сохранилась в журнале запусков" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
                     </DockPanel>
                 </Grid>
 
@@ -2473,7 +2732,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,20,0">
-                                    <TextBlock Text="Загрузчик ядер Libretro (Core Downloader)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="Менеджер и загрузчик ядер" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
                                     <TextBlock Text="Каталог официальных сборок Libretro Buildbot (350+ ядер) и Золотой набор эмуляторов STORM" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
                                 <WrapPanel Grid.Column="1" VerticalAlignment="Center">
@@ -2534,13 +2793,13 @@
                 <Grid x:Name="ViewNetplay" Visibility="Collapsed" Margin="22,14">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel MaxWidth="900" HorizontalAlignment="Left">
-                            <TextBlock Text="Сетевая игра (Netplay)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" Margin="0,0,0,4"/>
+                            <TextBlock Text="Сетевая игра по сети" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" Margin="0,0,0,4"/>
                             <TextBlock Text="Совместное прохождение классических игр по локальной сети и через серверы Libretro" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="13" Margin="0,0,0,16"/>
 
                             <!-- Host Room -->
                             <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="18" Margin="0,0,0,14">
                                 <StackPanel>
-                                    <TextBlock Text="Создать комнату (Host Room)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,0,12"/>
+                                    <TextBlock Text="Создать игровую комнату" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,0,12"/>
                                     <Grid Margin="0,4">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                         <TextBlock Text="Название комнаты:" Foreground="{DynamicResource ThemeTextSecondary}" VerticalAlignment="Center"/>
@@ -2558,7 +2817,7 @@
                             <!-- Join Room -->
                             <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="18">
                                 <StackPanel>
-                                    <TextBlock Text="Подключиться к игре (Join Room)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,0,12"/>
+                                    <TextBlock Text="Подключиться к комнате" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,0,12"/>
                                     <Grid Margin="0,4">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                         <TextBlock Text="IP или домен хоста:" Foreground="{DynamicResource ThemeTextSecondary}" VerticalAlignment="Center"/>
@@ -2577,7 +2836,7 @@
                             <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="18" Margin="0,14,0,0">
                                 <StackPanel>
                                     <DockPanel Margin="0,0,0,10">
-                                        <TextBlock Text="Публичные лобби Libretro (Live Netplay Lobby)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold"/>
+                                        <TextBlock Text="Открытые сетевые комнаты" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold"/>
                                         <Button Content=" Обновить лобби" Style="{StaticResource StormSecondaryButton}" HorizontalAlignment="Right" Click="BtnRefreshLobby_Click"/>
                                     </DockPanel>
                                     <ItemsControl x:Name="ItemsNetplayLobby">
@@ -2620,7 +2879,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,20,0">
-                                    <TextBlock Text="Галерея скриншотов (Screenshots)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="Галерея скриншотов и захватов" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
                                     <TextBlock x:Name="TxtScreenshotsDirDisplay" Text="Папка: screenshots/" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
                                 <WrapPanel Grid.Column="1" VerticalAlignment="Center">
@@ -2654,14 +2913,21 @@
                 <!-- VIEW 9:  ИМПОРТ КОНТЕНТА (IMPORT) -->
                 <Grid x:Name="ViewImport" Visibility="Collapsed" Margin="22,14">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel MaxWidth="900" HorizontalAlignment="Left">
-                            <TextBlock Text="Импорт контента (Scan Directory / File)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" Margin="0,0,0,4"/>
-                            <TextBlock Text="Сканирование каталогов и добавление ROM-файлов с автоматическим определением платформы" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="13" Margin="0,0,0,16"/>
+                        <StackPanel MaxWidth="920" HorizontalAlignment="Left">
+                            <DockPanel Margin="0,0,0,14">
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Content="⚡ Перейти к читам и тренерам игр" Style="{StaticResource StormAccentButton}" Padding="14,7" FontWeight="Bold" Click="BtnSwitchToCheatsView_Click"/>
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="Многодисковые игры, сканер каталогов и патчи образов" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" Margin="0,0,0,4"/>
+                                    <TextBlock Text="Генератор плейлистов многодисковых игр (.m3u), применение патчей перевода (.ips / .bps) и пакетное сканирование папок" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5"/>
+                                </StackPanel>
+                            </DockPanel>
 
                             <!-- Card 1: Scan Directory -->
                             <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="18" Margin="0,0,0,14">
                                 <StackPanel>
-                                    <TextBlock Text="Сканировать директорию (Scan Directory)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,6,0"/>
+                                    <TextBlock Text="Сканировать папку с играми" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,6,0"/>
                                     <TextBlock Text="Рекурсивно просканировать всю папку с играми и автоматически привязать оптимальные ядра Libretro" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5" Margin="0,0,0,12"/>
                                     <Button Content=" Выбрать папку для сканирования..." Style="{StaticResource StormAccentButton}" HorizontalAlignment="Left" Click="BtnAddFolder_Click"/>
                                 </StackPanel>
@@ -2670,7 +2936,7 @@
                             <!-- Card 2: Scan Single File -->
                             <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="18" Margin="0,0,0,14">
                                 <StackPanel>
-                                    <TextBlock Text="Сканировать отдельный файл (Scan File)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,6,0"/>
+                                    <TextBlock Text="Добавить отдельный файл игры" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,6,0"/>
                                     <TextBlock Text="Добавить один образ игры (.nes, .sfc, .md, .bin, .iso, .chd, .n64, .gba, .zip)" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5" Margin="0,0,0,12"/>
                                     <Button Content=" Выбрать файл игры..." Style="{StaticResource StormSecondaryButton}" HorizontalAlignment="Left" Click="BtnAddFiles_Click"/>
                                 </StackPanel>
@@ -2695,7 +2961,7 @@
                                     <!-- Quick Disc Swap Controls via UDP -->
                                     <Border Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="6" Padding="10,6">
                                         <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <TextBlock Text="Управление лотком дисковода (Live UDP):" Foreground="{DynamicResource ThemeTextPrimary}" FontWeight="SemiBold" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <TextBlock Text="Управление виртуальным дисководом:" Foreground="{DynamicResource ThemeTextPrimary}" FontWeight="SemiBold" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,12,0"/>
                                             <Button Content="⏏️ Открыть/Закрыть лоток" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Padding="8,4" Click="BtnDiscEjectToggle_Click"/>
                                             <Button Content="⏮️ Пред. диск" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Padding="8,4" Click="BtnDiscPrev_Click"/>
                                             <Button Content="⏭️ След. диск" Style="{StaticResource StormSecondaryButton}" Padding="8,4" Click="BtnDiscNext_Click"/>
@@ -2722,8 +2988,8 @@
                                         <Button Grid.Column="2" Content="Обзор..." Style="{StaticResource StormSecondaryButton}" Padding="10,4" Click="BtnSelectPatchFile_Click"/>
                                     </Grid>
                                     <WrapPanel>
-                                        <Button Content=" Привязать мягкий патч (Soft-patch)" Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnAttachSoftPatch_Click"/>
-                                        <Button Content=" Применить IPS напрямую (Hard-patch)" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnApplyIpsPatch_Click"/>
+                                        <Button Content=" Привязать мягкий патч" Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnAttachSoftPatch_Click"/>
+                                        <Button Content=" Применить патч напрямую к файлу" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnApplyIpsPatch_Click"/>
                                         <Button Content="️ Запустить Super Game Boy..." Style="{StaticResource StormSecondaryButton}" Click="BtnLaunchSuperGameBoy_Click"/>
                                     </WrapPanel>
                                 </StackPanel>
@@ -2782,11 +3048,11 @@
                                         <Button Content="Все шейдеры (459+)" Style="{StaticResource CategoryChipButton}" Tag="Active" Margin="0,0,6,0" Click="BtnShaderCategory_Click"/>
                                         <Button Content="CRT и ЭЛТ мониторы" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnShaderCategory_Click"/>
                                         <Button Content="Апскейл и интерполяция" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnShaderCategory_Click"/>
-                                        <Button Content="Сглаживание (AA / FXAA / SMAA)" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnShaderCategory_Click"/>
-                                        <Button Content="Размытие и свечение (Bloom / Blur)" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnShaderCategory_Click"/>
-                                        <Button Content="Резкость и чёткость (Sharpen / CAS)" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnShaderCategory_Click"/>
+                                        <Button Content="Сглаживание контуров" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnShaderCategory_Click"/>
+                                        <Button Content="Свечение и мягкое размытие" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnShaderCategory_Click"/>
+                                        <Button Content="Повышение резкости и чёткости" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnShaderCategory_Click"/>
                                         <Button Content="Комбинированные пресеты" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnShaderCategory_Click"/>
-                                        <Button Content="Портативные и ретро (LCD / NTSC / VHS)" Style="{StaticResource CategoryChipButton}" Click="BtnShaderCategory_Click"/>
+                                        <Button Content="Портативные экраны и кинескопы" Style="{StaticResource CategoryChipButton}" Click="BtnShaderCategory_Click"/>
                                     </WrapPanel>
                                 </DockPanel>
                             </Border>
@@ -3090,8 +3356,8 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,20,0">
-                                    <TextBlock Text="Менеджер чит-кодов (RetroArch Cheat Manager)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="Game Genie, Action Replay, Raw RAM патчи, база данных Libretro и экспорт .cht файлов" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="Читы и тренеры игр" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="Готовые читы на русском языке для игр вашей библиотеки (Battletoads, Armor Alley и др.) с активацией в один клик" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
                                 <WrapPanel Grid.Column="1" VerticalAlignment="Center">
                                     <Button Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnDownloadCheatsDb_Click">
@@ -3109,7 +3375,7 @@
                                     <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnOpenCheatsDir_Click">
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Path Data="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" Fill="#FBBF24" Stretch="Uniform" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Папка cheats" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Папка чит-кодов" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Button>
                                     <Button Style="{StaticResource StormSecondaryButton}" Click="BtnRefreshCheats_Click">
@@ -3160,8 +3426,10 @@
                                             <TextBlock x:Name="TxtSelectedCheatPath" Text="Формат RetroArch .cht" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" Margin="0,2,0,0"/>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                            <Button x:Name="BtnAddCheatRow" Content=" Добавить код" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnAddCheatRow_Click"/>
-                                            <Button x:Name="BtnSaveCheats" Content=" Сохранить .cht" Style="{StaticResource StormAccentButton}" Click="BtnSaveCheats_Click"/>
+                                            <Button Content="⚡ Включить все" Style="{StaticResource StormSecondaryButton}" Margin="0,0,6,0" Padding="10,5" Click="BtnEnableAllCheats_Click"/>
+                                            <Button Content="⭕ Отключить все" Style="{StaticResource StormSecondaryButton}" Margin="0,0,6,0" Padding="10,5" Click="BtnDisableAllCheats_Click"/>
+                                            <Button x:Name="BtnAddCheatRow" Content="➕ Добавить чит" Style="{StaticResource StormSecondaryButton}" Margin="0,0,6,0" Padding="10,5" Click="BtnAddCheatRow_Click"/>
+                                            <Button x:Name="BtnSaveCheats" Content="💾 Применить и сохранить" Style="{StaticResource StormAccentButton}" Padding="12,5" Click="BtnSaveCheats_Click"/>
                                         </StackPanel>
                                     </DockPanel>
 
@@ -3183,7 +3451,7 @@
                                                                 <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}"/>
                                                             </StackPanel>
                                                             <StackPanel Grid.Column="2" Margin="0,0,12,0">
-                                                                <TextBlock Text="Код (Game Genie / Hex)" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" Margin="0,0,0,3"/>
+                                                                <TextBlock Text="Чит-код (адрес памяти или код)" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" Margin="0,0,0,3"/>
                                                                 <TextBox Text="{Binding Code, UpdateSourceTrigger=PropertyChanged}" FontFamily="Consolas, monospace"/>
                                                             </StackPanel>
                                                             <Button Grid.Column="3" Content="" Style="{StaticResource WindowCaptionButton}" VerticalAlignment="Bottom" Margin="0,0,0,2" Tag="{Binding}" Click="BtnDeleteCheatRow_Click"/>
@@ -3210,14 +3478,14 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,20,0">
-                                    <TextBlock Text="Рамки Bezel и экранные оверлеи (Screen Bezels &amp; Overlays)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="Экранные рамки и оверлеи" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
                                     <TextBlock Text="Оригинальные границы ТВ и аркадных кабинетов с автоматическим выравниванием пропорций 4:3 / 16:9" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
                                 <WrapPanel Grid.Column="1" VerticalAlignment="Center">
                                     <Button Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnToggleManualBezelPanel_Click">
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Path Data="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" Fill="#FFFFFF" Stretch="Uniform" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="+ Добавить Bezel вручную" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                            <TextBlock Text="+ Добавить рамку вручную" VerticalAlignment="Center" FontWeight="SemiBold"/>
                                         </StackPanel>
                                     </Button>
                                     <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnDisableBezel_Click">
@@ -3295,7 +3563,7 @@
                                         </StackPanel>
 
                                         <StackPanel Grid.Column="2" Margin="0,0,10,0">
-                                            <TextBlock Text="Вырез экрана (Cutout):" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" Margin="0,0,0,4"/>
+                                            <TextBlock Text="Формат окна экрана:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" Margin="0,0,0,4"/>
                                             <ComboBox x:Name="CmbManualBezelCutout" Height="30">
                                                 <ComboBoxItem Content="4:3 CRT (Авто-вырез окна)" Tag="4:3" IsSelected="True"/>
                                                 <ComboBoxItem Content="3:2 GBA (Авто-вырез окна)" Tag="3:2"/>
@@ -3308,12 +3576,12 @@
                                         <StackPanel Grid.Column="3">
                                             <TextBlock Text="Неоновый акцент:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" Margin="0,0,0,4"/>
                                             <ComboBox x:Name="CmbManualBezelAccent" Height="30">
-                                                <ComboBoxItem Content="Фиолетовый (Cyber Nebula)" Tag="#A855F7" IsSelected="True"/>
-                                                <ComboBoxItem Content="Неоновый Циан (Tron Blue)" Tag="#06B6D4"/>
-                                                <ComboBoxItem Content="Изумрудный (Matrix Green)" Tag="#10B981"/>
-                                                <ComboBoxItem Content="Янтарный CRT (Amber Glow)" Tag="#F59E0B"/>
-                                                <ComboBoxItem Content="Рубиновый (Crimson Flare)" Tag="#EF4444"/>
-                                                <ComboBoxItem Content="Темный графит (Classic Carbon)" Tag="#374151"/>
+                                                <ComboBoxItem Content="Неоновый фиолетовый" Tag="#A855F7" IsSelected="True"/>
+                                                <ComboBoxItem Content="Неоновый голубой" Tag="#06B6D4"/>
+                                                <ComboBoxItem Content="Изумрудный зелёный" Tag="#10B981"/>
+                                                <ComboBoxItem Content="Янтарный монитор" Tag="#F59E0B"/>
+                                                <ComboBoxItem Content="Рубиновый красный" Tag="#EF4444"/>
+                                                <ComboBoxItem Content="Тёмный графит" Tag="#374151"/>
                                             </ComboBox>
                                         </StackPanel>
                                     </Grid>
@@ -3322,7 +3590,7 @@
                                         <Button DockPanel.Dock="Right" Style="{StaticResource StormAccentButton}" Height="32" Padding="14,0" Margin="10,0,0,0" Click="BtnCreateManualBezel_Click">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                 <Path Data="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" Fill="#FFFFFF" Stretch="Uniform" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
-                                                <TextBlock Text="Создать и применить Bezel" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Создать и применить рамку" FontWeight="Bold" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Button>
                                         <Button DockPanel.Dock="Right" Style="{StaticResource StormSecondaryButton}" Height="32" Padding="12,0" Margin="10,0,0,0" Click="BtnBrowseManualBezelImage_Click">
@@ -3339,11 +3607,11 @@
                                     <DockPanel LastChildFill="True" Margin="0,0,0,10">
                                         <TextBox x:Name="TxtSearchBezels" DockPanel.Dock="Right" Width="260" Margin="10,0,0,0" Tag="Поиск рамки по названию..." TextChanged="TxtSearchBezels_TextChanged"/>
                                         <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Button Content="Все рамки (12)" Style="{StaticResource CategoryChipButton}" Tag="Active" Margin="0,0,6,0" Click="BtnBezelPlatform_Click"/>
+                                            <Button Content="Все рамки" Style="{StaticResource CategoryChipButton}" Tag="Active" Margin="0,0,6,0" Click="BtnBezelPlatform_Click"/>
                                             <Button Content="Sony" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnBezelPlatform_Click"/>
                                             <Button Content="Nintendo" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnBezelPlatform_Click"/>
                                             <Button Content="Sega" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnBezelPlatform_Click"/>
-                                            <Button Content="Arcade / Other" Style="{StaticResource CategoryChipButton}" Click="BtnBezelPlatform_Click"/>
+                                            <Button Content="Аркады и другие" Style="{StaticResource CategoryChipButton}" Click="BtnBezelPlatform_Click"/>
                                         </WrapPanel>
                                     </DockPanel>
 
@@ -3369,7 +3637,7 @@
                                                 <ComboBoxItem Content="Core Provided" Tag="22"/>
                                             </ComboBox>
 
-                                            <CheckBox x:Name="ChkBezelIntegerScale" Content="Целочисленный масштаб (Integer Scale)" VerticalAlignment="Center" Click="ChkBezelIntegerScale_Click"/>
+                                            <CheckBox x:Name="ChkBezelIntegerScale" Content="Целочисленное масштабирование" VerticalAlignment="Center" Click="ChkBezelIntegerScale_Click"/>
                                         </WrapPanel>
                                     </Border>
                                 </StackPanel>
@@ -3409,11 +3677,16 @@
                                                     </StackPanel>
                                                 </DockPanel>
 
-                                                <!-- Row 1: Preview Image Container -->
-                                                <Border Grid.Row="1" Height="120" CornerRadius="6" Background="#0A0915" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" Margin="0,0,0,10" ClipToBounds="True">
+                                                <!-- Row 1: Preview Image Container with Simulated 4:3 CRT Game Screen -->
+                                                <Border Grid.Row="1" Height="128" CornerRadius="6" Background="#161426" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" Margin="0,0,0,10" ClipToBounds="True">
                                                     <Grid>
-                                                        <Image Source="{Binding PreviewImage}" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        <Path Data="M21 3H3C2 3 1 4 1 5v14c0 1.1.9 2 2 2h18c1 0 2-.9 2-2V5c0-1-1-2-2-2zm0 16H3V5h18v14zm-10-7h9v6h-9z" Fill="{DynamicResource ThemeBorderSubtle}" Width="28" Height="28" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                                                        <Border Margin="34,6" Background="#1E293B" CornerRadius="3" BorderBrush="#334155" BorderThickness="1">
+                                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                <TextBlock Text="ЭКРАН ИГРЫ 4:3" Foreground="#64748B" FontSize="10" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                                                <TextBlock Text="{Binding Platform}" Foreground="#94A3B8" FontSize="9" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                                            </StackPanel>
+                                                        </Border>
+                                                        <Image Source="{Binding PreviewImage}" Stretch="Fill" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" RenderOptions.BitmapScalingMode="HighQuality"/>
                                                     </Grid>
                                                 </Border>
 
@@ -3834,7 +4107,7 @@
                                 <!-- 2. RetroAchievements Core Settings Card (All 7 retroarch.cfg options) -->
                                 <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,0,0,14">
                                     <StackPanel>
-                                        <TextBlock Text="Параметры интеграции RetroAchievements (retroarch.cfg)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,0,10"/>
+                                        <TextBlock Text="Параметры интеграции достижений" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,0,10"/>
                                         <WrapPanel Orientation="Horizontal">
                                             <CheckBox x:Name="ChkCheevosEnable" Content="Включить достижения (cheevos_enable)" VerticalAlignment="Center" Margin="0,0,18,10" Click="ChkCheevosOption_Click"/>
                                             <CheckBox x:Name="ChkCheevosHardcore" Content="Режим Hardcore без стейтов (cheevos_hardcore_mode_enable)" VerticalAlignment="Center" Margin="0,0,18,10" Click="ChkCheevosOption_Click"/>
@@ -3851,7 +4124,7 @@
                                 <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Padding="16">
                                     <StackPanel>
                                         <DockPanel Margin="0,0,0,10">
-                                            <TextBlock Text="Проверка совместимости игр вашей библиотеки (CRC32 Check)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold"/>
+                                            <TextBlock Text="Проверка контрольных сумм игр вашей библиотеки" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold"/>
                                             <TextBlock x:Name="TxtCheevosLibraryCount" Text="0 игр в библиотеке" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                         </DockPanel>
                                         <TextBlock Text="Для корректного зачёта достижений контрольная сумма CRC32 ROM-файла должна точно совпадать с базой RetroAchievements.org" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11.5" Margin="0,0,0,10"/>
@@ -3911,7 +4184,7 @@
                                 <!-- Card 2: RTMP Streaming -->
                                 <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="16" Margin="8,0,0,0">
                                     <StackPanel>
-                                        <TextBlock Text=" Прямая трансляция (RTMP Stream)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,0,8"/>
+                                        <TextBlock Text=" Прямая видео-трансляция" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,0,8"/>
                                         <TextBlock Text="Вещание игрового процесса напрямую на серверы Twitch, YouTube или VK Play" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,0,0,12"/>
                                         <Grid Margin="0,0,0,6">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="120"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -3936,7 +4209,7 @@
                             <!-- Card 3: FFmpeg Video Capture -->
                             <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="16">
                                 <StackPanel>
-                                    <TextBlock Text=" Аппаратная видеозапись (FFmpeg Recording)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,0,8"/>
+                                    <TextBlock Text=" Аппаратная видеозапись игры" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" Margin="0,0,0,8"/>
                                     <TextBlock Text="Захват высококачественного геймплея со сканлайнами, шейдерами и многоканальным звуком" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,0,0,12"/>
                                     <WrapPanel Margin="0,0,0,12">
                                         <StackPanel Margin="0,0,16,0">
@@ -3956,14 +4229,14 @@
                                         </StackPanel>
                                         <CheckBox x:Name="ChkRecordWithShaders" Content="Записывать с шейдерами и рамкой Bezel" IsChecked="True" VerticalAlignment="Bottom" Margin="0,0,0,4"/>
                                     </WrapPanel>
-                                    <Button Content=" Открыть папку записей (recordings/)" Style="{StaticResource StormSecondaryButton}" HorizontalAlignment="Left" Click="BtnOpenRecordingsDir_Click"/>
+                                    <Button Content=" Открыть папку видеозаписей" Style="{StaticResource StormSecondaryButton}" HorizontalAlignment="Left" Click="BtnOpenRecordingsDir_Click"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
 
-                <!-- VIEW 19: ️ STORM SAVE SYNC (CROSS-DEVICE SAVE SYNCHRONIZATION) -->
+                <!-- VIEW 19: ️ Синхронизация сохранений (CROSS-DEVICE SAVE SYNCHRONIZATION) -->
                 <Grid x:Name="ViewSaveSync" Visibility="Collapsed" Margin="22,14">
                     <DockPanel LastChildFill="True">
                         <!-- Top Header & Actions: 2 Columns -->
@@ -3975,7 +4248,7 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,20,0">
-                                        <TextBlock Text="STORM SAVE SYNC (Кросс-устройственная синхронизация)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="Синхронизация сохранений (Кросс-устройственная синхронизация)" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
                                         <TextBlock Text="Двусторонняя детерминированная синхронизация .srm/.state (ПК ↔ Смартфон Android ↔ Облако) с защитой по SHA-256" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                                     </StackPanel>
                                     <WrapPanel Grid.Column="1" VerticalAlignment="Center">
@@ -4014,7 +4287,7 @@
                                             <Button Style="{StaticResource StormSecondaryButton}" Padding="10,5" Margin="0,0,6,0" Click="BtnResetCloudSyncRoot_Click" ToolTip="Установить папку save sync в корневой директории программы">
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <Path Data="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" Fill="#34D399" Stretch="Uniform" Width="12" Height="12" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                                    <TextBlock Text="В корень (save sync)" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="В корневую папку" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                             </Button>
                                             <Button Style="{StaticResource StormSecondaryButton}" Padding="10,5" Margin="0,0,6,0" Click="BtnOpenCloudSyncFolder_Click" ToolTip="Открыть папку save sync в Проводнике Windows">
@@ -4036,7 +4309,7 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Dynamic Views for Save Sync -->
+                        <!-- Dynamic Views for Синхронизация -->
                         <Grid>
                             <!-- Mode 1: Bento Cards (Tiles) -->
                             <ScrollViewer x:Name="ScrollSaveSyncTiles" VerticalScrollBarVisibility="Auto">
@@ -4068,7 +4341,7 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,20,0">
                                     <TextBlock Text="STORM AI Studio &amp; Генератор Книг Подсказок" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="Анализ кадра игры, тактики прохождения, озвучивание подсказок на русском языке (TTS) и экспорт HTML-руководств" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="Анализ кадра игры, тактики прохождения и голосовое озвучивание подсказок на русском языке и экспорт HTML-руководств" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
                                 <WrapPanel Grid.Column="1" VerticalAlignment="Center">
                                     <Button Style="{StaticResource StormAccentButton}" Padding="12,6" Margin="0,0,8,0" Click="BtnAskAi_Click">
@@ -4080,13 +4353,13 @@
                                     <Button Style="{StaticResource StormSecondaryButton}" Padding="12,6" Margin="0,0,8,0" Click="BtnSpeakAiHint_Click">
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Path Data="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" Fill="#FBBF24" Stretch="Uniform" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Озвучить (TTS)" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Озвучить голосом" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Button>
                                     <Button Style="{StaticResource StormSecondaryButton}" Padding="12,6" Margin="0,0,8,0" Click="BtnGenerateHintBook_Click">
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Path Data="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z" Fill="#34D399" Stretch="Uniform" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Книга подсказок (HTML)" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Книга подсказок" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Button>
                                     <Button Style="{StaticResource StormSecondaryButton}" Padding="12,6" Click="BtnOpenGuidebooksFolder_Click">
@@ -4198,7 +4471,7 @@
         <Border x:Name="BottomFooterBorder" Grid.Row="3" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,1,0,0" Padding="12,0">
             <DockPanel LastChildFill="True">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                    <TextBlock Text="STORM RETROARCH 1.2.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                    <TextBlock Text="STORM RETROARCH 1.3.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,14,0"/>
                     <TextBlock Text="100% LIBRETRO COMPATIBLE" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center"/>
                 </StackPanel>
                 <TextBlock x:Name="TxtFooterStatus" Text="Готово к работе" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center"/>
@@ -4296,12 +4569,12 @@
                     <DockPanel Margin="0,0,0,14">
                         <Image Source="app_icon.png" Width="44" Height="44" Margin="0,0,14,0" RenderOptions.BitmapScalingMode="HighQuality"/>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="STORM RETROARCH 1.2.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="18" FontWeight="Bold"/>
+                            <TextBlock Text="STORM RETROARCH 1.3.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="18" FontWeight="Bold"/>
                             <TextBlock Text="STORM AURORA FLUID UNIFIED DESIGN SYSTEM" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="11" FontWeight="SemiBold"/>
                         </StackPanel>
                     </DockPanel>
 
-                    <TextBlock Text="Полнофункциональная улучшенная реплика RetroArch с интеграцией Libretro ядер, поддержкой низких задержек (Preemptive Frames, VRR G-Sync/FreeSync, WASAPI), встроенным онлайн-обновлением, менеджером сейвов и 100% тёмной стилизацией всех элементов управления."
+                    <TextBlock Text="Полнофункциональная улучшенная реплика RetroArch с интеграцией Libretro ядер, поддержкой минимальной задержки ввода, адаптивной частоты кадров и чистого звука, встроенным онлайн-обновлением, менеджером сейвов и 100% тёмной стилизацией всех элементов управления."
                                Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5" TextWrapping="Wrap" LineHeight="18" Margin="0,0,0,14"/>
 
                     <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,18">
@@ -4312,6 +4585,53 @@
                     </Border>
 
                     <Button Content="Закрыть" Style="{StaticResource StormAccentButton}" Width="100" HorizontalAlignment="Right" Click="BtnCloseAbout_Click"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- 4. OVERLAY: PER-GAME & PER-PLATFORM CORE SELECTOR MODAL -->
+        <Grid x:Name="PnlCoreSelectorModal" Visibility="Collapsed" Background="#D805050C" Grid.Row="0" Grid.RowSpan="10" Grid.Column="0" Grid.ColumnSpan="10" Panel.ZIndex="9998" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+            <Border Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1.5" CornerRadius="14" Width="560" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="24">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" BlurRadius="32" ShadowDepth="8" Opacity="0.85"/>
+                </Border.Effect>
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,10">
+                        <Button DockPanel.Dock="Right" Content="✕" Style="{StaticResource CapsuleButton}" Padding="8,3" Click="BtnCloseCoreSelectorModal_Click"/>
+                        <StackPanel>
+                            <TextBlock x:Name="TxtCoreModalTitle" Text="Выбор эмуляторного ядра" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="17" FontWeight="Bold"/>
+                            <TextBlock x:Name="TxtCoreModalSubtitle" Text="Платформа: Nintendo Entertainment System" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="12" FontWeight="SemiBold" Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <TextBlock Text="Выберите совместимое ядро эмулятора для запуска этой игры:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,0,0,8"/>
+
+                    <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="6" MaxHeight="260" Margin="0,0,0,12">
+                        <ListBox x:Name="LstModalCompatibleCores" Background="Transparent" BorderThickness="0">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{DynamicResource ThemeBgWindow}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,0,5">
+                                        <DockPanel LastChildFill="True">
+                                            <Border DockPanel.Dock="Right" Background="#2010B981" BorderBrush="#10B981" BorderThickness="1" CornerRadius="4" Padding="6,2" VerticalAlignment="Center" Margin="8,0,0,0">
+                                                <TextBlock Text="Доступно" Foreground="#6EE7B7" FontSize="10" FontWeight="Bold"/>
+                                            </Border>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="13.5" FontWeight="Bold"/>
+                                                <TextBlock Text="{Binding Description}" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+
+                    <CheckBox x:Name="ChkSetCoreDefaultForPlatform" Content="Сделать выбранное ядро стандартным по умолчанию для всех игр этой платформы" IsChecked="True" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12" Margin="0,0,0,16"/>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Отмена" Style="{StaticResource StormSecondaryButton}" Width="100" Margin="0,0,10,0" Click="BtnCloseCoreSelectorModal_Click"/>
+                        <Button Content="✔ Применить выбранное ядро" Style="{StaticResource StormAccentButton}" Padding="16,6" FontWeight="Bold" Click="BtnConfirmCoreSelectorModal_Click"/>
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </Grid>

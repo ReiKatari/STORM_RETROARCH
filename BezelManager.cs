@@ -19,7 +19,7 @@ public class BezelPresetItem : INotifyPropertyChanged
     public string ImagePath { get; set; } = "";
     public string IconPathData { get; set; } = "M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z";
     public string IconColor { get; set; } = "#38BDF8";
-    public string AspectRatio { get; set; } = "4:3 CRT";
+    public string AspectRatio { get; set; } = "4:3 ЭЛТ";
     public bool IsCustom { get; set; }
     public ImageSource? PreviewImage { get; set; }
 
@@ -50,22 +50,23 @@ public static class BezelManager
     public static readonly string OverlaysDir = Path.Combine(CoreManager.AppDir, "overlays");
     public static readonly string BordersDir = Path.Combine(OverlaysDir, "borders");
 
-    public record BuiltinBezelDef(string Name, string Platform, string Icon, string Description, string BaseColorHex, string AccentColorHex);
+    public record BuiltinBezelDef(string FileSlug, string Name, string Platform, string Icon, string Description, string BaseColorHex, string AccentColorHex);
 
     public static readonly List<BuiltinBezelDef> BuiltinTemplates = new()
     {
-        new("Sony PlayStation 1 Bezel", "Sony PlayStation 1", "", "Аутентичная тёмно-серая рамка PS1 с неоновым контуром 4:3 окна и матовыми боковинами", "#1C1C24", "#003791"),
-        new("Super Nintendo (SNES) Bezel", "Super Nintendo (SNES)", "", "Фирменные цвета Super Famicom / SNES с лавандовыми акцентами и CRT-затенением", "#22222E", "#7C3AED"),
-        new("Nintendo NES / Famicom Bezel", "Nintendo Entertainment System", "", "Классический 8-битный ретро-стиль с тёмно-бордовыми акцентами Famicom", "#1A1A22", "#E11D48"),
-        new("Sega Mega Drive / Genesis Bezel", "Sega Genesis / Mega Drive", "", "Чёрная текстурированная рамка 16-BIT с золотым тиснением High Definition Graphics", "#121218", "#EAB308"),
-        new("Nintendo 64 Ultra Bezel", "Nintendo 64", "", "Элегантная полупрозрачная рамка с объёмным логотипом и кинематографичными тенями", "#181824", "#2563EB"),
-        new("Game Boy DMG-01 Matrix Bezel", "Game Boy / Color", "", "Аутентичный оливково-серый корпус оригинального Game Boy с текстурой матрицы", "#282C22", "#65A30D"),
-        new("Game Boy Advance Wide Bezel", "Game Boy Advance", "", "Широкоформатная индиго-рамка GBA с плавным градиентом и индикатором питания", "#1E1B38", "#8B5CF6"),
-        new("Nintendo DS Dual-Bezel", "Nintendo DS / DSi", "", "Стильный двухэкранный дизайн с серебристыми боковыми стойками", "#22252A", "#06B6D4"),
-        new("Sega Saturn Titanium Bezel", "Sega Saturn", "", "Тёмно-титановый корпус Sega Saturn с неоновыми синими акцентами", "#181A20", "#38BDF8"),
-        new("Sega Dreamcast Spiral Bezel", "Sega Dreamcast", "", "Футуристичный белый и оранжевый стиль консоли Dreamcast", "#20222A", "#F97316"),
-        new("Arcade Cabinet CRT Bezel", "Arcade Classics", "", "Истинный аркадный кабинет с заклёпками, виниловым блеском и сканлайн-тенью", "#14141A", "#EF4444"),
-        new("STORM Midnight Frame Bezel", "STORM Exclusive", "", "Эксклюзивная тёмно-фиолетовая неоновая рамка AURORA FLUID с CRT-бликами", "#0D0B18", "#A855F7")
+        new("STORM_Midnight_Aurora", "Фирменная неоновая рамка STORM", "Эксклюзив STORM", "", "Тёмно-фиолетовая студийная рамка с неоновым контуром и бликами ЭЛТ-экрана", "#0D0B18", "#A855F7"),
+        new("Nintendo_NES_Famicom", "Рамка Nintendo NES и Famicom", "Nintendo Entertainment System", "", "Классический 8-битный ретро-стиль с бордовыми акцентами и текстурой консоли", "#1A1A22", "#E11D48"),
+        new("MS_DOS_CRT_Monitor", "Рамка MS-DOS и ЭЛТ-монитор", "MS-DOS PC", "", "Классический компьютерный ЭЛТ-монитор IBM PC с янтарно-зелёным индикатором питания", "#161920", "#10B981"),
+        new("Sony_PlayStation_1", "Рамка Sony PlayStation 1", "Sony PlayStation 1", "", "Аутентичная тёмно-серая рамка PS1 с фирменным синим контуром 4:3 и матовыми боковинами", "#1C1C24", "#0055D4"),
+        new("Super_Nintendo_SNES", "Рамка Super Nintendo", "Super Nintendo (SNES)", "", "Фирменные цвета Super Famicom с лавандовыми акцентами и затенением экрана", "#22222E", "#7C3AED"),
+        new("Sega_Mega_Drive_Genesis", "Рамка Sega Mega Drive", "Sega Genesis / Mega Drive", "", "Чёрная текстурированная рамка 16-Бит с золотистым контуром и решётками корпуса", "#121218", "#EAB308"),
+        new("Nintendo_64_Ultra", "Рамка Nintendo 64", "Nintendo 64", "", "Элегантная тёмная рамка с объёмным контуром и кинематографичными тенями", "#181824", "#2563EB"),
+        new("Game_Boy_DMG_01", "Рамка Game Boy DMG-01", "Game Boy / Color", "", "Аутентичный оливково-серый корпус классического Game Boy с матричной окантовкой", "#282C22", "#65A30D"),
+        new("Game_Boy_Advance_Wide", "Рамка Game Boy Advance", "Game Boy Advance", "", "Индиго-рамка портативной консоли GBA с плавным градиентом и индикатором батареи", "#1E1B38", "#8B5CF6"),
+        new("Nintendo_DS_Dual", "Рамка Nintendo DS", "Nintendo DS / DSi", "", "Стильный двухэкранный корпус с бирюзовыми акцентами и боковыми стойками", "#22252A", "#06B6D4"),
+        new("Sega_Saturn_Titanium", "Рамка Sega Saturn", "Sega Saturn", "", "Тёмно-титановый корпус Sega Saturn с неоновыми голубыми линиями", "#181A20", "#38BDF8"),
+        new("Sega_Dreamcast_Spiral", "Рамка Sega Dreamcast", "Sega Dreamcast", "", "Футуристичный стиль консоли Dreamcast с ярко-оранжевой подсветкой", "#20222A", "#F97316"),
+        new("Arcade_Cabinet_CRT", "Аркадный игровой автомат", "Arcade Classics", "", "Классический аркадный кабинет с виниловыми боковинами и глубокой тенью кинескопа", "#14141A", "#EF4444")
     };
 
     static BezelManager()
@@ -80,13 +81,13 @@ public static class BezelManager
 
     public static BitmapImage? LoadPreviewImage(string pngPath)
     {
-        if (!File.Exists(pngPath)) return null;
+        if (string.IsNullOrEmpty(pngPath) || !File.Exists(pngPath)) return null;
         try
         {
             var bmp = new BitmapImage();
             bmp.BeginInit();
             bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.DecodePixelWidth = 320;
+            bmp.DecodePixelWidth = 360;
             bmp.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
             bmp.UriSource = new Uri(pngPath, UriKind.Absolute);
             bmp.EndInit();
@@ -97,6 +98,54 @@ public static class BezelManager
         {
             return null;
         }
+    }
+
+    public static BitmapImage? LoadFullBezelImage(string pngPath)
+    {
+        if (string.IsNullOrEmpty(pngPath) || !File.Exists(pngPath)) return null;
+        try
+        {
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+            bmp.UriSource = new Uri(pngPath, UriKind.Absolute);
+            bmp.EndInit();
+            bmp.Freeze();
+            return bmp;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string ResolveOverlayPngPath(string cfgPath)
+    {
+        string directPng = Path.ChangeExtension(cfgPath, ".png");
+        if (File.Exists(directPng)) return directPng;
+
+        try
+        {
+            string cfgDir = Path.GetDirectoryName(cfgPath) ?? BordersDir;
+            foreach (var rawLine in File.ReadAllLines(cfgPath))
+            {
+                string line = rawLine.Trim();
+                if (line.StartsWith("overlay0_overlay", StringComparison.OrdinalIgnoreCase))
+                {
+                    int eq = line.IndexOf('=');
+                    if (eq > 0)
+                    {
+                        string rel = line.Substring(eq + 1).Trim().Trim('"', '\'');
+                        string candidate = Path.GetFullPath(Path.Combine(cfgDir, rel));
+                        if (File.Exists(candidate)) return candidate;
+                    }
+                }
+            }
+        }
+        catch { }
+
+        return directPng;
     }
 
     public static List<BezelPresetItem> ScanBezels()
@@ -114,30 +163,34 @@ public static class BezelManager
                 var cfgFiles = Directory.GetFiles(BordersDir, "*.cfg", SearchOption.AllDirectories);
                 foreach (var cfg in cfgFiles)
                 {
-                    string name = Path.GetFileNameWithoutExtension(cfg).Replace('_', ' ');
-                    string png = Path.ChangeExtension(cfg, ".png");
+                    string png = ResolveOverlayPngPath(cfg);
+                    if (!File.Exists(png))
+                        continue; // Never add broken .cfg files without an existing image!
 
-                    var matchTmpl = BuiltinTemplates.FirstOrDefault(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase) ||
-                                                                         cfg.Contains(t.Platform.Split(' ')[0]));
+                    string fileSlug = Path.GetFileNameWithoutExtension(cfg);
+                    var matchTmpl = BuiltinTemplates.FirstOrDefault(t =>
+                        t.FileSlug.Equals(fileSlug, StringComparison.OrdinalIgnoreCase) ||
+                        t.Name.Replace(' ', '_').Equals(fileSlug, StringComparison.OrdinalIgnoreCase));
 
-                    string platform = matchTmpl?.Platform ?? "Custom Bezel";
-                    string desc = matchTmpl?.Description ?? $"Пользовательская рамка Bezel для экрана 16:9 ({Path.GetFileName(cfg)})";
+                    string displayName = matchTmpl?.Name ?? fileSlug.Replace('_', ' ').Replace("Bezel", "Рамка").Trim();
+                    string platform = matchTmpl?.Platform ?? "Пользовательская рамка";
+                    string desc = matchTmpl?.Description ?? $"Пользовательская экранная рамка 16:9 ({Path.GetFileName(cfg)})";
 
                     bool isActive = overlayEnabled && !string.IsNullOrEmpty(currentOverlay) &&
                                     (currentOverlay.Equals(cfg, StringComparison.OrdinalIgnoreCase) ||
-                                     currentOverlay.EndsWith(Path.GetFileName(cfg), StringComparison.OrdinalIgnoreCase));
+                                     Path.GetFileName(currentOverlay).Equals(Path.GetFileName(cfg), StringComparison.OrdinalIgnoreCase));
 
-                    bool isCustom = matchTmpl == null && !BuiltinTemplates.Any(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+                    bool isCustom = matchTmpl == null;
 
                     list.Add(new BezelPresetItem
                     {
-                        Name = name,
+                        Name = displayName,
                         Platform = platform,
                         Description = desc,
                         CfgPath = cfg,
                         ImagePath = png,
                         IconColor = matchTmpl?.AccentColorHex ?? "#38BDF8",
-                        AspectRatio = "4:3 CRT",
+                        AspectRatio = "4:3 ЭЛТ",
                         IsActive = isActive,
                         IsCustom = isCustom,
                         PreviewImage = LoadPreviewImage(png)
@@ -147,13 +200,36 @@ public static class BezelManager
         }
         catch { }
 
-        return list;
+        // Put built-in studio templates first in exact order, followed by custom bezels
+        return list
+            .OrderBy(b =>
+            {
+                int idx = BuiltinTemplates.FindIndex(t => t.Name.Equals(b.Name, StringComparison.OrdinalIgnoreCase));
+                return idx >= 0 ? idx : 1000;
+            })
+            .ThenBy(b => b.Name)
+            .ToList();
     }
 
     public static BezelPresetItem? GetActiveBezel()
     {
         var list = ScanBezels();
         return list.FirstOrDefault(b => b.IsActive);
+    }
+
+    public static BezelPresetItem? GetBezelForPlatform(string? platform)
+    {
+        var list = ScanBezels();
+        if (list.Count == 0) return null;
+        if (!string.IsNullOrWhiteSpace(platform))
+        {
+            var match = list.FirstOrDefault(b =>
+                b.Platform.Equals(platform, StringComparison.OrdinalIgnoreCase) ||
+                b.Platform.Contains(platform.Split(' ')[0], StringComparison.OrdinalIgnoreCase) ||
+                platform.Contains(b.Platform.Split(' ')[0], StringComparison.OrdinalIgnoreCase));
+            if (match != null) return match;
+        }
+        return list[0];
     }
 
     public static void ApplyBezel(BezelPresetItem item)
@@ -166,7 +242,7 @@ public static class BezelManager
         RetroArchConfigManager.Set("input_overlay_hide_in_menu", "true");
         RetroArchConfigManager.Set("input_overlay_scale_landscape", "1.000000");
         RetroArchConfigManager.Set("input_overlay_auto_scale", "true");
-        RetroArchConfigManager.Set("aspect_ratio_index", "0"); // 4:3
+        RetroArchConfigManager.Set("aspect_ratio_index", "0");
         RetroArchConfigManager.Set("video_scale_integer", "false");
         RetroArchConfigManager.Save();
     }
@@ -217,7 +293,7 @@ public static class BezelManager
 
     public static (bool Success, string Message) ImportBezel(string sourceFile)
     {
-        var res = CreateOrImportManualBezel("", "Custom Bezel", "Raw", "#38BDF8", sourceFile);
+        var res = CreateOrImportManualBezel("", "Пользовательская рамка", "Raw", "#38BDF8", sourceFile);
         return (res.Success, res.Message);
     }
 
@@ -230,19 +306,19 @@ public static class BezelManager
 
             string displayName = !string.IsNullOrWhiteSpace(customName)
                 ? customName.Trim()
-                : (!string.IsNullOrWhiteSpace(sourceFile) ? Path.GetFileNameWithoutExtension(sourceFile) : "Custom Bezel");
+                : (!string.IsNullOrWhiteSpace(sourceFile) ? Path.GetFileNameWithoutExtension(sourceFile) : "Пользовательская рамка");
 
-            string safeBase = string.Join("_", displayName.Split(Path.GetInvalidFileNameChars())).Replace(' ', '_');
-            if (string.IsNullOrWhiteSpace(safeBase)) safeBase = "Custom_Bezel";
+            string safeBase = string.Join("_", displayName.Split(Path.GetInvalidFileNameChars()))
+                .Replace('/', '_').Replace('\\', '_').Replace(' ', '_');
+            if (string.IsNullOrWhiteSpace(safeBase)) safeBase = "Custom_Frame";
 
             string targetPng = Path.Combine(BordersDir, safeBase + ".png");
             string targetCfg = Path.Combine(BordersDir, safeBase + ".cfg");
 
-            // Handle .cfg direct import
             if (!string.IsNullOrEmpty(sourceFile) && sourceFile.EndsWith(".cfg", StringComparison.OrdinalIgnoreCase) && File.Exists(sourceFile))
             {
                 File.Copy(sourceFile, targetCfg, true);
-                string companionPng = Path.ChangeExtension(sourceFile, ".png");
+                string companionPng = ResolveOverlayPngPath(sourceFile);
                 if (File.Exists(companionPng))
                 {
                     File.Copy(companionPng, targetPng, true);
@@ -252,53 +328,49 @@ public static class BezelManager
                 {
                     Name = displayName,
                     Platform = platform,
-                    Description = $"Импортированная конфигурация ({displayName})",
+                    Description = $"Импортированная рамка ({displayName})",
                     CfgPath = targetCfg,
                     ImagePath = targetPng,
                     IconColor = accentHex,
-                    AspectRatio = "4:3 CRT",
+                    AspectRatio = "4:3 ЭЛТ",
                     IsCustom = true,
                     PreviewImage = LoadPreviewImage(targetPng)
                 };
                 ApplyBezel(itemCfg);
-                return (true, $"Рамка «{displayName}» успешно импортирована и применена!", itemCfg);
+                return (true, $"Рамка «{displayName}» успешно импортирована и включена!", itemCfg);
             }
 
-            const int width = 1920;
-            const int height = 1080;
-            const int stride = width * 4;
+            int width = 1920;
+            int height = 1080;
+            int stride = width * 4;
             byte[] pixels = new byte[height * stride];
 
-            Color accentColor;
-            try { accentColor = (Color)ColorConverter.ConvertFromString(accentHex); }
-            catch { accentColor = Color.FromRgb(168, 85, 247); }
+            var accentColor = (Color)ColorConverter.ConvertFromString(string.IsNullOrWhiteSpace(accentHex) ? "#A855F7" : accentHex);
+            var baseColor = Color.FromRgb(18, 16, 28);
 
-            bool hasSourceImage = !string.IsNullOrWhiteSpace(sourceFile) && File.Exists(sourceFile);
-
-            if (hasSourceImage)
+            if (!string.IsNullOrEmpty(sourceFile) && File.Exists(sourceFile))
             {
-                var uri = new Uri(Path.GetFullPath(sourceFile!), UriKind.Absolute);
-                var decoder = BitmapDecoder.Create(uri, BitmapCreateOptions.IgnoreImageCache, BitmapCacheOption.OnLoad);
-                var frame = decoder.Frames[0];
-                var formatted = new FormatConvertedBitmap(frame, PixelFormats.Bgra32, null, 0);
+                var srcBmp = new BitmapImage();
+                srcBmp.BeginInit();
+                srcBmp.CacheOption = BitmapCacheOption.OnLoad;
+                srcBmp.UriSource = new Uri(sourceFile, UriKind.Absolute);
+                srcBmp.EndInit();
 
-                double scaleX = 1920.0 / Math.Max(1, formatted.PixelWidth);
-                double scaleY = 1080.0 / Math.Max(1, formatted.PixelHeight);
-                var scaled = new TransformedBitmap(formatted, new ScaleTransform(scaleX, scaleY));
-                var finalBmp = new FormatConvertedBitmap(scaled, PixelFormats.Bgra32, null, 0);
-                finalBmp.CopyPixels(pixels, stride, 0);
+                var scaled = new TransformedBitmap(srcBmp, new ScaleTransform(
+                    (double)width / srcBmp.PixelWidth,
+                    (double)height / srcBmp.PixelHeight));
+                var bgra = new FormatConvertedBitmap(scaled, PixelFormats.Bgra32, null, 0);
+                bgra.CopyPixels(pixels, stride, 0);
             }
             else
             {
-                // Procedural background generation
-                Color baseColor = Color.FromRgb(0x12, 0x12, 0x18);
                 for (int y = 0; y < height; y++)
                 {
                     double yNorm = (double)y / height;
                     double factor = 0.8 + 0.4 * Math.Sin(yNorm * Math.PI);
-                    byte r = (byte)Math.Clamp(baseColor.R * factor, 0, 255);
-                    byte g = (byte)Math.Clamp(baseColor.G * factor, 0, 255);
-                    byte b = (byte)Math.Clamp(baseColor.B * factor, 0, 255);
+                    byte r = (byte)Math.Clamp(baseColor.R * factor + accentColor.R * 0.14, 0, 255);
+                    byte g = (byte)Math.Clamp(baseColor.G * factor + accentColor.G * 0.14, 0, 255);
+                    byte b = (byte)Math.Clamp(baseColor.B * factor + accentColor.B * 0.14, 0, 255);
 
                     for (int x = 0; x < width; x++)
                     {
@@ -311,119 +383,84 @@ public static class BezelManager
                 }
             }
 
-            // Cutout application
-            string mode = cutoutMode.Trim();
-            if (mode == "Raw" && hasSourceImage)
+            if (!string.Equals(cutoutMode, "Raw", StringComparison.OrdinalIgnoreCase))
             {
-                // Check center pixel alpha; if center is opaque and format is jpg/bmp, fallback to 4:3
-                int centerIdx = (540 * stride) + (960 * 4);
-                byte centerAlpha = pixels[centerIdx + 3];
-                string ext = Path.GetExtension(sourceFile!).ToLowerInvariant();
-                if (centerAlpha == 255 && (ext == ".jpg" || ext == ".jpeg" || ext == ".bmp"))
+                int cutLeft = 220, cutRight = 1700, cutTop = 28, cutBottom = 1052;
+                switch (cutoutMode)
                 {
-                    mode = "4:3";
+                    case "3:2":
+                        cutLeft = 180; cutRight = 1740; cutTop = 36; cutBottom = 1044;
+                        break;
+                    case "1:1":
+                        cutLeft = 420; cutRight = 1500; cutTop = 28; cutBottom = 1052;
+                        break;
+                    case "16:9":
+                        cutLeft = 48; cutRight = 1872; cutTop = 28; cutBottom = 1052;
+                        break;
                 }
-            }
 
-            int cutoutLeft = -1, cutoutRight = -1, cutoutTop = 0, cutoutBottom = 1080;
-            switch (mode)
-            {
-                case "4:3":
-                    cutoutLeft = 240;
-                    cutoutRight = 1680;
-                    cutoutTop = 0;
-                    cutoutBottom = 1080;
-                    break;
-                case "3:2":
-                    cutoutLeft = 150;
-                    cutoutRight = 1770;
-                    cutoutTop = 0;
-                    cutoutBottom = 1080;
-                    break;
-                case "1:1":
-                    cutoutLeft = 420;
-                    cutoutRight = 1500;
-                    cutoutTop = 0;
-                    cutoutBottom = 1080;
-                    break;
-                case "16:9":
-                    cutoutLeft = 24;
-                    cutoutRight = 1896;
-                    cutoutTop = 24;
-                    cutoutBottom = 1056;
-                    break;
-            }
-
-            if (cutoutLeft >= 0)
-            {
-                for (int y = 0; y < height; y++)
+                for (int y = cutTop; y < cutBottom; y++)
                 {
-                    for (int x = 0; x < width; x++)
+                    for (int x = cutLeft; x < cutRight; x++)
                     {
                         int idx = y * stride + x * 4;
-                        if (x >= cutoutLeft && x < cutoutRight && y >= cutoutTop && y < cutoutBottom)
+                        bool isBorder = (x - cutLeft < 4) || (cutRight - 1 - x < 4) ||
+                                        (y - cutTop < 4) || (cutBottom - 1 - y < 4);
+                        if (isBorder)
                         {
-                            // 2px neon border along inner edges
-                            bool isBorder = (x < cutoutLeft + 2 || x >= cutoutRight - 2 || y < cutoutTop + 2 || y >= cutoutBottom - 2);
-                            if (isBorder)
-                            {
-                                pixels[idx + 0] = accentColor.B;
-                                pixels[idx + 1] = accentColor.G;
-                                pixels[idx + 2] = accentColor.R;
-                                pixels[idx + 3] = 180;
-                            }
-                            else
-                            {
-                                pixels[idx + 0] = 0;
-                                pixels[idx + 1] = 0;
-                                pixels[idx + 2] = 0;
-                                pixels[idx + 3] = 0; // Fully transparent
-                            }
+                            pixels[idx + 0] = accentColor.B;
+                            pixels[idx + 1] = accentColor.G;
+                            pixels[idx + 2] = accentColor.R;
+                            pixels[idx + 3] = 235;
+                        }
+                        else
+                        {
+                            pixels[idx + 0] = 0;
+                            pixels[idx + 1] = 0;
+                            pixels[idx + 2] = 0;
+                            pixels[idx + 3] = 0;
                         }
                     }
                 }
             }
 
-            // Save PNG
-            var bmpSource = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, stride);
+            var outBmp = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, stride);
             var encoder = new PngBitmapEncoder();
-            encoder.Frames.Add(BitmapFrame.Create(bmpSource));
+            encoder.Frames.Add(BitmapFrame.Create(outBmp));
             using (var fs = File.Create(targetPng))
             {
                 encoder.Save(fs);
             }
 
-            // Save CFG
             var sbCfg = new System.Text.StringBuilder();
             sbCfg.AppendLine("overlays = 1");
             sbCfg.AppendLine($"overlay0_overlay = \"{Path.GetFileName(targetPng)}\"");
             sbCfg.AppendLine("overlay0_full_screen = true");
             sbCfg.AppendLine("overlay0_descs = 0");
-            string cfgContent = sbCfg.ToString();
-            File.WriteAllText(targetCfg, cfgContent);
+            File.WriteAllText(targetCfg, sbCfg.ToString());
 
             var item = new BezelPresetItem
             {
                 Name = displayName,
                 Platform = platform,
-                Description = $"Пользовательская рамка Bezel ({cutoutMode})",
+                Description = $"Пользовательская рамка ({cutoutMode}) • {Path.GetFileName(targetPng)}",
                 CfgPath = targetCfg,
                 ImagePath = targetPng,
                 IconColor = accentHex,
                 AspectRatio = cutoutMode switch
                 {
-                    "4:3" => "4:3 CRT",
-                    "3:2" => "3:2 GBA",
+                    "4:3" => "4:3 ЭЛТ",
+                    "3:2" => "3:2 Широкая",
                     "1:1" => "1:1 Квадрат",
                     "16:9" => "16:9 Тонкая",
-                    _ => "Auto"
+                    _ => "Авто"
                 },
                 IsCustom = true,
                 PreviewImage = LoadPreviewImage(targetPng)
             };
 
             ApplyBezel(item);
-            return (true, $"Рамка «{displayName}» успешно создана и применена!", item);
+            return (true, $"Рамка «{displayName}» успешно создана и включена!", item);
         }
         catch (Exception ex)
         {
@@ -437,27 +474,37 @@ public static class BezelManager
         {
             if (!Directory.Exists(BordersDir)) Directory.CreateDirectory(BordersDir);
 
+            string versionMarker = Path.Combine(BordersDir, ".storm_bezels_v3.ok");
+            bool forceRegen = !File.Exists(versionMarker);
+
             foreach (var tmpl in BuiltinTemplates)
             {
-                string safeName = tmpl.Name.Replace(" ", "_");
-                string pngPath = Path.Combine(BordersDir, safeName + ".png");
-                string cfgPath = Path.Combine(BordersDir, safeName + ".cfg");
-
-                if (!File.Exists(pngPath))
+                try
                 {
-                    GenerateBezelPng(pngPath, tmpl.BaseColorHex, tmpl.AccentColorHex);
-                }
+                    string pngPath = Path.Combine(BordersDir, tmpl.FileSlug + ".png");
+                    string cfgPath = Path.Combine(BordersDir, tmpl.FileSlug + ".cfg");
 
-                if (!File.Exists(cfgPath))
-                {
-                    var sbCfg2 = new System.Text.StringBuilder();
-                    sbCfg2.AppendLine("overlays = 1");
-                    sbCfg2.AppendLine($"overlay0_overlay = \"{Path.GetFileName(pngPath)}\"");
-                    sbCfg2.AppendLine("overlay0_full_screen = true");
-                    sbCfg2.AppendLine("overlay0_descs = 0");
-                    string cfgContent = sbCfg2.ToString();
-                    File.WriteAllText(cfgPath, cfgContent);
+                    if (forceRegen || !File.Exists(pngPath))
+                    {
+                        GenerateBezelPng(pngPath, tmpl.BaseColorHex, tmpl.AccentColorHex);
+                    }
+
+                    if (forceRegen || !File.Exists(cfgPath))
+                    {
+                        var sbCfg2 = new System.Text.StringBuilder();
+                        sbCfg2.AppendLine("overlays = 1");
+                        sbCfg2.AppendLine($"overlay0_overlay = \"{Path.GetFileName(pngPath)}\"");
+                        sbCfg2.AppendLine("overlay0_full_screen = true");
+                        sbCfg2.AppendLine("overlay0_descs = 0");
+                        File.WriteAllText(cfgPath, sbCfg2.ToString());
+                    }
                 }
+                catch { }
+            }
+
+            if (forceRegen)
+            {
+                try { File.WriteAllText(versionMarker, "v3"); } catch { }
             }
         }
         catch { }
@@ -473,22 +520,44 @@ public static class BezelManager
         var baseColor = (Color)ColorConverter.ConvertFromString(baseHex);
         var accentColor = (Color)ColorConverter.ConvertFromString(accentHex);
 
+        int cutLeft = 220;
+        int cutRight = 1700;
+        int cutTop = 28;
+        int cutBottom = 1052;
+
         for (int y = 0; y < height; y++)
         {
             double yNorm = (double)y / height;
+            double vShade = 0.78 + 0.35 * Math.Sin(yNorm * Math.PI);
 
             for (int x = 0; x < width; x++)
             {
                 int idx = y * stride + x * 4;
 
-                if (x >= 240 && x < 1680)
+                bool insideCutout = (x >= cutLeft && x < cutRight && y >= cutTop && y < cutBottom);
+                if (insideCutout)
                 {
-                    if (x <= 242 || x >= 1677)
+                    // Inner neon bevel border around the game screen (5px)
+                    int distLeft = x - cutLeft;
+                    int distRight = (cutRight - 1) - x;
+                    int distTop = y - cutTop;
+                    int distBottom = (cutBottom - 1) - y;
+                    int minDist = Math.Min(Math.Min(distLeft, distRight), Math.Min(distTop, distBottom));
+
+                    if (minDist < 4)
                     {
                         pixels[idx + 0] = accentColor.B;
                         pixels[idx + 1] = accentColor.G;
                         pixels[idx + 2] = accentColor.R;
-                        pixels[idx + 3] = 160;
+                        pixels[idx + 3] = 245;
+                    }
+                    else if (minDist < 10)
+                    {
+                        // Subtle dark inner CRT bezel shadow
+                        pixels[idx + 0] = 8;
+                        pixels[idx + 1] = 8;
+                        pixels[idx + 2] = 12;
+                        pixels[idx + 3] = (byte)(180 - (minDist - 4) * 28);
                     }
                     else
                     {
@@ -500,12 +569,32 @@ public static class BezelManager
                 }
                 else
                 {
-                    double factor = 0.8 + 0.4 * Math.Sin(yNorm * Math.PI);
-                    byte r = (byte)Math.Clamp(baseColor.R * factor, 0, 255);
-                    byte g = (byte)Math.Clamp(baseColor.G * factor, 0, 255);
-                    byte b = (byte)Math.Clamp(baseColor.B * factor, 0, 255);
+                    // Console casing frame (left/right sidebars + top/bottom bars)
+                    byte r = (byte)Math.Clamp(baseColor.R * vShade, 0, 255);
+                    byte g = (byte)Math.Clamp(baseColor.G * vShade, 0, 255);
+                    byte b = (byte)Math.Clamp(baseColor.B * vShade, 0, 255);
 
-                    if (x == 20 || x == 1899)
+                    // Horizontal metallic ribs on left and right sidebars
+                    if ((x >= 32 && x <= 188) || (x >= 1732 && x <= 1888))
+                    {
+                        if (y >= 140 && y <= 340 && (y % 18 < 5))
+                        {
+                            r = (byte)(r * 0.62);
+                            g = (byte)(g * 0.62);
+                            b = (byte)(b * 0.62);
+                        }
+                    }
+
+                    // Outer neon stripe along left & right edges
+                    if ((x >= 18 && x <= 22) || (x >= 1897 && x <= 1901))
+                    {
+                        r = accentColor.R;
+                        g = accentColor.G;
+                        b = accentColor.B;
+                    }
+
+                    // Glowing console power LED indicator at bottom-right sidebar
+                    if (x >= 1790 && x <= 1830 && y >= 980 && y <= 992)
                     {
                         r = accentColor.R;
                         g = accentColor.G;

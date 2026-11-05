@@ -88,7 +88,7 @@ public static class SettingsRegistry
         list.Add(new SettingItem
         {
             CategoryId = "video", CategoryName = "Видео", Title = "Вертикальная синхронизация VSync", CfgKey = "video_vsync", Kind = SettingControlKind.Toggle,
-            Description = "Устранение разрывов кадров (Tearing) синхронизацией с частотой экрана."
+            Description = "Устранение разрывов кадров синхронизацией с частотой экрана."
         });
         list.Add(new SettingItem
         {
@@ -97,12 +97,12 @@ public static class SettingsRegistry
         });
         list.Add(new SettingItem
         {
-            CategoryId = "video", CategoryName = "Видео", Title = "Поддержка VRR (G-Sync / FreeSync)", CfgKey = "vrr_runloop_enable", Kind = SettingControlKind.Toggle,
+            CategoryId = "video", CategoryName = "Видео", Title = "Поддержка VRR", CfgKey = "vrr_runloop_enable", Kind = SettingControlKind.Toggle,
             Description = "Синхронизация цикла эмуляции с переменной частотой обновления дисплея."
         });
         list.Add(new SettingItem
         {
-            CategoryId = "video", CategoryName = "Видео", Title = "Жёсткая синхронизация GPU (Hard Sync)", CfgKey = "video_hard_sync", Kind = SettingControlKind.Toggle,
+            CategoryId = "video", CategoryName = "Видео", Title = "Жёсткая синхронизация GPU", CfgKey = "video_hard_sync", Kind = SettingControlKind.Toggle,
             Description = "Синхронизация CPU и GPU строго на 1 кадр для подавления задержки ввода."
         });
         list.Add(new SettingItem
@@ -128,7 +128,7 @@ public static class SettingsRegistry
         });
         list.Add(new SettingItem
         {
-            CategoryId = "video", CategoryName = "Видео", Title = "Буфер цепочки подкачки (Swapchain)", CfgKey = "video_max_swapchain_images", Kind = SettingControlKind.Slider,
+            CategoryId = "video", CategoryName = "Видео", Title = "Буфер цепочки подкачки", CfgKey = "video_max_swapchain_images", Kind = SettingControlKind.Slider,
             Description = "Количество экранных буферов (2 = двойная буферизация, 3 = тройная).",
             Min = 1, Max = 4, Step = 1, Unit = "буфера"
         });
@@ -188,12 +188,12 @@ public static class SettingsRegistry
         });
         list.Add(new SettingItem
         {
-            CategoryId = "video", CategoryName = "Видео", Title = "Целочисленный масштаб с заполнением (Overscale)", CfgKey = "video_scale_integer_overscale", Kind = SettingControlKind.Toggle,
+            CategoryId = "video", CategoryName = "Видео", Title = "Целочисленный масштаб с заполнением", CfgKey = "video_scale_integer_overscale", Kind = SettingControlKind.Toggle,
             Description = "Округление целочисленного масштаба в большую сторону для полного заполнения экрана."
         });
         list.Add(new SettingItem
         {
-            CategoryId = "video", CategoryName = "Видео", Title = "Обрезка краёв кадра (Crop Overscan)", CfgKey = "video_crop_overscan", Kind = SettingControlKind.Toggle,
+            CategoryId = "video", CategoryName = "Видео", Title = "Обрезка краёв кадра", CfgKey = "video_crop_overscan", Kind = SettingControlKind.Toggle,
             Description = "Скрытие служебных строк телевизионного сигнала и неиспользуемых бордюров ЭЛТ."
         });
         list.Add(new SettingItem
@@ -208,7 +208,7 @@ public static class SettingsRegistry
         });
         list.Add(new SettingItem
         {
-            CategoryId = "video", CategoryName = "Видео", Title = "Расширенный динамический диапазон (HDR10)", CfgKey = "video_hdr_enable", Kind = SettingControlKind.Toggle,
+            CategoryId = "video", CategoryName = "Видео", Title = "Расширенный динамический диапазон", CfgKey = "video_hdr_enable", Kind = SettingControlKind.Toggle,
             Description = "Активация 10-битного HDR вывода для повышенной контрастности и кинематографичной яркости."
         });
 
@@ -235,7 +235,7 @@ public static class SettingsRegistry
         });
         list.Add(new SettingItem
         {
-            CategoryId = "audio", CategoryName = "Аудио", Title = "Задержка аудио (Latency)", CfgKey = "audio_latency", Kind = SettingControlKind.Slider,
+            CategoryId = "audio", CategoryName = "Аудио", Title = "Задержка аудио", CfgKey = "audio_latency", Kind = SettingControlKind.Slider,
             Description = "Размер аудио-буфера в миллисекундах (32–64 мс оптимально для WASAPI).",
             Min = 8, Max = 128, Step = 8, Unit = "мс"
         });
@@ -260,7 +260,7 @@ public static class SettingsRegistry
         });
         list.Add(new SettingItem
         {
-            CategoryId = "input", CategoryName = "Ввод и Клавиши", Title = "Вибрация геймпада (Rumble)", CfgKey = "enable_device_vibration", Kind = SettingControlKind.Toggle,
+            CategoryId = "input", CategoryName = "Ввод и Клавиши", Title = "Вибрация геймпада", CfgKey = "enable_device_vibration", Kind = SettingControlKind.Toggle,
             Description = "Передача тактильной отдачи и эффектов вибрации в моторчики контроллера."
         });
         list.Add(new SettingItem
@@ -282,34 +282,34 @@ public static class SettingsRegistry
         });
         list.Add(new SettingItem
         {
-            CategoryId = "input", CategoryName = "Ввод и Клавиши", Title = "Меню эмулятора (HotKey)", CfgKey = "input_menu_toggle", Kind = SettingControlKind.TextBox,
+            CategoryId = "input", CategoryName = "Ввод и Клавиши", Title = "Меню эмулятора", CfgKey = "input_menu_toggle", Kind = SettingControlKind.TextBox,
             Description = "Горячая клавиша для вызова внутриигрового меню RetroArch."
         });
         list.Add(new SettingItem
         {
-            CategoryId = "input", CategoryName = "Ввод и Клавиши", Title = "Десктопное меню Qt (HotKey)", CfgKey = "input_desktop_menu_toggle", Kind = SettingControlKind.TextBox,
+            CategoryId = "input", CategoryName = "Ввод и Клавиши", Title = "Десктопное меню Qt", CfgKey = "input_desktop_menu_toggle", Kind = SettingControlKind.TextBox,
             Description = "Горячая клавиша вызова компаньона рабочего стола RetroArch Qt."
         });
         list.Add(new SettingItem
         {
-            CategoryId = "input", CategoryName = "Ввод и Клавиши", Title = "Сохранить стейт (HotKey)", CfgKey = "input_save_state", Kind = SettingControlKind.TextBox,
+            CategoryId = "input", CategoryName = "Ввод и Клавиши", Title = "Сохранить стейт", CfgKey = "input_save_state", Kind = SettingControlKind.TextBox,
             Description = "Клавиша быстрого сохранения состояния эмулятора в текущий слот."
         });
         list.Add(new SettingItem
         {
-            CategoryId = "input", CategoryName = "Ввод и Клавиши", Title = "Загрузить стейт (HotKey)", CfgKey = "input_load_state", Kind = SettingControlKind.TextBox,
+            CategoryId = "input", CategoryName = "Ввод и Клавиши", Title = "Загрузить стейт", CfgKey = "input_load_state", Kind = SettingControlKind.TextBox,
             Description = "Клавиша быстрой загрузки состояния эмулятора из активного слота."
         });
 
         // 5. LATENCY (Задержка)
         list.Add(new SettingItem
         {
-            CategoryId = "latency", CategoryName = "Задержка", Title = "Опережающие кадры (Preemptive Frames)", CfgKey = "preemptive_frames_enable", Kind = SettingControlKind.Toggle,
+            CategoryId = "latency", CategoryName = "Задержка", Title = "Опережающие кадры", CfgKey = "preemptive_frames_enable", Kind = SettingControlKind.Toggle,
             Description = "Революционная технология подавления задержки ввода до уровня оригинального железа."
         });
         list.Add(new SettingItem
         {
-            CategoryId = "latency", CategoryName = "Задержка", Title = "Упреждающий расчёт (Run-Ahead)", CfgKey = "run_ahead_enabled", Kind = SettingControlKind.Toggle,
+            CategoryId = "latency", CategoryName = "Задержка", Title = "Упреждающий расчёт", CfgKey = "run_ahead_enabled", Kind = SettingControlKind.Toggle,
             Description = "Покадровый откат логики игры для опережения встроенного запаздывания оригинальной приставки."
         });
         list.Add(new SettingItem
@@ -347,7 +347,7 @@ public static class SettingsRegistry
         });
         list.Add(new SettingItem
         {
-            CategoryId = "saving", CategoryName = "Сохранения", Title = "Сжатие сохранений (RZIP)", CfgKey = "savestate_compression", Kind = SettingControlKind.Toggle,
+            CategoryId = "saving", CategoryName = "Сохранения", Title = "Сжатие сохранений", CfgKey = "savestate_compression", Kind = SettingControlKind.Toggle,
             Description = "Сжатие файлов стейтов алгоритмом Deflate/RZIP для экономии диска."
         });
         list.Add(new SettingItem
@@ -359,7 +359,7 @@ public static class SettingsRegistry
         // 7. THROTTLE (Кадры и Перемотка)
         list.Add(new SettingItem
         {
-            CategoryId = "throttle", CategoryName = "Кадры и Перемотка", Title = "Включить перемотку назад (Rewind)", CfgKey = "rewind_enable", Kind = SettingControlKind.Toggle,
+            CategoryId = "throttle", CategoryName = "Кадры и Перемотка", Title = "Включить перемотку назад", CfgKey = "rewind_enable", Kind = SettingControlKind.Toggle,
             Description = "Возможность отматывать время назад в игре нажатием горячей клавиши."
         });
         list.Add(new SettingItem
@@ -409,7 +409,7 @@ public static class SettingsRegistry
         });
         list.Add(new SettingItem
         {
-            CategoryId = "osd", CategoryName = "Экранное меню", Title = "Масштаб рамки Bezel (Landscape)", CfgKey = "input_overlay_scale_landscape", Kind = SettingControlKind.ComboBox,
+            CategoryId = "osd", CategoryName = "Экранное меню", Title = "Масштаб рамки Bezel", CfgKey = "input_overlay_scale_landscape", Kind = SettingControlKind.ComboBox,
             Description = "Коэффициент масштаба горизонтального оверлея рамки Bezel.",
             Options = new() { "0.800000", "0.900000", "1.000000", "1.050000", "1.100000", "1.250000" }
         });
@@ -440,12 +440,12 @@ public static class SettingsRegistry
         });
         list.Add(new SettingItem
         {
-            CategoryId = "cheevos", CategoryName = "Достижения", Title = "Хардкорный режим (Hardcore Mode)", CfgKey = "cheevos_hardcore_mode_enable", Kind = SettingControlKind.Toggle,
+            CategoryId = "cheevos", CategoryName = "Достижения", Title = "Хардкорный режим", CfgKey = "cheevos_hardcore_mode_enable", Kind = SettingControlKind.Toggle,
             Description = "Блокировка стейтов и перемотки для официального зачёта в глобальном рейтинге."
         });
         list.Add(new SettingItem
         {
-            CategoryId = "cheevos", CategoryName = "Достижения", Title = "Таблицы рекордов (Leaderboards)", CfgKey = "cheevos_leaderboards_enable", Kind = SettingControlKind.Toggle,
+            CategoryId = "cheevos", CategoryName = "Достижения", Title = "Таблицы рекордов", CfgKey = "cheevos_leaderboards_enable", Kind = SettingControlKind.Toggle,
             Description = "Отправка времени прохождения и очков в глобальные списки лидеров."
         });
         list.Add(new SettingItem
@@ -490,7 +490,7 @@ public static class SettingsRegistry
         });
         list.Add(new SettingItem
         {
-            CategoryId = "recording", CategoryName = "Запись", Title = "Режим трансляции (Streaming)", CfgKey = "streaming_mode", Kind = SettingControlKind.ComboBox,
+            CategoryId = "recording", CategoryName = "Запись", Title = "Режим трансляции", CfgKey = "streaming_mode", Kind = SettingControlKind.ComboBox,
             Description = "Направление потокового вещания (0: выкл, 1: Twitch, 2: YouTube, 3: Custom).",
             Options = new() { "0", "1", "2", "3" }
         });
@@ -542,12 +542,12 @@ public static class SettingsRegistry
         });
         list.Add(new SettingItem
         {
-            CategoryId = "directory", CategoryName = "Каталоги", Title = "Папка сохранений игр (Savefiles)", CfgKey = "savefile_directory", Kind = SettingControlKind.DirectoryPath,
+            CategoryId = "directory", CategoryName = "Каталоги", Title = "Папка сохранений игр", CfgKey = "savefile_directory", Kind = SettingControlKind.DirectoryPath,
             Description = "Каталог для картриджных батареечных сохранений .srm и Memory Card."
         });
         list.Add(new SettingItem
         {
-            CategoryId = "directory", CategoryName = "Каталоги", Title = "Папка стейтов (Savestates)", CfgKey = "savestate_directory", Kind = SettingControlKind.DirectoryPath,
+            CategoryId = "directory", CategoryName = "Каталоги", Title = "Папка стейтов", CfgKey = "savestate_directory", Kind = SettingControlKind.DirectoryPath,
             Description = "Каталог мгновенных сохранений игрового процесса."
         });
         list.Add(new SettingItem
@@ -557,7 +557,7 @@ public static class SettingsRegistry
         });
         list.Add(new SettingItem
         {
-            CategoryId = "directory", CategoryName = "Каталоги", Title = "Папка шейдеров (Shaders)", CfgKey = "video_shader_dir", Kind = SettingControlKind.DirectoryPath,
+            CategoryId = "directory", CategoryName = "Каталоги", Title = "Папка шейдеров", CfgKey = "video_shader_dir", Kind = SettingControlKind.DirectoryPath,
             Description = "Каталог графических фильтров .slangp и .glslp."
         });
 

@@ -5,14 +5,14 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <RootNamespace>StormRetroArch</RootNamespace>
     <AssemblyName>STORM RETROARCH</AssemblyName>
-    <Version>1.2.0</Version>
-    <AssemblyVersion>1.2.0.0</AssemblyVersion>
-    <FileVersion>1.2.0.0</FileVersion>
+    <Version>1.3.0</Version>
+    <AssemblyVersion>1.3.0.0</AssemblyVersion>
+    <FileVersion>1.3.0.0</FileVersion>
     <Authors>STORM TEAM</Authors>
     <Company>STORM TEAM</Company>
     <Product>STORM RETROARCH</Product>
     <Title>STORM RETROARCH</Title>
-    <Description>STORM RETROARCH 1.2.0</Description>
+    <Description>STORM RETROARCH 1.3.0</Description>
     <ApplicationIcon>AppIcon.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <UseWPF>true</UseWPF>

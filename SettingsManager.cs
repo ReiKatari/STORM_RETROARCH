@@ -8,31 +8,43 @@ namespace StormRetroArch;
 
 public class UserSettings
 {
-    public bool CheckUpdatesOnStartup { get; set; } = true;
-    public string ThemeName { get; set; } = "MIDNIGHT";
-    public int AccentIndex { get; set; } = 0;
-    public int FontIndex { get; set; } = 0;
-    public string LanguageCode { get; set; } = string.Empty;
-    public string VideoDriver { get; set; } = "vulkan";
-    public bool PreemptiveFrames { get; set; } = true;
-    public bool VrrEnabled { get; set; } = true;
-    public bool WasapiLowLatency { get; set; } = true;
-    public bool IntegerScaling { get; set; } = false;
-    public string ShaderPreset { get; set; } = "None";
-    public string RetroArchPath { get; set; } = string.Empty;
+    public string ThemeName { get; set; } = "MIDNIGHT";
+    public int AccentIndex { get; set; } = 0;
+    public int FontIndex { get; set; } = 0;
+    public string LanguageCode { get; set; } = "ru";
+    public bool CheckUpdatesOnStartup { get; set; } = true;
+    public string RetroArchPath { get; set; } = string.Empty;
+    public bool TelemetryOverlayVisible { get; set; } = false;
+
+    public string Language { get; set; } = string.Empty;
+    public string Theme { get; set; } = "MIDNIGHT";
+    public string Accent { get; set; } = "Violet";
+    public string FontFamily { get; set; } = "Inter Variable";
+    public string ViewMode { get; set; } = "Bento";
+    public bool AutoCheckUpdates { get; set; } = true;
+    public bool StartMinimizedToTray { get; set; } = false;
+    public List<string> RomDirectories { get; set; } = new();
     public List<string> RecentRoms { get; set; } = new();
-    public bool TelemetryOverlayVisible { get; set; } = false;
-    public bool SmartProfileAutoApply { get; set; } = true;
-    public bool AutoSaveSyncEnabled { get; set; } = false;
+
+    // AI Walkthrough & Cloud Save Sync
+    public string GeminiApiKey { get; set; } = string.Empty;
+    public string AiModel { get; set; } = "gemini-2.5-flash";
+    public bool AiAutoCaptureContext { get; set; } = true;
+    public bool AiVoiceOutput { get; set; } = false;
+    public bool CloudSyncEnabled { get; set; } = false;
     public string CloudSyncFolder { get; set; } = string.Empty;
 
-    // UI Scalability, Layout & Customization (v1.2.0)
+    // UI Scalability, Layout & Customization (1.3.0)
     public double UiScale { get; set; } = 1.0;
     public double BentoCardWidth { get; set; } = 380.0;
     public double CompactCardWidth { get; set; } = 200.0;
     public double SidebarWidth { get; set; } = 276.0;
     public bool SidebarCollapsed { get; set; } = false;
     public List<int> DashboardCardOrder { get; set; } = new() { 0, 1, 2, 3 };
+
+    // Per-Platform Default Core & Per-Game Core Overrides
+    public Dictionary<string, string> PlatformDefaultCores { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, string> GameCoreOverrides { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public static class SettingsManager
@@ -64,11 +76,11 @@ public static class SettingsManager
         string cur = (Current.CloudSyncFolder ?? string.Empty).Trim();
         bool needsReset = string.IsNullOrEmpty(cur)
             || cur.EndsWith("cloud_saves", StringComparison.OrdinalIgnoreCase)
+            || cur.StartsWith(@"C:\Program Files", StringComparison.OrdinalIgnoreCase)
             || !Directory.Exists(cur);
 
-        if (!needsReset && cur.EndsWith("\\save sync", StringComparison.OrdinalIgnoreCase))
+        if (!needsReset && cur.EndsWith(@"\save sync", StringComparison.OrdinalIgnoreCase))
         {
-            // If CloudSyncFolder points to default 'save sync' inside a DIFFERENT install folder (e.g. C:\Program Files\STORM RETROARCH\save sync when running from N:\STORM RETROARCH), bind it to the active root folder!
             if (!cur.Equals(rootSaveSync, StringComparison.OrdinalIgnoreCase))
             {
                 needsReset = true;
@@ -86,6 +98,8 @@ public static class SettingsManager
         if (Current.SidebarWidth < 220 || Current.SidebarWidth > 460) Current.SidebarWidth = 276.0;
         if (Current.DashboardCardOrder == null || Current.DashboardCardOrder.Count != 4)
             Current.DashboardCardOrder = new List<int> { 0, 1, 2, 3 };
+        Current.PlatformDefaultCores ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Current.GameCoreOverrides ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
 
     public static void Load()

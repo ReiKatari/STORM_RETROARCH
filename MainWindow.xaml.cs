@@ -142,7 +142,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private readonly ObservableCollection<BezelPresetItem> _allBezels = new();
     private readonly ObservableCollection<BezelPresetItem> _filteredBezels = new();
-    private string _selectedBezelPlatform = "Все рамки (12)";
+    private string _selectedBezelPlatform = "Все рамки";
     private string _selectedCoreManufacturer = "Все ядра (350+)";
 
     private List<SettingItem> _allSettings = new();
@@ -401,15 +401,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         // Initialize System Tray
         _trayService = new StormTrayService(this);
 
-        // Load Playlists
-        LoadPlaylists();
-
-        // Refresh UI Stats & Screenshots
+        // Refresh Library first, then Load Playlists (History & Favorites) & Cheats for Library Games
         LoadLibraryFromPlaylist();
+        LoadPlaylists();
+        InitPlatformDefaultCoreSelectors();
+        LoadCheats();
         PopulateFilters();
         ApplyGamesFilter();
         UpdateStats();
         RefreshScreenshotsList();
+        EnsureDefaultBezelInitialized();
+        ApplyActiveBezelToViewport();
 
         // Initialize 5 Flagship Systems
         InitSmartProfiles();
@@ -1067,11 +1069,23 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _activeNavView = "Favorites";
             ViewFavorites.Visibility = Visibility.Visible;
+            UpdatePlaylistEmptyStates();
         }
         else if (btn == NavBtnHistory)
         {
             _activeNavView = "History";
             ViewHistory.Visibility = Visibility.Visible;
+            if (_history.Count == 0 && _allGames.Count > 0)
+            {
+                foreach (var g in _allGames)
+                {
+                    if (string.IsNullOrEmpty(g.LastPlayedFormatted) || g.LastPlayedFormatted == "-")
+                        g.LastPlayedFormatted = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+                    _history.Add(g);
+                }
+                SavePlaylists();
+            }
+            UpdatePlaylistEmptyStates();
         }
         else if (btn == NavBtnCores)
         {
@@ -1757,12 +1771,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             item.IsFavorite = !item.IsFavorite;
             if (item.IsFavorite)
             {
-                if (!_favorites.Contains(item)) _favorites.Add(item);
+                if (!_favorites.Any(f => f.FilePath.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase)))
+                    _favorites.Add(item);
+                ShowOsdToast($"Игра «{item.Name}» добавлена в Избранное ★");
             }
             else
             {
-                _favorites.Remove(item);
+                var existing = _favorites.FirstOrDefault(f => f.FilePath.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase));
+                if (existing != null) _favorites.Remove(existing);
+                ShowOsdToast($"Игра «{item.Name}» убрана из Избранного");
             }
+            UpdatePlaylistEmptyStates();
             SavePlaylists();
         }
     }
@@ -1771,17 +1790,26 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         Dispatcher.Invoke(() =>
         {
-            if (!_history.Contains(item))
+            item.LastPlayed = DateTime.Now;
+            item.LastPlayedFormatted = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+
+            var existing = _history.FirstOrDefault(h => h.FilePath.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
             {
-                _history.Insert(0, item);
+                _history.Remove(existing);
             }
-            else
-            {
-                _history.Remove(item);
-                _history.Insert(0, item);
-            }
+            _history.Insert(0, item);
+            UpdatePlaylistEmptyStates();
             SavePlaylists();
         });
+    }
+
+    private void UpdatePlaylistEmptyStates()
+    {
+        if (EmptyFavoritesBorder != null)
+            EmptyFavoritesBorder.Visibility = _favorites.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (EmptyHistoryBorder != null)
+            EmptyHistoryBorder.Visibility = _history.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ==================== PLAYLISTS (.LPL) ====================
@@ -1797,8 +1825,67 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             string favPath = Path.Combine(playlistsDir, "content_favorites.lpl");
             if (File.Exists(favPath))
             {
-                // read entries
+                using var doc = JsonDocument.Parse(File.ReadAllText(favPath));
+                if (doc.RootElement.TryGetProperty("items", out var itemsEl) && itemsEl.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var el in itemsEl.EnumerateArray())
+                    {
+                        string? p = el.TryGetProperty("path", out var pEl) ? pEl.GetString() : null;
+                        if (string.IsNullOrWhiteSpace(p)) continue;
+
+                        if (File.Exists(p) && !_allGames.Any(g => g.FilePath.Equals(p, StringComparison.OrdinalIgnoreCase)))
+                            AddRomFile(p);
+
+                        var match = _allGames.FirstOrDefault(g => g.FilePath.Equals(p, StringComparison.OrdinalIgnoreCase));
+                        if (match != null)
+                        {
+                            match.IsFavorite = true;
+                            if (!_favorites.Any(f => f.FilePath.Equals(p, StringComparison.OrdinalIgnoreCase)))
+                                _favorites.Add(match);
+                        }
+                    }
+                }
             }
+
+            // Load history
+            string histPath = Path.Combine(playlistsDir, "content_history.lpl");
+            if (File.Exists(histPath))
+            {
+                using var doc = JsonDocument.Parse(File.ReadAllText(histPath));
+                if (doc.RootElement.TryGetProperty("items", out var itemsEl) && itemsEl.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var el in itemsEl.EnumerateArray())
+                    {
+                        string? p = el.TryGetProperty("path", out var pEl) ? pEl.GetString() : null;
+                        string? played = el.TryGetProperty("last_played", out var lpEl) ? lpEl.GetString() : null;
+                        if (string.IsNullOrWhiteSpace(p)) continue;
+
+                        if (File.Exists(p) && !_allGames.Any(g => g.FilePath.Equals(p, StringComparison.OrdinalIgnoreCase)))
+                            AddRomFile(p);
+
+                        var match = _allGames.FirstOrDefault(g => g.FilePath.Equals(p, StringComparison.OrdinalIgnoreCase));
+                        if (match != null && !_history.Any(h => h.FilePath.Equals(p, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            match.LastPlayedFormatted = !string.IsNullOrWhiteSpace(played) ? played : DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+                            _history.Add(match);
+                        }
+                    }
+                }
+            }
+
+            // Seed history from library if history is currently empty so History tab is populated right away
+            if (_history.Count == 0 && _allGames.Count > 0)
+            {
+                foreach (var g in _allGames)
+                {
+                    if (string.IsNullOrEmpty(g.LastPlayedFormatted) || g.LastPlayedFormatted == "-")
+                        g.LastPlayedFormatted = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
+                    _history.Add(g);
+                }
+                SavePlaylists();
+            }
+
+            UpdatePlaylistEmptyStates();
         }
         catch { }
     }
@@ -1824,14 +1911,36 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 {
                     path = f.FilePath,
                     label = f.Name,
-                    core_path = "DETECT",
-                    core_name = "DETECT",
+                    core_path = f.CoreDll,
+                    core_name = f.CoreDisplayName,
                     crc32 = "DETECT",
                     db_name = "content_favorites.lpl"
                 }).ToList()
             };
-
             File.WriteAllText(Path.Combine(playlistsDir, "content_favorites.lpl"), JsonSerializer.Serialize(favObj, new JsonSerializerOptions { WriteIndented = true }));
+
+            // Save history playlist
+            var histObj = new
+            {
+                version = "1.5",
+                default_core_path = "",
+                default_core_name = "",
+                label_display_mode = 0,
+                right_thumbnail_mode = 0,
+                left_thumbnail_mode = 0,
+                sort_mode = 2,
+                items = _history.Select(h => new
+                {
+                    path = h.FilePath,
+                    label = h.Name,
+                    core_path = h.CoreDll,
+                    core_name = h.CoreDisplayName,
+                    last_played = string.IsNullOrEmpty(h.LastPlayedFormatted) || h.LastPlayedFormatted == "-" ? DateTime.Now.ToString("dd.MM.yyyy HH:mm") : h.LastPlayedFormatted,
+                    crc32 = "DETECT",
+                    db_name = "content_history.lpl"
+                }).ToList()
+            };
+            File.WriteAllText(Path.Combine(playlistsDir, "content_history.lpl"), JsonSerializer.Serialize(histObj, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch { }
     }
@@ -1839,17 +1948,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void BtnSyncFavorites_Click(object sender, RoutedEventArgs e)
     {
         SavePlaylists();
-        ShowNotification("STORM RETROARCH", "Избранное успешно синхронизировано с playlists/content_favorites.lpl!");
+        UpdatePlaylistEmptyStates();
+        ShowNotification("STORM RETROARCH", "Список избранных игр успешно обновлён и сохранён!");
     }
 
     private void BtnClearHistory_Click(object sender, RoutedEventArgs e)
     {
         _history.Clear();
         SavePlaylists();
-        ShowNotification("STORM RETROARCH", "История запусков успешно очищена.");
+        UpdatePlaylistEmptyStates();
+        ShowNotification("STORM RETROARCH", "История запусков очищена.");
     }
 
-    // ==================== CORE DOWNLOADER ====================
+        // ==================== CORE DOWNLOADER ====================
 
     private async void BtnDownloadSingleCore_Click(object sender, RoutedEventArgs e)
     {
@@ -2644,18 +2755,68 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void LoadCheats()
     {
-        var files = CheatManager.ScanCheats();
+        var files = CheatManager.ScanCheats(_allGames);
         _allCheatFiles.Clear();
         foreach (var f in files) _allCheatFiles.Add(f);
         ApplyCheatsFilter();
 
-        if (_filteredCheatFiles.Count > 0 && ListCheatFiles.SelectedItem == null)
+        if (_filteredCheatFiles.Count > 0)
         {
-            ListCheatFiles.SelectedIndex = 0;
+            if (NativeLibretroHost.Current.IsRunning && !string.IsNullOrWhiteSpace(NativeLibretroHost.Current.CurrentGameTitle))
+            {
+                var activeMatch = _filteredCheatFiles.FirstOrDefault(f =>
+                    f.GameName.Contains(NativeLibretroHost.Current.CurrentGameTitle, StringComparison.OrdinalIgnoreCase) ||
+                    NativeLibretroHost.Current.CurrentGameTitle.Contains(f.GameName, StringComparison.OrdinalIgnoreCase));
+                if (activeMatch != null)
+                {
+                    ListCheatFiles.SelectedItem = activeMatch;
+                    return;
+                }
+            }
+            if (ListCheatFiles.SelectedItem == null)
+            {
+                ListCheatFiles.SelectedIndex = 0;
+            }
         }
     }
 
-    private void ApplyCheatsFilter()
+    private void BtnSwitchToCheatsView_Click(object sender, RoutedEventArgs e)
+    {
+        NavBtn_Click(NavBtnCheats, e);
+    }
+
+    private void BtnEnableAllCheats_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedCheatFile == null || _selectedCheats.Count == 0) return;
+        foreach (var c in _selectedCheats) c.IsEnabled = true;
+        CheatManager.SaveCht(_selectedCheatFile.FilePath, _selectedCheats);
+        if (NativeLibretroHost.Current.IsRunning)
+            NativeLibretroHost.Current.ApplyCheats(_selectedCheats);
+        ShowOsdToast($"Все читы ({_selectedCheats.Count}) для «{_selectedCheatFile.GameName}» включены!");
+    }
+
+    private void BtnDisableAllCheats_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedCheatFile == null || _selectedCheats.Count == 0) return;
+        foreach (var c in _selectedCheats) c.IsEnabled = false;
+        CheatManager.SaveCht(_selectedCheatFile.FilePath, _selectedCheats);
+        if (NativeLibretroHost.Current.IsRunning)
+            NativeLibretroHost.Current.ApplyCheats(_selectedCheats);
+        ShowOsdToast($"Все читы для «{_selectedCheatFile.GameName}» отключены");
+    }
+
+    private void ChkCheatEnabled_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!_isLoaded || _selectedCheatFile == null) return;
+        CheatManager.SaveCht(_selectedCheatFile.FilePath, _selectedCheats);
+        if (NativeLibretroHost.Current.IsRunning)
+        {
+            int activeCount = NativeLibretroHost.Current.ApplyCheats(_selectedCheats);
+            ShowOsdToast($"Читы обновлены (активно: {activeCount})");
+        }
+    }
+
+        private void ApplyCheatsFilter()
     {
         string query = TxtSearchCheats?.Text?.Trim().ToLowerInvariant() ?? "";
         _filteredCheatFiles.Clear();
@@ -2829,7 +2990,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        ShowNotification($"Загрузка обложек (Boxart) для {_allGames.Count} игр с thumbnails.libretro.com...");
+        ShowNotification($"Загрузка обложек игр для {_allGames.Count} игр с thumbnails.libretro.com...");
         int count = await DownloadBoxartsForLibraryAsync(_allGames);
         ShowNotification($"Загрузка завершена! Скачано новых обложек: {count}");
     }
@@ -2882,26 +3043,44 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         // ==================== MANUAL BEZEL CREATOR & VIEWPORT OVERLAY ====================
 
+    private void EnsureDefaultBezelInitialized()
+    {
+        try
+        {
+            string currentCfg = RetroArchConfigManager.GetString("input_overlay", "");
+            if (string.IsNullOrWhiteSpace(currentCfg) || !File.Exists(currentCfg))
+            {
+                var bezels = BezelManager.ScanBezels();
+                if (bezels.Count > 0)
+                {
+                    BezelManager.ApplyBezel(bezels[0]);
+                    LoadBezels();
+                }
+            }
+        }
+        catch { }
+    }
+
     private void ApplyActiveBezelToViewport()
     {
         var active = BezelManager.GetActiveBezel();
         if (active != null && !string.IsNullOrEmpty(active.ImagePath) && File.Exists(active.ImagePath))
         {
-            var bmp = BezelManager.LoadPreviewImage(active.ImagePath);
+            var bmp = BezelManager.LoadFullBezelImage(active.ImagePath) ?? BezelManager.LoadPreviewImage(active.ImagePath);
             if (bmp != null)
             {
                 ImgGameBezelOverlay.Source = bmp;
                 string opStr = RetroArchConfigManager.GetString("input_overlay_opacity", "1.000000");
                 if (float.TryParse(opStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float op))
                 {
-                    ImgGameBezelOverlay.Opacity = Math.Clamp(op, 0.1f, 1.0f);
+                    ImgGameBezelOverlay.Opacity = Math.Clamp(op, 0.15f, 1.0f);
                 }
                 else
                 {
                     ImgGameBezelOverlay.Opacity = 1.0;
                 }
                 ImgGameBezelOverlay.Visibility = Visibility.Visible;
-                ImgGameViewport.Margin = new Thickness(0);
+                ImgGameViewport.Margin = new Thickness(96, 18, 96, 18);
                 return;
             }
         }
@@ -2915,7 +3094,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var bezels = BezelManager.ScanBezels();
         if (bezels.Count == 0)
         {
-            ShowOsdToast("Нет доступных рамок Bezel");
+            ShowOsdToast("Нет доступных экранных рамок");
             return;
         }
 
@@ -2923,7 +3102,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (active == null)
         {
             BezelManager.ApplyBezel(bezels[0]);
-            ShowOsdToast($"Рамка: {bezels[0].Name} [ВКЛ]");
+            ShowOsdToast($"Экранная рамка: {bezels[0].Name} [ВКЛ]");
         }
         else
         {
@@ -2932,12 +3111,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             {
                 var next = bezels[currentIndex + 1];
                 BezelManager.ApplyBezel(next);
-                ShowOsdToast($"Рамка: {next.Name} [ВКЛ]");
+                ShowOsdToast($"Экранная рамка: {next.Name} [ВКЛ]");
             }
             else
             {
                 BezelManager.DisableBezel();
-                ShowOsdToast("Рамка Bezel: [ВЫКЛ]");
+                ShowOsdToast("Экранная рамка: [ВЫКЛ]");
             }
         }
 
@@ -2945,7 +3124,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         LoadBezels();
     }
 
-    private void BtnToggleManualBezelPanel_Click(object sender, RoutedEventArgs e)
+        private void BtnToggleManualBezelPanel_Click(object sender, RoutedEventArgs e)
     {
         if (PnlManualBezelCreator == null) return;
         PnlManualBezelCreator.Visibility = PnlManualBezelCreator.Visibility == Visibility.Visible
@@ -3047,7 +3226,7 @@ private void LoadBezels()
                 "Sony" => b.Platform.Contains("Sony", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("PlayStation", StringComparison.OrdinalIgnoreCase),
                 "Nintendo" => b.Platform.Contains("Nintendo", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Game Boy", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("SNES", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("NES", StringComparison.OrdinalIgnoreCase),
                 "Sega" => b.Platform.Contains("Sega", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Genesis", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Saturn", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Dreamcast", StringComparison.OrdinalIgnoreCase),
-                "Arcade / Other" => b.Platform.Contains("Arcade", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("STORM", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Custom", StringComparison.OrdinalIgnoreCase),
+                "Arcade / Other" or "Аркады и другие" => b.Platform.Contains("Arcade", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("STORM", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Custom", StringComparison.OrdinalIgnoreCase),
                 _ => true
             };
 
@@ -3076,7 +3255,7 @@ private void LoadBezels()
             }
         }
         btn.Tag = "Active";
-        _selectedBezelPlatform = btn.Content?.ToString() ?? "Все рамки (12)";
+        _selectedBezelPlatform = btn.Content?.ToString() ?? "Все рамки";
         ApplyBezelsFilter();
     }
 
@@ -3200,7 +3379,7 @@ private void LoadBezels()
             ["video_scale_integer"] = "true"
         };
         CoreOptionsAndOverridesManager.SaveCoreOverrideCfg(_selectedCoreProfile.CoreName, overrides);
-        ShowNotification("STORM RETROARCH", $"Переопределение (Override) для ядра {_selectedCoreProfile.CoreName} сохранено!");
+        ShowNotification("STORM RETROARCH", $"Переопределение параметров для ядра {_selectedCoreProfile.CoreName} сохранено!");
     }
 
     private void BtnResetCoreOptions_Click(object sender, RoutedEventArgs e)
@@ -3864,7 +4043,7 @@ private void LoadBezels()
         if (!string.IsNullOrWhiteSpace(text))
         {
             AiWalkthroughManager.SpeakRussianTextAsync(text);
-            ShowNotification("STORM RETROARCH", "Голосовое воспроизведение тактики запущено (TTS)!");
+            ShowNotification("STORM RETROARCH", "Голосовое воспроизведение тактики запущено!");
         }
     }
 
@@ -4042,11 +4221,8 @@ private void LoadBezels()
     {
         _activeRomItem = item;
 
-        // Add to history
-        if (!_history.Any(h => h.FilePath.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase)))
-        {
-            _history.Insert(0, item);
-        }
+        // Record launch in History with timestamp and persist to content_history.lpl
+        RecordGameHistory(item);
 
         // Switch to Game Viewport & Lock Keyboard Focus to Game Viewport
         Keyboard.ClearFocus();
@@ -4126,6 +4302,10 @@ private void LoadBezels()
     {
         if (PnlInGameQuickMenu == null) return;
         bool opening = PnlInGameQuickMenu.Visibility != Visibility.Visible;
+        if (opening)
+        {
+            PopulateQuickMenuCoreSelector();
+        }
         PnlInGameQuickMenu.Visibility = opening ? Visibility.Visible : Visibility.Collapsed;
 
         if (NativeLibretroHost.Current.IsRunning)
@@ -4306,7 +4486,7 @@ private void LoadBezels()
             return;
         }
         NativeLibretroHost.Current.StepRewind();
-        ShowOsdToast("Перемотка времени назад (Rewind)");
+        ShowOsdToast("Перемотка времени назад");
     }
 
     private void BtnGameFastForward_Click(object sender, RoutedEventArgs e)
@@ -4352,7 +4532,7 @@ private void LoadBezels()
     {
         NativeLibretroHost.Current.ToggleMute();
         UpdateInGameHudButtons();
-        ShowOsdToast(NativeLibretroHost.Current.IsAudioMuted ? "Звук отключён (Mute)" : "Звук включён");
+        ShowOsdToast(NativeLibretroHost.Current.IsAudioMuted ? "Звук отключён" : "Звук включён");
     }
 
     private void BtnGameScreenshot_Click(object sender, RoutedEventArgs e)
@@ -4611,21 +4791,41 @@ private void LoadBezels()
     {
         try
         {
-            string file = Path.Combine(CoreManager.AppDir, "playlists", "storm_library.json");
-            if (File.Exists(file))
+            var candidateFiles = new List<string>
             {
-                string json = File.ReadAllText(file);
-                var paths = System.Text.Json.JsonSerializer.Deserialize<List<string>>(json);
-                if (paths != null)
+                Path.Combine(CoreManager.AppDir, "playlists", "storm_library.json"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "STORM RETROARCH", "playlists", "storm_library.json"),
+                @"C:\Program Files\STORM RETROARCH\playlists\storm_library.json"
+            };
+
+            bool migrated = false;
+            foreach (var file in candidateFiles.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (!File.Exists(file)) continue;
+                try
                 {
-                    foreach (var p in paths)
+                    string json = File.ReadAllText(file);
+                    var paths = System.Text.Json.JsonSerializer.Deserialize<List<string>>(json);
+                    if (paths != null)
                     {
-                        if (File.Exists(p)) AddRomFile(p);
+                        foreach (var p in paths)
+                        {
+                            if (File.Exists(p))
+                            {
+                                int before = _allGames.Count;
+                                AddRomFile(p);
+                                if (_allGames.Count > before && !file.Equals(candidateFiles[0], StringComparison.OrdinalIgnoreCase))
+                                    migrated = true;
+                            }
+                        }
                     }
-                    ApplyGamesFilter();
-                    UpdateStats();
                 }
+                catch { }
             }
+
+            if (migrated) SaveLibraryToPlaylist();
+            ApplyGamesFilter();
+            UpdateStats();
         }
         catch { }
     }
@@ -5184,5 +5384,243 @@ private void LoadBezels()
         }
         NativeLibretroHost.Current.ApplyAspectMode(GameViewportContainer);
         GameViewportContainer?.Focus();
+    }
+
+    // ==================== PER-GAME & PER-PLATFORM CORE SELECTION (1.3.0) ====================
+
+    private RomItem? _coreModalTargetRom;
+    private bool _isSyncingPlatformCoreCombo;
+
+    private void InitPlatformDefaultCoreSelectors()
+    {
+        if (CmbPlatformCoreTarget == null) return;
+        _isSyncingPlatformCoreCombo = true;
+        try
+        {
+            string prev = CmbPlatformCoreTarget.SelectedItem?.ToString() ?? "";
+            CmbPlatformCoreTarget.Items.Clear();
+
+            var platforms = _allGames.Select(g => g.Platform)
+                .Concat(CoreManager.GetStandardPlatformsList())
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var p in platforms)
+                CmbPlatformCoreTarget.Items.Add(p);
+
+            if (!string.IsNullOrEmpty(prev) && platforms.Contains(prev))
+                CmbPlatformCoreTarget.SelectedItem = prev;
+            else if (CmbPlatformCoreTarget.Items.Count > 0)
+                CmbPlatformCoreTarget.SelectedIndex = 0;
+        }
+        finally
+        {
+            _isSyncingPlatformCoreCombo = false;
+        }
+
+        UpdatePlatformDefaultCoreDropdown();
+    }
+
+    private void CmbPlatformCoreTarget_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isSyncingPlatformCoreCombo) return;
+        UpdatePlatformDefaultCoreDropdown();
+    }
+
+    private void UpdatePlatformDefaultCoreDropdown()
+    {
+        if (CmbPlatformCoreTarget == null || CmbPlatformDefaultCore == null) return;
+        string platform = CmbPlatformCoreTarget.SelectedItem?.ToString() ?? "";
+        if (string.IsNullOrWhiteSpace(platform)) return;
+
+        var cores = CoreManager.GetCompatibleCoresForPlatform(platform);
+        CmbPlatformDefaultCore.ItemsSource = cores;
+
+        if (SettingsManager.Current.PlatformDefaultCores != null &&
+            SettingsManager.Current.PlatformDefaultCores.TryGetValue(platform, out string? savedVal) &&
+            !string.IsNullOrWhiteSpace(savedVal))
+        {
+            string savedDll = savedVal.Split('|')[0];
+            var match = cores.FirstOrDefault(c => c.DllName.Equals(savedDll, StringComparison.OrdinalIgnoreCase));
+            if (match != null)
+            {
+                CmbPlatformDefaultCore.SelectedItem = match;
+                return;
+            }
+        }
+
+        var gameWithPlat = _allGames.FirstOrDefault(g => g.Platform.Equals(platform, StringComparison.OrdinalIgnoreCase));
+        if (gameWithPlat != null)
+        {
+            var match = cores.FirstOrDefault(c => c.DllName.Equals(gameWithPlat.CoreDll, StringComparison.OrdinalIgnoreCase));
+            if (match != null)
+            {
+                CmbPlatformDefaultCore.SelectedItem = match;
+                return;
+            }
+        }
+
+        if (cores.Count > 0) CmbPlatformDefaultCore.SelectedIndex = 0;
+    }
+
+    private async void BtnApplyPlatformDefaultCore_Click(object sender, RoutedEventArgs e)
+    {
+        if (CmbPlatformCoreTarget?.SelectedItem is not string platform ||
+            CmbPlatformDefaultCore?.SelectedItem is not CoreInfo selectedCore)
+            return;
+
+        await ApplyCoreToPlatformAsync(platform, selectedCore);
+    }
+
+    private async Task ApplyCoreToPlatformAsync(string platform, CoreInfo selectedCore)
+    {
+        SettingsManager.Current.PlatformDefaultCores ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        SettingsManager.Current.PlatformDefaultCores[platform] = $"{selectedCore.DllName}|{selectedCore.Name}";
+        SettingsManager.Save();
+
+        if (!CoreManager.IsCoreInstalled(selectedCore.DllName))
+        {
+            ShowOsdToast($"Загрузка ядра {selectedCore.Name}...");
+            await CoreManager.EnsureCoreDownloadedAsync(selectedCore.DllName);
+        }
+
+        bool isInstalled = CoreManager.IsCoreInstalled(selectedCore.DllName);
+        int updatedCount = 0;
+
+        foreach (var g in _allGames.Where(x => x.Platform.Equals(platform, StringComparison.OrdinalIgnoreCase)))
+        {
+            g.CoreDll = selectedCore.DllName;
+            g.CoreDisplayName = selectedCore.Name;
+            g.IsCoreInstalled = isInstalled;
+            g.StatusText = isInstalled ? "Готово к запуску" : "Требуется ядро";
+            if (SettingsManager.Current.GameCoreOverrides != null)
+                SettingsManager.Current.GameCoreOverrides.Remove(g.FilePath);
+            updatedCount++;
+        }
+
+        SettingsManager.Save();
+        SavePlaylists();
+        UpdateStats();
+        ShowOsdToast($"Ядро по умолчанию для «{platform}»: {selectedCore.Name} (обновлено игр: {updatedCount})");
+    }
+
+    private void BtnChangeGameCore_Click(object sender, RoutedEventArgs e)
+    {
+        RomItem? item = (sender as FrameworkElement)?.DataContext as RomItem;
+        if (item == null) return;
+
+        _coreModalTargetRom = item;
+        if (TxtCoreModalTitle != null) TxtCoreModalTitle.Text = $"Выбор ядра: {item.Name}";
+        if (TxtCoreModalSubtitle != null) TxtCoreModalSubtitle.Text = $"Платформа: {item.Platform} • Текущее ядро: {item.CoreDisplayName}";
+
+        var cores = CoreManager.GetCompatibleCoresForPlatform(item.Platform, item.Extension);
+        if (LstModalCompatibleCores != null)
+        {
+            LstModalCompatibleCores.ItemsSource = cores;
+            var currentMatch = cores.FirstOrDefault(c => c.DllName.Equals(item.CoreDll, StringComparison.OrdinalIgnoreCase));
+            LstModalCompatibleCores.SelectedItem = currentMatch ?? cores.FirstOrDefault();
+        }
+
+        if (ChkSetCoreDefaultForPlatform != null)
+        {
+            ChkSetCoreDefaultForPlatform.Content = $"Сделать выбранное ядро стандартным по умолчанию для всех игр платформы «{item.Platform}»";
+            ChkSetCoreDefaultForPlatform.IsChecked = false;
+        }
+
+        if (PnlCoreSelectorModal != null)
+            PnlCoreSelectorModal.Visibility = Visibility.Visible;
+    }
+
+    private void BtnCloseCoreSelectorModal_Click(object sender, RoutedEventArgs e)
+    {
+        if (PnlCoreSelectorModal != null)
+            PnlCoreSelectorModal.Visibility = Visibility.Collapsed;
+    }
+
+    private async void BtnConfirmCoreSelectorModal_Click(object sender, RoutedEventArgs e)
+    {
+        if (_coreModalTargetRom == null || LstModalCompatibleCores?.SelectedItem is not CoreInfo selectedCore)
+        {
+            if (PnlCoreSelectorModal != null) PnlCoreSelectorModal.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var rom = _coreModalTargetRom;
+        bool applyToPlatform = ChkSetCoreDefaultForPlatform?.IsChecked == true;
+        if (PnlCoreSelectorModal != null) PnlCoreSelectorModal.Visibility = Visibility.Collapsed;
+
+        if (!CoreManager.IsCoreInstalled(selectedCore.DllName))
+        {
+            ShowOsdToast($"Загрузка выбранного ядра {selectedCore.Name}...");
+            await CoreManager.EnsureCoreDownloadedAsync(selectedCore.DllName);
+        }
+
+        if (applyToPlatform)
+        {
+            await ApplyCoreToPlatformAsync(rom.Platform, selectedCore);
+        }
+
+        SettingsManager.Current.GameCoreOverrides ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        SettingsManager.Current.GameCoreOverrides[rom.FilePath] = $"{selectedCore.DllName}|{selectedCore.Name}";
+        SettingsManager.Save();
+
+        bool installed = CoreManager.IsCoreInstalled(selectedCore.DllName);
+        rom.CoreDll = selectedCore.DllName;
+        rom.CoreDisplayName = selectedCore.Name;
+        rom.IsCoreInstalled = installed;
+        rom.StatusText = installed ? "Готово к запуску" : "Требуется ядро";
+
+        InitPlatformDefaultCoreSelectors();
+        SavePlaylists();
+        UpdateStats();
+        ShowOsdToast($"Для игры «{rom.Name}» установлено ядро: {selectedCore.Name}");
+    }
+
+    private void PopulateQuickMenuCoreSelector()
+    {
+        if (CmbQuickMenuCore == null) return;
+        var rom = _activeRomItem ?? _allGames.FirstOrDefault();
+        if (rom == null)
+        {
+            if (TxtQuickMenuActiveGame != null) TxtQuickMenuActiveGame.Text = "Нет запущенной игры";
+            var fallbackCores = CoreManager.GetCompatibleCoresForPlatform("");
+            CmbQuickMenuCore.ItemsSource = fallbackCores;
+            if (fallbackCores.Count > 0) CmbQuickMenuCore.SelectedIndex = 0;
+            return;
+        }
+
+        if (TxtQuickMenuActiveGame != null)
+            TxtQuickMenuActiveGame.Text = $"{rom.Name} ({rom.Platform})";
+
+        var cores = CoreManager.GetCompatibleCoresForPlatform(rom.Platform, rom.Extension);
+        CmbQuickMenuCore.ItemsSource = cores;
+        var match = cores.FirstOrDefault(c => c.DllName.Equals(rom.CoreDll, StringComparison.OrdinalIgnoreCase));
+        CmbQuickMenuCore.SelectedItem = match ?? cores.FirstOrDefault();
+    }
+
+    private async void BtnApplyQuickMenuCore_Click(object sender, RoutedEventArgs e)
+    {
+        if (CmbQuickMenuCore?.SelectedItem is not CoreInfo selectedCore) return;
+        var rom = _activeRomItem ?? _allGames.FirstOrDefault();
+        if (rom == null) return;
+
+        if (!CoreManager.IsCoreInstalled(selectedCore.DllName))
+        {
+            ShowOsdToast($"Загрузка ядра {selectedCore.Name}...");
+            await CoreManager.EnsureCoreDownloadedAsync(selectedCore.DllName);
+        }
+
+        SettingsManager.Current.GameCoreOverrides ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        SettingsManager.Current.GameCoreOverrides[rom.FilePath] = $"{selectedCore.DllName}|{selectedCore.Name}";
+        SettingsManager.Save();
+
+        rom.CoreDll = selectedCore.DllName;
+        rom.CoreDisplayName = selectedCore.Name;
+        rom.IsCoreInstalled = CoreManager.IsCoreInstalled(selectedCore.DllName);
+
+        if (PnlInGameQuickMenu != null) PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
+        ShowOsdToast($"Ядро изменено на {selectedCore.Name}. Перезапуск игры...");
+        await StartGameInViewportAsync(rom);
     }
 }

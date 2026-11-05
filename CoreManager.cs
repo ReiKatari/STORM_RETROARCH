@@ -30,6 +30,36 @@ public static class CoreManager
 
     private static string ResolveInstallDir()
     {
+        // 1. Prioritize user's primary installation root on N:\STORM RETROARCH
+        string preferredRoot = @"N:\STORM RETROARCH";
+        if (Directory.Exists(preferredRoot) || Directory.Exists(@"N:\"))
+        {
+            try
+            {
+                Directory.CreateDirectory(preferredRoot);
+                Directory.CreateDirectory(Path.Combine(preferredRoot, "cores"));
+                Directory.CreateDirectory(Path.Combine(preferredRoot, "info"));
+                Directory.CreateDirectory(Path.Combine(preferredRoot, "save sync"));
+                Directory.CreateDirectory(Path.Combine(preferredRoot, "overlays", "borders"));
+                Directory.CreateDirectory(Path.Combine(preferredRoot, "cheats"));
+                Directory.CreateDirectory(Path.Combine(preferredRoot, "playlists"));
+                return preferredRoot;
+            }
+            catch { }
+        }
+
+        // 2. Check Registry InstallLocation if set
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\STORM RETROARCH");
+            string? regDir = key?.GetValue("InstallLocation")?.ToString();
+            if (!string.IsNullOrWhiteSpace(regDir) && Directory.Exists(regDir) && !regDir.StartsWith(@"C:\Program Files", StringComparison.OrdinalIgnoreCase))
+            {
+                return regDir;
+            }
+        }
+        catch { }
+
         string? startDir = Path.GetDirectoryName(Environment.ProcessPath);
         if (string.IsNullOrEmpty(startDir)) startDir = AppDomain.CurrentDomain.BaseDirectory;
 
@@ -278,8 +308,210 @@ public static class CoreManager
             return ("Arcade / Neo Geo", "fbneo_libretro.dll", "FBNeo");
         }
 
-        return IdentifyRomByExtension(ext);
+        var baseResult = IdentifyRomByExtension(ext);
+        return ApplyUserCoreOverrides(filePath, baseResult.Platform, baseResult.CoreDll, baseResult.CoreName);
     }
+
+    public static (string Platform, string CoreDll, string CoreName) ApplyUserCoreOverrides(string? filePath, string platform, string defaultDll, string defaultName)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(filePath) &&
+                SettingsManager.Current.GameCoreOverrides != null &&
+                SettingsManager.Current.GameCoreOverrides.TryGetValue(filePath, out string? gameOverride) &&
+                !string.IsNullOrWhiteSpace(gameOverride))
+            {
+                var parts = gameOverride.Split('|');
+                if (parts.Length >= 2) return (platform, parts[0], parts[1]);
+                return (platform, gameOverride, GetCoreDisplayNameByDll(gameOverride));
+            }
+
+            if (!string.IsNullOrEmpty(platform) &&
+                SettingsManager.Current.PlatformDefaultCores != null &&
+                SettingsManager.Current.PlatformDefaultCores.TryGetValue(platform, out string? platOverride) &&
+                !string.IsNullOrWhiteSpace(platOverride))
+            {
+                var parts = platOverride.Split('|');
+                if (parts.Length >= 2) return (platform, parts[0], parts[1]);
+                return (platform, platOverride, GetCoreDisplayNameByDll(platOverride));
+            }
+        }
+        catch { }
+
+        return (platform, defaultDll, defaultName);
+    }
+
+    public static string GetCoreDisplayNameByDll(string dllName)
+    {
+        if (string.IsNullOrWhiteSpace(dllName)) return "Libretro Core";
+        var found = _allCoresCatalog.FirstOrDefault(c => c.DllName.Equals(dllName, StringComparison.OrdinalIgnoreCase));
+        if (found != null) return found.Name;
+
+        return dllName.Replace("_libretro.dll", "", StringComparison.OrdinalIgnoreCase) switch
+        {
+            "fceumm" => "FCEUmm",
+            "mesen" => "Mesen",
+            "nestopia" => "Nestopia UE",
+            "quicknes" => "QuickNES",
+            "snes9x" => "Snes9x",
+            "bsnes" => "bsnes",
+            "mesen-s" => "Mesen-S",
+            "genesis_plus_gx" => "Genesis Plus GX",
+            "picodrive" => "PicoDrive",
+            "blastem" => "BlastEm",
+            "swanstation" => "SwanStation",
+            "mednafen_psx_hw" => "Beetle PSX HW",
+            "pcsx_rearmed" => "PCSX-ReARMed",
+            "dosbox_pure" => "DOSBox-Pure",
+            "dosbox_core" => "DOSBox-Core",
+            "dosbox_svn" => "DOSBox-SVN",
+            "mgba" => "mGBA",
+            "vbam" => "VBA-M",
+            "gpsp" => "gpSP",
+            "gambatte" => "Gambatte",
+            "sameboy" => "SameBoy",
+            "mupen64plus_next" => "Mupen64Plus-Next",
+            "parallel_n64" => "ParaLLEl N64",
+            "melondsds" => "melonDS DS",
+            "desmume" => "DeSmuME",
+            "ppsspp" => "PPSSPP",
+            "flycast" => "Flycast",
+            "mednafen_saturn" => "Beetle Saturn",
+            "yabause" => "Yabause",
+            "fbneo" => "FinalBurn Neo",
+            "mame2003_plus" => "MAME 2003-Plus",
+            "dolphin" => "Dolphin",
+            "citra" => "Citra",
+            "pcsx2" => "LRPS2 (PCSX2)",
+            _ => dllName.Replace("_libretro.dll", "", StringComparison.OrdinalIgnoreCase)
+        };
+    }
+
+    public static List<CoreInfo> GetCompatibleCoresForPlatform(string platform, string ext = "")
+    {
+        var list = new List<CoreInfo>();
+        string p = (platform ?? "").Trim();
+
+        void AddCandidate(string name, string dll, string desc)
+        {
+            if (!list.Any(c => c.DllName.Equals(dll, StringComparison.OrdinalIgnoreCase)))
+            {
+                list.Add(new CoreInfo(name, string.IsNullOrEmpty(p) ? "Универсальная платформа" : p, dll, desc));
+            }
+        }
+
+        if (p.Contains("Nintendo Entertainment System", StringComparison.OrdinalIgnoreCase) || p.Equals("NES", StringComparison.OrdinalIgnoreCase) || ext is ".nes" or ".fds" or ".unf")
+        {
+            AddCandidate("FCEUmm", "fceumm_libretro.dll", "Стандартное быстрое и совместимое ядро NES / Famicom / Dendy (рекомендуется)");
+            AddCandidate("Mesen", "mesen_libretro.dll", "Сверхточное эталонное ядро NES с поддержкой HD-паков");
+            AddCandidate("Nestopia UE", "nestopia_libretro.dll", "Классическое точное ядро NES с гибкой настройкой палитр");
+            AddCandidate("QuickNES", "quicknes_libretro.dll", "Ультра-быстрое ядро NES с минимальной нагрузкой на процессор");
+        }
+        else if (p.Contains("MS-DOS", StringComparison.OrdinalIgnoreCase) || p.Contains("DOS", StringComparison.OrdinalIgnoreCase) || ext is ".dosz" or ".exe" or ".com" or ".bat")
+        {
+            AddCandidate("DOSBox-Pure", "dosbox_pure_libretro.dll", "Автозапуск игр из ZIP-архивов, образов CD/ISO и дискет без командной строки (рекомендуется)");
+            AddCandidate("DOSBox-Core", "dosbox_core_libretro.dll", "Продвинутое ядро DOSBox с поддержкой MT-32, Voodoo 3dfx и тонкой настройкой ЦП");
+            AddCandidate("DOSBox-SVN", "dosbox_svn_libretro.dll", "Классическая сборка DOSBox SVN для старых программ и демосцен");
+        }
+        else if (p.Contains("Super Nintendo", StringComparison.OrdinalIgnoreCase) || p.Contains("SNES", StringComparison.OrdinalIgnoreCase) || ext is ".sfc" or ".smc")
+        {
+            AddCandidate("Snes9x", "snes9x_libretro.dll", "Идеальный баланс скорости и совместимости для всех игр Super Nintendo (рекомендуется)");
+            AddCandidate("bsnes", "bsnes_libretro.dll", "Побитовая аппаратная точность Super Nintendo и чипов Super FX / SA-1");
+            AddCandidate("Mesen-S", "mesen-s_libretro.dll", "Высокоточный эмулятор SNES и Super Game Boy");
+        }
+        else if (p.Contains("Genesis", StringComparison.OrdinalIgnoreCase) || p.Contains("Mega Drive", StringComparison.OrdinalIgnoreCase) || p.Contains("Master System", StringComparison.OrdinalIgnoreCase) || ext is ".md" or ".gen" or ".smd" or ".sms" or ".gg")
+        {
+            AddCandidate("Genesis Plus GX", "genesis_plus_gx_libretro.dll", "Эталонная точность Sega Mega Drive, Sega CD, Master System и Game Gear (рекомендуется)");
+            AddCandidate("PicoDrive", "picodrive_libretro.dll", "Высокоскоростное ядро с полной поддержкой Sega 32X и Mega Drive");
+            AddCandidate("BlastEm", "blastem_libretro.dll", "Цикло-точный низкоуровневый эмулятор Sega Mega Drive / Genesis");
+        }
+        else if (p.Contains("PlayStation 1", StringComparison.OrdinalIgnoreCase) || p.Equals("Sony PlayStation", StringComparison.OrdinalIgnoreCase) || ext is ".cue" or ".pbp")
+        {
+            AddCandidate("SwanStation", "swanstation_libretro.dll", "Аппаратный рендеринг Vulkan/D3D11, PGXP-коррекция геометрии и 4K-апскейл PS1 (рекомендуется)");
+            AddCandidate("Beetle PSX HW", "mednafen_psx_hw_libretro.dll", "Высокоточное ядро Mednafen PSX с аппаратным ускорением GPU");
+            AddCandidate("PCSX-ReARMed", "pcsx_rearmed_libretro.dll", "Быстрое классическое ядро PlayStation 1 с высокой совместимостью");
+        }
+        else if (p.Contains("Game Boy Advance", StringComparison.OrdinalIgnoreCase) || p.Equals("GBA", StringComparison.OrdinalIgnoreCase) || ext == ".gba")
+        {
+            AddCandidate("mGBA", "mgba_libretro.dll", "Лучшее современное ядро Game Boy Advance с высокой точностью и скоростью (рекомендуется)");
+            AddCandidate("VBA-M", "vbam_libretro.dll", "Классический эмулятор VisualBoyAdvance-M с фильтрами и читами");
+            AddCandidate("gpSP", "gpsp_libretro.dll", "Лёгкое и сверхбыстрое ядро Game Boy Advance");
+        }
+        else if (p.Contains("Game Boy", StringComparison.OrdinalIgnoreCase) || ext is ".gb" or ".gbc")
+        {
+            AddCandidate("Gambatte", "gambatte_libretro.dll", "Точный эмулятор оригинального Game Boy и Game Boy Color с палитрами (рекомендуется)");
+            AddCandidate("SameBoy", "sameboy_libretro.dll", "Эталонная точность звука и графики Game Boy / Color / Super Game Boy");
+            AddCandidate("mGBA", "mgba_libretro.dll", "Универсальное ядро с поддержкой картриджей GB / GBC / GBA");
+        }
+        else if (p.Contains("Nintendo 64", StringComparison.OrdinalIgnoreCase) || ext is ".n64" or ".z64" or ".v64")
+        {
+            AddCandidate("Mupen64Plus-Next", "mupen64plus_next_libretro.dll", "Современный эмулятор Nintendo 64 с плагинами GLideN64 и ParaLLEl-RDP (рекомендуется)");
+            AddCandidate("ParaLLEl N64", "parallel_n64_libretro.dll", "Высокоскоростное ядро Nintendo 64 с поддержкой Vulkan");
+        }
+        else if (p.Contains("Nintendo DS", StringComparison.OrdinalIgnoreCase) || ext is ".nds" or ".dsi")
+        {
+            AddCandidate("melonDS DS", "melondsds_libretro.dll", "Современное точное ядро Nintendo DS / DSi с поддержкой микрофона и сети (рекомендуется)");
+            AddCandidate("DeSmuME", "desmume_libretro.dll", "Классическое ядро Nintendo DS с повышением внутреннего 3D-разрешения");
+        }
+        else if (p.Contains("PlayStation Portable", StringComparison.OrdinalIgnoreCase) || p.Contains("PSP", StringComparison.OrdinalIgnoreCase) || ext == ".cso")
+        {
+            AddCandidate("PPSSPP", "ppsspp_libretro.dll", "Эталонный эмулятор Sony PSP с поддержкой 4K-рендеринга и 60 FPS (рекомендуется)");
+        }
+        else if (p.Contains("Dreamcast", StringComparison.OrdinalIgnoreCase) || ext is ".cdi" or ".gdi")
+        {
+            AddCandidate("Flycast", "flycast_libretro.dll", "Полноценная эмуляция Sega Dreamcast, NAOMI и Atomiswave (рекомендуется)");
+        }
+        else if (p.Contains("Saturn", StringComparison.OrdinalIgnoreCase) || ext == ".sat")
+        {
+            AddCandidate("Beetle Saturn", "mednafen_saturn_libretro.dll", "Наиболее точное ядро Sega Saturn (рекомендуется)");
+            AddCandidate("Yabause", "yabause_libretro.dll", "Альтернативное ядро Sega Saturn с аппаратным ускорением");
+        }
+        else if (p.Contains("Arcade", StringComparison.OrdinalIgnoreCase) || p.Contains("Neo Geo", StringComparison.OrdinalIgnoreCase))
+        {
+            AddCandidate("FinalBurn Neo", "fbneo_libretro.dll", "Лучшее ядро для аркадных автоматов CPS-1/2/3, Neo Geo и Konami (рекомендуется)");
+            AddCandidate("MAME 2003-Plus", "mame2003_plus_libretro.dll", "Классический универсальный эмулятор аркадных автоматов MAME");
+        }
+
+        // Also match any installed or catalog cores matching platform keywords
+        foreach (var c in _allCoresCatalog)
+        {
+            if (!string.IsNullOrEmpty(p) && c.Platform.Contains(p.Split(' ')[0], StringComparison.OrdinalIgnoreCase))
+            {
+                AddCandidate(c.Name, c.DllName, c.Description);
+            }
+        }
+
+        // Fallback so list is never empty
+        if (list.Count == 0)
+        {
+            AddCandidate("FCEUmm", "fceumm_libretro.dll", "Nintendo Entertainment System (NES / Dendy)");
+            AddCandidate("DOSBox-Pure", "dosbox_pure_libretro.dll", "MS-DOS PC (Автозапуск архивов и образов)");
+            AddCandidate("Snes9x", "snes9x_libretro.dll", "Super Nintendo (SNES)");
+            AddCandidate("Genesis Plus GX", "genesis_plus_gx_libretro.dll", "Sega Mega Drive / Genesis");
+            AddCandidate("SwanStation", "swanstation_libretro.dll", "Sony PlayStation 1");
+            AddCandidate("mGBA", "mgba_libretro.dll", "Game Boy Advance");
+            AddCandidate("FinalBurn Neo", "fbneo_libretro.dll", "Аркадные автоматы (Arcade / Neo Geo)");
+        }
+
+        return list;
+    }
+
+    public static List<string> GetStandardPlatformsList() => new()
+    {
+        "Nintendo Entertainment System",
+        "MS-DOS PC",
+        "Super Nintendo (SNES)",
+        "Sega Genesis / Mega Drive",
+        "Sony PlayStation 1",
+        "Game Boy Advance",
+        "Game Boy / Color",
+        "Nintendo 64",
+        "Nintendo DS / DSi",
+        "Sony PlayStation Portable",
+        "Sega Dreamcast",
+        "Sega Saturn",
+        "Arcade Classics"
+    };
 
     public static (string Platform, string CoreDll, string CoreName) IdentifyRomByExtension(string ext)
     {
