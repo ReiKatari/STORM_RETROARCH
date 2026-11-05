@@ -151,6 +151,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private const int DWMWA_CAPTION_COLOR = 35;
     private const int WM_NCCALCSIZE = 0x0083;
 
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool BringWindowToTop(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern void SwitchToThisWindow(IntPtr hWnd, bool fAltTab);
+
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool ChangeWindowMessageFilterEx(IntPtr hWnd, uint msg, uint action, IntPtr pChangeFilterStruct);
 
@@ -262,6 +271,37 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
+    private void ForceForegroundWindow(IntPtr hwnd)
+    {
+        try
+        {
+            if (WindowState == WindowState.Minimized)
+                WindowState = WindowState.Normal;
+            Show();
+            Topmost = true;
+            Activate();
+            Focus();
+            if (hwnd != IntPtr.Zero)
+            {
+                BringWindowToTop(hwnd);
+                SetForegroundWindow(hwnd);
+                SwitchToThisWindow(hwnd, true);
+            }
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    Topmost = false;
+                    Activate();
+                    Focus();
+                    if (hwnd != IntPtr.Zero) SetForegroundWindow(hwnd);
+                }
+                catch { }
+            }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        }
+        catch { }
+    }
+
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
         try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "run.log"), "Loaded start: " + string.Join(" ", Environment.GetCommandLineArgs()) + "\n"); } catch { }
@@ -359,6 +399,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ChkToolbarAutoUpdates.IsChecked = SettingsManager.Current.CheckUpdatesOnStartup;
 
         _isLoaded = true;
+
+        ForceForegroundWindow(hwnd);
 
         // Check for updates if enabled
         if (SettingsManager.Current.CheckUpdatesOnStartup)

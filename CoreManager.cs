@@ -231,9 +231,23 @@ public static class CoreManager
         // 1. Smart ZIP inspection
         if (ext == ".zip" && File.Exists(filePath))
         {
+            if (filePath.Contains("MS-DOS", StringComparison.OrdinalIgnoreCase) ||
+                filePath.Contains("(DOS-", StringComparison.OrdinalIgnoreCase) ||
+                filePath.Contains(" DOS-", StringComparison.OrdinalIgnoreCase))
+            {
+                return ("MS-DOS PC", "dosbox_pure_libretro.dll", "DOSBox-Pure");
+            }
+
             try
             {
                 using var archive = ZipFile.OpenRead(filePath);
+
+                // First check if archive contains any MS-DOS executable/batch/image
+                if (archive.Entries.Any(e => !string.IsNullOrEmpty(e.Name) &&
+                    (Path.GetExtension(e.Name).ToLowerInvariant() is ".exe" or ".com" or ".bat" or ".dosz")))
+                {
+                    return ("MS-DOS PC", "dosbox_pure_libretro.dll", "DOSBox-Pure");
+                }
                 
                 // Check if any entry inside has a known console ROM extension
                 foreach (var entry in archive.Entries)

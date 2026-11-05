@@ -1102,20 +1102,13 @@ namespace StormRetroArch.Installer
                     {
                         Process.Start(new ProcessStartInfo
                         {
-                            FileName = "explorer.exe",
-                            Arguments = $"\"{targetExe}\"",
-                            UseShellExecute = true
-                        });
-                    }
-                    catch
-                    {
-                        Process.Start(new ProcessStartInfo
-                        {
                             FileName = targetExe,
                             WorkingDirectory = targetDir,
                             UseShellExecute = true
                         });
+                        await Task.Delay(400);
                     }
+                    catch { }
                 }
 
                 this.Close();
@@ -1199,35 +1192,46 @@ namespace StormRetroArch.Installer
             catch { }
         }
 
+        private static void CreateShortcutFile(object shell, Type shellType, string lnkPath, string targetDir, string targetExe, string targetIco)
+        {
+            try
+            {
+                string? dir = Path.GetDirectoryName(lnkPath);
+                if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return;
+                object? sc = shellType.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { lnkPath });
+                if (sc == null) return;
+                Type scType = sc.GetType();
+                scType.InvokeMember("TargetPath", BindingFlags.SetProperty, null, sc, new object[] { targetExe });
+                scType.InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, sc, new object[] { targetDir });
+                scType.InvokeMember("IconLocation", BindingFlags.SetProperty, null, sc, new object[] { (File.Exists(targetIco) ? targetIco : targetExe) + ",0" });
+                scType.InvokeMember("Description", BindingFlags.SetProperty, null, sc, new object[] { $"{AppDisplayName} {AppVersion}" });
+                scType.InvokeMember("Save", BindingFlags.InvokeMethod, null, sc, null);
+            }
+            catch { }
+        }
+
         private static void CreateShortcuts(string targetDir, string targetExe, string targetIco, bool desktop, bool startMenu)
         {
             try
             {
                 Type? t = Type.GetTypeFromProgID("WScript.Shell");
                 if (t == null) return;
-                dynamic? shell = Activator.CreateInstance(t);
+                object? shell = Activator.CreateInstance(t);
                 if (shell == null) return;
 
                 if (desktop)
                 {
-                    string deskLnk = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), $"{AppDisplayName}.lnk");
-                    dynamic sc = shell.CreateShortcut(deskLnk);
-                    sc.TargetPath = targetExe;
-                    sc.WorkingDirectory = targetDir;
-                    sc.IconLocation = (File.Exists(targetIco) ? targetIco : targetExe) + ",0";
-                    sc.Description = $"{AppDisplayName} {AppVersion}";
-                    sc.Save();
+                    string desk1 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), $"{AppDisplayName}.lnk");
+                    CreateShortcutFile(shell, t, desk1, targetDir, targetExe, targetIco);
+                    string desk2 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Desktop", $"{AppDisplayName}.lnk");
+                    if (!desk2.Equals(desk1, StringComparison.OrdinalIgnoreCase))
+                        CreateShortcutFile(shell, t, desk2, targetDir, targetExe, targetIco);
                 }
 
                 if (startMenu)
                 {
                     string menuLnk = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), $"{AppDisplayName}.lnk");
-                    dynamic sc = shell.CreateShortcut(menuLnk);
-                    sc.TargetPath = targetExe;
-                    sc.WorkingDirectory = targetDir;
-                    sc.IconLocation = (File.Exists(targetIco) ? targetIco : targetExe) + ",0";
-                    sc.Description = $"{AppDisplayName} {AppVersion}";
-                    sc.Save();
+                    CreateShortcutFile(shell, t, menuLnk, targetDir, targetExe, targetIco);
                 }
             }
             catch { }
