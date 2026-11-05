@@ -71,7 +71,7 @@ public static class ShowcaseGenerator
             dc.DrawRoundedRectangle(headerBg, headerPen, new Rect(40, 40, width - 80, 100), 8, 8);
 
             // Logo & Title
-            DrawText(dc, "⚡ STORM RETROARCH", 60, 52, 15, true, Color.FromRgb(167, 139, 250));
+            DrawText(dc, "STORM RETROARCH", 60, 52, 15, true, Color.FromRgb(167, 139, 250));
             DrawText(dc, "ЭТАЛОННЫЙ ВИЗУАЛЬНЫЙ ПАСПОРТ ЛОКАЛИЗАЦИИ И ЭМУЛЯЦИИ", 240, 53, 11, false, Color.FromRgb(156, 163, 175));
 
             string displayTitle = string.IsNullOrWhiteSpace(gameTitle) ? "CHRONO TRIGGER [MOD - M. RUS]" : gameTitle.ToUpperInvariant();
@@ -79,7 +79,7 @@ public static class ShowcaseGenerator
 
             // Badges on Header Right
             double badgeRight = width - 60;
-            badgeRight = DrawBadge(dc, "✓ 0% КАТ-ОФФ ШРИФТА", badgeRight, 75, Color.FromRgb(16, 185, 129));
+            badgeRight = DrawBadge(dc, "0% КАТ-ОФФ ШРИФТА", badgeRight, 75, Color.FromRgb(16, 185, 129));
             badgeRight = DrawBadge(dc, $"ЯДРО: {coreName.ToUpperInvariant()}", badgeRight, 75, Color.FromRgb(139, 92, 246));
             badgeRight = DrawBadge(dc, $"ПЛАТФОРМА: {platform.ToUpperInvariant()}", badgeRight, 75, Color.FromRgb(59, 130, 246));
 

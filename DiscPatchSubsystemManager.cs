@@ -21,7 +21,6 @@ public static class DiscPatchSubsystemManager
         {
             if (File.Exists(disc))
             {
-                // Write relative file name if in same directory, or full path
                 string rel = Path.GetRelativePath(outputDirectory, disc);
                 sb.AppendLine(rel);
             }
@@ -31,10 +30,63 @@ public static class DiscPatchSubsystemManager
         return m3uPath;
     }
 
-    // Disc Eject / Swap commands via UDP
-    public static void EjectOrInsertDisc() => UdpCommandBridge.DiskEjectToggle();
-    public static void NextDisc() => UdpCommandBridge.DiskNext();
-    public static void PreviousDisc() => UdpCommandBridge.DiskPrev();
+    // Disc Eject / Swap commands via in-app engine or UDP
+    public static void EjectOrInsertDisc()
+    {
+        if (NativeLibretroHost.Current.IsRunning)
+        {
+            bool ejected = NativeLibretroHost.Current.ToggleDiscEject();
+            System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+            {
+                if (System.Windows.Application.Current.MainWindow is MainWindow mw)
+                {
+                    mw.ShowOsdToast(ejected ? "Дисковод: Диск извлечен [EJECT]" : "Дисковод: Диск вставлен [INSERT]");
+                }
+            });
+        }
+        else
+        {
+            UdpCommandBridge.DiskEjectToggle();
+        }
+    }
+
+    public static void NextDisc()
+    {
+        if (NativeLibretroHost.Current.IsRunning)
+        {
+            int idx = NativeLibretroHost.Current.CycleNextDisc();
+            System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+            {
+                if (System.Windows.Application.Current.MainWindow is MainWindow mw)
+                {
+                    mw.ShowOsdToast($"Дисковод: Переключено на Диск #{idx + 1}");
+                }
+            });
+        }
+        else
+        {
+            UdpCommandBridge.DiskNext();
+        }
+    }
+
+    public static void PreviousDisc()
+    {
+        if (NativeLibretroHost.Current.IsRunning)
+        {
+            int idx = NativeLibretroHost.Current.CyclePrevDisc();
+            System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+            {
+                if (System.Windows.Application.Current.MainWindow is MainWindow mw)
+                {
+                    mw.ShowOsdToast($"Дисковод: Переключено на Диск #{idx + 1}");
+                }
+            });
+        }
+        else
+        {
+            UdpCommandBridge.DiskPrev();
+        }
+    }
 
     // ==================== SOFT & HARD PATCHING (.IPS, .BPS, .UPS) ====================
 
@@ -121,28 +173,51 @@ public static class DiscPatchSubsystemManager
     public static void LaunchSuperGameBoy(string snesRomPath, string gbRomPath, Action<string>? onError = null)
     {
         string? exe = CoreManager.FindRetroArchExecutable();
-        if (string.IsNullOrEmpty(exe))
+        string coreDll = Path.Combine(CoreManager.CoresDir, "snes9x_libretro.dll");
+
+        if (!string.IsNullOrEmpty(exe) && File.Exists(exe))
         {
-            onError?.Invoke("Исполняемый файл retroarch.exe не найден");
-            return;
+            string args = $"-L \"{coreDll}\" --subsystem sgb \"{snesRomPath}\" \"{gbRomPath}\"";
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = exe,
+                    Arguments = args,
+                    WorkingDirectory = CoreManager.AppDir,
+                    UseShellExecute = false
+                });
+                return;
+            }
+            catch (Exception ex)
+            {
+                onError?.Invoke($"Ошибка запуска Super Game Boy: {ex.Message}");
+                return;
+            }
         }
 
-        string coreDll = Path.Combine(CoreManager.CoresDir, "snes9x_libretro.dll");
-        string args = $"-L \"{coreDll}\" --subsystem sgb \"{snesRomPath}\" \"{gbRomPath}\"";
-
+        // 100% In-App fallback: launch via native engine
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            var item = new RomItem
             {
-                FileName = exe,
-                Arguments = args,
-                WorkingDirectory = CoreManager.AppDir,
-                UseShellExecute = false
+                Name = Path.GetFileNameWithoutExtension(gbRomPath) + " [SGB]",
+                FilePath = gbRomPath,
+                Platform = "Game Boy / Color",
+                CoreDll = "snes9x_libretro.dll",
+                CoreDisplayName = "Snes9x (Super Game Boy Subsystem)"
+            };
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                if (System.Windows.Application.Current.MainWindow is MainWindow mw)
+                {
+                    _ = mw.StartGameInViewportAsync(item);
+                }
             });
         }
         catch (Exception ex)
         {
-            onError?.Invoke($"Ошибка запуска Super Game Boy: {ex.Message}");
+            onError?.Invoke($"Запуск Super Game Boy: {ex.Message}");
         }
     }
 }

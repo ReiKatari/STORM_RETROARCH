@@ -26,12 +26,12 @@ public class BoolToStarConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        return value is true ? "★" : "☆";
+        return value is true ? "[+] " : "[ ] ";
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        return value?.ToString() == "★";
+        return value?.ToString() == "[+] ";
     }
 }
 
@@ -53,6 +53,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string _capturingButtonName = "";
     private Border? _activePadButtonBorder;
     private DateTime _lastDropTime = DateTime.MinValue;
+    private Image NativeGameImage => ImgGameViewport;
+    private Border GameViewportContainer => GameViewportHostBorder;
 
     public static MainWindow? Instance { get; private set; }
 
@@ -752,19 +754,31 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        bool isDosGame = NativeLibretroHost.Current.IsRunning &&
+            (NativeLibretroHost.Current.CurrentCoreName?.Contains("dosbox", StringComparison.OrdinalIgnoreCase) == true);
+
         if (Keyboard.FocusedElement is not TextBox && ViewGamePlayer != null && ViewGamePlayer.Visibility == Visibility.Visible)
         {
-            if (actualKey == Key.P)
+            if (!isDosGame || (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Alt)) != 0)
             {
-                BtnGamePause_Click(sender, e);
-                e.Handled = true;
-                return;
-            }
-            if (actualKey == Key.M)
-            {
-                BtnGameMute_Click(sender, e);
-                e.Handled = true;
-                return;
+                if (actualKey == Key.P)
+                {
+                    BtnGamePause_Click(sender, e);
+                    e.Handled = true;
+                    return;
+                }
+                if (actualKey == Key.M)
+                {
+                    BtnGameMute_Click(sender, e);
+                    e.Handled = true;
+                    return;
+                }
+                if (actualKey == Key.B)
+                {
+                    BtnGameBezel_Click(sender, e);
+                    e.Handled = true;
+                    return;
+                }
             }
         }
     }
@@ -1079,8 +1093,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         DynamicCardWidth = _currentViewMode switch
         {
             ViewDisplayMode.Bento => 380,   // ⊞ Плитки: 2-3 колонки
-            ViewDisplayMode.Ozone => 1100,  // ☰ Список: 1 широкая строка
-            ViewDisplayMode.Compact => 210, // ❖ Иконки: 4-5 компактных колонок
+            ViewDisplayMode.Ozone => 1100,  // Список: 1 широкая строка
+            ViewDisplayMode.Compact => 210, // Иконки: 4-5 компактных колонок
             _ => 380
         };
     }
@@ -1488,18 +1502,27 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void ApplyGamesFilter()
     {
-        string search = TxtSearch.Text.Trim().ToLowerInvariant();
+        string libSearch = TxtLibrarySearch?.Text?.Trim().ToLowerInvariant() ?? "";
+        string globalSearch = TxtSearch?.Text?.Trim().ToLowerInvariant() ?? "";
+        string search = !string.IsNullOrEmpty(libSearch) ? libSearch : globalSearch;
+
         string platform = CmbPlatformFilter?.SelectedItem?.ToString() ?? "Все платформы";
         string status = CmbStatusFilter?.SelectedItem?.ToString() ?? "Все статусы";
 
         _filteredGames.Clear();
         foreach (var g in _allGames)
         {
-            if (!string.IsNullOrEmpty(search) &&
-                !g.Name.ToLowerInvariant().Contains(search) &&
-                !g.Platform.ToLowerInvariant().Contains(search) &&
-                !g.CoreDisplayName.ToLowerInvariant().Contains(search))
-                continue;
+            if (!string.IsNullOrEmpty(search))
+            {
+                bool match = (g.Name?.ToLowerInvariant().Contains(search) == true) ||
+                             (g.Platform?.ToLowerInvariant().Contains(search) == true) ||
+                             (g.CoreDisplayName?.ToLowerInvariant().Contains(search) == true) ||
+                             (g.Year?.ToLowerInvariant().Contains(search) == true) ||
+                             (g.Region?.ToLowerInvariant().Contains(search) == true) ||
+                             (g.LanguageBadge?.ToLowerInvariant().Contains(search) == true) ||
+                             (g.VersionBadge?.ToLowerInvariant().Contains(search) == true);
+                if (!match) continue;
+            }
 
             if (platform != "Все платформы" && g.Platform != platform)
                 continue;
@@ -1718,7 +1741,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             bool ok = await CoreManager.DownloadCoreAsync(core.DllName);
             b.IsEnabled = true;
-            b.Content = ok ? "Установлено ✓" : "Ошибка";
+            b.Content = ok ? "Установлено" : "Ошибка";
             TxtFooterStatus.Text = ok ? $"Ядро {core.Name} готово к работе!" : "Ошибка загрузки ядра.";
 
             if (ok)
@@ -2578,6 +2601,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         CheatManager.SaveCht(_selectedCheatFile.FilePath, _selectedCheats);
         _selectedCheatFile.CheatCount = _selectedCheats.Count;
         _selectedCheatFile.Cheats = new List<CheatItem>(_selectedCheats);
+        if (NativeLibretroHost.Current.IsRunning && _selectedCheats != null)
+        {
+            int applied = NativeLibretroHost.Current.ApplyCheats(_selectedCheats);
+            ShowOsdToast($"Применено активных чит-кодов: {applied}");
+        }
         ShowNotification($"Чит-код файл успешно сохранён!\n{Path.GetFileName(_selectedCheatFile.FilePath)}");
     }
 
@@ -2732,7 +2760,154 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     // ==================== SCREEN BEZELS & OVERLAYS ====================
 
-    private void LoadBezels()
+        // ==================== MANUAL BEZEL CREATOR & VIEWPORT OVERLAY ====================
+
+    private void ApplyActiveBezelToViewport()
+    {
+        var active = BezelManager.GetActiveBezel();
+        if (active != null && !string.IsNullOrEmpty(active.ImagePath) && File.Exists(active.ImagePath))
+        {
+            var bmp = BezelManager.LoadPreviewImage(active.ImagePath);
+            if (bmp != null)
+            {
+                ImgGameBezelOverlay.Source = bmp;
+                string opStr = RetroArchConfigManager.GetString("input_overlay_opacity", "1.000000");
+                if (float.TryParse(opStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float op))
+                {
+                    ImgGameBezelOverlay.Opacity = Math.Clamp(op, 0.1f, 1.0f);
+                }
+                else
+                {
+                    ImgGameBezelOverlay.Opacity = 1.0;
+                }
+                ImgGameBezelOverlay.Visibility = Visibility.Visible;
+                ImgGameViewport.Margin = new Thickness(0);
+                return;
+            }
+        }
+
+        ImgGameBezelOverlay.Visibility = Visibility.Collapsed;
+        ImgGameViewport.Margin = new Thickness(0);
+    }
+
+    private void BtnGameBezel_Click(object sender, RoutedEventArgs e)
+    {
+        var bezels = BezelManager.ScanBezels();
+        if (bezels.Count == 0)
+        {
+            ShowOsdToast("Нет доступных рамок Bezel");
+            return;
+        }
+
+        var active = BezelManager.GetActiveBezel();
+        if (active == null)
+        {
+            BezelManager.ApplyBezel(bezels[0]);
+            ShowOsdToast($"Рамка: {bezels[0].Name} [ВКЛ]");
+        }
+        else
+        {
+            int currentIndex = bezels.FindIndex(b => b.CfgPath.Equals(active.CfgPath, StringComparison.OrdinalIgnoreCase));
+            if (currentIndex >= 0 && currentIndex < bezels.Count - 1)
+            {
+                var next = bezels[currentIndex + 1];
+                BezelManager.ApplyBezel(next);
+                ShowOsdToast($"Рамка: {next.Name} [ВКЛ]");
+            }
+            else
+            {
+                BezelManager.DisableBezel();
+                ShowOsdToast("Рамка Bezel: [ВЫКЛ]");
+            }
+        }
+
+        ApplyActiveBezelToViewport();
+        LoadBezels();
+    }
+
+    private void BtnToggleManualBezelPanel_Click(object sender, RoutedEventArgs e)
+    {
+        if (PnlManualBezelCreator == null) return;
+        PnlManualBezelCreator.Visibility = PnlManualBezelCreator.Visibility == Visibility.Visible
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+    }
+
+    private void BtnBrowseManualBezelImage_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter = "Изображения рамки (*.png;*.jpg;*.jpeg;*.webp;*.bmp)|*.png;*.jpg;*.jpeg;*.webp;*.bmp|Все файлы (*.*)|*.*",
+            Title = "Выберите фоновое изображение для Bezel"
+        };
+        if (dlg.ShowDialog() == true)
+        {
+            TxtManualBezelFile.Text = dlg.FileName;
+            if (string.IsNullOrWhiteSpace(TxtManualBezelName.Text))
+            {
+                TxtManualBezelName.Text = Path.GetFileNameWithoutExtension(dlg.FileName);
+            }
+        }
+    }
+
+    private void BtnCreateManualBezel_Click(object sender, RoutedEventArgs e)
+    {
+        string name = TxtManualBezelName.Text.Trim();
+        string platform = (CmbManualBezelPlatform.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Custom Bezel";
+        string cutout = (CmbManualBezelCutout.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "4:3";
+        string accent = (CmbManualBezelAccent.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "#A855F7";
+        string? sourceFile = string.IsNullOrWhiteSpace(TxtManualBezelFile.Text) ? null : TxtManualBezelFile.Text.Trim();
+
+        var result = BezelManager.CreateOrImportManualBezel(name, platform, cutout, accent, sourceFile);
+        ShowNotification("STORM RETROARCH", result.Message);
+        if (result.Success)
+        {
+            LoadBezels();
+            ApplyActiveBezelToViewport();
+            if (PnlManualBezelCreator != null) PnlManualBezelCreator.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void BtnDeleteBezel_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: BezelPresetItem item }) return;
+        BezelManager.DeleteBezel(item);
+        LoadBezels();
+        ApplyActiveBezelToViewport();
+        ShowNotification("STORM RETROARCH", $"Рамка «{item.Name}» удалена.");
+    }
+
+    private void ViewBezels_Drop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            var files = (string[]?)e.Data.GetData(DataFormats.FileDrop);
+            if (files != null && files.Length > 0)
+            {
+                string file = files[0];
+                string ext = Path.GetExtension(file).ToLowerInvariant();
+                if (ext is ".png" or ".jpg" or ".jpeg" or ".webp" or ".bmp" or ".cfg")
+                {
+                    var res = BezelManager.CreateOrImportManualBezel(
+                        Path.GetFileNameWithoutExtension(file),
+                        "Custom Bezel",
+                        "Raw",
+                        "#38BDF8",
+                        file);
+                    ShowNotification("STORM RETROARCH", res.Message);
+                    LoadBezels();
+                    ApplyActiveBezelToViewport();
+                }
+            }
+        }
+    }
+
+    private void TxtLibrarySearch_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        ApplyGamesFilter();
+    }
+
+private void LoadBezels()
     {
         var bezels = BezelManager.ScanBezels();
         _allBezels.Clear();
@@ -2791,7 +2966,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         BezelManager.ApplyBezel(item);
         foreach (var b in _allBezels) b.IsActive = (b == item);
-
+        ApplyActiveBezelToViewport();
         ShowNotification($"Рамка «{item.Name}» активирована! Разрешение viewport настроено под 4:3.");
     }
 
@@ -2799,6 +2974,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         BezelManager.DisableBezel();
         foreach (var b in _allBezels) b.IsActive = false;
+        ApplyActiveBezelToViewport();
         ShowNotification("Рамка Bezel отключена (чистый экран без оверлея).");
     }
 
@@ -2832,6 +3008,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             float.TryParse(tagStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float op))
         {
             BezelManager.SetOpacity(op);
+            ApplyActiveBezelToViewport();
         }
     }
 
@@ -2888,6 +3065,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (_selectedCoreProfile == null) return;
         CoreOptionsAndOverridesManager.SaveCoreOptionsToDisk(_selectedCoreProfile.CoreName, _currentCoreOptions);
+        NativeLibretroHost.Current.NotifyCoreOptionsUpdated();
+        ShowOsdToast($"Опции ядра {_selectedCoreProfile.CoreName} обновлены в памяти");
         ShowNotification("STORM RETROARCH", $"Опции ядра {_selectedCoreProfile.CoreName} успешно сохранены в config/{_selectedCoreProfile.CoreName}/{_selectedCoreProfile.CoreName}.opt!");
     }
 
@@ -3358,7 +3537,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 Width = 440
             };
             var st = new StackPanel();
-            st.Children.Add(new TextBlock { Text = "💾 Папка сейвов пуста или синхронизирована", FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("ThemeTextPrimary"), FontSize = 14, Margin = new Thickness(0, 0, 0, 6) });
+            st.Children.Add(new TextBlock { Text = "Папка сейвов пуста или синхронизирована", FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("ThemeTextPrimary"), FontSize = 14, Margin = new Thickness(0, 0, 0, 6) });
             st.Children.Add(new TextBlock { Text = $"Файлы сохранений (.srm) и стейты (.state) автоматически появятся здесь после запуска любой игры в RetroArch.\nЛокальная папка: {SaveSyncManager.LocalSavesDir}", Foreground = (Brush)FindResource("ThemeTextSecondary"), TextWrapping = TextWrapping.Wrap, FontSize = 12 });
             emptyCard.Child = st;
             PanelSaveSyncTiles.Children.Add(emptyCard);
@@ -3457,7 +3636,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 Width = 180
             };
             var cSp = new StackPanel();
-            cSp.Children.Add(new TextBlock { Text = "💾 " + item.GameName, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("ThemeTextPrimary"), FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis });
+            cSp.Children.Add(new TextBlock { Text = item.GameName, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("ThemeTextPrimary"), FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis });
             cSp.Children.Add(new TextBlock { Text = item.StatusText, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(item.StatusColor)), FontSize = 10, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 4, 0, 0) });
             comp.Child = cSp;
             PanelSaveSyncCompact.Children.Add(comp);
@@ -3517,12 +3696,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         AiWalkthroughManager.Config.EndpointUrl = TxtAiEndpoint.Text.Trim();
         AiWalkthroughManager.Config.ModelName = TxtAiModel.Text.Trim();
 
-        TxtAiResult.Text = "⏳ Выполняется анализ сцены и генерация тактики...";
-        TxtAiStatusBadge.Text = "⏳ Анализ...";
+        TxtAiResult.Text = "Выполняется анализ сцены и генерация тактики...";
+        TxtAiStatusBadge.Text = "Анализ...";
 
         string answer = await AiWalkthroughManager.AskAiAssistantAsync(prompt, shotPath);
         TxtAiResult.Text = answer;
-        TxtAiStatusBadge.Text = "✓ Анализ готов";
+        TxtAiStatusBadge.Text = "Анализ готов";
     }
 
     private void BtnSpeakAiHint_Click(object sender, RoutedEventArgs e)
@@ -3627,7 +3806,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             sp.Children.Add(new TextBlock { Text = $"Файл: {c.DllName}", Foreground = (Brush)FindResource("ThemeTextMuted"), FontSize = 11, Margin = new Thickness(0, 0, 0, 6) });
             sp.Children.Add(new TextBlock { Text = c.Description, Foreground = (Brush)FindResource("ThemeTextSecondary"), TextWrapping = TextWrapping.Wrap, FontSize = 11.5, Margin = new Thickness(0, 0, 0, 10) });
 
-            var btnInstall = new Button { Content = "⚡ Установить / Обновить", Style = (Style)FindResource("StormAccentButton"), Padding = new Thickness(10, 4, 10, 4), HorizontalAlignment = HorizontalAlignment.Left };
+            var btnInstall = new Button { Content = "Установить / Обновить", Style = (Style)FindResource("StormAccentButton"), Padding = new Thickness(10, 4, 10, 4), HorizontalAlignment = HorizontalAlignment.Left };
             btnInstall.Click += (s, e) =>
             {
                 ShowNotification("STORM RETROARCH", $"Ядро «{c.Name}» ({c.DllName}) готово к загрузке через Libretro Buildbot!");
@@ -3705,7 +3884,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private async Task StartGameInViewportAsync(RomItem item)
+    public async Task StartGameInViewportAsync(RomItem item)
     {
         _activeRomItem = item;
 
@@ -3741,6 +3920,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             {
                 if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
                 UpdateInGameHudButtons();
+                ApplyActiveBezelToViewport();
                 GameViewportContainer?.Focus();
                 ShowOsdToast($"Игра «{item.Name}» запущена • F1: Меню • F2/F4: Стейты • F11: Полный экран");
             }
@@ -4457,7 +4637,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             if (TxtGamepadCaptureStatus != null)
             {
-                TxtGamepadCaptureStatus.Text = $"✓ Назначено: [{binding.DisplayLabel}] -> «{retroKey}»";
+                TxtGamepadCaptureStatus.Text = $"Назначено: [{binding.DisplayLabel}] -> «{retroKey}»";
                 TxtGamepadCaptureStatus.Foreground = (Brush)new BrushConverter().ConvertFrom("#6EE7B7")!;
             }
 

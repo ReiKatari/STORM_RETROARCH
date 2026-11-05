@@ -83,12 +83,17 @@ public class RomItem : INotifyPropertyChanged
         get => _versionBadge;
         set
         {
-            if (SetField(ref _versionBadge, value))
+            string clean = value ?? "";
+            clean = Regex.Replace(clean, @"(?<=^|[\s?(\[])[vV](?=\d)", "").Trim();
+            if (SetField(ref _versionBadge, clean))
             {
                 OnPropertyChanged(nameof(HasVersionBadge));
+                OnPropertyChanged(nameof(Version));
             }
         }
     }
+
+    public string Version => VersionBadge;
 
     public bool HasYear => !string.IsNullOrEmpty(Year);
     public bool HasRegion => !string.IsNullOrEmpty(Region);
@@ -246,8 +251,8 @@ public class RomItem : INotifyPropertyChanged
             if (parts.Length > 0)
             {
                 string verNum = parts[0].Trim();
-                if (!verNum.StartsWith("v", StringComparison.OrdinalIgnoreCase))
-                    verNum = "v" + verNum;
+                if (verNum.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+                    verNum = verNum.Substring(1).Trim();
                 verPart = verNum;
             }
             baseName = baseName.Substring(0, mVer.Index).Trim();
@@ -303,8 +308,9 @@ public class RomItem : INotifyPropertyChanged
             else if (Regex.IsMatch(baseName, @"\(World\)", RegexOptions.IgnoreCase)) region = "WW";
         }
 
-        // 6. Combined version badge
-        string combinedVersion = verPart;
+        // 6. Combined version badge (Never prefix with 'v')
+        string cleanVerPart = verPart.TrimStart('v', 'V').Trim();
+        string combinedVersion = cleanVerPart;
         if (!string.IsNullOrEmpty(contentPart))
         {
             combinedVersion = !string.IsNullOrEmpty(combinedVersion) ? $"{combinedVersion} • {contentPart}" : contentPart;
