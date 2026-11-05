@@ -1,65 +1,55 @@
 using System;
-using System.Net;
 using System.Net.Sockets;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace StormRetroArch;
 
+/// <summary>
+/// Libretro UDP Network Command Bridge.
+/// Communicates in real-time with the embedded RetroArch engine on 127.0.0.1:55355.
+/// </summary>
 public static class UdpCommandBridge
 {
     public const int DefaultPort = 55355;
-    public const string DefaultHost = "127.0.0.1";
 
-    public static void EnsureNetworkCommandConfig()
+    public static void Send(string command)
     {
         try
         {
-            RetroArchConfigManager.SetString("network_cmd_enable", "true");
-            RetroArchConfigManager.SetString("network_cmd_port", DefaultPort.ToString());
-            RetroArchConfigManager.Save();
+            using var client = new UdpClient();
+            byte[] bytes = Encoding.UTF8.GetBytes(command.Trim() + "\n");
+            client.Send(bytes, bytes.Length, "127.0.0.1", DefaultPort);
         }
         catch { }
     }
 
-    public static async Task<bool> SendCommandAsync(string command, int port = DefaultPort, string host = DefaultHost)
-    {
-        if (string.IsNullOrWhiteSpace(command)) return false;
+    public static void PauseToggle() => Send("PAUSE_TOGGLE");
+    public static void SaveState() => Send("SAVE_STATE");
+    public static void LoadState() => Send("LOAD_STATE");
+    public static void Rewind() => Send("REWIND");
+    public static void FastForward() => Send("FAST_FORWARD");
+    public static void ShaderNext() => Send("SHADER_NEXT");
+    public static void Screenshot() => Send("SCREENSHOT");
+    public static void Reset() => Send("RESET");
+    public static void VolumeUp() => Send("VOLUME_UP");
+    public static void VolumeDown() => Send("VOLUME_DOWN");
+    public static void Mute() => Send("MUTE");
+    public static void FullscreenToggle() => Send("FULLSCREEN_TOGGLE");
+    public static void Quit() => Send("QUIT");
 
+    // Disc Eject / Swap commands
+    public static void DiskEjectToggle() => Send("DISK_EJECT_TOGGLE");
+    public static void DiskNext() => Send("DISK_NEXT");
+    public static void DiskPrev() => Send("DISK_PREV");
+
+    public static void EnsureNetworkCommandConfig(string retroArchDir)
+    {
         try
         {
-            using var client = new UdpClient();
-            string msg = command.Trim() + "\n";
-            byte[] bytes = Encoding.ASCII.GetBytes(msg);
-            int sent = await client.SendAsync(bytes, bytes.Length, host, port);
-            return sent > 0;
+            RetroArchConfigManager.SetBool("network_cmd_enable", true);
+            RetroArchConfigManager.SetInt("network_cmd_port", DefaultPort);
+            RetroArchConfigManager.Save();
         }
-        catch
-        {
-            return false;
-        }
+        catch { }
     }
-
-    public static void SendCommand(string command, int port = DefaultPort, string host = DefaultHost)
-    {
-        _ = SendCommandAsync(command, port, host);
-    }
-
-    // Standard RetroArch Network Commands
-    public static void PauseToggle() => SendCommand("PAUSE_TOGGLE");
-    public static void SaveState() => SendCommand("SAVE_STATE");
-    public static void LoadState() => SendCommand("LOAD_STATE");
-    public static void SlotPlus() => SendCommand("STATE_SLOT_PLUS");
-    public static void SlotMinus() => SendCommand("STATE_SLOT_MINUS");
-    public static void TakeScreenshot() => SendCommand("SCREENSHOT");
-    public static void ResetGame() => SendCommand("RESET");
-    public static void FastForwardToggle() => SendCommand("FAST_FORWARD");
-    public static void Rewind() => SendCommand("REWIND");
-    public static void ShaderNext() => SendCommand("SHADER_NEXT");
-    public static void ShaderPrev() => SendCommand("SHADER_PREV");
-    public static void DiskEjectToggle() => SendCommand("DISK_EJECT_TOGGLE");
-    public static void DiskNext() => SendCommand("DISK_NEXT");
-    public static void DiskPrev() => SendCommand("DISK_PREV");
-    public static void MuteAudio() => SendCommand("MUTE");
-    public static void QuitRetroArch() => SendCommand("QUIT");
 }

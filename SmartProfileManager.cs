@@ -12,7 +12,8 @@ public class SmartProfile
 {
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
-    public string Icon { get; set; } = "🎮";
+    public string IconPathData { get; set; } = "M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10 10 10 0 0 0 10-10A10 10 0 0 0 12 2z";
+    public string IconBrush { get; set; } = "#8B5CF6";
     public string Era { get; set; } = "";
     public string Description { get; set; } = "";
     public string VideoDriver { get; set; } = "vulkan";
@@ -40,7 +41,8 @@ public static class SmartProfileManager
         {
             Id = "retro_2d",
             Name = "8/16-бит 2D (Zero-Latency)",
-            Icon = "🕹️",
+            IconPathData = "M15 7.5V2H9v5.5H3.5v6H9V19h6v-5.5h5.5v-6H15z",
+            IconBrush = "#A78BFA",
             Era = "NES, SNES, Genesis, SMS, Turbografx, GBC",
             Description = "Ультра-отзывчивый ввод: Run-Ahead 1 кадр (упреждение задержки), шейдер CRT-Easymode, точные пропорции 4:3, идеальная синхронизация звука и видео.",
             VideoDriver = "vulkan",
@@ -58,128 +60,119 @@ public static class SmartProfileManager
         new SmartProfile
         {
             Id = "retro_3d",
-            Name = "32/64/128-бит 3D (HD Enhancer)",
-            Icon = "🧊",
-            Era = "PS1, N64, Saturn, Dreamcast, PS2, GameCube",
-            Description = "Максимальное качество 3D-графики: драйвер Vulkan, апскейл геометрии до 2x-4x, широкоформатный хак 16:9, сглаживание текстур и калибровка 60 FPS.",
+            Name = "32/64/128-бит 3D (HD Upscale)",
+            IconPathData = "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",
+            IconBrush = "#38BDF8",
+            Era = "PS1, N64, Dreamcast, Saturn, PSP, Dolphin",
+            Description = "Аппаратное ускорение Vulkan/GLCore, внутреннее разрешение 2x-4x HD, шейдер сглаживания FXAA/SMAA, Widescreen 16:9, тройная буферизация 60 FPS.",
             VideoDriver = "vulkan",
-            RunAheadFrames = 0, // 3D тяжёлое для Run-Ahead
+            RunAheadFrames = 0,
             RunAheadSecondaryInstance = false,
-            ShaderPreset = "crt/crt-royale.slangp",
+            ShaderPreset = "anti-aliasing/smaa.slangp",
             AspectRatioIndex = 1, // 16:9
             IntegerScale = false,
             Vsync = true,
             HardGpuSync = false,
             InternalResScale = 3,
             WidescreenHack = true,
-            BezelStyle = "Arcade Clean"
+            BezelStyle = "None"
         },
         new SmartProfile
         {
-            Id = "portable_lcd",
-            Name = "Портативные системы (LCD Grid)",
-            Icon = "📱",
-            Era = "Game Boy, GBA, Game Gear, PSP, NDS, Lynx",
-            Description = "Аутентичный портативный экран: пиксельная сетка LCD3x / LCD-Grid, цветокоррекция палитры ЖК-экрана, целочисленное масштабирование и стилизованный корпус.",
+            Id = "handheld",
+            Name = "Портативные (Pixel-Grid LCD)",
+            IconPathData = "M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z",
+            IconBrush = "#34D399",
+            Era = "Game Boy, GBA, Nintendo DS, Game Gear, Neo Geo Pocket, PSP",
+            Description = "Пиксельная сетка ЖК-экрана, целочисленное масштабирование Integer Scale, точная гамма-калибровка цветов и соотношение сторон оригинального экрана.",
             VideoDriver = "vulkan",
             RunAheadFrames = 1,
             RunAheadSecondaryInstance = false,
-            ShaderPreset = "handheld/lcd-grid.slangp",
+            ShaderPreset = "handheld/gameboy-dmg.slangp",
             AspectRatioIndex = 21, // Core Provided
             IntegerScale = true,
             Vsync = true,
             HardGpuSync = true,
             InternalResScale = 1,
             WidescreenHack = false,
-            BezelStyle = "Handheld GBA"
+            BezelStyle = "Handheld Frame"
         },
         new SmartProfile
         {
-            Id = "arcade_dos",
-            Name = "Аркады и MS-DOS (15kHz CRT)",
-            Icon = "🎰",
-            Era = "Arcade, MAME, FBNeo, MS-DOS, PC-98, Amiga",
-            Description = "Аркадный автомат и ретро-ПК: CRT-Aperture сканлайны 15kHz, чистый звук без дрожания частоты, быстрый маппинг кнопок Монета/Старт и VFS диск.",
+            Id = "arcade",
+            Name = "Аркады (CRT Tube & Scanlines)",
+            IconPathData = "M12 2a4 4 0 0 0-4 4c0 1.5.8 2.8 2 3.5V13H8v2h8v-2h-2V9.5c1.2-.7 2-2 2-3.5a4 4 0 0 0-4-4zm-8 15v5h16v-5H4z",
+            IconBrush = "#F59E0B",
+            Era = "MAME, FBNeo, CPS-1/2/3, Neo Geo MVS, Naomi",
+            Description = "Аутентичный аркадный кинескоп: глубокие сканлинии, закругление углов, боковые панели аркадного кабинета Bezel и нулевая задержка кнопок.",
             VideoDriver = "vulkan",
             RunAheadFrames = 1,
             RunAheadSecondaryInstance = true,
-            ShaderPreset = "crt/crt-aperture.slangp",
+            ShaderPreset = "crt/crt-geom.slangp",
             AspectRatioIndex = 0, // 4:3
             IntegerScale = false,
             Vsync = true,
             HardGpuSync = true,
             InternalResScale = 1,
             WidescreenHack = false,
-            BezelStyle = "Arcade Clean"
+            BezelStyle = "Arcade Cabinet"
         }
     };
 
-    public static List<SmartProfile> GetAllProfiles() => _profiles;
+    public static IReadOnlyList<SmartProfile> Profiles => _profiles;
+    public static IReadOnlyList<SmartProfile> GetAllProfiles() => _profiles;
 
-    /// <summary>
-    /// Автоматическое определение профиля по названию платформы или ядра.
-    /// </summary>
-    public static SmartProfile DetectProfile(string platformName, string coreName = "")
+    public static SmartProfile DetectProfile(string romFileName, string coreName)
     {
-        string p = (platformName + " " + coreName).ToLowerInvariant();
+        string ext = Path.GetExtension(romFileName).ToLowerInvariant();
+        string core = coreName.ToLowerInvariant();
 
-        // 1. Portable LCD
-        if (p.Contains("game boy") || p.Contains("gb") || p.Contains("gba") || p.Contains("game gear") ||
-            p.Contains("handheld") || p.Contains("psp") || p.Contains("nds") || p.Contains("lynx") ||
-            p.Contains("wonderswan") || p.Contains("ngpc") || p.Contains("pocket") || p.Contains("mgba"))
+        if (core.Contains("swanstation") || core.Contains("psx") || core.Contains("mupen") ||
+            core.Contains("flycast") || core.Contains("saturn") || core.Contains("dolphin") ||
+            core.Contains("ppsspp") || core.Contains("citra") ||
+            ext is ".iso" or ".cso" or ".chd" or ".cdi" or ".gdi" or ".rvz" or ".n64" or ".z64")
         {
-            return _profiles.First(x => x.Id == "portable_lcd");
+            return _profiles[1]; // 3D
         }
 
-        // 2. 3D Era
-        if (p.Contains("ps1") || p.Contains("psx") || p.Contains("playstation") || p.Contains("n64") ||
-            p.Contains("saturn") || p.Contains("dreamcast") || p.Contains("ps2") || p.Contains("gamecube") ||
-            p.Contains("beetle_psx") || p.Contains("duckstation") || p.Contains("mupen64") || p.Contains("flycast") ||
-            p.Contains("pcsx2") || p.Contains("dolphin") || p.Contains("yabasanshiro"))
+        if (core.Contains("mgba") || core.Contains("gambatte") || core.Contains("melonds") ||
+            core.Contains("gearboy") || core.Contains("gearsystem") || core.Contains("vba") ||
+            ext is ".gb" or ".gbc" or ".gba" or ".nds" or ".dsi" or ".gg" or ".ws" or ".wsc" or ".ngp")
         {
-            return _profiles.First(x => x.Id == "retro_3d");
+            return _profiles[2]; // Handheld
         }
 
-        // 3. Arcade & DOS
-        if (p.Contains("arcade") || p.Contains("mame") || p.Contains("fbneo") || p.Contains("dos") ||
-            p.Contains("dosbox") || p.Contains("pc98") || p.Contains("amiga") || p.Contains("puae"))
+        if (core.Contains("fbneo") || core.Contains("mame") ||
+            ext is ".zip" or ".7z")
         {
-            return _profiles.First(x => x.Id == "arcade_dos");
+            return _profiles[3]; // Arcade
         }
 
-        // 4. Default 2D Zero-Latency (NES, SNES, Genesis, SMS, PC Engine, etc.)
-        return _profiles.First(x => x.Id == "retro_2d");
+        return _profiles[0]; // 2D Default
     }
 
-    /// <summary>
-    /// Применение настроек профиля к конфигурации retroarch.cfg.
-    /// </summary>
-    public static string ApplyProfile(SmartProfile profile, string retroArchDir = "")
+    public static string ApplyProfile(SmartProfile profile, string retroArchDir)
     {
-        try
+        string cfgPath = Path.Combine(retroArchDir, "retroarch.cfg");
+        if (!File.Exists(cfgPath)) return "Файл retroarch.cfg не найден.";
+
+        RetroArchConfigManager.SetString("video_driver", profile.VideoDriver);
+        RetroArchConfigManager.SetInt("run_ahead_frames", profile.RunAheadFrames);
+        RetroArchConfigManager.SetBool("run_ahead_enabled", profile.RunAheadFrames > 0);
+        RetroArchConfigManager.SetBool("run_ahead_secondary_instance", profile.RunAheadSecondaryInstance);
+        RetroArchConfigManager.SetInt("aspect_ratio_index", profile.AspectRatioIndex);
+        RetroArchConfigManager.SetBool("video_scale_integer", profile.IntegerScale);
+        RetroArchConfigManager.SetBool("video_vsync", profile.Vsync);
+        RetroArchConfigManager.SetBool("video_hard_sync", profile.HardGpuSync);
+
+        string shaderFull = Path.Combine(retroArchDir, "shaders", "shaders_slang", profile.ShaderPreset);
+        if (File.Exists(shaderFull))
         {
-            RetroArchConfigManager.SetString("video_driver", profile.VideoDriver);
-            RetroArchConfigManager.SetString("run_ahead_enabled", profile.RunAheadFrames > 0 ? "true" : "false");
-            RetroArchConfigManager.SetString("run_ahead_frames", profile.RunAheadFrames.ToString());
-            RetroArchConfigManager.SetString("run_ahead_secondary_instance", profile.RunAheadSecondaryInstance ? "true" : "false");
-            RetroArchConfigManager.SetString("video_shader_enable", "true");
-            RetroArchConfigManager.SetString("video_aspect_ratio_auto", profile.AspectRatioIndex == 21 ? "true" : "false");
-            RetroArchConfigManager.SetString("aspect_ratio_index", profile.AspectRatioIndex.ToString());
-            RetroArchConfigManager.SetString("video_scale_integer", profile.IntegerScale ? "true" : "false");
-            RetroArchConfigManager.SetString("video_vsync", profile.Vsync ? "true" : "false");
-            RetroArchConfigManager.SetString("video_hard_sync", profile.HardGpuSync ? "true" : "false");
-
-            // Применяем шейдер если найден
-            ShaderManager.ApplyShaderPreset(profile.ShaderPreset);
-
-            // Сохраняем retroarch.cfg
-            RetroArchConfigManager.Save();
-
-            return $"Профиль «{profile.Name}» успешно активирован!\n• Драйвер: {profile.VideoDriver.ToUpper()}\n• Run-Ahead: {(profile.RunAheadFrames > 0 ? profile.RunAheadFrames + " кадр." : "Выкл")}\n• Шейдер: {Path.GetFileName(profile.ShaderPreset)}\n• Пропорции: {(profile.AspectRatioIndex == 1 ? "16:9" : profile.AspectRatioIndex == 0 ? "4:3" : "Авто")}";
+            RetroArchConfigManager.SetBool("video_shader_enable", true);
+            RetroArchConfigManager.SetString("video_shader_dir", shaderFull);
         }
-        catch (Exception ex)
-        {
-            return $"Ошибка применения профиля: {ex.Message}";
-        }
+
+        RetroArchConfigManager.Save();
+        return $"Профиль «{profile.Name}» успешно применён в retroarch.cfg!";
     }
 }

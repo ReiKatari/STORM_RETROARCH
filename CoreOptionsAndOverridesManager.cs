@@ -70,7 +70,8 @@ public class CoreProfileItem
     public string CoreName { get; set; } = "";
     public string DisplayName { get; set; } = "";
     public string Platform { get; set; } = "";
-    public string Icon { get; set; } = "🎛️";
+    public string IconPathData { get; set; } = "M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z";
+    public string IconColor { get; set; } = "#A78BFA";
     public List<CoreOptionItem> Options { get; set; } = new();
 }
 
@@ -86,8 +87,7 @@ public static class CoreOptionsAndOverridesManager
         // 1. SwanStation (PS1)
         profiles.Add(new CoreProfileItem
         {
-            CoreName = "SwanStation", DisplayName = "SwanStation (Sony PlayStation 1)", Platform = "Sony PS1", Icon = "🎮",
-            Options = new()
+            CoreName = "SwanStation", DisplayName = "SwanStation (Sony PlayStation 1)", Platform = "Sony PS1", Options = new()
             {
                 new() { Key = "swanstation_ResolutionScale", Title = "Внутреннее разрешение 3D", Description = "Апскейл геометрии и полигонов (1x..8x 4K)", CoreName = "SwanStation", Value = "4x (1440p)", Options = new() { "1x (Native 240p)", "2x (720p)", "3x (1080p)", "4x (1440p)", "8x (4K UHD)" } },
                 new() { Key = "swanstation_PGXP_Enable", Title = "PGXP коррекция геометрии", Description = "Устранение дрожания текстур и полигонов оригинальной PS1", CoreName = "SwanStation", Value = "enabled", Options = new() { "disabled", "enabled", "memory_only" } },
@@ -101,8 +101,7 @@ public static class CoreOptionsAndOverridesManager
         // 2. Mupen64Plus-Next (N64)
         profiles.Add(new CoreProfileItem
         {
-            CoreName = "Mupen64Plus-Next", DisplayName = "Mupen64Plus-Next (Nintendo 64)", Platform = "Nintendo 64", Icon = "🕹️",
-            Options = new()
+            CoreName = "Mupen64Plus-Next", DisplayName = "Mupen64Plus-Next (Nintendo 64)", Platform = "Nintendo 64", Options = new()
             {
                 new() { Key = "mupen64plus-next-rdp-plugin", Title = "Графический плагин RDP", Description = "GLideN64 с аппаратным ускорением или пиксельно точный ParaLLEl", CoreName = "Mupen64Plus-Next", Value = "GLideN64", Options = new() { "GLideN64", "Parallel", "Angrylion" } },
                 new() { Key = "mupen64plus-next-43screensize", Title = "Внутреннее разрешение", Description = "Разрешение рендеринга 3D мира N64", CoreName = "Mupen64Plus-Next", Value = "1920x1440", Options = new() { "640x480", "1280x960", "1920x1440", "2560x1920" } },
@@ -114,8 +113,7 @@ public static class CoreOptionsAndOverridesManager
         // 3. Flycast (Dreamcast / NAOMI)
         profiles.Add(new CoreProfileItem
         {
-            CoreName = "Flycast", DisplayName = "Flycast (Sega Dreamcast / NAOMI)", Platform = "Sega Dreamcast", Icon = "🌀",
-            Options = new()
+            CoreName = "Flycast", DisplayName = "Flycast (Sega Dreamcast / NAOMI)", Platform = "Sega Dreamcast", Options = new()
             {
                 new() { Key = "flycast_internal_resolution", Title = "Внутреннее разрешение", Description = "Апскейл графики PowerVR2", CoreName = "Flycast", Value = "1920x1440", Options = new() { "640x480", "1280x960", "1920x1440", "2560x1920", "3840x2880" } },
                 new() { Key = "flycast_widescreen_hack", Title = "Широкоэкранный хак 16:9", Description = "Расширение поля зрения FOV для широкоформатных дисплеев", CoreName = "Flycast", Value = "disabled", Options = new() { "disabled", "enabled" } },
@@ -127,8 +125,7 @@ public static class CoreOptionsAndOverridesManager
         // 4. PPSSPP (PSP)
         profiles.Add(new CoreProfileItem
         {
-            CoreName = "PPSSPP", DisplayName = "PPSSPP (Sony PlayStation Portable)", Platform = "Sony PSP", Icon = "📱",
-            Options = new()
+            CoreName = "PPSSPP", DisplayName = "PPSSPP (Sony PlayStation Portable)", Platform = "Sony PSP", Options = new()
             {
                 new() { Key = "ppsspp_internal_resolution", Title = "Разрешение рендеринга", Description = "Кратность относительно родного экрана 480x272", CoreName = "PPSSPP", Value = "4x", Options = new() { "1x (480x272)", "2x (720p)", "3x (1080p)", "4x (1440p)", "5x (4K)" } },
                 new() { Key = "ppsspp_texture_scaling_type", Title = "Алгоритм масштабирования текстур", Description = "Векторное сглаживание текстур", CoreName = "PPSSPP", Value = "xBRZ", Options = new() { "off", "xBRZ", "Hybrid", "Bicubic" } },
@@ -139,8 +136,7 @@ public static class CoreOptionsAndOverridesManager
         // 5. melonDS DS (Nintendo DS)
         profiles.Add(new CoreProfileItem
         {
-            CoreName = "melonDS DS", DisplayName = "melonDS DS (Nintendo DS / DSi)", Platform = "Nintendo DS", Icon = "🕹️",
-            Options = new()
+            CoreName = "melonDS DS", DisplayName = "melonDS DS (Nintendo DS / DSi)", Platform = "Nintendo DS", Options = new()
             {
                 new() { Key = "melonds_screen_layout", Title = "Расположение двух экранов", Description = "Ориентация дисплеев NDS", CoreName = "melonDS DS", Value = "Top/Bottom", Options = new() { "Top/Bottom", "Left/Right", "Top Only", "Bottom Only", "Hybrid 3:1" } },
                 new() { Key = "melonds_render_3d", Title = "3D Рендерер", Description = "Аппаратный OpenGL или пиксельно точный программный", CoreName = "melonDS DS", Value = "OpenGL", Options = new() { "Software", "OpenGL" } },
@@ -151,8 +147,7 @@ public static class CoreOptionsAndOverridesManager
         // 6. mGBA (Game Boy Advance)
         profiles.Add(new CoreProfileItem
         {
-            CoreName = "mGBA", DisplayName = "mGBA (Game Boy Advance)", Platform = "Game Boy Advance", Icon = "🕹️",
-            Options = new()
+            CoreName = "mGBA", DisplayName = "mGBA (Game Boy Advance)", Platform = "Game Boy Advance", Options = new()
             {
                 new() { Key = "mgba_color_correction", Title = "Цветокоррекция экрана", Description = "Воссоздание гаммы дисплея GBA SP AGS-101", CoreName = "mGBA", Value = "GBA", Options = new() { "OFF", "GBA", "GBC", "NDS" } },
                 new() { Key = "mgba_interframe_blending", Title = "Межкадровое смешивание", Description = "Эмуляция послесвечения ЖК-матрицы", CoreName = "mGBA", Value = "smart", Options = new() { "OFF", "smart", "ghosting" } },
@@ -163,8 +158,7 @@ public static class CoreOptionsAndOverridesManager
         // 7. Snes9x (Super Nintendo)
         profiles.Add(new CoreProfileItem
         {
-            CoreName = "Snes9x", DisplayName = "Snes9x (Super Nintendo / Super Famicom)", Platform = "SNES", Icon = "🎮",
-            Options = new()
+            CoreName = "Snes9x", DisplayName = "Snes9x (Super Nintendo / Super Famicom)", Platform = "SNES", Options = new()
             {
                 new() { Key = "snes9x_hires_blend", Title = "Hi-Res Blending", Description = "Сглаживание полупрозрачности в высоком разрешении 512x448", CoreName = "Snes9x", Value = "merge", Options = new() { "disabled", "merge", "blur" } },
                 new() { Key = "snes9x_overclock_cycles", Title = "Разгон CPU Super FX", Description = "Устранение тормозов в Star Fox, Doom, Yoshi's Island", CoreName = "Snes9x", Value = "100%", Options = new() { "100%", "150%", "200%", "300%" } },
@@ -175,8 +169,7 @@ public static class CoreOptionsAndOverridesManager
         // 8. FCEUmm (NES / Dendy)
         profiles.Add(new CoreProfileItem
         {
-            CoreName = "FCEUmm", DisplayName = "FCEUmm (Nintendo Entertainment System / Dendy)", Platform = "NES", Icon = "🕹️",
-            Options = new()
+            CoreName = "FCEUmm", DisplayName = "FCEUmm (Nintendo Entertainment System / Dendy)", Platform = "NES", Options = new()
             {
                 new() { Key = "fceumm_palette", Title = "Цветовая палитра", Description = "Палитра Dendy, NES Classic или аутентичная NTSC", CoreName = "FCEUmm", Value = "dendy", Options = new() { "default", "dendy", "composite-direct-fbx", "sony-cxa2025as-us", "nes-classic" } },
                 new() { Key = "fceumm_overclocking", Title = "Оверклокинг процессора 2A03", Description = "Устранение мигания спрайтов и лагов", CoreName = "FCEUmm", Value = "2x-postrender", Options = new() { "disabled", "2x-postrender", "2x-vblank" } }
@@ -186,8 +179,7 @@ public static class CoreOptionsAndOverridesManager
         // 9. Genesis Plus GX (Sega Mega Drive)
         profiles.Add(new CoreProfileItem
         {
-            CoreName = "Genesis Plus GX", DisplayName = "Genesis Plus GX (Sega Genesis / Mega Drive)", Platform = "Sega Genesis", Icon = "🎮",
-            Options = new()
+            CoreName = "Genesis Plus GX", DisplayName = "Genesis Plus GX (Sega Genesis / Mega Drive)", Platform = "Sega Genesis", Options = new()
             {
                 new() { Key = "genesis_plus_gx_ym2612", Title = "Эмуляция синтезатора YM2612", Description = "Звуковой чип FM-синтеза (MAME или улучшенный Nuked OPN2)", CoreName = "Genesis Plus GX", Value = "mame (enhanced)", Options = new() { "mame (enhanced)", "nuked (discrete)" } },
                 new() { Key = "genesis_plus_gx_audio_filter", Title = "Низкочастотный аудиофильтр", Description = "Аутентичный тёплый аналоговый звук ревизии Model 1", CoreName = "Genesis Plus GX", Value = "low-pass", Options = new() { "disabled", "low-pass" } },
@@ -198,8 +190,7 @@ public static class CoreOptionsAndOverridesManager
         // 10. DOSBox-Pure (MS-DOS)
         profiles.Add(new CoreProfileItem
         {
-            CoreName = "DOSBox-Pure", DisplayName = "DOSBox-Pure (MS-DOS PC)", Platform = "PC / DOS", Icon = "💾",
-            Options = new()
+            CoreName = "DOSBox-Pure", DisplayName = "DOSBox-Pure (MS-DOS PC)", Platform = "PC / DOS", Options = new()
             {
                 new() { Key = "dosbox_pure_cycles", Title = "Циклы процессора x86", Description = "Тактовая частота виртуального ПК (286, 386, 486, Pentium)", CoreName = "DOSBox-Pure", Value = "auto", Options = new() { "auto", "3000 (286)", "15000 (386)", "45000 (486)", "max" } },
                 new() { Key = "dosbox_pure_soundblaster", Title = "Звуковая карта Sound Blaster", Description = "Эмуляция стандарта аудио DOS", CoreName = "DOSBox-Pure", Value = "sb16", Options = new() { "none", "sb2", "sbpro2", "sb16", "gravis" } },

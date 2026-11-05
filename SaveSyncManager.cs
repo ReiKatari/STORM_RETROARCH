@@ -67,10 +67,10 @@ public class SyncEntryItem : INotifyPropertyChanged
 
     public string StatusText => Status switch
     {
-        SyncItemStatus.InSync => "✓ Синхронизировано",
-        SyncItemStatus.LocalNewer => "⬆ На ПК новее",
-        SyncItemStatus.RemoteNewer => "⬇ В облаке новее",
-        SyncItemStatus.Conflict => "⚠️ Конфликт версий",
+        SyncItemStatus.InSync => "Синхронизировано",
+        SyncItemStatus.LocalNewer => "На ПК новее",
+        SyncItemStatus.RemoteNewer => "В облаке новее",
+        SyncItemStatus.Conflict => "Конфликт версий",
         SyncItemStatus.LocalOnly => "Только на ПК",
         SyncItemStatus.RemoteOnly => "Только в облаке",
         _ => "Неизвестно"
@@ -140,13 +140,13 @@ public static class SaveSyncManager
                 return SettingsManager.Current.CloudSyncFolder;
             }
 
-            string oneDrive = Environment.GetEnvironmentVariable("OneDrive") ?? "";
-            if (!string.IsNullOrEmpty(oneDrive) && Directory.Exists(oneDrive))
+            string defaultSync = Path.Combine(CoreManager.AppDir, "save sync");
+            try
             {
-                return Path.Combine(oneDrive, "STORM RETROARCH Saves");
+                if (!Directory.Exists(defaultSync)) Directory.CreateDirectory(defaultSync);
             }
-
-            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "STORM RETROARCH Cloud");
+            catch { }
+            return defaultSync;
         }
         set
         {
@@ -155,230 +155,234 @@ public static class SaveSyncManager
         }
     }
 
-    public static List<SyncEntryItem> ScanAndCompareAll()
+    static SaveSyncManager()
     {
-        var result = new List<SyncEntryItem>();
-        string cloudDir = CloudSyncDir;
-
         try
         {
             if (!Directory.Exists(LocalSavesDir)) Directory.CreateDirectory(LocalSavesDir);
             if (!Directory.Exists(LocalStatesDir)) Directory.CreateDirectory(LocalStatesDir);
-            if (!Directory.Exists(cloudDir)) Directory.CreateDirectory(cloudDir);
+            string defSync = Path.Combine(CoreManager.AppDir, "save sync");
+            if (!Directory.Exists(defSync)) Directory.CreateDirectory(defSync);
+        }
+        catch { }
+    }
 
-            // Gather real local files
-            var localFiles = Directory.GetFiles(LocalSavesDir, "*.*", SearchOption.AllDirectories)
-                .Concat(Directory.GetFiles(LocalStatesDir, "*.*", SearchOption.AllDirectories))
-                .Where(f => !f.EndsWith(".tmp") && !f.EndsWith(".bak") && !f.EndsWith(".gitkeep"))
-                .ToList();
+    public static List<SyncEntryItem> ScanSavesAndCompare(string cloudFolder)
+    {
+        var result = new List<SyncEntryItem>();
+        var map = new Dictionary<string, SyncEntryItem>(StringComparer.OrdinalIgnoreCase);
 
-            // Gather real cloud files
-            var cloudFiles = Directory.Exists(cloudDir)
-                ? Directory.GetFiles(cloudDir, "*.*", SearchOption.AllDirectories)
-                    .Where(f => !f.EndsWith(".tmp") && !f.EndsWith(".bak") && !f.EndsWith(".gitkeep"))
-                    .ToList()
-                : new List<string>();
+        // 1. Scan Local Saves
+        ScanDirectory(LocalSavesDir, map, isLocal: true, prefix: "saves");
+        ScanDirectory(LocalStatesDir, map, isLocal: true, prefix: "states");
 
-            var allRelativeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // 2. Scan Cloud Saves
+        if (!string.IsNullOrEmpty(cloudFolder) && Directory.Exists(cloudFolder))
+        {
+            string cloudSaves = Path.Combine(cloudFolder, "saves");
+            string cloudStates = Path.Combine(cloudFolder, "states");
 
-            foreach (var lf in localFiles)
+            if (Directory.Exists(cloudSaves)) ScanDirectory(cloudSaves, map, isLocal: false, prefix: "saves");
+            if (Directory.Exists(cloudStates)) ScanDirectory(cloudStates, map, isLocal: false, prefix: "states");
+
+            // Also check root of cloud folder if flat
+            ScanDirectory(cloudFolder, map, isLocal: false, prefix: "");
+        }
+
+        foreach (var item in map.Values)
+        {
+            DetermineStatus(item);
+            result.Add(item);
+        }
+
+        return result.OrderBy(x => x.GameName).ThenBy(x => x.FileName).ToList();
+    }
+
+    private static void ScanDirectory(string dir, Dictionary<string, SyncEntryItem> map, bool isLocal, string prefix)
+    {
+        if (!Directory.Exists(dir)) return;
+
+        try
+        {
+            var files = Directory.GetFiles(dir, "*.*", SearchOption.AllDirectories);
+            foreach (var f in files)
             {
-                string rel = Path.GetRelativePath(CoreManager.AppDir, lf).Replace('\\', '/');
-                allRelativeKeys.Add(rel);
-            }
+                string ext = Path.GetExtension(f).ToLowerInvariant();
+                if (!IsSaveOrStateExtension(ext)) continue;
 
-            foreach (var cf in cloudFiles)
-            {
-                string rel = Path.GetRelativePath(cloudDir, cf).Replace('\\', '/');
-                allRelativeKeys.Add(rel);
-            }
+                string fileName = Path.GetFileName(f);
+                string gameName = Path.GetFileNameWithoutExtension(fileName);
 
-            foreach (var rel in allRelativeKeys)
-            {
-                string localPath = Path.Combine(CoreManager.AppDir, rel.Replace('/', '\\'));
-                string remotePath = Path.Combine(cloudDir, rel.Replace('/', '\\'));
-
-                bool localExists = File.Exists(localPath);
-                bool remoteExists = File.Exists(remotePath);
-
-                var item = new SyncEntryItem
+                // Strip .state suffixes like .state1, .state.auto
+                if (gameName.Contains(".state"))
                 {
-                    RelativePath = rel,
-                    FileName = Path.GetFileName(rel),
-                    GameName = Path.GetFileNameWithoutExtension(rel),
-                    LocalPath = localPath,
-                    RemotePath = remotePath
-                };
+                    int idx = gameName.IndexOf(".state", StringComparison.OrdinalIgnoreCase);
+                    if (idx > 0) gameName = gameName.Substring(0, idx);
+                }
 
-                if (localExists)
+                string key = fileName.ToLowerInvariant();
+                if (!map.TryGetValue(key, out var item))
                 {
-                    var fi = new FileInfo(localPath);
+                    item = new SyncEntryItem
+                    {
+                        GameName = gameName,
+                        FileName = fileName,
+                        RelativePath = string.IsNullOrEmpty(prefix) ? fileName : Path.Combine(prefix, fileName)
+                    };
+                    map[key] = item;
+                }
+
+                var fi = new FileInfo(f);
+                if (isLocal)
+                {
+                    item.LocalPath = f;
                     item.LocalSize = fi.Length;
                     item.LocalModifiedUtc = fi.LastWriteTimeUtc;
-                    item.LocalSha256 = ComputeSha256(localPath);
-                }
-
-                if (remoteExists)
-                {
-                    var fi = new FileInfo(remotePath);
-                    item.RemoteSize = fi.Length;
-                    item.RemoteModifiedUtc = fi.LastWriteTimeUtc;
-                    item.RemoteSha256 = ComputeSha256(remotePath);
-                }
-
-                // Status classification
-                if (localExists && remoteExists)
-                {
-                    if (item.LocalSha256 == item.RemoteSha256 && item.LocalSha256 != "")
-                    {
-                        item.Status = SyncItemStatus.InSync;
-                    }
-                    else
-                    {
-                        var diff = (item.LocalModifiedUtc - item.RemoteModifiedUtc).TotalSeconds;
-                        if (diff > 5) item.Status = SyncItemStatus.LocalNewer;
-                        else if (diff < -5) item.Status = SyncItemStatus.RemoteNewer;
-                        else item.Status = SyncItemStatus.Conflict;
-                    }
-                }
-                else if (localExists)
-                {
-                    item.Status = SyncItemStatus.LocalOnly;
                 }
                 else
                 {
-                    item.Status = SyncItemStatus.RemoteOnly;
+                    item.RemotePath = f;
+                    item.RemoteSize = fi.Length;
+                    item.RemoteModifiedUtc = fi.LastWriteTimeUtc;
                 }
-
-                result.Add(item);
             }
         }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[SaveSyncManager Error]: {ex.Message}");
-        }
-
-        return result.OrderBy(x => x.GameName).ToList();
+        catch { }
     }
 
-    public static void SmartSyncAll(IEnumerable<SyncEntryItem> items)
+    private static bool IsSaveOrStateExtension(string ext)
     {
-        foreach (var item in items)
+        return ext is ".srm" or ".sav" or ".eep" or ".nv" or ".state" or ".auto" ||
+               ext.StartsWith(".state") || ext.StartsWith(".nvram");
+    }
+
+    private static void DetermineStatus(SyncEntryItem item)
+    {
+        if (item.LocalExists && !item.RemoteExists)
         {
-            switch (item.Status)
+            item.Status = SyncItemStatus.LocalOnly;
+            return;
+        }
+
+        if (!item.LocalExists && item.RemoteExists)
+        {
+            item.Status = SyncItemStatus.RemoteOnly;
+            return;
+        }
+
+        if (item.LocalExists && item.RemoteExists)
+        {
+            // Compute fast hash comparison if sizes match
+            if (item.LocalSize == item.RemoteSize)
             {
-                case SyncItemStatus.LocalNewer:
-                case SyncItemStatus.LocalOnly:
-                    UploadToRemote(item);
-                    break;
-                case SyncItemStatus.RemoteNewer:
-                case SyncItemStatus.RemoteOnly:
-                    DownloadFromRemote(item);
-                    break;
-                case SyncItemStatus.Conflict:
-                    KeepBoth(item);
-                    break;
+                string hashLocal = ComputeFileHash(item.LocalPath);
+                string hashRemote = ComputeFileHash(item.RemotePath);
+
+                if (hashLocal == hashRemote)
+                {
+                    item.Status = SyncItemStatus.InSync;
+                    return;
+                }
+            }
+
+            // If hashes differ, compare timestamps
+            var diff = item.LocalModifiedUtc - item.RemoteModifiedUtc;
+            if (Math.Abs(diff.TotalSeconds) < 2)
+            {
+                item.Status = SyncItemStatus.Conflict;
+            }
+            else if (item.LocalModifiedUtc > item.RemoteModifiedUtc)
+            {
+                item.Status = SyncItemStatus.LocalNewer;
+            }
+            else
+            {
+                item.Status = SyncItemStatus.RemoteNewer;
             }
         }
     }
 
-    public static void UploadToRemote(SyncEntryItem item)
+    private static string ComputeFileHash(string path)
     {
-        if (!File.Exists(item.LocalPath)) return;
         try
         {
-            var dir = Path.GetDirectoryName(item.RemotePath);
-            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-            File.Copy(item.LocalPath, item.RemotePath, true);
-
-            var fi = new FileInfo(item.RemotePath);
-            item.RemoteSize = fi.Length;
-            item.RemoteModifiedUtc = fi.LastWriteTimeUtc;
-            item.RemoteSha256 = item.LocalSha256;
-            item.Status = SyncItemStatus.InSync;
+            using var sha = SHA256.Create();
+            using var stream = File.OpenRead(path);
+            byte[] bytes = sha.ComputeHash(stream);
+            return BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
         }
-        catch (Exception ex)
+        catch
         {
-            Debug.WriteLine($"[Upload Error]: {ex.Message}");
+            return Guid.NewGuid().ToString();
         }
     }
 
-    public static void DownloadFromRemote(SyncEntryItem item)
+    public static void SyncItem(SyncEntryItem item, bool uploadToCloud)
     {
-        if (!File.Exists(item.RemotePath)) return;
         try
         {
-            var dir = Path.GetDirectoryName(item.LocalPath);
-            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-            File.Copy(item.RemotePath, item.LocalPath, true);
-
-            var fi = new FileInfo(item.LocalPath);
-            item.LocalSize = fi.Length;
-            item.LocalModifiedUtc = fi.LastWriteTimeUtc;
-            item.LocalSha256 = item.RemoteSha256;
-            item.Status = SyncItemStatus.InSync;
+            if (uploadToCloud)
+            {
+                if (!item.LocalExists) return;
+                string destDir = Path.GetDirectoryName(item.RemotePath) ?? CloudSyncDir;
+                if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
+                File.Copy(item.LocalPath, item.RemotePath, overwrite: true);
+                File.SetLastWriteTimeUtc(item.RemotePath, item.LocalModifiedUtc);
+                item.RemoteSize = item.LocalSize;
+                item.RemoteModifiedUtc = item.LocalModifiedUtc;
+                item.Status = SyncItemStatus.InSync;
+            }
+            else
+            {
+                if (!item.RemoteExists) return;
+                string destDir = Path.GetDirectoryName(item.LocalPath) ?? LocalSavesDir;
+                if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
+                File.Copy(item.RemotePath, item.LocalPath, overwrite: true);
+                File.SetLastWriteTimeUtc(item.LocalPath, item.RemoteModifiedUtc);
+                item.LocalSize = item.RemoteSize;
+                item.LocalModifiedUtc = item.RemoteModifiedUtc;
+                item.Status = SyncItemStatus.InSync;
+            }
         }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"[Download Error]: {ex.Message}");
-        }
+        catch { }
     }
+
+    public static List<SyncEntryItem> ScanAndCompareAll(string? cloudFolder = null) => ScanSavesAndCompare(cloudFolder ?? CloudSyncDir);
+
+    public static void UploadToRemote(SyncEntryItem item) => SyncItem(item, uploadToCloud: true);
+
+    public static void DownloadFromRemote(SyncEntryItem item) => SyncItem(item, uploadToCloud: false);
 
     public static void KeepBoth(SyncEntryItem item)
     {
         try
         {
-            if (File.Exists(item.RemotePath))
+            if (item.RemoteExists)
             {
-                string ext = Path.GetExtension(item.LocalPath);
-                string noExt = Path.ChangeExtension(item.LocalPath, null);
-                string backup = $"{noExt}_Remote_{item.RemoteModifiedUtc.ToLocalTime():yyyyMMdd_HHmmss}{ext}";
-                File.Copy(item.RemotePath, backup, true);
+                string bak = item.RemotePath + ".bak";
+                File.Copy(item.RemotePath, bak, overwrite: true);
             }
-            UploadToRemote(item);
+            if (item.LocalExists)
+            {
+                UploadToRemote(item);
+            }
         }
         catch { }
     }
 
-    public static string CheckAdbDevices()
+    public static void SmartSyncAll(List<SyncEntryItem> items)
     {
-        try
+        foreach (var item in items)
         {
-            var psi = new ProcessStartInfo
+            if (item.Status == SyncItemStatus.LocalNewer || item.Status == SyncItemStatus.LocalOnly)
             {
-                FileName = "adb",
-                Arguments = "devices",
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            using var proc = Process.Start(psi);
-            if (proc != null)
+                UploadToRemote(item);
+            }
+            else if (item.Status == SyncItemStatus.RemoteNewer || item.Status == SyncItemStatus.RemoteOnly)
             {
-                string outText = proc.StandardOutput.ReadToEnd();
-                proc.WaitForExit(3000);
-                return outText;
+                DownloadFromRemote(item);
             }
         }
-        catch
-        {
-            return "ADB утилита не найдена в системном PATH.";
-        }
-        return "Устройства не обнаружены.";
     }
 
-    private static string ComputeSha256(string filePath)
-    {
-        try
-        {
-            using var sha = SHA256.Create();
-            using var stream = File.OpenRead(filePath);
-            byte[] hash = sha.ComputeHash(stream);
-            return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
-        }
-        catch
-        {
-            return "";
-        }
-    }
 }

@@ -46,6 +46,15 @@ public record NetplayRoomItem(string Username, string GameName, string CoreName,
 
 public partial class MainWindow : Window, INotifyPropertyChanged
 {
+    // In-App Embedded Game Viewport & Interactive Controller Fields
+    private Process? _activeGameProcess;
+    private RomItem? _activeRomItem;
+    private bool _isGameFullscreen;
+    private bool _isCapturingGamepadButton;
+    private string _capturingButtonName = "";
+    private Border? _activePadButtonBorder;
+    private DateTime _lastDropTime = DateTime.MinValue;
+
     public static MainWindow? Instance { get; private set; }
 
     public const string StormCertificate = "STORM-AURORA-FLUID-CERT-2026-RETROARCH-ORIGINAL-AUTHENTIC-BUILD-VERIFIED";
@@ -217,7 +226,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ItemsCheevosLibrary.ItemsSource = _filteredAchievements;
 
         // Ensure UDP Command Bridge
-        UdpCommandBridge.EnsureNetworkCommandConfig();
+        UdpCommandBridge.EnsureNetworkCommandConfig(CoreManager.AppDir);
 
         // Load Subsystems
         _allCoreProfiles = CoreOptionsAndOverridesManager.GetCoreProfiles();
@@ -260,6 +269,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         // Refresh UI Stats & Screenshots
         UpdateStats();
+        LoadLibraryFromPlaylist();
         RefreshScreenshotsList();
 
         // Initialize 5 Flagship Systems
@@ -305,7 +315,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 cmdArgs[i].Equals("--screenshot-fix3-gamepads", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-fix4-bios", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-fix5-savesync", StringComparison.OrdinalIgnoreCase) ||
-                cmdArgs[i].Equals("--screenshot-fix6-achievements", StringComparison.OrdinalIgnoreCase))
+                cmdArgs[i].Equals("--screenshot-fix6-achievements", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-v2-dashboard", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-v2-library", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-v2-gamepads", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-v2-shaders", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-v2-bios", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-v2-savesync", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-v2-gameplayer", StringComparison.OrdinalIgnoreCase))
             {
                 bool isSettings = cmdArgs[i].Equals("--screenshot-settings", StringComparison.OrdinalIgnoreCase);
                 bool isBios = cmdArgs[i].Equals("--screenshot-bios", StringComparison.OrdinalIgnoreCase);
@@ -413,6 +430,48 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                         {
                             NavBtn_Click(NavBtnAchievements, new RoutedEventArgs());
                         }
+                        else if (cmdArgs[i].Equals("--screenshot-v2-dashboard", StringComparison.OrdinalIgnoreCase))
+                        {
+                            NavBtn_Click(NavBtnMainMenu, new RoutedEventArgs());
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-v2-library", StringComparison.OrdinalIgnoreCase))
+                        {
+                            NavBtn_Click(NavBtnLibrary, new RoutedEventArgs());
+                            if (_allGames.Count == 0)
+                            {
+                                _allGames.Add(new RomItem { Name = "Super Mario World (USA)", FilePath = @"C:\Games\smw.sfc", CoreDisplayName = "Snes9x", Platform = "Super Nintendo (SNES)", CoreDll = "snes9x_libretro.dll", IsCoreInstalled = true, StatusText = "Готово к запуску" });
+                                _allGames.Add(new RomItem { Name = "Castlevania - Symphony of the Night", FilePath = @"C:\Games\sotn.chd", CoreDisplayName = "SwanStation", Platform = "Sony PlayStation 1", CoreDll = "swanstation_libretro.dll", IsCoreInstalled = true, StatusText = "Готово к запуску" });
+                                _allGames.Add(new RomItem { Name = "Sonic The Hedgehog 2", FilePath = @"C:\Games\sonic2.md", CoreDisplayName = "Genesis Plus GX", Platform = "Sega Genesis", CoreDll = "genesis_plus_gx_libretro.dll", IsCoreInstalled = true, StatusText = "Готово к запуску" });
+                                ApplyGamesFilter();
+                            }
+                            if (EmptyStateBorder != null) EmptyStateBorder.Visibility = Visibility.Collapsed;
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-v2-gamepads", StringComparison.OrdinalIgnoreCase))
+                        {
+                            NavBtn_Click(NavBtnInputRemap, new RoutedEventArgs());
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-v2-shaders", StringComparison.OrdinalIgnoreCase))
+                        {
+                            NavBtn_Click(NavBtnShaders, new RoutedEventArgs());
+                            LoadShaders();
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-v2-bios", StringComparison.OrdinalIgnoreCase))
+                        {
+                            NavBtn_Click(NavBtnBios, new RoutedEventArgs());
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-v2-savesync", StringComparison.OrdinalIgnoreCase))
+                        {
+                            NavBtn_Click(NavBtnSaveSync, new RoutedEventArgs());
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-v2-gameplayer", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (BtnNavGamePlayer != null) NavBtn_Click(BtnNavGamePlayer, new RoutedEventArgs());
+                            if (ViewGamePlayer != null) ViewGamePlayer.Visibility = Visibility.Visible;
+                            if (TxtActiveGameTitle != null) TxtActiveGameTitle.Text = "Super Mario World (USA)";
+                            if (TxtActiveGamePlatform != null) TxtActiveGamePlatform.Text = "Super Nintendo (SNES)";
+                            if (TxtActiveGameCore != null) TxtActiveGameCore.Text = "Snes9x";
+                            if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
+                        }
                         UpdateLayout();
                         int w = Math.Max(1160, (int)ActualWidth);
                         int h = Math.Max(720, (int)ActualHeight);
@@ -455,9 +514,44 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
+        if (_isCapturingGamepadButton && !string.IsNullOrEmpty(_capturingButtonName))
+        {
+            if (e.Key == Key.Escape)
+            {
+                CancelGamepadButtonCapture();
+                e.Handled = true;
+                return;
+            }
+
+            string retroKey = InputRemapManager.ConvertKeyToRetroArch(e.Key);
+            ApplyCapturedKey(retroKey);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.F5)
+        {
+            BtnNavGamePlayer_Click(sender, e);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.F11 && ViewGamePlayer != null && ViewGamePlayer.Visibility == Visibility.Visible)
+        {
+            BtnGameFullscreen_Click(sender, e);
+            e.Handled = true;
+            return;
+        }
+
         // ESC dismisses active modal overlay or confirms cancel
         if (e.Key == Key.Escape)
         {
+            if (_isGameFullscreen)
+            {
+                BtnGameFullscreen_Click(sender, e);
+                e.Handled = true;
+                return;
+            }
             if (StormAlertOverlay.Visibility == Visibility.Visible)
             {
                 BtnAlertCancel_Click(sender, e);
@@ -608,7 +702,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         btn.Tag = "Active";
 
+        if (BtnNavGamePlayer != null) BtnNavGamePlayer.Tag = null;
+
         // Hide all views
+        if (ViewGamePlayer != null) ViewGamePlayer.Visibility = Visibility.Collapsed;
         ViewMainMenu.Visibility = Visibility.Collapsed;
         ViewSettings.Visibility = Visibility.Collapsed;
         ViewLibrary.Visibility = Visibility.Collapsed;
@@ -827,7 +924,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         btn.Tag = "Active";
 
-        string txt = btn.Content.ToString() ?? "";
+        string txt = "";
+        if (btn.Content is StackPanel sp)
+        {
+            txt = sp.Children.OfType<TextBlock>().FirstOrDefault()?.Text ?? "";
+        }
+        else
+        {
+            txt = btn.Content?.ToString() ?? "";
+        }
         if (txt.Contains("Все")) _selectedSettingsCategory = "all";
         else if (txt.Contains("Драйверы")) _selectedSettingsCategory = "drivers";
         else if (txt.Contains("Видео")) _selectedSettingsCategory = "video";
@@ -981,7 +1086,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void BtnQuickScreenshot_Click(object sender, RoutedEventArgs e)
     {
-        UdpCommandBridge.TakeScreenshot(); ShowNotification("STORM RETROARCH", "Команда SCREENSHOT отправлена в RetroArch (UDP:55355).");
+        UdpCommandBridge.Screenshot(); ShowNotification("STORM RETROARCH", "Команда SCREENSHOT отправлена в RetroArch (UDP:55355).");
         RefreshScreenshotsList();
     }
 
@@ -1238,11 +1343,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private void BtnPlayGame_Click(object sender, RoutedEventArgs e)
+    private async void BtnPlayGame_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button b && b.DataContext is RomItem item)
         {
-            _ = CoreManager.LaunchGameAsync(item);
+            await StartGameInViewportAsync(item);
         }
     }
 
@@ -2820,15 +2925,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     // ==================== SMART PER-SYSTEM PROFILES ====================
     private void InitSmartProfiles()
     {
-        CmbSmartProfiles.Items.Clear();
-        foreach (var p in SmartProfileManager.GetAllProfiles())
-        {
-            CmbSmartProfiles.Items.Add(new ComboBoxItem
-            {
-                Content = $"{p.Icon} {p.Name}",
-                Tag = p
-            });
-        }
+        CmbSmartProfiles.ItemsSource = SmartProfileManager.GetAllProfiles();
         if (CmbSmartProfiles.Items.Count > 0)
         {
             CmbSmartProfiles.SelectedIndex = 0;
@@ -2837,7 +2934,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void CmbSmartProfiles_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (CmbSmartProfiles.SelectedItem is ComboBoxItem item && item.Tag is SmartProfile profile)
+        if (CmbSmartProfiles.SelectedItem is SmartProfile profile)
         {
             TxtSmartProfileStatus.Text = $"Текущий профиль: {profile.Name} • Драйвер: {profile.VideoDriver.ToUpper()} • Run-Ahead {(profile.RunAheadFrames > 0 ? profile.RunAheadFrames + "к" : "Выкл")}";
         }
@@ -2845,7 +2942,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void BtnApplySmartProfile_Click(object sender, RoutedEventArgs e)
     {
-        if (CmbSmartProfiles.SelectedItem is ComboBoxItem item && item.Tag is SmartProfile profile)
+        if (CmbSmartProfiles.SelectedItem is SmartProfile profile)
         {
             string msg = SmartProfileManager.ApplyProfile(profile, CoreManager.AppDir);
             ShowNotification("STORM RETROARCH", msg);
@@ -3241,10 +3338,457 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 Width = 180
             };
             var cSp = new StackPanel();
-            cSp.Children.Add(new TextBlock { Text = "🧩 " + c.Name, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("ThemeTextPrimary"), FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis });
+            cSp.Children.Add(new TextBlock { Text = c.Name, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("ThemeTextPrimary"), FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis });
             cSp.Children.Add(new TextBlock { Text = c.Platform, Foreground = (Brush)FindResource("ThemeAccentGlow"), FontSize = 10.5, Margin = new Thickness(0, 4, 0, 0) });
             comp.Child = cSp;
             PanelCoresCompact.Children.Add(comp);
+        }
+    }
+
+
+    // ==================== IN-APP EMBEDDED GAME VIEWPORT ====================
+
+    private void BtnNavGamePlayer_Click(object sender, RoutedEventArgs e)
+    {
+        NavBtn_Click(BtnNavGamePlayer, e);
+        if (ViewGamePlayer != null)
+        {
+            ViewGamePlayer.Visibility = Visibility.Visible;
+            GameHost?.ResizeEmbeddedGame();
+        }
+    }
+
+    private void BtnGoToLibraryFromViewport_Click(object sender, RoutedEventArgs e)
+    {
+        NavBtn_Click(NavBtnLibrary, e);
+    }
+
+    private async void GameCard_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2 && sender is FrameworkElement fe && fe.DataContext is RomItem item)
+        {
+            await StartGameInViewportAsync(item);
+        }
+    }
+
+    private async Task StartGameInViewportAsync(RomItem item)
+    {
+        _activeRomItem = item;
+
+        // Add to history
+        if (!_history.Any(h => h.FilePath.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase)))
+        {
+            _history.Insert(0, item);
+        }
+
+        // Switch to Game Viewport
+        if (BtnNavGamePlayer != null) NavBtn_Click(BtnNavGamePlayer, new RoutedEventArgs());
+        if (ViewGamePlayer != null) ViewGamePlayer.Visibility = Visibility.Visible;
+
+        if (TxtActiveGameTitle != null) TxtActiveGameTitle.Text = item.Name;
+        if (TxtActiveGamePlatform != null) TxtActiveGamePlatform.Text = item.Platform;
+        if (TxtActiveGameCore != null) TxtActiveGameCore.Text = item.CoreDisplayName;
+        if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Visible;
+        if (TxtGameViewportStatusTitle != null) TxtGameViewportStatusTitle.Text = $"Запуск «{item.Name}»...";
+        if (TxtGameViewportStatusDesc != null) TxtGameViewportStatusDesc.Text = $"Подготовка ядра {item.CoreDisplayName} ({item.CoreDll}) и запуск во встроенном экране STORM RETROARCH...";
+
+        var proc = await CoreManager.LaunchEmbeddedGameAsync(item, 
+            status => Dispatcher.Invoke(() => { if (TxtGameViewportStatusDesc != null) TxtGameViewportStatusDesc.Text = status; }),
+            err => Dispatcher.Invoke(() => ShowNotification("Ошибка запуска", err)));
+
+        if (proc == null)
+        {
+            if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Visible;
+            if (TxtGameViewportStatusTitle != null) TxtGameViewportStatusTitle.Text = "Ошибка запуска игры";
+            if (TxtGameViewportStatusDesc != null) TxtGameViewportStatusDesc.Text = "Не удалось запустить эмулятор Libretro.";
+            return;
+        }
+
+        _activeGameProcess = proc;
+
+        _ = Task.Run(async () =>
+        {
+            IntPtr gameHwnd = IntPtr.Zero;
+            for (int i = 0; i < 300; i++)
+            {
+                if (proc.HasExited) break;
+                proc.Refresh();
+                if (proc.MainWindowHandle != IntPtr.Zero)
+                {
+                    gameHwnd = proc.MainWindowHandle;
+                    break;
+                }
+                await Task.Delay(20);
+            }
+
+            if (gameHwnd != IntPtr.Zero)
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    GameHost?.AttachGameWindow(gameHwnd);
+                    if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
+                    ShowNotification("STORM RETROARCH", $"Игра «{item.Name}» активна во встроенном экране!");
+                });
+            }
+
+            await proc.WaitForExitAsync();
+
+            await Dispatcher.InvokeAsync(() =>
+            {
+                GameHost?.DetachGameWindow();
+                if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Visible;
+                if (TxtGameViewportStatusTitle != null) TxtGameViewportStatusTitle.Text = "Игра завершена";
+                if (TxtGameViewportStatusDesc != null) TxtGameViewportStatusDesc.Text = $"Сессия «{item.Name}» завершена. Выберите следующую игру.";
+                _activeGameProcess = null;
+                _activeRomItem = null;
+            });
+        });
+    }
+
+    private void BtnGamePause_Click(object sender, RoutedEventArgs e) => UdpCommandBridge.PauseToggle();
+    private void BtnGameSaveState_Click(object sender, RoutedEventArgs e)
+    {
+        UdpCommandBridge.SaveState();
+        ShowNotification("STORM RETROARCH", "Стейт сохранён (F2)");
+    }
+    private void BtnGameLoadState_Click(object sender, RoutedEventArgs e)
+    {
+        UdpCommandBridge.LoadState();
+        ShowNotification("STORM RETROARCH", "Стейт загружен (F4)");
+    }
+    private void BtnGameRewind_Click(object sender, RoutedEventArgs e) => UdpCommandBridge.Rewind();
+    private void BtnGameFastForward_Click(object sender, RoutedEventArgs e) => UdpCommandBridge.FastForward();
+    private void BtnGameShader_Click(object sender, RoutedEventArgs e) => UdpCommandBridge.ShaderNext();
+    private void BtnGameScreenshot_Click(object sender, RoutedEventArgs e)
+    {
+        UdpCommandBridge.Screenshot();
+        ShowNotification("STORM RETROARCH", "Снимок экрана сохранён (F8)");
+    }
+
+    private void BtnGameAiHint_Click(object sender, RoutedEventArgs e)
+    {
+        NavBtn_Click(NavBtnAiWalkthrough, e);
+        ShowNotification("ИИ-Помощник STORM", "Анализ текущей игровой ситуации...");
+    }
+
+    private void BtnGameFullscreen_Click(object sender, RoutedEventArgs e)
+    {
+        _isGameFullscreen = !_isGameFullscreen;
+        var sidebar = FindName("LeftSidebar") as UIElement;
+        var topBar = FindName("TopBarGrid") as UIElement;
+
+        if (sidebar != null) sidebar.Visibility = _isGameFullscreen ? Visibility.Collapsed : Visibility.Visible;
+        if (topBar != null) topBar.Visibility = _isGameFullscreen ? Visibility.Collapsed : Visibility.Visible;
+
+        GameHost?.ResizeEmbeddedGame();
+    }
+
+    private void BtnGameStop_Click(object sender, RoutedEventArgs e)
+    {
+        UdpCommandBridge.Quit();
+        Task.Run(async () =>
+        {
+            await Task.Delay(400);
+            try
+            {
+                if (_activeGameProcess != null && !_activeGameProcess.HasExited)
+                    _activeGameProcess.Kill();
+            }
+            catch { }
+        });
+
+        NavBtn_Click(NavBtnLibrary, e);
+    }
+
+    private void BtnExitGame_Click(object sender, RoutedEventArgs e) => BtnGameStop_Click(sender, e);
+
+    // ==================== DRAG AND DROP & LIBRARY PERSISTENCE ====================
+
+    private void Window_PreviewDragOver(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            e.Effects = DragDropEffects.Copy;
+            e.Handled = true;
+        }
+    }
+
+    private void Window_PreviewDrop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            string[]? files = e.Data.GetData(DataFormats.FileDrop) as string[];
+            if (files != null && files.Length > 0)
+            {
+                e.Handled = true;
+                ProcessDroppedPaths(files);
+            }
+        }
+    }
+
+    private void Window_Drop(object sender, DragEventArgs e)
+    {
+        Window_PreviewDrop(sender, e);
+    }
+
+    private void ProcessDroppedPaths(string[] paths)
+    {
+        if ((DateTime.UtcNow - _lastDropTime).TotalMilliseconds < 300)
+            return;
+        _lastDropTime = DateTime.UtcNow;
+
+        int addedRoms = 0;
+        int addedCores = 0;
+        int addedShaders = 0;
+        int addedCheats = 0;
+
+        foreach (var path in paths)
+        {
+            if (Directory.Exists(path))
+            {
+                ScanDirectory(path);
+                continue;
+            }
+
+            if (!File.Exists(path)) continue;
+
+            string ext = Path.GetExtension(path).ToLowerInvariant();
+            string fname = Path.GetFileName(path);
+
+            if (ext == ".dll")
+            {
+                try
+                {
+                    if (!Directory.Exists(CoreManager.CoresDir)) Directory.CreateDirectory(CoreManager.CoresDir);
+                    File.Copy(path, Path.Combine(CoreManager.CoresDir, fname), overwrite: true);
+                    addedCores++;
+                }
+                catch { }
+            }
+            else if (ext is ".slangp" or ".glslp" or ".cgp" or ".slang")
+            {
+                try
+                {
+                    if (!Directory.Exists(ShaderManager.ShadersDir)) Directory.CreateDirectory(ShaderManager.ShadersDir);
+                    File.Copy(path, Path.Combine(ShaderManager.ShadersDir, fname), overwrite: true);
+                    addedShaders++;
+                }
+                catch { }
+            }
+            else if (ext == ".cht")
+            {
+                try
+                {
+                    if (!Directory.Exists(CheatManager.CheatsDir)) Directory.CreateDirectory(CheatManager.CheatsDir);
+                    File.Copy(path, Path.Combine(CheatManager.CheatsDir, fname), overwrite: true);
+                    addedCheats++;
+                }
+                catch { }
+            }
+            else
+            {
+                AddRomFile(path);
+                addedRoms++;
+            }
+        }
+
+        if (addedRoms > 0)
+        {
+            SaveLibraryToPlaylist();
+            NavBtn_Click(NavBtnLibrary, new RoutedEventArgs());
+            ApplyGamesFilter();
+            UpdateStats();
+            ShowNotification("STORM RETROARCH", $"Добавлено {addedRoms} игр в библиотеку!");
+        }
+        else if (addedCores > 0)
+        {
+            ShowNotification("STORM RETROARCH", $"Установлено ядер Libretro: {addedCores}");
+            RefreshCoresUi();
+        }
+        else if (addedShaders > 0)
+        {
+            ShowNotification("STORM RETROARCH", $"Добавлено шейдеров: {addedShaders}");
+            LoadShaders();
+        }
+        else if (addedCheats > 0)
+        {
+            ShowNotification("STORM RETROARCH", $"Добавлено читов: {addedCheats}");
+        }
+    }
+
+    private void SaveLibraryToPlaylist()
+    {
+        try
+        {
+            string playlistDir = Path.Combine(CoreManager.AppDir, "playlists");
+            if (!Directory.Exists(playlistDir)) Directory.CreateDirectory(playlistDir);
+            string file = Path.Combine(playlistDir, "storm_library.json");
+            var paths = _allGames.Select(g => g.FilePath).Distinct().ToList();
+            string json = System.Text.Json.JsonSerializer.Serialize(paths, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(file, json);
+        }
+        catch { }
+    }
+
+    private void LoadLibraryFromPlaylist()
+    {
+        try
+        {
+            string file = Path.Combine(CoreManager.AppDir, "playlists", "storm_library.json");
+            if (File.Exists(file))
+            {
+                string json = File.ReadAllText(file);
+                var paths = System.Text.Json.JsonSerializer.Deserialize<List<string>>(json);
+                if (paths != null)
+                {
+                    foreach (var p in paths)
+                    {
+                        if (File.Exists(p)) AddRomFile(p);
+                    }
+                    ApplyGamesFilter();
+                    UpdateStats();
+                }
+            }
+        }
+        catch { }
+    }
+
+    // ==================== INTERACTIVE GAMEPAD STUDIO ====================
+
+    private void GamepadVisualButton_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is Border border && border.Tag is string btnName)
+        {
+            StartGamepadButtonCapture(btnName, border);
+        }
+    }
+
+    private void BtnCaptureKey_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string btnName)
+        {
+            Border? b = FindPadBorderByName(btnName);
+            StartGamepadButtonCapture(btnName, b);
+        }
+    }
+
+    private Border? FindPadBorderByName(string btnName)
+    {
+        return btnName switch
+        {
+            "up" => PadBtn_up,
+            "down" => PadBtn_down,
+            "left" => PadBtn_left,
+            "right" => PadBtn_right,
+            "a" => PadBtn_a,
+            "b" => PadBtn_b,
+            "x" => PadBtn_x,
+            "y" => PadBtn_y,
+            "select" => PadBtn_select,
+            "start" => PadBtn_start,
+            "l" => PadBtn_l,
+            "r" => PadBtn_r,
+            "l2" => PadBtn_l2,
+            "r2" => PadBtn_r2,
+            "l3" => PadBtn_l3,
+            "r3" => PadBtn_r3,
+            _ => null
+        };
+    }
+
+    private void StartGamepadButtonCapture(string btnName, Border? border = null)
+    {
+        _isCapturingGamepadButton = true;
+        _capturingButtonName = btnName;
+
+        if (_activePadButtonBorder != null)
+        {
+            _activePadButtonBorder.BorderBrush = (Brush)new BrushConverter().ConvertFrom("#8B5CF6")!;
+        }
+
+        border ??= FindPadBorderByName(btnName);
+        _activePadButtonBorder = border;
+
+        if (_activePadButtonBorder != null)
+        {
+            _activePadButtonBorder.BorderBrush = (Brush)new BrushConverter().ConvertFrom("#38BDF8")!;
+        }
+
+        if (BadgeGamepadCapture != null)
+        {
+            BadgeGamepadCapture.Background = (Brush)new BrushConverter().ConvertFrom("#3038BDF8")!;
+            BadgeGamepadCapture.BorderBrush = (Brush)new BrushConverter().ConvertFrom("#38BDF8")!;
+        }
+
+        if (TxtGamepadCaptureStatus != null)
+        {
+            TxtGamepadCaptureStatus.Text = $"Нажмите любую клавишу клавиатуры для назначения [{btnName.ToUpper()}]... (ESC — отмена)";
+            TxtGamepadCaptureStatus.Foreground = (Brush)new BrushConverter().ConvertFrom("#38BDF8")!;
+        }
+    }
+
+    private void CancelGamepadButtonCapture()
+    {
+        _isCapturingGamepadButton = false;
+        _capturingButtonName = "";
+
+        if (_activePadButtonBorder != null)
+        {
+            _activePadButtonBorder.BorderBrush = (Brush)new BrushConverter().ConvertFrom("#8B5CF6")!;
+            _activePadButtonBorder = null;
+        }
+
+        if (TxtGamepadCaptureStatus != null)
+        {
+            TxtGamepadCaptureStatus.Text = "Назначение отменено. Кликните кнопку для выбора.";
+            TxtGamepadCaptureStatus.Foreground = (Brush)new BrushConverter().ConvertFrom("#94A3B8")!;
+        }
+    }
+
+    private void ApplyCapturedKey(string retroKey)
+    {
+        var binding = _currentRemapBindings.FirstOrDefault(b => b.ButtonName.Equals(_capturingButtonName, StringComparison.OrdinalIgnoreCase));
+        if (binding != null)
+        {
+            binding.BoundKey = retroKey;
+            InputRemapManager.SaveBindingsToConfig(_currentRemapBindings);
+
+            if (_activePadButtonBorder != null)
+            {
+                _activePadButtonBorder.BorderBrush = (Brush)new BrushConverter().ConvertFrom("#10B981")!;
+            }
+
+            if (TxtGamepadCaptureStatus != null)
+            {
+                TxtGamepadCaptureStatus.Text = $"✓ Назначено: [{binding.DisplayLabel}] -> «{retroKey}»";
+                TxtGamepadCaptureStatus.Foreground = (Brush)new BrushConverter().ConvertFrom("#6EE7B7")!;
+            }
+
+            ShowNotification("STORM RETROARCH", $"Кнопка {binding.DisplayLabel} назначена на клавишу «{retroKey}»");
+        }
+
+        _isCapturingGamepadButton = false;
+        _capturingButtonName = "";
+    }
+
+    // ==================== SHADERS PACKAGE DOWNLOAD ====================
+
+    private async void BtnDownloadAllShaders_Click(object sender, RoutedEventArgs e)
+    {
+        ShowNotification("STORM RETROARCH", "Загрузка полного архива шейдеров Libretro Slang...");
+        bool ok = await ShaderManager.DownloadAllShadersPackageAsync(new Progress<(double pct, string msg)>(p =>
+        {
+            ShowNotification("Шейдеры Libretro", $"{p.pct:F0}% — {p.msg}");
+        }));
+
+        if (ok)
+        {
+            ShowNotification("STORM RETROARCH", "Коллекция из 459+ шейдеров Slang успешно установлена!");
+            LoadShaders();
+        }
+        else
+        {
+            ShowNotification("Ошибка загрузки", "Не удалось скачать архив шейдеров с Libretro CDN.");
         }
     }
 

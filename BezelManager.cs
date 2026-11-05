@@ -17,7 +17,8 @@ public class BezelPresetItem : INotifyPropertyChanged
     public string Description { get; set; } = "";
     public string CfgPath { get; set; } = "";
     public string ImagePath { get; set; } = "";
-    public string Icon { get; set; } = "🖼️";
+    public string IconPathData { get; set; } = "M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z";
+    public string IconColor { get; set; } = "#38BDF8";
     public string AspectRatio { get; set; } = "4:3 CRT";
 
     public bool IsActive
@@ -86,8 +87,7 @@ public static class BezelManager
                                                                          cfg.Contains(t.Platform.Split(' ')[0]));
 
                     string platform = matchTmpl?.Platform ?? "Custom Bezel";
-                    string icon = matchTmpl?.Icon ?? "🖼️";
-                    string desc = matchTmpl?.Description ?? $"Пользовательская рамка Bezel для экрана 16:9 ({Path.GetFileName(cfg)})";
+                                        string desc = matchTmpl?.Description ?? $"Пользовательская рамка Bezel для экрана 16:9 ({Path.GetFileName(cfg)})";
 
                     bool isActive = overlayEnabled && !string.IsNullOrEmpty(currentOverlay) &&
                                     (currentOverlay.Equals(cfg, StringComparison.OrdinalIgnoreCase) ||
@@ -100,7 +100,7 @@ public static class BezelManager
                         Description = desc,
                         CfgPath = cfg,
                         ImagePath = png,
-                        Icon = icon,
+                        IconColor = "#38BDF8",
                         AspectRatio = "4:3 CRT",
                         IsActive = isActive
                     });
