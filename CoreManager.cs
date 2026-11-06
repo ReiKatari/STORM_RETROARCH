@@ -10,9 +10,15 @@ using System.Threading.Tasks;
 
 namespace StormRetroArch;
 
-public record CoreInfo(string Name, string Platform, string DllName, string Description, string Manufacturer = "Universal", string SupportedExtensions = "")
+public record CoreInfo(string Name, string Platform, string DllName, string Description, string Manufacturer = "Universal", string SupportedExtensions = "", string CatalogVersion = "")
 {
     public bool IsInstalled => CoreManager.IsCoreInstalled(DllName);
+    public string Version => CoreManager.GetCoreVersion(DllName, CatalogVersion);
+    public string VersionBadge => $"Версия {Version}";
+    public string FileSizeText => CoreManager.GetCoreSizeFormatted(DllName);
+    public string InstalledStatusBadge => IsInstalled ? $"✔ Установлено ({FileSizeText})" : "⬇ Не установлено";
+    public string ActionLabel => IsInstalled ? "Обновить" : "Установить";
+    public override string ToString() => IsInstalled ? $"{Name} • Установлено ({Version})" : $"{Name} • Доступно ({Version})";
 }
 
 public static class CoreManager
@@ -187,11 +193,12 @@ public static class CoreManager
                     string systemName = ExtractField(content, "systemname") ?? "Libretro Core";
                     string manufacturer = ExtractField(content, "manufacturer") ?? "Universal";
                     string extensions = ExtractField(content, "supported_extensions") ?? "";
+                    string displayVer = ExtractField(content, "display_version") ?? "";
 
                     string desc = $"Официальное ядро Libretro: {displayName} ({systemName}).";
                     if (!string.IsNullOrEmpty(extensions)) desc += $" Форматы: {extensions}";
 
-                    var core = new CoreInfo(displayName, systemName, expectedDll, desc, manufacturer, extensions);
+                    var core = new CoreInfo(displayName, systemName, expectedDll, desc, manufacturer, extensions, displayVer);
                     _allCoresCatalog.Add(core);
 
                     // Map extensions
@@ -254,6 +261,123 @@ public static class CoreManager
     {
         return File.Exists(Path.Combine(CoresDir, dllName));
     }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _coreVersionCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly Dictionary<string, string> KnownCoreVersions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["fceumm_libretro.dll"] = "1.19.1",
+        ["mesen_libretro.dll"] = "0.9.9",
+        ["nestopia_libretro.dll"] = "1.52.1",
+        ["quicknes_libretro.dll"] = "1.0.2",
+        ["snes9x_libretro.dll"] = "1.62.3",
+        ["bsnes_libretro.dll"] = "115",
+        ["genesis_plus_gx_libretro.dll"] = "1.7.4",
+        ["picodrive_libretro.dll"] = "2.00",
+        ["dosbox_pure_libretro.dll"] = "0.9.9",
+        ["dosbox_core_libretro.dll"] = "0.74",
+        ["dosbox_svn_libretro.dll"] = "0.74-SVN",
+        ["swanstation_libretro.dll"] = "1.0.0",
+        ["pcsx_rearmed_libretro.dll"] = "r24",
+        ["mednafen_psx_hw_libretro.dll"] = "1.32.1",
+        ["mgba_libretro.dll"] = "0.10.5",
+        ["vbam_libretro.dll"] = "2.1.9",
+        ["gambatte_libretro.dll"] = "0.5.0",
+        ["mupen64plus_next_libretro.dll"] = "2.6",
+        ["flycast_libretro.dll"] = "2.3",
+        ["ppsspp_libretro.dll"] = "1.17.1",
+        ["melonds_libretro.dll"] = "0.9.5",
+        ["melondsds_libretro.dll"] = "0.9.5",
+        ["pcsx2_libretro.dll"] = "1.7.5",
+        ["fbneo_libretro.dll"] = "1.0.0.03",
+        ["mame2003_plus_libretro.dll"] = "2003+",
+        ["stella_libretro.dll"] = "7.0",
+        ["handy_libretro.dll"] = "0.97",
+        ["mednafen_pce_fast_libretro.dll"] = "1.32.1",
+        ["mednafen_saturn_libretro.dll"] = "1.32.1",
+        ["mednafen_ngp_libretro.dll"] = "1.32.1",
+        ["mednafen_wswan_libretro.dll"] = "1.32.1",
+        ["opera_libretro.dll"] = "1.0.0",
+        ["scummvm_libretro.dll"] = "2.8.1",
+        ["puae_libretro.dll"] = "2.6.1",
+        ["vice_x64_libretro.dll"] = "3.8",
+        ["citra_libretro.dll"] = "0.1.0",
+        ["dolphin_libretro.dll"] = "5.0"
+    };
+
+    public static string GetCoreVersion(string dllName, string fallbackVersion = "")
+    {
+        if (string.IsNullOrWhiteSpace(dllName)) return "1.19.0";
+        if (_coreVersionCache.TryGetValue(dllName, out var cached)) return cached;
+
+        string version = "";
+
+        // 1. Try to read display_version from info file
+        try
+        {
+            string baseName = Path.GetFileNameWithoutExtension(dllName);
+            string infoPath = Path.Combine(InfoDir, baseName + ".info");
+            if (File.Exists(infoPath))
+            {
+                string content = File.ReadAllText(infoPath);
+                string? v = ExtractField(content, "display_version");
+                if (!string.IsNullOrWhiteSpace(v))
+                {
+                    version = v.Trim();
+                }
+            }
+        }
+        catch { }
+
+        // 2. Fallback to CatalogVersion passed in
+        if (string.IsNullOrWhiteSpace(version) && !string.IsNullOrWhiteSpace(fallbackVersion))
+        {
+            version = fallbackVersion.Trim();
+        }
+
+        // 3. Fallback to KnownCoreVersions dictionary
+        if (string.IsNullOrWhiteSpace(version) && KnownCoreVersions.TryGetValue(dllName, out var known))
+        {
+            version = known;
+        }
+
+        // 4. Default version
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            version = "1.19.0";
+        }
+
+        _coreVersionCache[dllName] = version;
+        return version;
+    }
+
+    public static string GetCoreSizeFormatted(string dllName)
+    {
+        if (string.IsNullOrWhiteSpace(dllName)) return "Онлайн-пакет";
+        string path = Path.Combine(CoresDir, dllName);
+        if (!File.Exists(path)) return "Онлайн-пакет";
+
+        try
+        {
+            var fi = new FileInfo(path);
+            long bytes = fi.Length;
+            if (bytes >= 1024 * 1024)
+            {
+                double mb = bytes / (1024.0 * 1024.0);
+                return $"{mb:0.0} МБ".Replace('.', ',');
+            }
+            else
+            {
+                double kb = bytes / 1024.0;
+                return $"{kb:0.0} КБ".Replace('.', ',');
+            }
+        }
+        catch
+        {
+            return "Онлайн-пакет";
+        }
+    }
+
 
     public static List<CoreInfo> GetCoresByManufacturer(string manufacturer)
     {

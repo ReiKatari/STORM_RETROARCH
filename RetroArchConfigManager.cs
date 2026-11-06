@@ -152,7 +152,7 @@ public static class RetroArchConfigManager
                 }
 
                 var sb = new StringBuilder();
-                sb.AppendLine("# STORM RETROARCH 1.4.1 — Unified RetroArch Configuration File");
+                sb.AppendLine("# STORM RETROARCH 1.5.0 — Unified RetroArch Configuration File");
                 sb.AppendLine($"# Last saved: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
                 sb.AppendLine();
 

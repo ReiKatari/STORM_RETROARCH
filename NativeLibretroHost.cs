@@ -20,6 +20,39 @@ public class NativeLibretroHost
     private static readonly Lazy<NativeLibretroHost> _instance = new(() => new NativeLibretroHost());
     public static NativeLibretroHost Current => _instance.Value;
 
+    private static readonly uint[] Rgb565Lut = new uint[65536];
+    private static readonly uint[] Rgb565ScanlineLut = new uint[65536];
+    private static readonly uint[] Rgb1555Lut = new uint[65536];
+    private static readonly uint[] Rgb1555ScanlineLut = new uint[65536];
+
+    static NativeLibretroHost()
+    {
+        for (int val = 0; val < 65536; val++)
+        {
+            // RGB565
+            byte b565 = (byte)((val & 0x1F) * 255 / 31);
+            byte g565 = (byte)(((val >> 5) & 0x3F) * 255 / 63);
+            byte r565 = (byte)(((val >> 11) & 0x1F) * 255 / 31);
+            Rgb565Lut[val] = 0xFF000000u | ((uint)r565 << 16) | ((uint)g565 << 8) | b565;
+
+            byte sb565 = (byte)(b565 * 3 / 4);
+            byte sg565 = (byte)(g565 * 3 / 4);
+            byte sr565 = (byte)(r565 * 3 / 4);
+            Rgb565ScanlineLut[val] = 0xFF000000u | ((uint)sr565 << 16) | ((uint)sg565 << 8) | sb565;
+
+            // 0RGB1555
+            byte b1555 = (byte)((val & 0x1F) * 255 / 31);
+            byte g1555 = (byte)(((val >> 5) & 0x1F) * 255 / 31);
+            byte r1555 = (byte)(((val >> 10) & 0x1F) * 255 / 31);
+            Rgb1555Lut[val] = 0xFF000000u | ((uint)r1555 << 16) | ((uint)g1555 << 8) | b1555;
+
+            byte sb1555 = (byte)(b1555 * 3 / 4);
+            byte sg1555 = (byte)(g1555 * 3 / 4);
+            byte sr1555 = (byte)(r1555 * 3 / 4);
+            Rgb1555ScanlineLut[val] = 0xFF000000u | ((uint)sr1555 << 16) | ((uint)sg1555 << 8) | sb1555;
+        }
+    }
+
     // ==================== LIBRETRO C API STRUCTS ====================
     [StructLayout(LayoutKind.Sequential)]
     public struct RetroGameGeometry
@@ -324,10 +357,9 @@ public class NativeLibretroHost
                 uint idx = 0;
                 foreach (var c in cheats)
                 {
-                    if (string.IsNullOrWhiteSpace(c.Code)) continue;
-                    _retroCheatSet(idx, c.IsEnabled, c.Code);
-                    if (c.IsEnabled) applied++;
-                    idx++;
+                    if (!c.IsEnabled || string.IsNullOrWhiteSpace(c.Code)) continue;
+                    _retroCheatSet(idx++, true, c.Code.Trim());
+                    applied++;
                 }
                 return (int)applied;
             }
@@ -574,6 +606,13 @@ public class NativeLibretroHost
         _retroSetInputPoll!(_inputPollCallback!);
         _retroSetInputState!(_inputStateCallback!);
 
+        // Reset video & rendering state so switching cores never leaks stale pixel format
+        _pixelFormat = 0;
+        _lastWidth = 0;
+        _lastHeight = 0;
+        _bitmap = null;
+        _isRendering = 0;
+
         // 5. Init core
         _retroInit!();
 
@@ -774,7 +813,10 @@ public class NativeLibretroHost
             if (match != null && File.Exists(match.FilePath))
             {
                 var parsedCheats = CheatManager.ParseCht(match.FilePath);
-                ApplyCheats(parsedCheats);
+                if (parsedCheats.Any(c => c.IsEnabled))
+                {
+                    ApplyCheats(parsedCheats);
+                }
             }
         }
         catch { }
@@ -939,76 +981,46 @@ public class NativeLibretroHost
                     byte* dstRow = dstFixed + (y * w * 4);
                     bool isOddScanline = applyScanlines && (y % 2 != 0);
 
+                    uint* dstUint = (uint*)dstRow;
+
                     if (_pixelFormat == 1) // XRGB8888
                     {
                         uint* pSrc = (uint*)srcRow;
-                        for (int x = 0; x < w; x++)
+                        if (isOddScanline)
                         {
-                            uint val = pSrc[x];
-                            byte b = (byte)(val & 0xFF);
-                            byte g = (byte)((val >> 8) & 0xFF);
-                            byte r = (byte)((val >> 16) & 0xFF);
-
-                            if (isOddScanline)
+                            for (int x = 0; x < w; x++)
                             {
-                                b = (byte)(b * 3 / 4);
-                                g = (byte)(g * 3 / 4);
-                                r = (byte)(r * 3 / 4);
+                                uint val = pSrc[x];
+                                uint b = (val & 0xFF) * 3 / 4;
+                                uint g = ((val >> 8) & 0xFF) * 3 / 4;
+                                uint r = ((val >> 16) & 0xFF) * 3 / 4;
+                                dstUint[x] = 0xFF000000u | (r << 16) | (g << 8) | b;
                             }
-
-                            int di = x * 4;
-                            dstRow[di] = b;
-                            dstRow[di + 1] = g;
-                            dstRow[di + 2] = r;
-                            dstRow[di + 3] = 255;
+                        }
+                        else
+                        {
+                            for (int x = 0; x < w; x++)
+                            {
+                                dstUint[x] = pSrc[x] | 0xFF000000u;
+                            }
                         }
                     }
                     else if (_pixelFormat == 2) // RGB565
                     {
+                        uint[] lut = isOddScanline ? Rgb565ScanlineLut : Rgb565Lut;
                         ushort* pSrc = (ushort*)srcRow;
                         for (int x = 0; x < w; x++)
                         {
-                            ushort val = pSrc[x];
-                            byte b = (byte)((val & 0x1F) * 255 / 31);
-                            byte g = (byte)(((val >> 5) & 0x3F) * 255 / 63);
-                            byte r = (byte)(((val >> 11) & 0x1F) * 255 / 31);
-
-                            if (isOddScanline)
-                            {
-                                b = (byte)(b * 3 / 4);
-                                g = (byte)(g * 3 / 4);
-                                r = (byte)(r * 3 / 4);
-                            }
-
-                            int di = x * 4;
-                            dstRow[di] = b;
-                            dstRow[di + 1] = g;
-                            dstRow[di + 2] = r;
-                            dstRow[di + 3] = 255;
+                            dstUint[x] = lut[pSrc[x]];
                         }
                     }
                     else // 0RGB1555
                     {
+                        uint[] lut = isOddScanline ? Rgb1555ScanlineLut : Rgb1555Lut;
                         ushort* pSrc = (ushort*)srcRow;
                         for (int x = 0; x < w; x++)
                         {
-                            ushort val = pSrc[x];
-                            byte b = (byte)((val & 0x1F) * 255 / 31);
-                            byte g = (byte)(((val >> 5) & 0x1F) * 255 / 31);
-                            byte r = (byte)(((val >> 10) & 0x1F) * 255 / 31);
-
-                            if (isOddScanline)
-                            {
-                                b = (byte)(b * 3 / 4);
-                                g = (byte)(g * 3 / 4);
-                                r = (byte)(r * 3 / 4);
-                            }
-
-                            int di = x * 4;
-                            dstRow[di] = b;
-                            dstRow[di + 1] = g;
-                            dstRow[di + 2] = r;
-                            dstRow[di + 3] = 255;
+                            dstUint[x] = lut[pSrc[x]];
                         }
                     }
                 }
@@ -1022,7 +1034,7 @@ public class NativeLibretroHost
             Buffer.BlockCopy(_bgraBuffer, 0, frameCopy, 0, requiredBytes);
 
             _lastWidth = w; _lastHeight = h;
-            Application.Current?.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
+            Application.Current?.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render, new Action(() =>
             {
                 try
                 {

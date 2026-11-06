@@ -62,6 +62,7 @@ public class CheatFileItem : INotifyPropertyChanged
     public string FilePath { get; set; } = "";
     public int CheatCount { get; set; }
     public bool IsLibraryGame { get; set; }
+    public string CheatCountBadge => $"{CheatCount} читов";
     public List<CheatItem> Cheats { get; set; } = new();
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -72,6 +73,96 @@ public class CheatFileItem : INotifyPropertyChanged
 public static class CheatManager
 {
     public static readonly string CheatsDir = Path.Combine(CoreManager.AppDir, "cheats");
+
+    public static string NormalizeGameKey(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "";
+        var sb = new StringBuilder();
+        foreach (char c in name.ToLowerInvariant())
+        {
+            if (char.IsLetterOrDigit(c))
+            {
+                sb.Append(c);
+            }
+        }
+        return sb.ToString();
+    }
+
+    public static void CleanupDuplicateAndSampleCheats(IEnumerable<RomItem>? libraryGames)
+    {
+        try
+        {
+            if (!Directory.Exists(CheatsDir)) return;
+
+            var validKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (libraryGames != null)
+            {
+                foreach (var rom in libraryGames)
+                {
+                    if (!string.IsNullOrWhiteSpace(rom.Name))
+                        validKeys.Add(NormalizeGameKey(rom.Name));
+                    if (!string.IsNullOrWhiteSpace(rom.FilePath))
+                        validKeys.Add(NormalizeGameKey(Path.GetFileNameWithoutExtension(rom.FilePath)));
+                }
+            }
+
+            // Always preserve Battletoads as standard baseline
+            validKeys.Add(NormalizeGameKey("Battletoads"));
+
+            // Remove legacy sample directories if not matching user library
+            string[] sampleDirs = new[]
+            {
+                Path.Combine(CheatsDir, "Nintendo NES и Famicom"),
+                Path.Combine(CheatsDir, "Nintendo NES"),
+                Path.Combine(CheatsDir, "Super Nintendo"),
+                Path.Combine(CheatsDir, "Sega Mega Drive"),
+                Path.Combine(CheatsDir, "Game Boy Advance"),
+                Path.Combine(CheatsDir, "Sony PlayStation 1")
+            };
+
+            foreach (var sDir in sampleDirs)
+            {
+                if (Directory.Exists(sDir))
+                {
+                    var files = Directory.GetFiles(sDir, "*.cht");
+                    foreach (var f in files)
+                    {
+                        string gKey = NormalizeGameKey(Path.GetFileNameWithoutExtension(f));
+                        if (!validKeys.Contains(gKey))
+                        {
+                            try { File.Delete(f); } catch { }
+                        }
+                    }
+                    try
+                    {
+                        if (Directory.GetFiles(sDir).Length == 0 && Directory.GetDirectories(sDir).Length == 0)
+                        {
+                            Directory.Delete(sDir);
+                        }
+                    }
+                    catch { }
+                }
+            }
+
+            // Deduplicate across all directories
+            var allCht = Directory.GetFiles(CheatsDir, "*.cht", SearchOption.AllDirectories);
+            var groups = allCht.GroupBy(f => NormalizeGameKey(Path.GetFileNameWithoutExtension(f)))
+                               .Where(g => !string.IsNullOrEmpty(g.Key) && g.Count() > 1);
+
+            foreach (var g in groups)
+            {
+                var sorted = g.OrderByDescending(f => f.Contains("Игры из вашей библиотеки", StringComparison.OrdinalIgnoreCase))
+                              .ThenByDescending(f => { try { return new FileInfo(f).Length; } catch { return 0L; } })
+                              .ToList();
+
+                for (int i = 1; i < sorted.Count; i++)
+                {
+                    try { File.Delete(sorted[i]); } catch { }
+                }
+            }
+        }
+        catch { }
+    }
 
     static CheatManager()
     {
@@ -96,13 +187,24 @@ public static class CheatManager
 
     public static void EnsureCheatsForLibraryGames(IEnumerable<RomItem>? libraryGames)
     {
-        EnsureSampleCheats();
-        if (libraryGames == null) return;
-
         try
         {
+            if (!Directory.Exists(CheatsDir)) Directory.CreateDirectory(CheatsDir);
             string libDir = Path.Combine(CheatsDir, "Игры из вашей библиотеки");
             if (!Directory.Exists(libDir)) Directory.CreateDirectory(libDir);
+
+            CleanupDuplicateAndSampleCheats(libraryGames);
+
+            // Safe RAM Cheats for Battletoads with version marker
+            string markerFile = Path.Combine(CheatsDir, ".storm_cheats_v2.ok");
+            string btCht = Path.Combine(libDir, "Battletoads.cht");
+            if (!File.Exists(markerFile) || !File.Exists(btCht))
+            {
+                SaveCht(btCht, BuildDefaultCheatsForGame("Battletoads", "Nintendo Entertainment System"));
+                try { File.WriteAllText(markerFile, "STORM RETROARCH 1.5.0 SAFE RAM CHEATS OK", Encoding.UTF8); } catch { }
+            }
+
+            if (libraryGames == null) return;
 
             foreach (var rom in libraryGames)
             {
@@ -129,14 +231,12 @@ public static class CheatManager
         {
             return new List<CheatItem>
             {
-                new() { Index = 0, Description = "Бесконечные жизни для обоих игроков", Code = "GXXZZLVI", IsEnabled = false },
-                new() { Index = 1, Description = "Неуязвимость и защита от урона врагов", Code = "001A:03", IsEnabled = false },
-                new() { Index = 2, Description = "Старт с двойным запасом жизней (10 жизней)", Code = "PAXZGLLA", IsEnabled = false },
-                new() { Index = 3, Description = "Убийство обычных врагов с одного удара", Code = "GXEILUSO", IsEnabled = false },
-                new() { Index = 4, Description = "Супер-высокий прыжок боевой жабы", Code = "AEUebAZA", IsEnabled = false },
-                new() { Index = 5, Description = "Переход сразу на уровень 3: Турбо-туннель", Code = "ZAXZGLLE", IsEnabled = false },
-                new() { Index = 6, Description = "Переход сразу на уровень 6: Змеиная яма", Code = "IYXZGLLE", IsEnabled = false },
-                new() { Index = 7, Description = "Переход сразу на уровень 12: Башня Тёмной королевы", Code = "PZXZGLLE", IsEnabled = false }
+                new() { Index = 0, Description = "Бесконечные жизни первого игрока", Code = "0025:05", IsEnabled = false },
+                new() { Index = 1, Description = "Бесконечные жизни второго игрока", Code = "0026:05", IsEnabled = false },
+                new() { Index = 2, Description = "Полное здоровье первого игрока", Code = "0027:0C", IsEnabled = false },
+                new() { Index = 3, Description = "Полное здоровье второго игрока", Code = "0028:0C", IsEnabled = false },
+                new() { Index = 4, Description = "Девять продолжений", Code = "0011:09", IsEnabled = false },
+                new() { Index = 5, Description = "Защита после получения урона", Code = "057D:20", IsEnabled = false }
             };
         }
 
@@ -184,7 +284,7 @@ public static class CheatManager
         };
     }
 
-    public static List<CheatFileItem> ScanCheats(IEnumerable<RomItem>? libraryGames = null)
+    public static List<CheatFileItem> ScanCheats(IEnumerable<RomItem>? libraryGames = null, bool onlyLibraryGames = false)
     {
         EnsureCheatsForLibraryGames(libraryGames);
         var result = new List<CheatFileItem>();
@@ -192,13 +292,15 @@ public static class CheatManager
         {
             if (!Directory.Exists(CheatsDir)) return result;
 
-            var libNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var libKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             if (libraryGames != null)
             {
                 foreach (var r in libraryGames)
                 {
                     if (!string.IsNullOrWhiteSpace(r.Name))
-                        libNames.Add(r.Name.Trim());
+                        libKeys.Add(NormalizeGameKey(r.Name));
+                    if (!string.IsNullOrWhiteSpace(r.FilePath))
+                        libKeys.Add(NormalizeGameKey(Path.GetFileNameWithoutExtension(r.FilePath)));
                 }
             }
 
@@ -218,9 +320,12 @@ public static class CheatManager
                             .Replace("Nintendo - Game Boy Advance", "Game Boy Advance")
                             .Replace("Sony - PlayStation", "Sony PlayStation 1");
 
+                string gKey = NormalizeGameKey(gameName);
+                string cKey = NormalizeGameKey(cleanTitle);
+
                 bool isLib = relDir.Contains("библиотеки", StringComparison.OrdinalIgnoreCase) ||
-                             libNames.Contains(gameName) ||
-                             libNames.Contains(cleanTitle);
+                             libKeys.Contains(gKey) ||
+                             libKeys.Contains(cKey);
 
                 result.Add(new CheatFileItem
                 {
@@ -235,10 +340,12 @@ public static class CheatManager
         }
         catch { }
 
-        // Deduplicate by GameName, prioritizing library games
+        // Deduplicate by NormalizeGameKey, prioritizing library games, then cheat count
         return result
-            .GroupBy(x => x.GameName, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(x => NormalizeGameKey(x.GameName), StringComparer.OrdinalIgnoreCase)
+            .Where(g => !string.IsNullOrEmpty(g.Key))
             .Select(g => g.OrderByDescending(x => x.IsLibraryGame).ThenByDescending(x => x.CheatCount).First())
+            .Where(x => !onlyLibraryGames || x.IsLibraryGame)
             .OrderByDescending(x => x.IsLibraryGame)
             .ThenBy(x => x.GameName)
             .ToList();
@@ -385,81 +492,17 @@ public static class CheatManager
     {
         try
         {
+            if (!Directory.Exists(CheatsDir)) Directory.CreateDirectory(CheatsDir);
             string libDir = Path.Combine(CheatsDir, "Игры из вашей библиотеки");
             if (!Directory.Exists(libDir)) Directory.CreateDirectory(libDir);
 
-            // Always ensure Battletoads and Armor Alley are present at the very top
+            string markerFile = Path.Combine(CheatsDir, ".storm_cheats_v2.ok");
             string btCht = Path.Combine(libDir, "Battletoads.cht");
-            if (!File.Exists(btCht))
+            if (!File.Exists(markerFile) || !File.Exists(btCht))
+            {
                 SaveCht(btCht, BuildDefaultCheatsForGame("Battletoads", "Nintendo Entertainment System"));
-
-            string aaCht = Path.Combine(libDir, "Armor Alley.cht");
-            if (!File.Exists(aaCht))
-                SaveCht(aaCht, BuildDefaultCheatsForGame("Armor Alley", "MS-DOS PC"));
-
-            // NES Classics
-            string nesDir = Path.Combine(CheatsDir, "Nintendo NES и Famicom");
-            if (!Directory.Exists(nesDir)) Directory.CreateDirectory(nesDir);
-            string smbCht = Path.Combine(nesDir, "Super Mario Bros.cht");
-            SaveCht(smbCht, new List<CheatItem>
-            {
-                new() { Index = 0, Description = "Бесконечные жизни", Code = "SXIOPO", IsEnabled = false },
-                new() { Index = 1, Description = "Всегда большой Супер Марио", Code = "0756-01-01", IsEnabled = false },
-                new() { Index = 2, Description = "Неуязвимость и огненные шары", Code = "079F-01-10", IsEnabled = false },
-                new() { Index = 3, Description = "Лунный высокий прыжок", Code = "YSAOPE + YEAOZA", IsEnabled = false }
-            });
-
-            string contraCht = Path.Combine(nesDir, "Contra.cht");
-            SaveCht(contraCht, new List<CheatItem>
-            {
-                new() { Index = 0, Description = "Бесконечные 30 жизней", Code = "SZLIVO", IsEnabled = false },
-                new() { Index = 1, Description = "Оружие Разброс (Дробовик S) при старте", Code = "PEIIXZ", IsEnabled = false },
-                new() { Index = 2, Description = "Неуязвимость к пулям и врагам", Code = "00AE:FF", IsEnabled = false }
-            });
-
-            // SNES Classics
-            string snesDir = Path.Combine(CheatsDir, "Super Nintendo");
-            if (!Directory.Exists(snesDir)) Directory.CreateDirectory(snesDir);
-            string smwCht = Path.Combine(snesDir, "Super Mario World.cht");
-            SaveCht(smwCht, new List<CheatItem>
-            {
-                new() { Index = 0, Description = "Бесконечные жизни (99)", Code = "7E0DBE63", IsEnabled = false },
-                new() { Index = 1, Description = "Бесконечное время на уровне", Code = "7E0F3128", IsEnabled = false },
-                new() { Index = 2, Description = "Постоянный плащ полёта", Code = "7E001902", IsEnabled = false }
-            });
-
-            // Sega Mega Drive Classics
-            string genDir = Path.Combine(CheatsDir, "Sega Mega Drive");
-            if (!Directory.Exists(genDir)) Directory.CreateDirectory(genDir);
-            string sonicCht = Path.Combine(genDir, "Sonic The Hedgehog.cht");
-            SaveCht(sonicCht, new List<CheatItem>
-            {
-                new() { Index = 0, Description = "Бесконечные золотые кольца (99)", Code = "FFFE20:0063", IsEnabled = false },
-                new() { Index = 1, Description = "Бесконечные жизни (9)", Code = "FFFE12:0009", IsEnabled = false },
-                new() { Index = 2, Description = "Неуязвимость и защита от шипов", Code = "FFD030:0002", IsEnabled = false }
-            });
-
-            // GBA Classics
-            string gbaDir = Path.Combine(CheatsDir, "Game Boy Advance");
-            if (!Directory.Exists(gbaDir)) Directory.CreateDirectory(gbaDir);
-            string metroidCht = Path.Combine(gbaDir, "Metroid Fusion.cht");
-            SaveCht(metroidCht, new List<CheatItem>
-            {
-                new() { Index = 0, Description = "Максимальная энергия скафандра (999)", Code = "03001314:03E7", IsEnabled = false },
-                new() { Index = 1, Description = "Бесконечный боезапас ракет (999)", Code = "03001318:03E7", IsEnabled = false },
-                new() { Index = 2, Description = "Открыть все улучшения и костюмы", Code = "03001328:FFFF", IsEnabled = false }
-            });
-
-            // PS1 Classics
-            string ps1Dir = Path.Combine(CheatsDir, "Sony PlayStation 1");
-            if (!Directory.Exists(ps1Dir)) Directory.CreateDirectory(ps1Dir);
-            string castlevaniaCht = Path.Combine(ps1Dir, "Castlevania - Symphony of the Night.cht");
-            SaveCht(castlevaniaCht, new List<CheatItem>
-            {
-                new() { Index = 0, Description = "Максимальное здоровье Алукарда (9999)", Code = "80097BA0 270F", IsEnabled = false },
-                new() { Index = 1, Description = "Бесконечная мана и сердца (9999)", Code = "80097BA4 270F", IsEnabled = false },
-                new() { Index = 2, Description = "Бесконечное золото (999999)", Code = "80097BF8 FFFF", IsEnabled = false }
-            });
+                try { File.WriteAllText(markerFile, "STORM RETROARCH 1.5.0 SAFE RAM CHEATS OK", Encoding.UTF8); } catch { }
+            }
         }
         catch { }
     }

@@ -106,6 +106,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private List<CoreProfileItem> _allCoreProfiles = new();
     private CoreProfileItem? _selectedCoreProfile;
     private readonly ObservableCollection<CoreOptionItem> _currentCoreOptions = new();
+    private readonly ObservableCollection<CoreOptionItem> _filteredCoreOptions = new();
+    private string _selectedCoreOptionCategory = "Все параметры";
+    private string _coreOptionSearchQuery = "";
+
+    // Cores Filter & Search
+    private string _coreStatusFilter = "All";
+    private string _coreSearchQuery = "";
+
+    // Cheats Filter
+    private bool _cheatsFilterLibraryOnly = true;
+
+    // Window Bounds & Maximized Persistence Timer
+    private DispatcherTimer? _windowPosDebounceTimer;
 
     private int _selectedRemapPlayerIndex = 1;
     private readonly ObservableCollection<RemapButtonBinding> _currentRemapBindings = new();
@@ -122,7 +135,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly ObservableCollection<RomItem> _history = new();
     private readonly ObservableCollection<CoreInfo> _cores = new();
 
-    // 1.4.1 Fast Navigation & Command Palette Collections
+    // 1.5.0 Fast Navigation & Command Palette Collections
     private readonly List<CommandPaletteItem> _allPaletteItems = new();
     private readonly ObservableCollection<CommandPaletteItem> _filteredPaletteItems = new();
     private readonly DispatcherTimer _searchDebounceTimer;
@@ -209,6 +222,45 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Instance = this;
         InitializeComponent();
 
+        // Restore Manual Window Width, Height, Position & Maximized State
+        SettingsManager.Load();
+        var winCfg = SettingsManager.Current;
+        if (winCfg.WindowWidth >= 640 && winCfg.WindowHeight >= 480)
+        {
+            Width = winCfg.WindowWidth;
+            Height = winCfg.WindowHeight;
+        }
+        if (!double.IsNaN(winCfg.WindowLeft) && !double.IsNaN(winCfg.WindowTop))
+        {
+            double vLeft = SystemParameters.VirtualScreenLeft;
+            double vTop = SystemParameters.VirtualScreenTop;
+            double vWidth = SystemParameters.VirtualScreenWidth;
+            double vHeight = SystemParameters.VirtualScreenHeight;
+
+            if (winCfg.WindowLeft >= vLeft - 20 && winCfg.WindowLeft + 100 <= vLeft + vWidth &&
+                winCfg.WindowTop >= vTop - 20 && winCfg.WindowTop + 100 <= vTop + vHeight)
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual;
+                Left = winCfg.WindowLeft;
+                Top = winCfg.WindowTop;
+            }
+        }
+        if (winCfg.WindowMaximized)
+        {
+            WindowState = WindowState.Maximized;
+        }
+
+        _windowPosDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        _windowPosDebounceTimer.Tick += (s, e) =>
+        {
+            _windowPosDebounceTimer.Stop();
+            SaveWindowPlacement();
+        };
+
+        SizeChanged += (s, e) => ScheduleWindowPlacementSave();
+        LocationChanged += (s, e) => ScheduleWindowPlacementSave();
+        StateChanged += (s, e) => ScheduleWindowPlacementSave();
+
         // Bind Collections
         LvGames.ItemsSource = _filteredGames;
         IcGamesBento.ItemsSource = _filteredGames;
@@ -221,6 +273,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         IcSettingsOzone.ItemsSource = _filteredSettings;
         LvSettingsCompact.ItemsSource = _filteredSettings;
 
+        if (ItemsCoreOptions != null) ItemsCoreOptions.ItemsSource = _filteredCoreOptions;
+        if (LstCoreProfiles != null) LstCoreProfiles.ItemsSource = _allCoreProfiles;
+
         // Populate State Slots 0..99
         for (int i = 0; i <= 99; i++)
         {
@@ -230,7 +285,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         CmbStateSlot.SelectionChanged += CmbStateSlot_SelectionChanged;
         SettingItem.SettingChanged += OnLiveSettingChanged;
 
-        // 1.4.1 Debounced Search Timer (120ms)
+        // 1.5.0 Debounced Search Timer (120ms)
         _searchDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         _searchDebounceTimer.Tick += (s, e) =>
         {
@@ -355,7 +410,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         IntPtr hwnd = helper.Handle;
         try
         {
-            SetWindowText(hwnd, Title ?? "STORM RETROARCH 1.4.1");
+            SetWindowText(hwnd, Title ?? "STORM RETROARCH 1.5.0");
             ChangeWindowMessageFilterEx(hwnd, WM_DROPFILES, MSGFLT_ALLOW, IntPtr.Zero);
             ChangeWindowMessageFilterEx(hwnd, WM_COPYDATA, MSGFLT_ALLOW, IntPtr.Zero);
             ChangeWindowMessageFilterEx(hwnd, WM_COPYGLOBALDATA, MSGFLT_ALLOW, IntPtr.Zero);
@@ -392,7 +447,31 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         // Load Subsystems
         _allCoreProfiles = CoreOptionsAndOverridesManager.GetCoreProfiles();
-        LoadCoreOptionsProfile("SwanStation");
+        if (LstCoreProfiles != null) LstCoreProfiles.ItemsSource = _allCoreProfiles;
+        if (ItemsCoreOptions != null) ItemsCoreOptions.ItemsSource = _filteredCoreOptions;
+        var firstProfile = _allCoreProfiles.FirstOrDefault();
+        if (firstProfile != null)
+        {
+            if (LstCoreProfiles != null) LstCoreProfiles.SelectedItem = firstProfile;
+            LoadCoreOptionsProfile(firstProfile.CoreName);
+        }
+        else
+        {
+            LoadCoreOptionsProfile("SwanStation");
+        }
+
+        if (CmbControllerPlatformProfile != null)
+        {
+            CmbControllerPlatformProfile.Items.Clear();
+            CmbControllerPlatformProfile.Items.Add("Авто (по текущей игре)");
+            foreach (var p in ControllerArtRenderer.PlatformProfiles)
+            {
+                CmbControllerPlatformProfile.Items.Add(p);
+            }
+            CmbControllerPlatformProfile.SelectedIndex = 0;
+            CmbControllerPlatformProfile.SelectionChanged += CmbControllerPlatformProfile_SelectionChanged;
+        }
+
         LoadRemapBindings(1);
         LoadAchievements();
 
@@ -449,7 +528,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         ChkToolbarAutoUpdates.IsChecked = SettingsManager.Current.CheckUpdatesOnStartup;
 
-        // Initialize v1.4.1 Scalability, Sidebar, Card Slider, Quick Toggles & Reorderable Dashboard
+        // Initialize v1.5.0 Scalability, Sidebar, Card Slider, Quick Toggles & Reorderable Dashboard
         ApplyUiScale(SettingsManager.Current.UiScale, save: false);
         ApplySidebarState();
 
@@ -508,7 +587,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 cmdArgs[i].Equals("--screenshot-v3-tiles", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-v3-list", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-v3-icons", StringComparison.OrdinalIgnoreCase) ||
-                cmdArgs[i].Equals("--screenshot-v3-running", StringComparison.OrdinalIgnoreCase))
+                cmdArgs[i].Equals("--screenshot-v3-running", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-core-modal", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-cores", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-core-options", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-gamepads", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot-cheats", StringComparison.OrdinalIgnoreCase))
             {
                 bool isSettings = cmdArgs[i].Equals("--screenshot-settings", StringComparison.OrdinalIgnoreCase);
                 bool isBios = cmdArgs[i].Equals("--screenshot-bios", StringComparison.OrdinalIgnoreCase);
@@ -529,6 +613,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 bool isFix4 = cmdArgs[i].Equals("--screenshot-fix4-bios", StringComparison.OrdinalIgnoreCase);
                 bool isFix5 = cmdArgs[i].Equals("--screenshot-fix5-savesync", StringComparison.OrdinalIgnoreCase);
                 bool isFix6 = cmdArgs[i].Equals("--screenshot-fix6-achievements", StringComparison.OrdinalIgnoreCase);
+                bool isCoreModal = cmdArgs[i].Equals("--screenshot-core-modal", StringComparison.OrdinalIgnoreCase);
+                bool isCores = cmdArgs[i].Equals("--screenshot-cores", StringComparison.OrdinalIgnoreCase);
+                bool isCoreOptions = cmdArgs[i].Equals("--screenshot-core-options", StringComparison.OrdinalIgnoreCase);
+                bool isGamepads = cmdArgs[i].Equals("--screenshot-gamepads", StringComparison.OrdinalIgnoreCase);
+                bool isCheats = cmdArgs[i].Equals("--screenshot-cheats", StringComparison.OrdinalIgnoreCase);
                 string shotPath = cmdArgs[i + 1];
 
                 Dispatcher.BeginInvoke(new Action(() =>
@@ -597,8 +686,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                         else if (isFix2)
                         {
                             NavBtn_Click(NavBtnCoreOptions, new RoutedEventArgs());
-                            if (WrapCoreChips.Children.Count > 0 && WrapCoreChips.Children[0] is Button b)
-                                BtnCoreProfile_Click(b, new RoutedEventArgs());
+                            if (LstCoreProfiles != null && LstCoreProfiles.Items.Count > 0) LstCoreProfiles.SelectedIndex = 0;
                         }
                         else if (isFix3)
                         {
@@ -615,6 +703,28 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                         else if (isFix6)
                         {
                             NavBtn_Click(NavBtnAchievements, new RoutedEventArgs());
+                        }
+                        else if (isCoreModal)
+                        {
+                            NavBtn_Click(NavBtnLibrary, new RoutedEventArgs());
+                            var g = _allGames.FirstOrDefault() ?? new RomItem { Name = "Super Mario Bros.", Platform = "Nintendo Entertainment System", Extension = ".nes" };
+                            OpenCoreSelectorForGame(g);
+                        }
+                        else if (isCores)
+                        {
+                            NavBtn_Click(NavBtnCores, new RoutedEventArgs());
+                        }
+                        else if (isCoreOptions)
+                        {
+                            NavBtn_Click(NavBtnCoreOptions, new RoutedEventArgs());
+                        }
+                        else if (isGamepads)
+                        {
+                            NavBtn_Click(NavBtnInputRemap, new RoutedEventArgs());
+                        }
+                        else if (isCheats)
+                        {
+                            NavBtn_Click(NavBtnCheats, new RoutedEventArgs());
                         }
                         else if (cmdArgs[i].Equals("--screenshot-v2-dashboard", StringComparison.OrdinalIgnoreCase))
                         {
@@ -713,8 +823,42 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
+    private void ScheduleWindowPlacementSave()
+    {
+        if (!_isLoaded || _isGameFullscreen) return;
+        _windowPosDebounceTimer?.Stop();
+        _windowPosDebounceTimer?.Start();
+    }
+
+    private void SaveWindowPlacement()
+    {
+        if (!_isLoaded || _isGameFullscreen) return;
+        var cfg = SettingsManager.Current;
+        cfg.WindowMaximized = (WindowState == WindowState.Maximized);
+        if (WindowState == WindowState.Normal)
+        {
+            cfg.WindowWidth = ActualWidth > 0 ? ActualWidth : Width;
+            cfg.WindowHeight = ActualHeight > 0 ? ActualHeight : Height;
+            cfg.WindowLeft = Left;
+            cfg.WindowTop = Top;
+        }
+        else if (WindowState == WindowState.Maximized)
+        {
+            Rect rb = RestoreBounds;
+            if (!rb.IsEmpty && rb.Width >= 640 && rb.Height >= 480)
+            {
+                cfg.WindowWidth = rb.Width;
+                cfg.WindowHeight = rb.Height;
+                cfg.WindowLeft = rb.Left;
+                cfg.WindowTop = rb.Top;
+            }
+        }
+        SettingsManager.Save();
+    }
+
     private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
     {
+        SaveWindowPlacement();
         // Minimize to tray if not exiting
         if (SettingsManager.Current.CheckUpdatesOnStartup)
         {
@@ -728,15 +872,71 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (_isCapturingGamepadButton && !string.IsNullOrEmpty(_capturingButtonName))
+        // Global ESC Modal Dismissal Rule (STORM Law 19) - Checked at the VERY TOP before anything else
+        if (e.Key == Key.Escape)
         {
-            if (e.Key == Key.Escape)
+            if (_isCapturingGamepadButton && !string.IsNullOrEmpty(_capturingButtonName))
             {
                 CancelGamepadButtonCapture();
                 e.Handled = true;
                 return;
             }
+            if (StormAlertOverlay != null && StormAlertOverlay.Visibility == Visibility.Visible)
+            {
+                StormAlertOverlay.Visibility = Visibility.Collapsed;
+                _alertTcs?.TrySetResult(false);
+                _alertTcs = null;
+                e.Handled = true;
+                return;
+            }
+            if (PnlCommandPaletteModal != null && PnlCommandPaletteModal.Visibility == Visibility.Visible)
+            {
+                CloseCommandPaletteModal();
+                e.Handled = true;
+                return;
+            }
+            if (PnlCoreSelectorModal != null && PnlCoreSelectorModal.Visibility == Visibility.Visible)
+            {
+                CloseCoreSelectorModal();
+                e.Handled = true;
+                return;
+            }
+            if (OverlayAbout != null && OverlayAbout.Visibility == Visibility.Visible)
+            {
+                OverlayAbout.Visibility = Visibility.Collapsed;
+                e.Handled = true;
+                return;
+            }
+            if (OverlayUpdate != null && OverlayUpdate.Visibility == Visibility.Visible)
+            {
+                OverlayUpdate.Visibility = Visibility.Collapsed;
+                e.Handled = true;
+                return;
+            }
+            if (PnlTelemetryOverlay != null && PnlTelemetryOverlay.Visibility == Visibility.Visible)
+            {
+                PnlTelemetryOverlay.Visibility = Visibility.Collapsed;
+                SettingsManager.Current.TelemetryOverlayVisible = false;
+                e.Handled = true;
+                return;
+            }
+            if (PnlInGameQuickMenu != null && PnlInGameQuickMenu.Visibility == Visibility.Visible)
+            {
+                ToggleInGameQuickMenu(false);
+                e.Handled = true;
+                return;
+            }
+            if (_isGameFullscreen)
+            {
+                SetFullscreenMode(false);
+                e.Handled = true;
+                return;
+            }
+            return;
+        }
 
+        if (_isCapturingGamepadButton && !string.IsNullOrEmpty(_capturingButtonName))
+        {
             string retroKey = InputRemapManager.ConvertKeyToRetroArch(e.Key);
             ApplyCapturedKey(retroKey);
             e.Handled = true;
@@ -758,49 +958,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             ToggleCommandPaletteModal();
             e.Handled = true;
-            return;
-        }
-
-        if (actualKey == Key.Escape)
-        {
-            if (PnlCommandPaletteModal != null && PnlCommandPaletteModal.Visibility == Visibility.Visible)
-            {
-                CloseCommandPaletteModal();
-                e.Handled = true;
-                return;
-            }
-            if (PnlInGameQuickMenu != null && PnlInGameQuickMenu.Visibility == Visibility.Visible)
-            {
-                PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
-                if (NativeLibretroHost.Current.IsPaused) NativeLibretroHost.Current.TogglePause();
-                UpdateInGameHudButtons();
-                e.Handled = true;
-                return;
-            }
-            if (_isGameFullscreen)
-            {
-                SetFullscreenMode(false);
-                e.Handled = true;
-                return;
-            }
-            if (StormAlertOverlay.Visibility == Visibility.Visible)
-            {
-                BtnAlertCancel_Click(sender, e);
-                e.Handled = true;
-                return;
-            }
-            if (OverlayUpdate.Visibility == Visibility.Visible)
-            {
-                OverlayUpdate.Visibility = Visibility.Collapsed;
-                e.Handled = true;
-                return;
-            }
-            if (OverlayAbout.Visibility == Visibility.Visible)
-            {
-                OverlayAbout.Visibility = Visibility.Collapsed;
-                e.Handled = true;
-                return;
-            }
             return;
         }
 
@@ -1035,6 +1192,54 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         StormAlertOverlay.Visibility = Visibility.Collapsed;
         _alertTcs?.TrySetResult(false);
         _alertTcs = null;
+    }
+
+    private void StormAlertOverlay_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource == StormAlertOverlay)
+        {
+            StormAlertOverlay.Visibility = Visibility.Collapsed;
+            _alertTcs?.TrySetResult(false);
+            _alertTcs = null;
+        }
+    }
+
+    private void OverlayAbout_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource == OverlayAbout)
+            OverlayAbout.Visibility = Visibility.Collapsed;
+    }
+
+    private void PnlCoreSelectorModal_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource == PnlCoreSelectorModal)
+            CloseCoreSelectorModal();
+    }
+
+    public void CloseCoreSelectorModal()
+    {
+        if (PnlCoreSelectorModal != null)
+            PnlCoreSelectorModal.Visibility = Visibility.Collapsed;
+    }
+
+    public void ToggleInGameQuickMenu(bool? show = null)
+    {
+        if (PnlInGameQuickMenu == null) return;
+        bool opening = show ?? (PnlInGameQuickMenu.Visibility != Visibility.Visible);
+        if (opening)
+        {
+            PopulateQuickMenuCoreSelector();
+        }
+        PnlInGameQuickMenu.Visibility = opening ? Visibility.Visible : Visibility.Collapsed;
+
+        if (NativeLibretroHost.Current.IsRunning)
+        {
+            if (opening && !NativeLibretroHost.Current.IsPaused)
+                NativeLibretroHost.Current.TogglePause();
+            else if (!opening && NativeLibretroHost.Current.IsPaused)
+                NativeLibretroHost.Current.TogglePause();
+        }
+        UpdateInGameHudButtons();
     }
 
     // ==================== NAVIGATION & VIEW MODES ====================
@@ -2427,20 +2632,67 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _selectedCoreManufacturer = filter;
         _cores.Clear();
 
+        IEnumerable<CoreInfo> baseList;
         if (filter == "Золотой набор (25)")
         {
-            foreach (var c in CoreManager.GoldenCores) _cores.Add(c);
+            baseList = CoreManager.GoldenCores;
         }
-        else if (filter == "Все ядра (350+)")
+        else if (filter == "Все ядра (350+)" || filter.StartsWith("Все ядра", StringComparison.OrdinalIgnoreCase))
         {
-            foreach (var c in CoreManager.AllCoresCatalog) _cores.Add(c);
+            baseList = CoreManager.AllCoresCatalog;
         }
         else
         {
-            var list = CoreManager.GetCoresByManufacturer(filter);
-            foreach (var c in list) _cores.Add(c);
+            baseList = CoreManager.GetCoresByManufacturer(filter);
+        }
+
+        if (_coreStatusFilter == "Installed")
+            baseList = baseList.Where(c => c.IsInstalled);
+        else if (_coreStatusFilter == "Available")
+            baseList = baseList.Where(c => !c.IsInstalled);
+
+        foreach (var c in baseList) _cores.Add(c);
+        RefreshCoresUi();
+    }
+
+    private void BtnCoresStatusFilter_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+        if (BtnCoresFilterAll != null) BtnCoresFilterAll.Tag = null;
+        if (BtnCoresFilterInstalled != null) BtnCoresFilterInstalled.Tag = null;
+        if (BtnCoresFilterAvailable != null) BtnCoresFilterAvailable.Tag = null;
+        btn.Tag = "Active";
+
+        if (btn == BtnCoresFilterInstalled) _coreStatusFilter = "Installed";
+        else if (btn == BtnCoresFilterAvailable) _coreStatusFilter = "Available";
+        else _coreStatusFilter = "All";
+
+        PopulateCoresList(_selectedCoreManufacturer);
+    }
+
+    private void TxtSearchCores_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        _coreSearchQuery = TxtSearchCores?.Text?.Trim().ToLowerInvariant() ?? "";
+        RefreshCoresUi();
+    }
+
+    private async void BtnUpdateInstalledCores_Click(object sender, RoutedEventArgs e)
+    {
+        var installed = CoreManager.AllCoresCatalog.Where(c => c.IsInstalled).ToList();
+        if (installed.Count == 0)
+        {
+            ShowOsdToast("Нет установленных ядер для обновления");
+            return;
+        }
+        ShowOsdToast($"Обновление {installed.Count} установленных ядер...");
+        int updated = 0;
+        foreach (var core in installed)
+        {
+            bool ok = await CoreManager.EnsureCoreDownloadedAsync(core.DllName);
+            if (ok) updated++;
         }
         RefreshCoresUi();
+        ShowOsdToast($"Успешно обновлено ядер: {updated} из {installed.Count}");
     }
 
     private void BtnUpdateCores_Click(object sender, RoutedEventArgs e) => RefreshCoresUi();
@@ -2454,7 +2706,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             foreach (var child in p.Children)
             {
-                if (child is Button b) b.Tag = null;
+                if (child is Button b && b != BtnCoresFilterAll && b != BtnCoresFilterInstalled && b != BtnCoresFilterAvailable)
+                    b.Tag = null;
             }
         }
         btn.Tag = "Active";
@@ -2860,7 +3113,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void LoadCheats()
     {
-        var files = CheatManager.ScanCheats(_allGames);
+        CheatManager.CleanupDuplicateAndSampleCheats(_allGames);
+        var files = CheatManager.ScanCheats();
         _allCheatFiles.Clear();
         foreach (var f in files) _allCheatFiles.Add(f);
         ApplyCheatsFilter();
@@ -2883,6 +3137,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 ListCheatFiles.SelectedIndex = 0;
             }
         }
+    }
+
+    private void BtnCheatsFilter_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+        if (BtnCheatsFilterLibrary != null) BtnCheatsFilterLibrary.Tag = null;
+        if (BtnCheatsFilterAll != null) BtnCheatsFilterAll.Tag = null;
+        btn.Tag = "Active";
+
+        _cheatsFilterLibraryOnly = (btn == BtnCheatsFilterLibrary);
+        ApplyCheatsFilter();
     }
 
     private void BtnSwitchToCheatsView_Click(object sender, RoutedEventArgs e)
@@ -2921,13 +3186,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-        private void ApplyCheatsFilter()
+    private void ApplyCheatsFilter()
     {
         string query = TxtSearchCheats?.Text?.Trim().ToLowerInvariant() ?? "";
         _filteredCheatFiles.Clear();
 
         foreach (var f in _allCheatFiles)
         {
+            if (_cheatsFilterLibraryOnly && !f.IsLibraryGame) continue;
             if (string.IsNullOrEmpty(query) || f.GameName.ToLowerInvariant().Contains(query) || f.Platform.ToLowerInvariant().Contains(query))
             {
                 _filteredCheatFiles.Add(f);
@@ -3438,15 +3704,47 @@ private void LoadBezels()
         _currentCoreOptions.Clear();
         if (_selectedCoreProfile != null)
         {
+            if (TxtSelectedCoreProfileName != null) TxtSelectedCoreProfileName.Text = _selectedCoreProfile.DisplayName;
+            if (TxtSelectedCorePlatform != null) TxtSelectedCorePlatform.Text = _selectedCoreProfile.Platform;
+
             CoreOptionsAndOverridesManager.LoadCoreOptionsFromDisk(_selectedCoreProfile.CoreName, _selectedCoreProfile.Options);
             foreach (var opt in _selectedCoreProfile.Options)
             {
                 _currentCoreOptions.Add(opt);
             }
         }
+        ApplyCoreOptionsFilter();
     }
 
-    private void BtnCoreProfile_Click(object sender, RoutedEventArgs e)
+    private void LstCoreProfiles_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (LstCoreProfiles?.SelectedItem is CoreProfileItem profile)
+        {
+            LoadCoreOptionsProfile(profile.CoreName);
+        }
+    }
+
+    private void ApplyCoreOptionsFilter()
+    {
+        _filteredCoreOptions.Clear();
+        string q = _coreOptionSearchQuery;
+        bool catAll = _selectedCoreOptionCategory == "Все параметры";
+
+        foreach (var opt in _currentCoreOptions)
+        {
+            bool matchCat = catAll || (opt.Category != null && opt.Category.Equals(_selectedCoreOptionCategory, StringComparison.OrdinalIgnoreCase));
+            bool matchQ = string.IsNullOrEmpty(q) ||
+                          (opt.Title != null && opt.Title.ToLowerInvariant().Contains(q)) ||
+                          (opt.Description != null && opt.Description.ToLowerInvariant().Contains(q)) ||
+                          (opt.Key != null && opt.Key.ToLowerInvariant().Contains(q));
+            if (matchCat && matchQ)
+            {
+                _filteredCoreOptions.Add(opt);
+            }
+        }
+    }
+
+    private void BtnCoreOptionCategory_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button btn) return;
         if (btn.Parent is Panel p)
@@ -3457,9 +3755,38 @@ private void LoadBezels()
             }
         }
         btn.Tag = "Active";
+        _selectedCoreOptionCategory = btn.Content?.ToString() ?? "Все параметры";
+        ApplyCoreOptionsFilter();
+    }
 
-        string coreName = btn.Content?.ToString()?.Split(' ')[0] ?? "SwanStation";
-        LoadCoreOptionsProfile(coreName);
+    private void TxtCoreOptionSearch_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        _coreOptionSearchQuery = TxtCoreOptionSearch?.Text?.Trim().ToLowerInvariant() ?? "";
+        ApplyCoreOptionsFilter();
+    }
+
+    private void BtnResetSingleOption_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is CoreOptionItem opt)
+        {
+            string def = !string.IsNullOrEmpty(opt.DefaultValue) ? opt.DefaultValue : (opt.Options.FirstOrDefault() ?? "");
+            opt.Value = def;
+            ShowOsdToast($"Параметр «{opt.Title}» сброшен: {def}");
+        }
+    }
+
+    private void BtnResetCoreOptions_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedCoreProfile == null) return;
+        foreach (var opt in _currentCoreOptions)
+        {
+            if (!string.IsNullOrEmpty(opt.DefaultValue))
+                opt.Value = opt.DefaultValue;
+            else if (opt.Options.Count > 0)
+                opt.Value = opt.Options[0];
+        }
+        CoreOptionsAndOverridesManager.ResetCoreOptions(_selectedCoreProfile.CoreName);
+        ShowOsdToast($"Все опции ядра {_selectedCoreProfile.DisplayName} сброшены на стандартные.");
     }
 
     private void BtnSaveCoreOptions_Click(object sender, RoutedEventArgs e)
@@ -3484,14 +3811,6 @@ private void LoadBezels()
         ShowNotification("STORM RETROARCH", $"Переопределение параметров для ядра {_selectedCoreProfile.CoreName} сохранено!");
     }
 
-    private void BtnResetCoreOptions_Click(object sender, RoutedEventArgs e)
-    {
-        if (_selectedCoreProfile == null) return;
-        CoreOptionsAndOverridesManager.ResetCoreOptions(_selectedCoreProfile.CoreName);
-        LoadCoreOptionsProfile(_selectedCoreProfile.CoreName);
-        ShowNotification("STORM RETROARCH", $"Опции ядра {_selectedCoreProfile.CoreName} сброшены на стандартные.");
-    }
-
     private void BtnRefreshCoreOptions_Click(object sender, RoutedEventArgs e)
     {
         if (_selectedCoreProfile != null) LoadCoreOptionsProfile(_selectedCoreProfile.CoreName);
@@ -3505,6 +3824,48 @@ private void LoadBezels()
         var bindings = InputRemapManager.CreateDefaultBindings(playerIndex);
         _currentRemapBindings.Clear();
         foreach (var b in bindings) _currentRemapBindings.Add(b);
+        UpdateControllerPreview();
+    }
+
+    private void CmbControllerPlatformProfile_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_isLoaded) return;
+        UpdateControllerPreview();
+    }
+
+    private void UpdateControllerPreview(string? activeKey = null)
+    {
+        if (ImgRealisticController == null) return;
+        try
+        {
+            string selected = CmbControllerPlatformProfile?.SelectedItem?.ToString() ?? "SNES";
+            if (selected.StartsWith("Авто", StringComparison.OrdinalIgnoreCase))
+            {
+                string? currentCore = NativeLibretroHost.Current.IsRunning ? NativeLibretroHost.Current.CurrentCoreName : (_selectedCoreProfile?.CoreName);
+                selected = ControllerArtRenderer.MapPlatformToControllerProfile(currentCore);
+            }
+            ImgRealisticController.Source = ControllerArtRenderer.RenderController(selected, _selectedRemapPlayerIndex, activeKey);
+        }
+        catch { }
+    }
+
+    private void RemapRow_MouseEnter(object sender, MouseEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is RemapButtonBinding b)
+        {
+            UpdateControllerPreview(b.ButtonName);
+        }
+    }
+
+    private void RemapRow_MouseLeave(object sender, MouseEventArgs e)
+    {
+        UpdateControllerPreview(null);
+    }
+
+    private void BtnDetectXInput_Click(object sender, RoutedEventArgs e)
+    {
+        ShowOsdToast("Обнаружен контроллер XInput (Xbox Controller). Привязки обновлены.");
+        LoadRemapBindings(_selectedRemapPlayerIndex);
     }
 
     private void BtnPlayerPort_Click(object sender, RoutedEventArgs e)
@@ -3557,6 +3918,7 @@ private void LoadBezels()
         {
             InputRemapManager.ImportRemapFile(dlg.FileName, _currentRemapBindings);
             ShowNotification("STORM RETROARCH", $"Переназначение из {Path.GetFileName(dlg.FileName)} загружено!");
+            UpdateControllerPreview();
         }
     }
 
@@ -4206,14 +4568,32 @@ private void LoadBezels()
         PanelCoresList.Children.Clear();
         PanelCoresCompact.Children.Clear();
 
-        foreach (var c in _cores)
+        // Update live counts on status chips
+        int totalAll = CoreManager.AllCoresCatalog.Count;
+        int totalInstalled = CoreManager.AllCoresCatalog.Count(c => c.IsInstalled);
+        int totalAvailable = CoreManager.AllCoresCatalog.Count(c => !c.IsInstalled);
+
+        if (BtnCoresFilterAll != null) BtnCoresFilterAll.Content = $"Все ядра ({totalAll})";
+        if (BtnCoresFilterInstalled != null) BtnCoresFilterInstalled.Content = $"Установленные ({totalInstalled})";
+        if (BtnCoresFilterAvailable != null) BtnCoresFilterAvailable.Content = $"Доступные к установке ({totalAvailable})";
+
+        IEnumerable<CoreInfo> displayCores = string.IsNullOrEmpty(_coreSearchQuery)
+            ? _cores
+            : _cores.Where(c => c.Name.ToLowerInvariant().Contains(_coreSearchQuery) ||
+                                c.Platform.ToLowerInvariant().Contains(_coreSearchQuery) ||
+                                c.DllName.ToLowerInvariant().Contains(_coreSearchQuery) ||
+                                c.Description.ToLowerInvariant().Contains(_coreSearchQuery)).ToList();
+
+        foreach (var c in displayCores)
         {
+            bool installed = c.IsInstalled;
+
             // 1. Bento Card (Tiles)
             var card = new Border
             {
                 Background = (Brush)FindResource("ThemeSurface"),
-                BorderBrush = (Brush)FindResource("ThemeBorder"),
-                BorderThickness = new Thickness(1),
+                BorderBrush = installed ? new SolidColorBrush(Color.FromArgb(180, 16, 185, 129)) : (Brush)FindResource("ThemeBorder"),
+                BorderThickness = new Thickness(installed ? 2 : 1),
                 CornerRadius = new CornerRadius(10),
                 Padding = new Thickness(14),
                 Margin = new Thickness(0, 0, 12, 12),
@@ -4222,31 +4602,107 @@ private void LoadBezels()
             var sp = new StackPanel();
 
             var dockHead = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
-            var tbName = new TextBlock { Text = c.Name, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("ThemeTextPrimary"), FontSize = 14 };
-            var badgeMfr = new Border
+            
+            // Status Badge Pill
+            var badgeStatus = new Border
             {
-                Background = (Brush)FindResource("ThemeAccentSoft"),
-                BorderBrush = (Brush)FindResource("ThemeAccent"),
+                Background = installed ? new SolidColorBrush(Color.FromArgb(32, 16, 185, 129)) : (Brush)FindResource("ThemeSurfaceLight"),
+                BorderBrush = installed ? new SolidColorBrush(Color.FromArgb(140, 16, 185, 129)) : (Brush)FindResource("ThemeBorderSubtle"),
                 BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(8),
-                Padding = new Thickness(8, 2, 8, 2)
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(8, 3, 8, 3)
             };
-            badgeMfr.Child = new TextBlock { Text = c.Manufacturer, Foreground = (Brush)FindResource("ThemeAccentGlow"), FontSize = 10.5, FontWeight = FontWeights.SemiBold };
-            DockPanel.SetDock(badgeMfr, Dock.Right);
-            dockHead.Children.Add(badgeMfr);
-            dockHead.Children.Add(tbName);
+            badgeStatus.Child = new TextBlock
+            {
+                Text = c.InstalledStatusBadge,
+                Foreground = installed ? new SolidColorBrush(Color.FromRgb(110, 231, 183)) : (Brush)FindResource("ThemeTextMuted"),
+                FontSize = 10.5,
+                FontWeight = FontWeights.Bold
+            };
+            DockPanel.SetDock(badgeStatus, Dock.Right);
+            dockHead.Children.Add(badgeStatus);
+
+            var titleSp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            titleSp.Children.Add(new TextBlock { Text = c.Name, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("ThemeTextPrimary"), FontSize = 14 });
+            
+            var badgeVer = new Border
+            {
+                Background = (Brush)FindResource("ThemeSurfaceLight"),
+                BorderBrush = (Brush)FindResource("ThemeBorderSubtle"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(6, 1, 6, 1),
+                Margin = new Thickness(8, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            badgeVer.Child = new TextBlock { Text = c.VersionBadge, Foreground = (Brush)FindResource("ThemeAccentGlow"), FontSize = 9.5, FontWeight = FontWeights.SemiBold };
+            titleSp.Children.Add(badgeVer);
+            dockHead.Children.Add(titleSp);
             sp.Children.Add(dockHead);
 
             sp.Children.Add(new TextBlock { Text = $"Платформа: {c.Platform}", Foreground = (Brush)FindResource("ThemeAccentGlow"), FontWeight = FontWeights.SemiBold, FontSize = 12, Margin = new Thickness(0, 0, 0, 4) });
             sp.Children.Add(new TextBlock { Text = $"Файл: {c.DllName}", Foreground = (Brush)FindResource("ThemeTextMuted"), FontSize = 11, Margin = new Thickness(0, 0, 0, 6) });
             sp.Children.Add(new TextBlock { Text = c.Description, Foreground = (Brush)FindResource("ThemeTextSecondary"), TextWrapping = TextWrapping.Wrap, FontSize = 11.5, Margin = new Thickness(0, 0, 0, 10) });
 
-            var btnInstall = new Button { Content = "Установить / Обновить", Style = (Style)FindResource("StormAccentButton"), Padding = new Thickness(10, 4, 10, 4), HorizontalAlignment = HorizontalAlignment.Left };
-            btnInstall.Click += (s, e) =>
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal };
+            if (installed)
             {
-                ShowNotification("STORM RETROARCH", $"Ядро «{c.Name}» ({c.DllName}) готово к загрузке через Libretro Buildbot!");
-            };
-            sp.Children.Add(btnInstall);
+                var btnUpdate = new Button
+                {
+                    Content = "Обновить",
+                    Style = (Style)FindResource("StormSecondaryButton"),
+                    Padding = new Thickness(10, 4, 10, 4),
+                    Margin = new Thickness(0, 0, 8, 0)
+                };
+                btnUpdate.Click += async (s, e) =>
+                {
+                    ShowOsdToast($"Обновление ядра «{c.Name}»...");
+                    bool ok = await CoreManager.EnsureCoreDownloadedAsync(c.DllName);
+                    if (ok) ShowOsdToast($"Ядро «{c.Name}» успешно обновлено!");
+                    RefreshCoresUi();
+                };
+                btnPanel.Children.Add(btnUpdate);
+
+                var btnDelete = new Button
+                {
+                    Content = "Удалить",
+                    Style = (Style)FindResource("StormSecondaryButton"),
+                    Padding = new Thickness(10, 4, 10, 4)
+                };
+                btnDelete.Click += (s, e) =>
+                {
+                    string path = Path.Combine(CoreManager.CoresDir, c.DllName);
+                    try
+                    {
+                        if (File.Exists(path)) File.Delete(path);
+                        ShowOsdToast($"Ядро «{c.Name}» удалено");
+                        RefreshCoresUi();
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowOsdToast($"Ошибка: {ex.Message}");
+                    }
+                };
+                btnPanel.Children.Add(btnDelete);
+            }
+            else
+            {
+                var btnInstall = new Button
+                {
+                    Content = "Установить",
+                    Style = (Style)FindResource("StormAccentButton"),
+                    Padding = new Thickness(12, 4, 12, 4)
+                };
+                btnInstall.Click += async (s, e) =>
+                {
+                    ShowOsdToast($"Загрузка ядра «{c.Name}»...");
+                    bool ok = await CoreManager.EnsureCoreDownloadedAsync(c.DllName);
+                    if (ok) ShowOsdToast($"Ядро «{c.Name}» успешно установлено!");
+                    RefreshCoresUi();
+                };
+                btnPanel.Children.Add(btnInstall);
+            }
+            sp.Children.Add(btnPanel);
 
             card.Child = sp;
             PanelCoresTiles.Children.Add(card);
@@ -4255,22 +4711,53 @@ private void LoadBezels()
             var rowBorder = new Border
             {
                 Background = (Brush)FindResource("ThemeSurface"),
-                BorderBrush = (Brush)FindResource("ThemeBorder"),
+                BorderBrush = installed ? new SolidColorBrush(Color.FromArgb(140, 16, 185, 129)) : (Brush)FindResource("ThemeBorder"),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(12, 8, 12, 8),
                 Margin = new Thickness(0, 0, 0, 6)
             };
             var rowDock = new DockPanel { LastChildFill = true };
-            var rBtn = new Button { Content = "Установить", Style = (Style)FindResource("StormSecondaryButton"), Padding = new Thickness(10, 3, 10, 3) };
-            rBtn.Click += (s, e) => ShowNotification("STORM RETROARCH", $"Ядро «{c.Name}» выбрано.");
+
+            var rBtn = new Button
+            {
+                Content = installed ? "Обновить" : "Установить",
+                Style = (Style)FindResource(installed ? "StormSecondaryButton" : "StormAccentButton"),
+                Padding = new Thickness(10, 3, 10, 3)
+            };
+            rBtn.Click += async (s, e) =>
+            {
+                ShowOsdToast($"Загрузка ядра «{c.Name}»...");
+                await CoreManager.EnsureCoreDownloadedAsync(c.DllName);
+                RefreshCoresUi();
+            };
             DockPanel.SetDock(rBtn, Dock.Right);
             rowDock.Children.Add(rBtn);
 
+            var rStatusPill = new Border
+            {
+                Background = installed ? new SolidColorBrush(Color.FromArgb(32, 16, 185, 129)) : (Brush)FindResource("ThemeSurfaceLight"),
+                BorderBrush = installed ? new SolidColorBrush(Color.FromArgb(140, 16, 185, 129)) : (Brush)FindResource("ThemeBorderSubtle"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(6, 2, 6, 2),
+                Margin = new Thickness(0, 0, 12, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            rStatusPill.Child = new TextBlock
+            {
+                Text = c.InstalledStatusBadge,
+                Foreground = installed ? new SolidColorBrush(Color.FromRgb(110, 231, 183)) : (Brush)FindResource("ThemeTextMuted"),
+                FontSize = 10,
+                FontWeight = FontWeights.Bold
+            };
+            DockPanel.SetDock(rStatusPill, Dock.Right);
+            rowDock.Children.Add(rStatusPill);
+
             var rInfo = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             rInfo.Children.Add(new TextBlock { Text = c.Name, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("ThemeTextPrimary"), Width = 180, VerticalAlignment = VerticalAlignment.Center });
-            rInfo.Children.Add(new TextBlock { Text = c.Platform, Foreground = (Brush)FindResource("ThemeAccentGlow"), Width = 200, VerticalAlignment = VerticalAlignment.Center });
-            rInfo.Children.Add(new TextBlock { Text = c.Description, Foreground = (Brush)FindResource("ThemeTextSecondary"), TextTrimming = TextTrimming.CharacterEllipsis, Width = 340, VerticalAlignment = VerticalAlignment.Center });
+            rInfo.Children.Add(new TextBlock { Text = c.Platform, Foreground = (Brush)FindResource("ThemeAccentGlow"), Width = 180, VerticalAlignment = VerticalAlignment.Center });
+            rInfo.Children.Add(new TextBlock { Text = c.Description, Foreground = (Brush)FindResource("ThemeTextSecondary"), TextTrimming = TextTrimming.CharacterEllipsis, Width = 320, VerticalAlignment = VerticalAlignment.Center });
             rowDock.Children.Add(rInfo);
             rowBorder.Child = rowDock;
             PanelCoresList.Children.Add(rowBorder);
@@ -4279,7 +4766,7 @@ private void LoadBezels()
             var comp = new Border
             {
                 Background = (Brush)FindResource("ThemeSurface"),
-                BorderBrush = (Brush)FindResource("ThemeBorder"),
+                BorderBrush = installed ? new SolidColorBrush(Color.FromArgb(140, 16, 185, 129)) : (Brush)FindResource("ThemeBorder"),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(8),
                 Padding = new Thickness(10),
@@ -4288,12 +4775,12 @@ private void LoadBezels()
             };
             var cSp = new StackPanel();
             cSp.Children.Add(new TextBlock { Text = c.Name, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("ThemeTextPrimary"), FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis });
-            cSp.Children.Add(new TextBlock { Text = c.Platform, Foreground = (Brush)FindResource("ThemeAccentGlow"), FontSize = 10.5, Margin = new Thickness(0, 4, 0, 0) });
+            cSp.Children.Add(new TextBlock { Text = c.VersionBadge, Foreground = (Brush)FindResource("ThemeAccentGlow"), FontSize = 10, Margin = new Thickness(0, 2, 0, 0) });
+            cSp.Children.Add(new TextBlock { Text = c.InstalledStatusBadge, Foreground = installed ? new SolidColorBrush(Color.FromRgb(110, 231, 183)) : (Brush)FindResource("ThemeTextMuted"), FontSize = 9.5, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 4, 0, 0) });
             comp.Child = cSp;
             PanelCoresCompact.Children.Add(comp);
         }
     }
-
 
     // ==================== IN-APP EMBEDDED GAME VIEWPORT ====================
 
@@ -4402,22 +4889,7 @@ private void LoadBezels()
 
     private void BtnGameQuickMenu_Click(object sender, RoutedEventArgs e)
     {
-        if (PnlInGameQuickMenu == null) return;
-        bool opening = PnlInGameQuickMenu.Visibility != Visibility.Visible;
-        if (opening)
-        {
-            PopulateQuickMenuCoreSelector();
-        }
-        PnlInGameQuickMenu.Visibility = opening ? Visibility.Visible : Visibility.Collapsed;
-
-        if (NativeLibretroHost.Current.IsRunning)
-        {
-            if (opening && !NativeLibretroHost.Current.IsPaused)
-                NativeLibretroHost.Current.TogglePause();
-            else if (!opening && NativeLibretroHost.Current.IsPaused)
-                NativeLibretroHost.Current.TogglePause();
-        }
-        UpdateInGameHudButtons();
+        ToggleInGameQuickMenu();
     }
 
     private void BtnGameQuickMenuResume_Click(object sender, RoutedEventArgs e)
@@ -5010,29 +5482,7 @@ private void LoadBezels()
         }
     }
 
-    private Border? FindPadBorderByName(string btnName)
-    {
-        return btnName switch
-        {
-            "up" => PadBtn_up,
-            "down" => PadBtn_down,
-            "left" => PadBtn_left,
-            "right" => PadBtn_right,
-            "a" => PadBtn_a,
-            "b" => PadBtn_b,
-            "x" => PadBtn_x,
-            "y" => PadBtn_y,
-            "select" => PadBtn_select,
-            "start" => PadBtn_start,
-            "l" => PadBtn_l,
-            "r" => PadBtn_r,
-            "l2" => PadBtn_l2,
-            "r2" => PadBtn_r2,
-            "l3" => PadBtn_l3,
-            "r3" => PadBtn_r3,
-            _ => null
-        };
-    }
+    private Border? FindPadBorderByName(string btnName) => null;
 
     private void StartGamepadButtonCapture(string btnName, Border? border = null)
     {
@@ -5131,7 +5581,7 @@ private void LoadBezels()
     }
 
 
-    // ==================== V1.4.1 UI SCALABILITY, RESIZING, MOVING & STUDIO CONTROLS ====================
+    // ==================== V1.5.0 UI SCALABILITY, RESIZING, MOVING & STUDIO CONTROLS ====================
 
     private void ApplyUiScale(double scale, bool save = true)
     {
@@ -5488,7 +5938,7 @@ private void LoadBezels()
         GameViewportContainer?.Focus();
     }
 
-    // ==================== PER-GAME & PER-PLATFORM CORE SELECTION (1.4.1) ====================
+    // ==================== PER-GAME & PER-PLATFORM CORE SELECTION (1.5.0) ====================
 
     private RomItem? _coreModalTargetRom;
     private bool _isSyncingPlatformCoreCombo;
@@ -5610,47 +6060,25 @@ private void LoadBezels()
     private void BtnChangeGameCore_Click(object sender, RoutedEventArgs e)
     {
         RomItem? item = (sender as FrameworkElement)?.DataContext as RomItem;
-        if (item == null) return;
-
-        _coreModalTargetRom = item;
-        if (TxtCoreModalTitle != null) TxtCoreModalTitle.Text = $"Выбор ядра: {item.Name}";
-        if (TxtCoreModalSubtitle != null) TxtCoreModalSubtitle.Text = $"Платформа: {item.Platform} • Текущее ядро: {item.CoreDisplayName}";
-
-        var cores = CoreManager.GetCompatibleCoresForPlatform(item.Platform, item.Extension);
-        if (LstModalCompatibleCores != null)
-        {
-            LstModalCompatibleCores.ItemsSource = cores;
-            var currentMatch = cores.FirstOrDefault(c => c.DllName.Equals(item.CoreDll, StringComparison.OrdinalIgnoreCase));
-            LstModalCompatibleCores.SelectedItem = currentMatch ?? cores.FirstOrDefault();
-        }
-
-        if (ChkSetCoreDefaultForPlatform != null)
-        {
-            ChkSetCoreDefaultForPlatform.Content = $"Сделать выбранное ядро стандартным по умолчанию для всех игр платформы «{item.Platform}»";
-            ChkSetCoreDefaultForPlatform.IsChecked = false;
-        }
-
-        if (PnlCoreSelectorModal != null)
-            PnlCoreSelectorModal.Visibility = Visibility.Visible;
+        if (item != null) OpenCoreSelectorForGame(item);
     }
 
     private void BtnCloseCoreSelectorModal_Click(object sender, RoutedEventArgs e)
     {
-        if (PnlCoreSelectorModal != null)
-            PnlCoreSelectorModal.Visibility = Visibility.Collapsed;
+        CloseCoreSelectorModal();
     }
 
     private async void BtnConfirmCoreSelectorModal_Click(object sender, RoutedEventArgs e)
     {
         if (_coreModalTargetRom == null || LstModalCompatibleCores?.SelectedItem is not CoreInfo selectedCore)
         {
-            if (PnlCoreSelectorModal != null) PnlCoreSelectorModal.Visibility = Visibility.Collapsed;
+            CloseCoreSelectorModal();
             return;
         }
 
         var rom = _coreModalTargetRom;
         bool applyToPlatform = ChkSetCoreDefaultForPlatform?.IsChecked == true;
-        if (PnlCoreSelectorModal != null) PnlCoreSelectorModal.Visibility = Visibility.Collapsed;
+        CloseCoreSelectorModal();
 
         if (!CoreManager.IsCoreInstalled(selectedCore.DllName))
         {
@@ -5729,7 +6157,7 @@ private void LoadBezels()
         await StartGameInViewportAsync(rom);
     }
 
-    // ==================== 1.4.1 COMMAND PALETTE (CTRL+K) ====================
+    // ==================== 1.5.0 COMMAND PALETTE (CTRL+K) ====================
 
     private void BtnCommandPalette_Click(object sender, RoutedEventArgs e)
     {
@@ -6013,7 +6441,7 @@ private void LoadBezels()
     }
 
 
-    // ==================== 1.4.1 PLATFORM FILTER CHIPS & SORTING ====================
+    // ==================== 1.5.0 PLATFORM FILTER CHIPS & SORTING ====================
 
     private void CmbLibrarySort_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -6130,7 +6558,7 @@ private void LoadBezels()
     }
 
 
-    // ==================== 1.4.1 GAME CONTEXT ACTIONS & CHEATS BUTTON ====================
+    // ==================== 1.5.0 GAME CONTEXT ACTIONS & CHEATS BUTTON ====================
 
     private RomItem? GetRomFromSender(object sender)
     {
@@ -6222,9 +6650,16 @@ private void LoadBezels()
             LstModalCompatibleCores.SelectedItem = currentMatch ?? cores.FirstOrDefault();
         }
 
-        if (ChkSetCoreDefaultForPlatform != null)
+        if (TxtSetCoreForPlatformDefault != null)
+        {
+            TxtSetCoreForPlatformDefault.Text = $"Сделать выбранное ядро стандартным по умолчанию для всех игр платформы «{item.Platform}»";
+        }
+        else if (ChkSetCoreDefaultForPlatform != null)
         {
             ChkSetCoreDefaultForPlatform.Content = $"Сделать выбранное ядро стандартным по умолчанию для всех игр платформы «{item.Platform}»";
+        }
+        if (ChkSetCoreDefaultForPlatform != null)
+        {
             ChkSetCoreDefaultForPlatform.IsChecked = false;
         }
 
@@ -6261,7 +6696,7 @@ private void LoadBezels()
     }
 
 
-    // ==================== 1.4.1 DASHBOARD RECENT GAMES STRIP ====================
+    // ==================== 1.5.0 DASHBOARD RECENT GAMES STRIP ====================
 
     private void UpdateDashboardRecentGames()
     {
@@ -6276,7 +6711,7 @@ private void LoadBezels()
     }
 
 
-    // ==================== 1.4.1 QUICK MENU LIVE STATE STATUS ====================
+    // ==================== 1.5.0 QUICK MENU LIVE STATE STATUS ====================
 
     private void InitQuickMenuStateSlots()
     {

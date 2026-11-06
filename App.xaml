@@ -20,6 +20,7 @@
             <SolidColorBrush x:Key="ThemeBorder" Color="#31265A" />
             <SolidColorBrush x:Key="ThemeHeader" Color="#141026" />
             <SolidColorBrush x:Key="ThemeSurfaceHover" Color="#241D42" />
+            <SolidColorBrush x:Key="ThemeSurfaceLight" Color="#241D42" />
 
             <SolidColorBrush x:Key="ThemeAccent" Color="#8B5CF6" />
             <SolidColorBrush x:Key="ThemeAccentGlow" Color="#A855F7" />

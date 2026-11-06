@@ -42,7 +42,7 @@ public class UserSettings
     public bool CloudSyncEnabled { get; set; } = false;
     public string CloudSyncFolder { get; set; } = string.Empty;
 
-    // UI Scalability, Layout & Customization (1.4.1)
+    // UI Scalability, Layout & Customization (1.5.0)
     public double UiScale { get; set; } = 1.0;
     public double BentoCardWidth { get; set; } = 380.0;
     public double CompactCardWidth { get; set; } = 200.0;
@@ -53,6 +53,13 @@ public class UserSettings
     // Per-Platform Default Core & Per-Game Core Overrides
     public Dictionary<string, string> PlatformDefaultCores { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> GameCoreOverrides { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    // Persistent Window Geometry (1.5.0)
+    public double WindowWidth { get; set; } = 1500.0;
+    public double WindowHeight { get; set; } = 890.0;
+    public double WindowLeft { get; set; } = double.NaN;
+    public double WindowTop { get; set; } = double.NaN;
+    public bool WindowMaximized { get; set; } = false;
 }
 
 public static class SettingsManager
@@ -104,6 +111,9 @@ public static class SettingsManager
         if (Current.BentoCardWidth < 250 || Current.BentoCardWidth > 600) Current.BentoCardWidth = 380.0;
         if (Current.CompactCardWidth < 130 || Current.CompactCardWidth > 360) Current.CompactCardWidth = 200.0;
         if (Current.SidebarWidth < 220 || Current.SidebarWidth > 460) Current.SidebarWidth = 276.0;
+
+        if (Current.WindowWidth < 960 || Current.WindowWidth > 7680 || double.IsNaN(Current.WindowWidth)) Current.WindowWidth = 1500.0;
+        if (Current.WindowHeight < 620 || Current.WindowHeight > 4320 || double.IsNaN(Current.WindowHeight)) Current.WindowHeight = 890.0;
         if (Current.DashboardCardOrder == null || Current.DashboardCardOrder.Count != 4)
             Current.DashboardCardOrder = new List<int> { 0, 1, 2, 3 };
         Current.PlatformDefaultCores ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
