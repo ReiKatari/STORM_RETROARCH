@@ -529,8 +529,11 @@ public class NativeLibretroHost
     public string CurrentCoreName { get; private set; } = "";
     public double Fps => _targetFps;
 
+    public double CoreAspectRatio { get; private set; } = 4.0 / 3.0;
+    public static event Action? GeometryChanged;
     public static event Action? SessionStarted;
     public static event Action? SessionStopped;
+    private DateTime? _sessionStartUtc;
 
     private NativeLibretroHost()
     {
@@ -566,6 +569,8 @@ public class NativeLibretroHost
 
         CurrentGameTitle = rom.Name;
         CurrentCoreName = rom.CoreDisplayName;
+        _sessionStartUtc = DateTime.UtcNow;
+        GameMetadataStore.RecordLaunch(rom.Name);
         _targetImage = targetImage;
 
         onStatus?.Invoke($"Инициализация ядра {rom.CoreDisplayName}...");
@@ -779,6 +784,8 @@ public class NativeLibretroHost
         _retroGetSystemAvInfo!(out var avInfo);
         _targetFps = avInfo.Timing.Fps > 10.0 ? avInfo.Timing.Fps : 60.0;
         _sampleRate = avInfo.Timing.SampleRate > 8000 ? (uint)avInfo.Timing.SampleRate : 44100;
+        CoreAspectRatio = avInfo.Geometry.AspectRatio > 0.2f ? avInfo.Geometry.AspectRatio : (avInfo.Geometry.BaseWidth > 0 && avInfo.Geometry.BaseHeight > 0 ? (double)avInfo.Geometry.BaseWidth / avInfo.Geometry.BaseHeight : 4.0 / 3.0);
+        GeometryChanged?.Invoke();
 
         _serializeSize = _retroSerializeSize != null ? _retroSerializeSize() : 0;
 
@@ -803,7 +810,22 @@ public class NativeLibretroHost
         };
         _emulationThread.Start();
 
-                // Auto-apply matching cheats if available
+        // Auto-resume state if enabled
+        if (SettingsManager.Current.AutoSaveLoadOnExit)
+        {
+            try
+            {
+                string statesDir = Path.Combine(CoreManager.AppDir, "states");
+                string autoResumePath = Path.Combine(statesDir, $"{SanitizeFileName(rom.Name)}.autoresume");
+                if (File.Exists(autoResumePath))
+                {
+                    LoadState(0, autoResumePath);
+                }
+            }
+            catch { }
+        }
+
+        // Auto-apply matching cheats if available
         try
         {
             string gameName = Path.GetFileNameWithoutExtension(rom.FilePath);
@@ -879,6 +901,24 @@ public class NativeLibretroHost
             case 16: // RETRO_ENVIRONMENT_SET_VARIABLES
             case 18: // RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME
             case 37: // RETRO_ENVIRONMENT_SET_GEOMETRY
+                if (data != IntPtr.Zero)
+                {
+                    try
+                    {
+                        var geom = Marshal.PtrToStructure<RetroGameGeometry>(data);
+                        if (geom.AspectRatio > 0.2f)
+                        {
+                            CoreAspectRatio = geom.AspectRatio;
+                            GeometryChanged?.Invoke();
+                        }
+                        else if (geom.BaseWidth > 0 && geom.BaseHeight > 0)
+                        {
+                            CoreAspectRatio = (double)geom.BaseWidth / geom.BaseHeight;
+                            GeometryChanged?.Invoke();
+                        }
+                    }
+                    catch { }
+                }
                 return true;
 
             case 9: // RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY
@@ -966,12 +1006,12 @@ public class NativeLibretroHost
             _bgraBuffer = new byte[requiredBytes];
         }
 
-        // Convert raw pixels to BGRA32
+        // Convert raw pixels to BGRA32 with 6 CRT shader modes
         unsafe
         {
             byte* srcBytes = (byte*)data.ToPointer();
             int srcPitch = (int)pitch;
-            bool applyScanlines = (_shaderFilterMode == 1);
+            bool applyScanlines = (_shaderFilterMode == 1 || _shaderFilterMode == 3);
 
             fixed (byte* dstFixed = _bgraBuffer)
             {
@@ -983,50 +1023,125 @@ public class NativeLibretroHost
 
                     uint* dstUint = (uint*)dstRow;
 
-                    if (_pixelFormat == 1) // XRGB8888
+                    if (_shaderFilterMode >= 3)
                     {
-                        uint* pSrc = (uint*)srcRow;
-                        if (isOddScanline)
+                        // Advanced Shaders (Trinitron Aperture Grille, IBM 5151 Green, Amber Retro)
+                        for (int x = 0; x < w; x++)
                         {
-                            for (int x = 0; x < w; x++)
+                            uint val;
+                            if (_pixelFormat == 1) // XRGB8888
                             {
-                                uint val = pSrc[x];
-                                uint b = (val & 0xFF) * 3 / 4;
-                                uint g = ((val >> 8) & 0xFF) * 3 / 4;
-                                uint r = ((val >> 16) & 0xFF) * 3 / 4;
+                                val = ((uint*)srcRow)[x];
+                            }
+                            else if (_pixelFormat == 2) // RGB565
+                            {
+                                val = Rgb565Lut[((ushort*)srcRow)[x]];
+                            }
+                            else // 0RGB1555
+                            {
+                                val = Rgb1555Lut[((ushort*)srcRow)[x]];
+                            }
+
+                            uint b = val & 0xFF;
+                            uint g = (val >> 8) & 0xFF;
+                            uint r = (val >> 16) & 0xFF;
+
+                            if (_shaderFilterMode == 3) // Trinitron Aperture Grille
+                            {
+                                if (isOddScanline)
+                                {
+                                    r = r * 85 / 100;
+                                    g = g * 85 / 100;
+                                    b = b * 85 / 100;
+                                }
+                                int sub = x % 3;
+                                if (sub == 0) // Red subpixel phosphor
+                                {
+                                    r = Math.Min(255u, r * 115 / 100);
+                                    g = g * 92 / 100;
+                                    b = b * 92 / 100;
+                                }
+                                else if (sub == 1) // Green subpixel phosphor
+                                {
+                                    r = r * 92 / 100;
+                                    g = Math.Min(255u, g * 115 / 100);
+                                    b = b * 92 / 100;
+                                }
+                                else // Blue subpixel phosphor
+                                {
+                                    r = r * 92 / 100;
+                                    g = g * 92 / 100;
+                                    b = Math.Min(255u, b * 115 / 100);
+                                }
                                 dstUint[x] = 0xFF000000u | (r << 16) | (g << 8) | b;
                             }
-                        }
-                        else
-                        {
-                            for (int x = 0; x < w; x++)
+                            else if (_shaderFilterMode == 4) // IBM 5151 Green Phosphor (P1)
                             {
-                                dstUint[x] = pSrc[x] | 0xFF000000u;
+                                uint yLum = (r * 77u + g * 150u + b * 29u) >> 8;
+                                if (isOddScanline) yLum = yLum * 80 / 100;
+                                uint pr = (yLum * 35) >> 8;
+                                uint pg = Math.Min(255u, (yLum * 270) >> 8);
+                                uint pb = (yLum * 45) >> 8;
+                                dstUint[x] = 0xFF000000u | (pr << 16) | (pg << 8) | pb;
+                            }
+                            else // _shaderFilterMode == 5 (Amber Retro Monitor P3)
+                            {
+                                uint yLum = (r * 77u + g * 150u + b * 29u) >> 8;
+                                if (isOddScanline) yLum = yLum * 80 / 100;
+                                uint pr = Math.Min(255u, (yLum * 255) >> 8);
+                                uint pg = Math.Min(255u, (yLum * 175) >> 8);
+                                uint pb = (yLum * 20) >> 8;
+                                dstUint[x] = 0xFF000000u | (pr << 16) | (pg << 8) | pb;
                             }
                         }
                     }
-                    else if (_pixelFormat == 2) // RGB565
+                    else
                     {
-                        uint[] lut = isOddScanline ? Rgb565ScanlineLut : Rgb565Lut;
-                        ushort* pSrc = (ushort*)srcRow;
-                        for (int x = 0; x < w; x++)
+                        // Blazing fast LUT-based path for Nearest (0), Scanlines (1), Bilinear (2)
+                        if (_pixelFormat == 1) // XRGB8888
                         {
-                            dstUint[x] = lut[pSrc[x]];
+                            uint* pSrc = (uint*)srcRow;
+                            if (isOddScanline)
+                            {
+                                for (int x = 0; x < w; x++)
+                                {
+                                    uint val = pSrc[x];
+                                    uint b = (val & 0xFF) * 3 / 4;
+                                    uint g = ((val >> 8) & 0xFF) * 3 / 4;
+                                    uint r = ((val >> 16) & 0xFF) * 3 / 4;
+                                    dstUint[x] = 0xFF000000u | (r << 16) | (g << 8) | b;
+                                }
+                            }
+                            else
+                            {
+                                for (int x = 0; x < w; x++)
+                                {
+                                    dstUint[x] = pSrc[x] | 0xFF000000u;
+                                }
+                            }
                         }
-                    }
-                    else // 0RGB1555
-                    {
-                        uint[] lut = isOddScanline ? Rgb1555ScanlineLut : Rgb1555Lut;
-                        ushort* pSrc = (ushort*)srcRow;
-                        for (int x = 0; x < w; x++)
+                        else if (_pixelFormat == 2) // RGB565
                         {
-                            dstUint[x] = lut[pSrc[x]];
+                            uint[] lut = isOddScanline ? Rgb565ScanlineLut : Rgb565Lut;
+                            ushort* pSrc = (ushort*)srcRow;
+                            for (int x = 0; x < w; x++)
+                            {
+                                dstUint[x] = lut[pSrc[x]];
+                            }
+                        }
+                        else // 0RGB1555
+                        {
+                            uint[] lut = isOddScanline ? Rgb1555ScanlineLut : Rgb1555Lut;
+                            ushort* pSrc = (ushort*)srcRow;
+                            for (int x = 0; x < w; x++)
+                            {
+                                dstUint[x] = lut[pSrc[x]];
+                            }
                         }
                     }
                 }
             }
         }
-
         // Non-blocking UI update: only dispatch if UI has completed the previous frame
         if (Interlocked.CompareExchange(ref _isRendering, 1, 0) == 0)
         {
@@ -1574,9 +1689,30 @@ public class NativeLibretroHost
         }
     }
 
+    public void StepSingleFrame()
+    {
+        if (!_isRunning || !_isPaused || _retroRun == null) return;
+        lock (_coreLock)
+        {
+            _retroRun();
+            _frameCount++;
+        }
+    }
+
+    public string GetShaderModeTitle() => _shaderFilterMode switch
+    {
+        0 => "Чёткие пиксели",
+        1 => "ЭЛТ-сканлайны",
+        2 => "Мягкое сглаживание",
+        3 => "Апертурная решётка Тринитрон",
+        4 => "Зелёный монитор IBM 5151",
+        5 => "Янтарный ретро-монитор",
+        _ => "Чёткие пиксели"
+    };
+
     public void CycleShaderFilter()
     {
-        _shaderFilterMode = (_shaderFilterMode + 1) % 4;
+        _shaderFilterMode = (_shaderFilterMode + 1) % 6;
         if (_targetImage != null)
         {
             RenderOptions.SetBitmapScalingMode(_targetImage,
@@ -1604,10 +1740,11 @@ public class NativeLibretroHost
                 _targetImage.Stretch = Stretch.Fill;
                 if (viewportContainer != null && viewportContainer.ActualHeight > 100)
                 {
-                    double h = viewportContainer.ActualHeight;
-                    double w = Math.Min(viewportContainer.ActualWidth, h * 16.0 / 9.0);
+                    double availH = Math.Max(50, viewportContainer.ActualHeight - _targetImage.Margin.Top - _targetImage.Margin.Bottom);
+                    double availW = Math.Max(50, viewportContainer.ActualWidth - _targetImage.Margin.Left - _targetImage.Margin.Right);
+                    double w = Math.Min(availW, availH * 16.0 / 9.0);
                     _targetImage.Width = w;
-                    _targetImage.Height = h;
+                    _targetImage.Height = availH;
                 }
                 else
                 {
@@ -1855,6 +1992,28 @@ public class NativeLibretroHost
 
         if (!string.IsNullOrEmpty(CurrentGameTitle))
         {
+            if (SettingsManager.Current.AutoSaveLoadOnExit)
+            {
+                try
+                {
+                    string statesDir = Path.Combine(CoreManager.AppDir, "states");
+                    if (!Directory.Exists(statesDir)) Directory.CreateDirectory(statesDir);
+                    string autoResumePath = Path.Combine(statesDir, $"{SanitizeFileName(CurrentGameTitle)}.autoresume");
+                    SaveState(0, autoResumePath);
+                }
+                catch { }
+            }
+
+            if (_sessionStartUtc.HasValue)
+            {
+                long elapsedSec = (long)(DateTime.UtcNow - _sessionStartUtc.Value).TotalSeconds;
+                if (elapsedSec > 0)
+                {
+                    GameMetadataStore.RecordSession(CurrentGameTitle, elapsedSec);
+                }
+            }
+            _sessionStartUtc = null;
+
             SaveBatterySave(CurrentGameTitle);
         }
 

@@ -3,9 +3,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace StormRetroArch;
@@ -22,7 +25,135 @@ public static class CoverArtService
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("STORM-GAMES-WORLD/3.0 (Multi-Platform Media Engine)");
     }
 
-    public static async Task LoadCoverAsync(RomItem item)
+    private class StormMediaIndex
+    {
+        public readonly Dictionary<string, string> Covers = new(StringComparer.OrdinalIgnoreCase);
+        public readonly Dictionary<string, string> Logos = new(StringComparer.OrdinalIgnoreCase);
+        public readonly Dictionary<string, List<string>> Screenshots = new(StringComparer.OrdinalIgnoreCase);
+
+        public StormMediaIndex()
+        {
+            try
+            {
+                // Index COVERS
+                string coversDir = @"K:\STORM GAMES WORLD\public\images\COVERS";
+                if (Directory.Exists(coversDir))
+                {
+                    IndexFolder(coversDir, Covers);
+                }
+
+                // Index LOGOS
+                string logosDir = @"K:\STORM GAMES WORLD\public\images\LOGOS";
+                if (Directory.Exists(logosDir))
+                {
+                    IndexFolder(logosDir, Logos);
+                }
+
+                // Index SCREENSHOTS
+                string ssDir = @"K:\STORM GAMES WORLD\public\images\SCREENSHOTS";
+                if (Directory.Exists(ssDir))
+                {
+                    IndexScreenshots(ssDir, Screenshots);
+                }
+            }
+            catch { }
+        }
+
+        private static void IndexFolder(string root, Dictionary<string, string> dict)
+        {
+            var files = Directory.GetFiles(root, "*.*", SearchOption.AllDirectories);
+            foreach (var f in files)
+            {
+                if (!IsImageFile(f)) continue;
+                string fn = Path.GetFileName(f);
+                string key = NormalizeLookupKey(fn);
+
+                // Handle nested cover.webp / folder.jpg
+                if (fn.StartsWith("cover.", StringComparison.OrdinalIgnoreCase) ||
+                    fn.StartsWith("folder.", StringComparison.OrdinalIgnoreCase))
+                {
+                    string parent = Path.GetFileName(Path.GetDirectoryName(f) ?? "");
+                    key = NormalizeLookupKey(parent);
+                }
+
+                if (!string.IsNullOrEmpty(key) && !dict.ContainsKey(key))
+                {
+                    dict[key] = f;
+                }
+            }
+        }
+
+        private static void IndexScreenshots(string root, Dictionary<string, List<string>> dict)
+        {
+            var files = Directory.GetFiles(root, "*.*", SearchOption.AllDirectories);
+            foreach (var f in files)
+            {
+                if (!IsImageFile(f)) continue;
+                string fn = Path.GetFileName(f);
+                string baseName = Regex.Replace(Path.GetFileNameWithoutExtension(fn), @"[_\-\s]+\d+$", "");
+                string key = NormalizeLookupKey(baseName);
+                if (!string.IsNullOrEmpty(key))
+                {
+                    if (!dict.TryGetValue(key, out var list))
+                    {
+                        list = new List<string>();
+                        dict[key] = list;
+                    }
+                    if (list.Count < 10) list.Add(f);
+                }
+            }
+        }
+
+        private static bool IsImageFile(string path)
+        {
+            string ext = Path.GetExtension(path);
+            return ext.Equals(".webp", StringComparison.OrdinalIgnoreCase) ||
+                   ext.Equals(".png", StringComparison.OrdinalIgnoreCase) ||
+                   ext.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                   ext.Equals(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+                   ext.Equals(".bmp", StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private static readonly Lazy<StormMediaIndex> _mediaIndex = new(() => new StormMediaIndex());
+
+    public static string NormalizeLookupKey(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "";
+        string clean = Path.GetFileNameWithoutExtension(name);
+        clean = Regex.Replace(clean, @"\[[^\]]*\]|\([^)]*\)", " ");
+        clean = clean.ToLowerInvariant();
+        clean = Regex.Replace(clean, @"[^a-z0-9а-яё]", "");
+        return clean;
+    }
+
+    public static Task LoadCoversParallelAsync(IEnumerable<RomItem> items, bool forceRefresh = false)
+    {
+        if (items == null) return Task.CompletedTask;
+        var list = items.ToList();
+        if (list.Count == 0) return Task.CompletedTask;
+
+        return Task.Run(async () =>
+        {
+            using var sem = new SemaphoreSlim(8, 8);
+            var tasks = list.Select(async item =>
+            {
+                await sem.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    await LoadCoverAsync(item, forceRefresh).ConfigureAwait(false);
+                }
+                finally
+                {
+                    sem.Release();
+                }
+            });
+
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+        });
+    }
+
+    public static async Task LoadCoverAsync(RomItem item, bool forceRefresh = false)
     {
         if (item == null || string.IsNullOrWhiteSpace(item.Name)) return;
 
@@ -35,8 +166,8 @@ public static class CoverArtService
 
             string cacheFile = Path.Combine(cacheDir, $"{safeName}.png");
 
-            // 1. Check valid PNG/JPG in local thumbnails cache (verify PNG/JPEG magic header, not WebP)
-            if (File.Exists(cacheFile))
+            // 1. Check local thumbnails cache (unless forceRefresh)
+            if (!forceRefresh && File.Exists(cacheFile))
             {
                 byte[] existing = await File.ReadAllBytesAsync(cacheFile).ConfigureAwait(false);
                 if (IsSupportedBitmapBytes(existing))
@@ -48,51 +179,65 @@ public static class CoverArtService
                     try { File.Delete(cacheFile); } catch { }
                 }
             }
+            else if (forceRefresh && File.Exists(cacheFile))
+            {
+                try { File.Delete(cacheFile); } catch { }
+            }
 
-            // 2. Check local STORM GAMES WORLD raw PNG/JPG covers (if present)
+            // 2. Fast O(1) in-memory index from K:\STORM GAMES WORLD\public\images\COVERS
             string localCover = FindLocalStormCover(item.Name, item.Region, item.Platform);
             if (!string.IsNullOrEmpty(localCover) && File.Exists(localCover))
             {
                 byte[] localBytes = await File.ReadAllBytesAsync(localCover).ConfigureAwait(false);
-                if (IsSupportedBitmapBytes(localBytes) && TryApplyBytesToItem(item, localBytes))
+                if (IsSupportedBitmapBytes(localBytes) && TryApplyBytesToItemAndCache(item, localBytes, cacheFile))
                 {
-                    try { await File.WriteAllBytesAsync(cacheFile, localBytes).ConfigureAwait(false); } catch { }
                     return;
                 }
             }
 
-            // 3. Online Libretro Thumbnails Server (exact port of K:\STORM GAMES WORLD\src\app\api\media\auto-fetch\route.ts)
+            // 3. Online Libretro Thumbnails Server (with underscore colon replacement)
             byte[]? downloadedBytes = await FetchLibretroThumbnailAsync(item.Name, item.Region, item.Platform).ConfigureAwait(false);
             if (downloadedBytes != null && IsSupportedBitmapBytes(downloadedBytes))
             {
-                await File.WriteAllBytesAsync(cacheFile, downloadedBytes).ConfigureAwait(false);
-                if (TryApplyBytesToItem(item, downloadedBytes)) return;
+                if (TryApplyBytesToItemAndCache(item, downloadedBytes, cacheFile)) return;
             }
 
-            // 4. Fallback to stylized cartridge/disc icon
+            // 4. Wikipedia REST API Fallback
+            byte[]? wikiBytes = await FetchWikipediaCoverAsync(item.Name).ConfigureAwait(false);
+            if (wikiBytes != null && IsSupportedBitmapBytes(wikiBytes))
+            {
+                if (TryApplyBytesToItemAndCache(item, wikiBytes, cacheFile)) return;
+            }
+
+            // 5. Fallback to 280x380 studio poster
             if (item.Icon == null)
             {
-                item.GeneratePixelIcon();
+                Application.Current?.Dispatcher.BeginInvoke(() => item.GeneratePixelIcon());
             }
         }
         catch
         {
             if (item.Icon == null)
             {
-                item.GeneratePixelIcon();
+                Application.Current?.Dispatcher.BeginInvoke(() => item.GeneratePixelIcon());
             }
         }
     }
 
-    private static bool IsSupportedBitmapBytes(byte[]? bytes)
+    public static bool IsSupportedBitmapBytes(byte[]? bytes)
     {
-        if (bytes == null || bytes.Length < 350) return false;
+        if (bytes == null || bytes.Length < 32) return false;
         // PNG magic: 89 50 4E 47
         if (bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) return true;
         // JPEG magic: FF D8 FF
         if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) return true;
         // BMP magic: 42 4D
         if (bytes[0] == 0x42 && bytes[1] == 0x4D) return true;
+        // WebP magic: 'RIFF' at 0..3 and 'WEBP' at 8..11
+        if (bytes.Length >= 12 &&
+            bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46 &&
+            bytes[8] == 0x57 && bytes[9] == 0x45 && bytes[10] == 0x42 && bytes[11] == 0x50)
+            return true;
         return false;
     }
 
@@ -100,56 +245,103 @@ public static class CoverArtService
     {
         try
         {
-            BitmapImage? decoded = null;
-            using (var ms = new MemoryStream(imageBytes))
+            using var ms = new MemoryStream(imageBytes);
+            var decoder = BitmapDecoder.Create(ms, BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.OnLoad);
+            if (decoder.Frames.Count == 0) return false;
+            var frame = decoder.Frames[0];
+
+            BitmapSource finalBmp = frame;
+            if (frame.PixelWidth > 320)
             {
-                var bmp = new BitmapImage();
-                bmp.BeginInit();
-                bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.DecodePixelWidth = 260;
-                bmp.StreamSource = ms;
-                bmp.EndInit();
-                bmp.Freeze();
-                decoded = bmp;
+                double scale = 320.0 / frame.PixelWidth;
+                finalBmp = new TransformedBitmap(frame, new ScaleTransform(scale, scale));
             }
-            if (decoded != null)
+            finalBmp.Freeze();
+
+            Application.Current?.Dispatcher.BeginInvoke(() =>
             {
-                item.Icon = decoded;
-                return true;
-            }
+                item.Icon = finalBmp;
+            });
+            return true;
         }
         catch { }
         return false;
     }
 
-    private static string FindLocalStormCover(string cleanName, string region, string platform)
+    private static bool TryApplyBytesToItemAndCache(RomItem item, byte[] imageBytes, string cacheFile)
     {
-        string root = @"K:\STORM GAMES WORLD\images\COVERS";
-        if (!Directory.Exists(root)) return "";
-
-        string safeName = SanitizeFileName(cleanName);
         try
         {
-            var files = Directory.GetFiles(root, $"{safeName}*.*", SearchOption.AllDirectories)
-                .Where(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
-                            f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
-                            f.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase))
-                .ToArray();
-            if (files.Length > 0)
+            using var ms = new MemoryStream(imageBytes);
+            var decoder = BitmapDecoder.Create(ms, BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.OnLoad);
+            if (decoder.Frames.Count == 0) return false;
+            var frame = decoder.Frames[0];
+
+            BitmapSource finalBmp = frame;
+            if (frame.PixelWidth > 320)
             {
-                if (!string.IsNullOrEmpty(region))
+                double scale = 320.0 / frame.PixelWidth;
+                finalBmp = new TransformedBitmap(frame, new ScaleTransform(scale, scale));
+            }
+            finalBmp.Freeze();
+
+            try
+            {
+                string? dir = Path.GetDirectoryName(cacheFile);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(finalBmp));
+                using var fs = File.Create(cacheFile);
+                encoder.Save(fs);
+            }
+            catch { }
+
+            Application.Current?.Dispatcher.BeginInvoke(() =>
+            {
+                item.Icon = finalBmp;
+            });
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string FindLocalStormCover(string cleanName, string region, string platform)
+    {
+        try
+        {
+            string key = NormalizeLookupKey(cleanName);
+            if (string.IsNullOrEmpty(key)) return "";
+            var covers = _mediaIndex.Value.Covers;
+            if (covers.TryGetValue(key, out var path) && File.Exists(path))
+            {
+                return path;
+            }
+
+            // Instant O(N) in-memory prefix match without re-scanning K:\ disk
+            foreach (var kv in covers)
+            {
+                if (kv.Key.Length >= 5 && (kv.Key.StartsWith(key, StringComparison.OrdinalIgnoreCase) || key.StartsWith(kv.Key, StringComparison.OrdinalIgnoreCase)))
                 {
-                    foreach (var f in files)
-                    {
-                        if (f.Contains($"[{region}]", StringComparison.OrdinalIgnoreCase))
-                            return f;
-                    }
+                    if (File.Exists(kv.Value)) return kv.Value;
                 }
-                return files[0];
             }
         }
         catch { }
         return "";
+    }
+
+    private static bool IsSupportedImageExtension(string path)
+    {
+        string ext = Path.GetExtension(path);
+        return ext.Equals(".webp", StringComparison.OrdinalIgnoreCase) ||
+               ext.Equals(".png", StringComparison.OrdinalIgnoreCase) ||
+               ext.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
+               ext.Equals(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+               ext.Equals(".bmp", StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task<byte[]?> FetchLibretroThumbnailAsync(string rawTitle, string region, string platform)
@@ -163,22 +355,67 @@ public static class CoverArtService
         string[] folders = { "Named_Boxarts", "Named_Titles" };
         foreach (var folder in folders)
         {
-            foreach (var cand in candidates)
+            int limit = folder == "Named_Boxarts" ? Math.Min(candidates.Count, 14) : Math.Min(candidates.Count, 6);
+            for (int idx = 0; idx < limit; idx++)
             {
+                string cand = candidates[idx];
                 string encSys = Uri.EscapeDataString(sysDir);
                 string encCand = Uri.EscapeDataString(cand);
-                string encGh = Uri.EscapeDataString(ghRepo);
 
                 string cdnUrl = $"https://thumbnails.libretro.com/{encSys}/{folder}/{encCand}.png";
                 var data = await TryDownloadBufferWithSymlink(cdnUrl).ConfigureAwait(false);
                 if (data != null && IsSupportedBitmapBytes(data)) return data;
-
-                string ghUrl = $"https://raw.githubusercontent.com/libretro-thumbnails/{encGh}/master/{folder}/{encCand}.png";
-                data = await TryDownloadBufferWithSymlink(ghUrl).ConfigureAwait(false);
-                if (data != null && IsSupportedBitmapBytes(data)) return data;
             }
         }
 
+        return null;
+    }
+
+    private static async Task<byte[]?> FetchWikipediaCoverAsync(string rawTitle)
+    {
+        string clean = Regex.Replace(rawTitle, @"\[[^\]]*\]|\([^)]*\)", "").Trim();
+        clean = Regex.Replace(clean, @"\s+", " ").Trim();
+        if (string.IsNullOrWhiteSpace(clean)) return null;
+
+        string[] queries = { $"{clean} (video game)", clean };
+        foreach (var q in queries)
+        {
+            try
+            {
+                string url = $"https://en.wikipedia.org/api/rest_v1/page/summary/{Uri.EscapeDataString(q)}";
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.UserAgent.ParseAdd("STORM-RETROARCH/1.6.0 (Game Media Engine; contact@stormgamesworld.ru)");
+                using var resp = await _httpClient.SendAsync(req).ConfigureAwait(false);
+                if (!resp.IsSuccessStatusCode) continue;
+
+                string json = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                string? imgUrl = null;
+                if (root.TryGetProperty("originalimage", out var orig) && orig.TryGetProperty("source", out var origSrc))
+                {
+                    imgUrl = origSrc.GetString();
+                }
+                else if (root.TryGetProperty("thumbnail", out var thumb) && thumb.TryGetProperty("source", out var thumbSrc))
+                {
+                    imgUrl = thumbSrc.GetString();
+                }
+
+                if (!string.IsNullOrEmpty(imgUrl))
+                {
+                    using var imgReq = new HttpRequestMessage(HttpMethod.Get, imgUrl);
+                    imgReq.Headers.UserAgent.ParseAdd("STORM-RETROARCH/1.6.0 (Game Media Engine)");
+                    using var imgResp = await _httpClient.SendAsync(imgReq).ConfigureAwait(false);
+                    if (imgResp.IsSuccessStatusCode)
+                    {
+                        byte[] bytes = await imgResp.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+                        if (IsSupportedBitmapBytes(bytes)) return bytes;
+                    }
+                }
+            }
+            catch { }
+        }
         return null;
     }
 
@@ -251,6 +488,27 @@ public static class CoverArtService
             if (!string.IsNullOrEmpty(norm) && !baseTitles.Contains(norm)) baseTitles.Add(norm);
         }
 
+        // 1. If title contains " - ", generate "_ " variants FIRST!
+        if (colonNorm.Contains(" - "))
+        {
+            string underAll = colonNorm.Replace(" - ", "_ ");
+            PushBase(underAll);
+
+            int firstDash = colonNorm.IndexOf(" - ");
+            if (firstDash > 0)
+            {
+                string underFirst = colonNorm.Substring(0, firstDash) + "_ " + colonNorm.Substring(firstDash + 3);
+                PushBase(underFirst);
+            }
+
+            if (colonNorm.Contains(" - The "))
+            {
+                PushBase(colonNorm.Replace(" - The ", "_ The "));
+                PushBase(colonNorm.Replace(" - The ", "_ "));
+            }
+        }
+
+        // 2. Standard normalized title
         if (Regex.IsMatch(colonNorm, @"^the\s+", RegexOptions.IgnoreCase))
         {
             string withoutThe = Regex.Replace(colonNorm, @"^the\s+", "", RegexOptions.IgnoreCase).Trim();
@@ -258,21 +516,218 @@ public static class CoverArtService
         }
         PushBase(colonNorm);
 
-        var results = new List<string>();
-        foreach (var suf in regionSuffixes)
+        // 3. Roman <-> Arabic swaps (II <-> 2, III <-> 3, etc.)
+        (string From, string To)[] swaps =
         {
-            foreach (var b in baseTitles)
+            (" II", " 2"), (" 2", " II"),
+            (" III", " 3"), (" 3", " III"),
+            (" IV", " 4"), (" 4", " IV"),
+            (" V", " 5"), (" 5", " V")
+        };
+        foreach (var (fromStr, toStr) in swaps)
+        {
+            if (colonNorm.Contains(fromStr))
             {
-                string cand = $"{b} {suf}";
-                if (!results.Contains(cand)) results.Add(cand);
+                string swapped = colonNorm.Replace(fromStr, toStr);
+                PushBase(swapped.Replace(" - ", "_ "));
+                PushBase(swapped);
             }
         }
-        foreach (var b in baseTitles)
+
+        // 4. Known expansions (e.g. Dungeon Master II)
+        if (colonNorm.Contains("Dungeon Master II", StringComparison.OrdinalIgnoreCase) &&
+            !colonNorm.Contains("Skullkeep", StringComparison.OrdinalIgnoreCase))
         {
-            if (!results.Contains(b)) results.Add(b);
+            PushBase("Dungeon Master II_ The Legend of Skullkeep");
+            PushBase("Dungeon Master II - The Legend of Skullkeep");
+        }
+
+        // 5. Subtitle after dash (e.g. "Forgotten Realms - Unlimited Adventures" -> "Unlimited Adventures") & prefix before dash
+        if (colonNorm.Contains(" - "))
+        {
+            var parts = colonNorm.Split(new[] { " - " }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 2)
+            {
+                string suffixTitle = parts[parts.Length - 1].Trim();
+                if (suffixTitle.Length >= 5) PushBase(suffixTitle);
+            }
+            string prefix = parts[0].Trim();
+            PushBase(prefix);
+        }
+
+        var results = new List<string>();
+        bool isDos = (platform ?? "").Contains("DOS", StringComparison.OrdinalIgnoreCase);
+        if (isDos)
+        {
+            // Libretro DOS thumbnails use bare titles without (USA)/(Europe) tags first
+            foreach (var b in baseTitles)
+            {
+                if (!results.Contains(b)) results.Add(b);
+            }
+            foreach (var suf in regionSuffixes.Take(2))
+            {
+                foreach (var b in baseTitles.Take(3))
+                {
+                    string cand = $"{b} {suf}";
+                    if (!results.Contains(cand)) results.Add(cand);
+                }
+            }
+        }
+        else
+        {
+            foreach (var suf in regionSuffixes)
+            {
+                foreach (var b in baseTitles)
+                {
+                    string cand = $"{b} {suf}";
+                    if (!results.Contains(cand)) results.Add(cand);
+                }
+            }
+            foreach (var b in baseTitles)
+            {
+                if (!results.Contains(b)) results.Add(b);
+            }
         }
 
         return results;
+    }
+
+    public static ImageSource? LoadClearLogo(RomItem item)
+    {
+        if (item == null || string.IsNullOrWhiteSpace(item.Name)) return null;
+        try
+        {
+            string safePlatform = SanitizeFileName(item.Platform);
+            string safeName = SanitizeFileName(item.Name);
+            string localLogoCache = Path.Combine(CoreManager.AppDir, "thumbnails", safePlatform, $"{safeName}_logo.png");
+            if (File.Exists(localLogoCache))
+            {
+                return LoadBitmapFromPath(localLogoCache);
+            }
+
+            string key = NormalizeLookupKey(item.Name);
+            var logos = _mediaIndex.Value.Logos;
+            if (logos.TryGetValue(key, out var stormPath) && File.Exists(stormPath))
+            {
+                return LoadBitmapFromPath(stormPath);
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    public static List<ImageSource> LoadGameScreenshots(RomItem item)
+    {
+        var list = new List<ImageSource>();
+        if (item == null || string.IsNullOrWhiteSpace(item.Name)) return list;
+        try
+        {
+            string key = NormalizeLookupKey(item.Name);
+            var screenshots = _mediaIndex.Value.Screenshots;
+            if (screenshots.TryGetValue(key, out var paths))
+            {
+                foreach (var p in paths)
+                {
+                    var img = LoadBitmapFromPath(p);
+                    if (img != null) list.Add(img);
+                    if (list.Count >= 6) break;
+                }
+            }
+        }
+        catch { }
+        return list;
+    }
+
+    public static List<string> FindGameManualPdfs(RomItem item)
+    {
+        var list = new List<string>();
+        if (item == null) return list;
+        try
+        {
+            // 1. Check game folder and its parent
+            if (!string.IsNullOrEmpty(item.FilePath))
+            {
+                string? gameDir = Path.GetDirectoryName(item.FilePath);
+                if (!string.IsNullOrEmpty(gameDir) && Directory.Exists(gameDir))
+                {
+                    foreach (var pdf in Directory.GetFiles(gameDir, "*.pdf", SearchOption.TopDirectoryOnly))
+                    {
+                        if (!list.Contains(pdf)) list.Add(pdf);
+                    }
+
+                    string? parentDir = Directory.GetParent(gameDir)?.FullName;
+                    if (!string.IsNullOrEmpty(parentDir) && Directory.Exists(parentDir))
+                    {
+                        foreach (var pdf in Directory.GetFiles(parentDir, "*.pdf", SearchOption.TopDirectoryOnly))
+                        {
+                            if (!list.Contains(pdf)) list.Add(pdf);
+                        }
+                    }
+                }
+            }
+
+            // 2. Check STORM ecosystem books & manuals directories
+            string[] stormManualDirs =
+            {
+                @"K:\STORM GAMES WORLD\public\manuals",
+                @"K:\STORM GAMES WORLD\books",
+                Path.Combine(CoreManager.AppDir, "manuals")
+            };
+
+            string normName = NormalizeLookupKey(item.Name);
+            foreach (var d in stormManualDirs)
+            {
+                if (!Directory.Exists(d)) continue;
+                foreach (var pdf in Directory.GetFiles(d, "*.pdf", SearchOption.AllDirectories))
+                {
+                    string normPdf = NormalizeLookupKey(Path.GetFileNameWithoutExtension(pdf));
+                    if (normPdf.Contains(normName) || normName.Contains(normPdf))
+                    {
+                        if (!list.Contains(pdf)) list.Add(pdf);
+                    }
+                }
+            }
+        }
+        catch { }
+        return list;
+    }
+
+    public static bool SetCustomCoverFromFile(RomItem item, string imageFilePath)
+    {
+        if (item == null || string.IsNullOrWhiteSpace(imageFilePath) || !File.Exists(imageFilePath)) return false;
+        try
+        {
+            byte[] bytes = File.ReadAllBytes(imageFilePath);
+            if (!IsSupportedBitmapBytes(bytes)) return false;
+
+            string safePlatform = SanitizeFileName(item.Platform);
+            string safeName = SanitizeFileName(item.Name);
+            string cacheDir = Path.Combine(CoreManager.AppDir, "thumbnails", safePlatform);
+            if (!Directory.Exists(cacheDir)) Directory.CreateDirectory(cacheDir);
+
+            string cacheFile = Path.Combine(cacheDir, $"{safeName}.png");
+            return TryApplyBytesToItemAndCache(item, bytes, cacheFile);
+        }
+        catch { }
+        return false;
+    }
+
+    private static BitmapImage? LoadBitmapFromPath(string path)
+    {
+        try
+        {
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.UriSource = new Uri(path, UriKind.Absolute);
+            bmp.EndInit();
+            bmp.Freeze();
+            return bmp;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public static string MapPlatformToLibretroDir(string platform)

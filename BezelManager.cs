@@ -23,6 +23,14 @@ public class BezelPresetItem : INotifyPropertyChanged
     public bool IsCustom { get; set; }
     public ImageSource? PreviewImage { get; set; }
 
+    // Studio Cutout Geometry (1920x1080 default frame)
+    public int CutLeft { get; set; } = 272;
+    public int CutRight { get; set; } = 1648;
+    public int CutTop { get; set; } = 24;
+    public int CutBottom { get; set; } = 1056;
+    public int CanvasWidth { get; set; } = 1920;
+    public int CanvasHeight { get; set; } = 1080;
+
     public System.Windows.Visibility ActiveBadgeVisibility => IsActive ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
     public System.Windows.Visibility DeleteButtonVisibility => IsCustom ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
 
@@ -47,6 +55,77 @@ public class BezelPresetItem : INotifyPropertyChanged
 
 public static class BezelManager
 {
+    // Exact Mathematical 4:3 Inner Cutout (1920x1080 canvas, 1376x1032 inner screen)
+    public const double CanvasWidth = 1920.0;
+    public const double CanvasHeight = 1080.0;
+    public const double InnerScreenLeft = 272.0;
+    public const double InnerScreenTop = 24.0;
+    public const double InnerScreenWidth = 1376.0;  // 1376 / 1032 == exact 4:3!
+    public const double InnerScreenHeight = 1032.0;
+
+    public const int DefaultCanvasWidth = 1920;
+    public const int DefaultCanvasHeight = 1080;
+    public const int DefaultCutLeft = 272;
+    public const int DefaultCutRight = 1648;
+    public const int DefaultCutTop = 24;
+    public const int DefaultCutBottom = 1056;
+
+    public const double DefaultCutLeftFraction = (double)DefaultCutLeft / DefaultCanvasWidth;        // 220 / 1920 = 0.11458333... (11.46%)
+    public const double DefaultCutRightFraction = (double)(DefaultCanvasWidth - DefaultCutRight) / DefaultCanvasWidth; // 220 / 1920 = 0.11458333... (11.46%)
+    public const double DefaultCutTopFraction = (double)DefaultCutTop / DefaultCanvasHeight;          // 28 / 1080 = 0.02592592... (2.59%)
+    public const double DefaultCutBottomFraction = (double)(DefaultCanvasHeight - DefaultCutBottom) / DefaultCanvasHeight; // 28 / 1080 = 0.02592592... (2.59%)
+
+    public static (double LeftFraction, double TopFraction, double RightFraction, double BottomFraction) GetCutoutFractions(BezelPresetItem? bezel = null)
+    {
+        int cutLeft = DefaultCutLeft;
+        int cutRight = DefaultCutRight;
+        int cutTop = DefaultCutTop;
+        int cutBottom = DefaultCutBottom;
+        int width = DefaultCanvasWidth;
+        int height = DefaultCanvasHeight;
+
+        if (bezel != null)
+        {
+            if (bezel.CanvasWidth > 0 && bezel.CanvasHeight > 0 && bezel.CutRight > bezel.CutLeft && bezel.CutBottom > bezel.CutTop)
+            {
+                cutLeft = bezel.CutLeft;
+                cutRight = bezel.CutRight;
+                cutTop = bezel.CutTop;
+                cutBottom = bezel.CutBottom;
+                width = bezel.CanvasWidth;
+                height = bezel.CanvasHeight;
+            }
+            else
+            {
+                switch (bezel.AspectRatio)
+                {
+                    case "3:2":
+                    case "3:2 Широкая":
+                        cutLeft = 180; cutRight = 1740; cutTop = 36; cutBottom = 1044;
+                        break;
+                    case "1:1":
+                    case "1:1 Квадрат":
+                        cutLeft = 420; cutRight = 1500; cutTop = 28; cutBottom = 1052;
+                        break;
+                    case "16:9":
+                    case "16:9 Тонкая":
+                        cutLeft = 48; cutRight = 1872; cutTop = 28; cutBottom = 1052;
+                        break;
+                    default:
+                        cutLeft = DefaultCutLeft; cutRight = DefaultCutRight; cutTop = DefaultCutTop; cutBottom = DefaultCutBottom;
+                        break;
+                }
+            }
+        }
+
+        double leftFrac = (double)cutLeft / width;
+        double rightFrac = (double)(width - cutRight) / width;
+        double topFrac = (double)cutTop / height;
+        double bottomFrac = (double)(height - cutBottom) / height;
+
+        return (leftFrac, topFrac, rightFrac, bottomFrac);
+    }
+
     public static readonly string OverlaysDir = Path.Combine(CoreManager.AppDir, "overlays");
     public static readonly string BordersDir = Path.Combine(OverlaysDir, "borders");
 
@@ -190,6 +269,12 @@ public static class BezelManager
                         CfgPath = cfg,
                         ImagePath = png,
                         IconColor = matchTmpl?.AccentColorHex ?? "#38BDF8",
+                        CutLeft = DefaultCutLeft,
+                        CutRight = DefaultCutRight,
+                        CutTop = DefaultCutTop,
+                        CutBottom = DefaultCutBottom,
+                        CanvasWidth = DefaultCanvasWidth,
+                        CanvasHeight = DefaultCanvasHeight,
                         AspectRatio = "4:3 ЭЛТ",
                         IsActive = isActive,
                         IsCustom = isCustom,
@@ -383,9 +468,9 @@ public static class BezelManager
                 }
             }
 
+            int cutLeft = DefaultCutLeft, cutRight = DefaultCutRight, cutTop = DefaultCutTop, cutBottom = DefaultCutBottom;
             if (!string.Equals(cutoutMode, "Raw", StringComparison.OrdinalIgnoreCase))
             {
-                int cutLeft = 220, cutRight = 1700, cutTop = 28, cutBottom = 1052;
                 switch (cutoutMode)
                 {
                     case "3:2":
@@ -447,6 +532,12 @@ public static class BezelManager
                 CfgPath = targetCfg,
                 ImagePath = targetPng,
                 IconColor = accentHex,
+                CutLeft = cutLeft,
+                CutRight = cutRight,
+                CutTop = cutTop,
+                CutBottom = cutBottom,
+                CanvasWidth = width,
+                CanvasHeight = height,
                 AspectRatio = cutoutMode switch
                 {
                     "4:3" => "4:3 ЭЛТ",
@@ -474,8 +565,18 @@ public static class BezelManager
         {
             if (!Directory.Exists(BordersDir)) Directory.CreateDirectory(BordersDir);
 
-            string versionMarker = Path.Combine(BordersDir, ".storm_bezels_v3.ok");
-            bool forceRegen = !File.Exists(versionMarker);
+            string v2Marker = Path.Combine(BordersDir, ".storm_bezels_v2.ok");
+            string v3Marker = Path.Combine(BordersDir, ".storm_bezels_v3.ok");
+            string v4Marker = Path.Combine(BordersDir, ".storm_bezels_v4.ok");
+
+            try
+            {
+                if (File.Exists(v2Marker)) File.Delete(v2Marker);
+                if (File.Exists(v3Marker)) File.Delete(v3Marker);
+            }
+            catch { }
+
+            bool forceRegen = !File.Exists(v4Marker);
 
             foreach (var tmpl in BuiltinTemplates)
             {
@@ -504,7 +605,7 @@ public static class BezelManager
 
             if (forceRegen)
             {
-                try { File.WriteAllText(versionMarker, "v3"); } catch { }
+                try { File.WriteAllText(v4Marker, "v4"); } catch { }
             }
         }
         catch { }
@@ -512,18 +613,18 @@ public static class BezelManager
 
     private static void GenerateBezelPng(string targetPngPath, string baseHex, string accentHex)
     {
-        int width = 1920;
-        int height = 1080;
+        int width = (int)CanvasWidth;
+        int height = (int)CanvasHeight;
         int stride = width * 4;
         byte[] pixels = new byte[height * stride];
 
         var baseColor = (Color)ColorConverter.ConvertFromString(baseHex);
         var accentColor = (Color)ColorConverter.ConvertFromString(accentHex);
 
-        int cutLeft = 220;
-        int cutRight = 1700;
-        int cutTop = 28;
-        int cutBottom = 1052;
+        int cutLeft = (int)InnerScreenLeft;      // 272
+        int cutRight = cutLeft + (int)InnerScreenWidth; // 1648 (1376 width)
+        int cutTop = (int)InnerScreenTop;        // 24
+        int cutBottom = cutTop + (int)InnerScreenHeight; // 1056 (1032 height)
 
         for (int y = 0; y < height; y++)
         {
@@ -537,74 +638,66 @@ public static class BezelManager
                 bool insideCutout = (x >= cutLeft && x < cutRight && y >= cutTop && y < cutBottom);
                 if (insideCutout)
                 {
-                    // Inner neon bevel border around the game screen (5px)
-                    int distLeft = x - cutLeft;
-                    int distRight = (cutRight - 1) - x;
-                    int distTop = y - cutTop;
-                    int distBottom = (cutBottom - 1) - y;
-                    int minDist = Math.Min(Math.Min(distLeft, distRight), Math.Min(distTop, distBottom));
+                    // 100% transparent game screen: zero inner border, zero inner shadow
+                    pixels[idx + 0] = 0;
+                    pixels[idx + 1] = 0;
+                    pixels[idx + 2] = 0;
+                    pixels[idx + 3] = 0;
+                }
+                else
+                {
+                    // Outer 4px neon border strictly OUTSIDE the 1376×1032 game hole
+                    bool isNeonBorder = (x >= cutLeft - 4 && x < cutLeft && y >= cutTop - 4 && y < cutBottom + 4) ||
+                                        (x >= cutRight && x < cutRight + 4 && y >= cutTop - 4 && y < cutBottom + 4) ||
+                                        (y >= cutTop - 4 && y < cutTop && x >= cutLeft - 4 && x < cutRight + 4) ||
+                                        (y >= cutBottom && y < cutBottom + 4 && x >= cutLeft - 4 && x < cutRight + 4);
 
-                    if (minDist < 4)
+                    if (isNeonBorder)
                     {
                         pixels[idx + 0] = accentColor.B;
                         pixels[idx + 1] = accentColor.G;
                         pixels[idx + 2] = accentColor.R;
-                        pixels[idx + 3] = 245;
-                    }
-                    else if (minDist < 10)
-                    {
-                        // Subtle dark inner CRT bezel shadow
-                        pixels[idx + 0] = 8;
-                        pixels[idx + 1] = 8;
-                        pixels[idx + 2] = 12;
-                        pixels[idx + 3] = (byte)(180 - (minDist - 4) * 28);
+                        pixels[idx + 3] = 255;
                     }
                     else
                     {
-                        pixels[idx + 0] = 0;
-                        pixels[idx + 1] = 0;
-                        pixels[idx + 2] = 0;
-                        pixels[idx + 3] = 0;
-                    }
-                }
-                else
-                {
-                    // Console casing frame (left/right sidebars + top/bottom bars)
-                    byte r = (byte)Math.Clamp(baseColor.R * vShade, 0, 255);
-                    byte g = (byte)Math.Clamp(baseColor.G * vShade, 0, 255);
-                    byte b = (byte)Math.Clamp(baseColor.B * vShade, 0, 255);
+                        // Console casing frame (left/right sidebars + top/bottom bars)
+                        byte r = (byte)Math.Clamp(baseColor.R * vShade, 0, 255);
+                        byte g = (byte)Math.Clamp(baseColor.G * vShade, 0, 255);
+                        byte b = (byte)Math.Clamp(baseColor.B * vShade, 0, 255);
 
-                    // Horizontal metallic ribs on left and right sidebars
-                    if ((x >= 32 && x <= 188) || (x >= 1732 && x <= 1888))
-                    {
-                        if (y >= 140 && y <= 340 && (y % 18 < 5))
+                        // Horizontal metallic ribs on left and right sidebars
+                        if ((x >= 32 && x <= 188) || (x >= 1732 && x <= 1888))
                         {
-                            r = (byte)(r * 0.62);
-                            g = (byte)(g * 0.62);
-                            b = (byte)(b * 0.62);
+                            if (y >= 140 && y <= 340 && (y % 18 < 5))
+                            {
+                                r = (byte)(r * 0.62);
+                                g = (byte)(g * 0.62);
+                                b = (byte)(b * 0.62);
+                            }
                         }
-                    }
 
-                    // Outer neon stripe along left & right edges
-                    if ((x >= 18 && x <= 22) || (x >= 1897 && x <= 1901))
-                    {
-                        r = accentColor.R;
-                        g = accentColor.G;
-                        b = accentColor.B;
-                    }
+                        // Outer neon stripe along left & right edges
+                        if ((x >= 18 && x <= 22) || (x >= 1897 && x <= 1901))
+                        {
+                            r = accentColor.R;
+                            g = accentColor.G;
+                            b = accentColor.B;
+                        }
 
-                    // Glowing console power LED indicator at bottom-right sidebar
-                    if (x >= 1790 && x <= 1830 && y >= 980 && y <= 992)
-                    {
-                        r = accentColor.R;
-                        g = accentColor.G;
-                        b = accentColor.B;
-                    }
+                        // Glowing console power LED indicator at bottom-right sidebar
+                        if (x >= 1790 && x <= 1830 && y >= 980 && y <= 992)
+                        {
+                            r = accentColor.R;
+                            g = accentColor.G;
+                            b = accentColor.B;
+                        }
 
-                    pixels[idx + 0] = b;
-                    pixels[idx + 1] = g;
-                    pixels[idx + 2] = r;
-                    pixels[idx + 3] = 255;
+                        pixels[idx + 0] = b;
+                        pixels[idx + 1] = g;
+                        pixels[idx + 2] = r;
+                        pixels[idx + 3] = 255;
+                    }
                 }
             }
         }

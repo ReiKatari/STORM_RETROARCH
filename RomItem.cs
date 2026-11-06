@@ -33,6 +33,76 @@ public class RomItem : INotifyPropertyChanged
     private string _languageBadge = "";
     private string _versionBadge = "";
 
+    // Playtime, Launch & Library Metadata (1.6.0)
+    private long _totalPlaySeconds;
+    private int _launchCount;
+    private string _completionStatus = "Не начато";
+    private int _starRating = 0;
+    private string _userNotes = "";
+    private string _customCollection = "";
+
+    public long TotalPlaySeconds
+    {
+        get => _totalPlaySeconds;
+        set
+        {
+            if (SetField(ref _totalPlaySeconds, value))
+            {
+                OnPropertyChanged(nameof(PlaytimeText));
+            }
+        }
+    }
+
+    public string PlaytimeText => GameMetadataStore.FormatPlaytime(_totalPlaySeconds);
+
+    public int LaunchCount
+    {
+        get => _launchCount;
+        set => SetField(ref _launchCount, value);
+    }
+
+    public string CompletionStatus
+    {
+        get => _completionStatus;
+        set
+        {
+            if (SetField(ref _completionStatus, value))
+            {
+                OnPropertyChanged(nameof(HasCompletionBadge));
+            }
+        }
+    }
+
+    public bool HasCompletionBadge => !string.IsNullOrEmpty(_completionStatus) && _completionStatus != "Не начато";
+
+    public int StarRating
+    {
+        get => _starRating;
+        set
+        {
+            if (SetField(ref _starRating, value))
+            {
+                OnPropertyChanged(nameof(StarRatingDisplay));
+            }
+        }
+    }
+
+    public string StarRatingDisplay => _starRating > 0
+        ? (new string('★', Math.Clamp(_starRating, 0, 5)) + new string('☆', 5 - Math.Clamp(_starRating, 0, 5)))
+        : "☆☆☆☆☆";
+
+    public string UserNotes
+    {
+        get => _userNotes;
+        set => SetField(ref _userNotes, value);
+    }
+
+    public string CustomCollection
+    {
+        get => _customCollection;
+        set => SetField(ref _customCollection, value);
+    }
+
     public string Title => Name;
     public string Crc32 { get; set; } = "";
 
@@ -350,62 +420,148 @@ public class RomItem : INotifyPropertyChanged
     {
         try
         {
-            int w = 32, h = 32;
-            var wb = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgra32, null);
-            byte[] pixels = new byte[w * h * 4];
-
-            uint hash = (uint)Math.Abs(Platform.GetHashCode());
-            byte r = (byte)(60 + (hash & 0x7F));
-            byte g = (byte)(60 + ((hash >> 7) & 0x7F));
-            byte b = (byte)(80 + ((hash >> 14) & 0x7F));
-
-            for (int y = 0; y < h; y++)
+            int w = 280, h = 380;
+            using var bmp = new System.Drawing.Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            using (var g = System.Drawing.Graphics.FromImage(bmp))
             {
-                for (int x = 0; x < w; x++)
-                {
-                    int idx = (y * w + x) * 4;
-                    bool isBorder = x == 0 || x == w - 1 || y == 0 || y == h - 1;
-                    bool isCartridgeNotch = (y < 4 && (x < 4 || x > w - 5));
-                    bool isLabelArea = (y >= 8 && y <= 22 && x >= 5 && x <= w - 6);
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
 
-                    if (isCartridgeNotch)
+                // 1. Dark Gradient Background
+                using (var bgBrush = new System.Drawing.Drawing2D.LinearGradientBrush(
+                    new System.Drawing.Rectangle(0, 0, w, h),
+                    System.Drawing.Color.FromArgb(24, 27, 38),
+                    System.Drawing.Color.FromArgb(11, 12, 16),
+                    System.Drawing.Drawing2D.LinearGradientMode.Vertical))
+                {
+                    g.FillRectangle(bgBrush, 0, 0, w, h);
+                }
+
+                // Compute color scheme from Platform / Title hash
+                uint hash = (uint)Math.Abs((Platform + Name).GetHashCode());
+                byte accentR = (byte)(80 + (hash & 0x7F));
+                byte accentG = (byte)(80 + ((hash >> 7) & 0x7F));
+                byte accentB = (byte)(140 + ((hash >> 14) & 0x7F));
+                var accentColor = System.Drawing.Color.FromArgb(accentR, accentG, accentB);
+
+                // 2. Top Neon Stripe
+                using (var neonPen = new System.Drawing.Pen(accentColor, 4f))
+                {
+                    g.DrawLine(neonPen, 0, 2, w, 2);
+                }
+
+                // 3. Subtle background radial glow
+                using (var path = new System.Drawing.Drawing2D.GraphicsPath())
+                {
+                    path.AddEllipse(20, 60, 240, 200);
+                    using var pgb = new System.Drawing.Drawing2D.PathGradientBrush(path)
                     {
-                        pixels[idx] = 0;
-                        pixels[idx + 1] = 0;
-                        pixels[idx + 2] = 0;
-                        pixels[idx + 3] = 0;
-                    }
-                    else if (isBorder)
-                    {
-                        pixels[idx] = 20;
-                        pixels[idx + 1] = 16;
-                        pixels[idx + 2] = 30;
-                        pixels[idx + 3] = 255;
-                    }
-                    else if (isLabelArea)
-                    {
-                        pixels[idx] = (byte)Math.Min(255, b + 40);
-                        pixels[idx + 1] = (byte)Math.Min(255, g + 20);
-                        pixels[idx + 2] = (byte)Math.Min(255, r + 40);
-                        pixels[idx + 3] = 255;
-                    }
-                    else
-                    {
-                        pixels[idx] = b;
-                        pixels[idx + 1] = g;
-                        pixels[idx + 2] = r;
-                        pixels[idx + 3] = 255;
-                    }
+                        CenterColor = System.Drawing.Color.FromArgb(40, accentColor),
+                        SurroundColors = new[] { System.Drawing.Color.FromArgb(0, 0, 0, 0) }
+                    };
+                    g.FillPath(pgb, path);
+                }
+
+                // 4. Platform pill badge at top
+                string platBadge = !string.IsNullOrWhiteSpace(Platform) ? Platform.ToUpperInvariant() : "RETRO";
+                if (platBadge.Length > 20) platBadge = platBadge.Substring(0, 20);
+                using (var pillBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(45, 50, 70)))
+                using (var pillPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(80, accentColor), 1f))
+                using (var fontBadge = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold))
+                {
+                    var badgeSize = g.MeasureString(platBadge, fontBadge);
+                    float badgeW = Math.Max(70, badgeSize.Width + 24);
+                    float badgeH = 26;
+                    float badgeX = (w - badgeW) / 2f;
+                    float badgeY = 22;
+
+                    using var badgePath = new System.Drawing.Drawing2D.GraphicsPath();
+                    badgePath.AddArc(badgeX, badgeY, badgeH, badgeH, 90, 180);
+                    badgePath.AddArc(badgeX + badgeW - badgeH, badgeY, badgeH, badgeH, 270, 180);
+                    badgePath.CloseFigure();
+                    g.FillPath(pillBrush, badgePath);
+                    g.DrawPath(pillPen, badgePath);
+
+                    using var badgeTextBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(220, 225, 235));
+                    using var sfBadge = new System.Drawing.StringFormat { Alignment = System.Drawing.StringAlignment.Center, LineAlignment = System.Drawing.StringAlignment.Center };
+                    g.DrawString(platBadge, fontBadge, badgeTextBrush, new System.Drawing.RectangleF(badgeX, badgeY, badgeW, badgeH), sfBadge);
+                }
+
+                // 5. Stylized Central Emblem (Retro Gamepad / Cartridge silhouette)
+                float cx = w / 2f;
+                float cy = 160f;
+                using (var emblemPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(120, accentColor), 2f))
+                using (var emblemFill = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(30, accentColor)))
+                {
+                    // Gamepad body contour
+                    g.FillEllipse(emblemFill, cx - 60, cy - 35, 120, 70);
+                    g.DrawEllipse(emblemPen, cx - 60, cy - 35, 120, 70);
+
+                    // D-Pad cross on left
+                    g.FillRectangle(emblemPen.Brush, cx - 42, cy - 14, 20, 6);
+                    g.FillRectangle(emblemPen.Brush, cx - 35, cy - 21, 6, 20);
+
+                    // Action buttons on right
+                    g.FillEllipse(emblemPen.Brush, cx + 22, cy - 10, 8, 8);
+                    g.FillEllipse(emblemPen.Brush, cx + 34, cy - 2, 8, 8);
+                }
+
+                // 6. Title Text (Bold, wrapped)
+                string titleToDraw = !string.IsNullOrWhiteSpace(Title) ? Title : Name;
+                using (var titleFont = new System.Drawing.Font("Segoe UI", 13f, System.Drawing.FontStyle.Bold))
+                using (var titleBrush = new System.Drawing.SolidBrush(System.Drawing.Color.White))
+                using (var sf = new System.Drawing.StringFormat
+                {
+                    Alignment = System.Drawing.StringAlignment.Center,
+                    LineAlignment = System.Drawing.StringAlignment.Near,
+                    Trimming = System.Drawing.StringTrimming.EllipsisWord
+                })
+                {
+                    var titleRect = new System.Drawing.RectangleF(16, 230, w - 32, 85);
+                    g.DrawString(titleToDraw, titleFont, titleBrush, titleRect, sf);
+                }
+
+                // 7. Year & Region at bottom
+                string footerText = "";
+                if (!string.IsNullOrEmpty(Year)) footerText += Year;
+                if (!string.IsNullOrEmpty(Region)) footerText += (footerText.Length > 0 ? $" • [{Region}]" : $"[{Region}]");
+                if (string.IsNullOrEmpty(footerText)) footerText = "STORM RETROARCH";
+
+                using (var footerFont = new System.Drawing.Font("Segoe UI", 10f, System.Drawing.FontStyle.Regular))
+                using (var footerBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(160, 170, 185)))
+                using (var sfFooter = new System.Drawing.StringFormat
+                {
+                    Alignment = System.Drawing.StringAlignment.Center,
+                    LineAlignment = System.Drawing.StringAlignment.Center
+                })
+                {
+                    g.DrawString(footerText, footerFont, footerBrush, new System.Drawing.RectangleF(16, 335, w - 32, 25), sfFooter);
+                }
+
+                // 8. Outer Card Border
+                using (var borderPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(42, 46, 61), 1f))
+                {
+                    g.DrawRectangle(borderPen, 0, 0, w - 1, h - 1);
                 }
             }
 
-            wb.WritePixels(new System.Windows.Int32Rect(0, 0, w, h), pixels, w * 4, 0);
-            wb.Freeze();
-            Icon = wb;
+            // Convert System.Drawing.Bitmap -> WPF BitmapSource
+            using var ms = new MemoryStream();
+            bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+            ms.Position = 0;
+
+            var bi = new BitmapImage();
+            bi.BeginInit();
+            bi.CacheOption = BitmapCacheOption.OnLoad;
+            bi.StreamSource = ms;
+            bi.EndInit();
+            bi.Freeze();
+
+            Icon = bi;
         }
         catch { }
     }
-
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)

@@ -60,6 +60,10 @@ public class UserSettings
     public double WindowLeft { get; set; } = double.NaN;
     public double WindowTop { get; set; } = double.NaN;
     public bool WindowMaximized { get; set; } = false;
+
+    // Auto-Resume & UI Animation Settings (1.6.0)
+    public bool AutoSaveLoadOnExit { get; set; } = false;
+    public bool EnableUiAnimations { get; set; } = true;
 }
 
 public static class SettingsManager

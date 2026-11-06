@@ -135,7 +135,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly ObservableCollection<RomItem> _history = new();
     private readonly ObservableCollection<CoreInfo> _cores = new();
 
-    // 1.5.0 Fast Navigation & Command Palette Collections
+    // 1.6.0 Fast Navigation & Command Palette Collections
     private readonly List<CommandPaletteItem> _allPaletteItems = new();
     private readonly ObservableCollection<CommandPaletteItem> _filteredPaletteItems = new();
     private readonly DispatcherTimer _searchDebounceTimer;
@@ -261,6 +261,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         LocationChanged += (s, e) => ScheduleWindowPlacementSave();
         StateChanged += (s, e) => ScheduleWindowPlacementSave();
 
+        // 1.6.0 Lockstep Viewport Geometry Sync
+        NativeLibretroHost.GeometryChanged += () => Dispatcher.Invoke(UpdateViewportStageLayout);
+
         // Bind Collections
         LvGames.ItemsSource = _filteredGames;
         IcGamesBento.ItemsSource = _filteredGames;
@@ -285,7 +288,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         CmbStateSlot.SelectionChanged += CmbStateSlot_SelectionChanged;
         SettingItem.SettingChanged += OnLiveSettingChanged;
 
-        // 1.5.0 Debounced Search Timer (120ms)
+        // 1.6.0 Debounced Search Timer (120ms)
         _searchDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         _searchDebounceTimer.Tick += (s, e) =>
         {
@@ -410,7 +413,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         IntPtr hwnd = helper.Handle;
         try
         {
-            SetWindowText(hwnd, Title ?? "STORM RETROARCH 1.5.0");
+            SetWindowText(hwnd, Title ?? "STORM RETROARCH 1.6.0");
             ChangeWindowMessageFilterEx(hwnd, WM_DROPFILES, MSGFLT_ALLOW, IntPtr.Zero);
             ChangeWindowMessageFilterEx(hwnd, WM_COPYDATA, MSGFLT_ALLOW, IntPtr.Zero);
             ChangeWindowMessageFilterEx(hwnd, WM_COPYGLOBALDATA, MSGFLT_ALLOW, IntPtr.Zero);
@@ -528,7 +531,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         ChkToolbarAutoUpdates.IsChecked = SettingsManager.Current.CheckUpdatesOnStartup;
 
-        // Initialize v1.5.0 Scalability, Sidebar, Card Slider, Quick Toggles & Reorderable Dashboard
+        // Initialize v1.6.0 Scalability, Sidebar, Card Slider, Quick Toggles & Reorderable Dashboard
         ApplyUiScale(SettingsManager.Current.UiScale, save: false);
         ApplySidebarState();
 
@@ -592,7 +595,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 cmdArgs[i].Equals("--screenshot-cores", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-core-options", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-gamepads", StringComparison.OrdinalIgnoreCase) ||
-                cmdArgs[i].Equals("--screenshot-cheats", StringComparison.OrdinalIgnoreCase))
+                cmdArgs[i].Equals("--screenshot-cheats", StringComparison.OrdinalIgnoreCase) ||
+                    cmdArgs[i].Equals("--screenshot-library-covers", StringComparison.OrdinalIgnoreCase) ||
+                    cmdArgs[i].Equals("--screenshot-dos-aspect", StringComparison.OrdinalIgnoreCase) ||
+                    cmdArgs[i].Equals("--screenshot-gamehub", StringComparison.OrdinalIgnoreCase) ||
+                    cmdArgs[i].Equals("--screenshot-bigbox", StringComparison.OrdinalIgnoreCase))
             {
                 bool isSettings = cmdArgs[i].Equals("--screenshot-settings", StringComparison.OrdinalIgnoreCase);
                 bool isBios = cmdArgs[i].Equals("--screenshot-bios", StringComparison.OrdinalIgnoreCase);
@@ -620,7 +627,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 bool isCheats = cmdArgs[i].Equals("--screenshot-cheats", StringComparison.OrdinalIgnoreCase);
                 string shotPath = cmdArgs[i + 1];
 
-                Dispatcher.BeginInvoke(new Action(() =>
+                Dispatcher.BeginInvoke(new Action(async () =>
                 {
                     try
                     {
@@ -726,6 +733,60 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                         {
                             NavBtn_Click(NavBtnCheats, new RoutedEventArgs());
                         }
+                        else if (cmdArgs[i].Equals("--screenshot-library-covers", StringComparison.OrdinalIgnoreCase))
+                        {
+                            NavBtn_Click(NavBtnLibrary, new RoutedEventArgs());
+                            EnsureBattletoadsTestGame();
+                            BtnViewMode_Click(BtnViewBento, new RoutedEventArgs());
+                            await CoverArtService.LoadCoversParallelAsync(_allGames, forceRefresh: false);
+                            await Task.Delay(500);
+                            await Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Render);
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-dos-aspect", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var xanth = _allGames.FirstOrDefault(g => g.Name.Contains("Xanth", StringComparison.OrdinalIgnoreCase))
+                                     ?? _allGames.FirstOrDefault(g => g.Platform.Contains("DOS", StringComparison.OrdinalIgnoreCase));
+                            if (xanth != null && File.Exists(xanth.FilePath))
+                            {
+                                await StartGameInViewportAsync(xanth);
+                                ApplyActiveBezelToViewport();
+                                UpdateViewportStageLayout();
+                                await Task.Delay(3800);
+                                if (PnlOsdToast != null) PnlOsdToast.Visibility = Visibility.Collapsed;
+                                await Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Render);
+                            }
+                            else
+                            {
+                                if (BtnNavGamePlayer != null) NavBtn_Click(BtnNavGamePlayer, new RoutedEventArgs());
+                                if (ViewGamePlayer != null) ViewGamePlayer.Visibility = Visibility.Visible;
+                                EnsureBattletoadsRunningPreview();
+                                ApplyActiveBezelToViewport();
+                                UpdateViewportStageLayout();
+                            }
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-gamehub", StringComparison.OrdinalIgnoreCase))
+                        {
+                            NavBtn_Click(NavBtnLibrary, new RoutedEventArgs());
+                            EnsureBattletoadsTestGame();
+                            await CoverArtService.LoadCoversParallelAsync(_allGames, forceRefresh: false);
+                            await Task.Delay(250);
+                            var sampleGame = _allGames.FirstOrDefault(g => g.Name.Contains("Dungeon Master", StringComparison.OrdinalIgnoreCase))
+                                          ?? _allGames.FirstOrDefault()
+                                          ?? new RomItem { Name = "Battletoads", Platform = "Nintendo Entertainment System", CoreDisplayName = "FCEUmm" };
+                            OpenGameHubModal(sampleGame);
+                            await Task.Delay(350);
+                            await Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Render);
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-bigbox", StringComparison.OrdinalIgnoreCase))
+                        {
+                            NavBtn_Click(NavBtnLibrary, new RoutedEventArgs());
+                            EnsureBattletoadsTestGame();
+                            await CoverArtService.LoadCoversParallelAsync(_allGames, forceRefresh: false);
+                            await Task.Delay(250);
+                            OpenBigBoxMode();
+                            await Task.Delay(350);
+                            await Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Render);
+                        }
                         else if (cmdArgs[i].Equals("--screenshot-v2-dashboard", StringComparison.OrdinalIgnoreCase))
                         {
                             NavBtn_Click(NavBtnMainMenu, new RoutedEventArgs());
@@ -815,6 +876,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     }
                     finally
                     {
+                        try { NativeLibretroHost.Current.StopGame(); } catch { }
                         Environment.Exit(0);
                     }
                 }), System.Windows.Threading.DispatcherPriority.Loaded);
@@ -859,8 +921,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
     {
         SaveWindowPlacement();
+        if (NativeLibretroHost.Current != null && NativeLibretroHost.Current.IsRunning &&
+            SettingsManager.Current != null && SettingsManager.Current.AutoSaveLoadOnExit)
+        {
+            NativeLibretroHost.Current.SaveState(NativeLibretroHost.Current.ActiveStateSlot);
+        }
         // Minimize to tray if not exiting
-        if (SettingsManager.Current.CheckUpdatesOnStartup)
+        if (SettingsManager.Current?.CheckUpdatesOnStartup == true)
         {
             // preserve
         }
@@ -886,6 +953,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 StormAlertOverlay.Visibility = Visibility.Collapsed;
                 _alertTcs?.TrySetResult(false);
                 _alertTcs = null;
+                e.Handled = true;
+                return;
+            }
+            if (PnlGameHubModal != null && PnlGameHubModal.Visibility == Visibility.Visible)
+            {
+                CloseGameHubModal();
+                e.Handled = true;
+                return;
+            }
+            if (PnlBigBoxOverlay != null && PnlBigBoxOverlay.Visibility == Visibility.Visible)
+            {
+                CloseBigBoxMode();
                 e.Handled = true;
                 return;
             }
@@ -957,6 +1036,32 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && actualKey == Key.K)
         {
             ToggleCommandPaletteModal();
+            e.Handled = true;
+            return;
+        }
+
+        // F10 toggles BigBox 10-Foot Console Mode
+        if (actualKey == Key.F10)
+        {
+            ToggleBigBoxMode();
+            e.Handled = true;
+            return;
+        }
+
+        // F9 cycles CRT/Phosphor shader modes
+        if (actualKey == Key.F9)
+        {
+            BtnGameShader_Click(sender, e);
+            e.Handled = true;
+            return;
+        }
+
+        // K steps single frame when paused in game
+        if (actualKey == Key.K && Keyboard.FocusedElement is not TextBox &&
+            ViewGamePlayer != null && ViewGamePlayer.Visibility == Visibility.Visible)
+        {
+            NativeLibretroHost.Current.StepSingleFrame();
+            ShowOsdToast("Кадр вперед (Покадрово)");
             e.Handled = true;
             return;
         }
@@ -1426,6 +1531,32 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         UpdateViewModeLayout();
+
+        UIElement? activePanel = _activeNavView switch
+        {
+            "MainMenu" => ViewMainMenu,
+            "Settings" => ViewSettings,
+            "Library" => ViewLibrary,
+            "Favorites" => ViewFavorites,
+            "History" => ViewHistory,
+            "Cores" => ViewCores,
+            "Netplay" => ViewNetplay,
+            "Screenshots" => ViewScreenshots,
+            "Import" => ViewImport,
+            "Shaders" => ViewShaders,
+            "Saves" => ViewSaves,
+            "Bios" => ViewBios,
+            "Cheats" => ViewCheats,
+            "Bezels" => ViewBezels,
+            "CoreOptions" => ViewCoreOptions,
+            "InputRemap" => ViewInputRemap,
+            "Achievements" => ViewAchievements,
+            "StreamAi" => ViewStreamAi,
+            "SaveSync" => ViewSaveSync,
+            "AiWalkthrough" => ViewAiWalkthrough,
+            _ => null
+        };
+        if (activePanel != null) AnimatePanelEntrance(activePanel);
     }
 
     private void BtnViewMode_Click(object sender, RoutedEventArgs e)
@@ -1959,6 +2090,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 continue;
             if (status == "Требуют ядра" && g.IsCoreInstalled)
                 continue;
+            if (status != "Все статусы" && status != "Готовы к запуску" && status != "Требуют ядра")
+            {
+                if (g.CompletionStatus != status)
+                    continue;
+            }
 
             matchingGames.Add(g);
         }
@@ -1970,6 +2106,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             1 => matchingGames.OrderBy(g => g.Platform).ThenBy(g => g.Name),
             2 => matchingGames.OrderBy(g => g.CoreDisplayName).ThenBy(g => g.Name),
             3 => matchingGames.OrderByDescending(g => g.FileSizeBytes),
+            4 => matchingGames.OrderByDescending(g => g.TotalPlaySeconds),
+            5 => matchingGames.OrderByDescending(g => g.StarRating),
+            6 => matchingGames.OrderByDescending(g => g.LaunchCount),
             _ => matchingGames.OrderBy(g => g.Name)
         };
 
@@ -1992,6 +2131,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         CmbStatusFilter.Items.Add("Все статусы");
         CmbStatusFilter.Items.Add("Готовы к запуску");
         CmbStatusFilter.Items.Add("Требуют ядра");
+        foreach (var cs in GameMetadataStore.CompletionStatuses)
+        {
+            CmbStatusFilter.Items.Add(cs);
+        }
         CmbStatusFilter.SelectedIndex = 0;
     }
 
@@ -3361,9 +3504,22 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        ShowNotification($"Загрузка обложек игр для {_allGames.Count} игр с thumbnails.libretro.com...");
-        int count = await DownloadBoxartsForLibraryAsync(_allGames);
-        ShowNotification($"Загрузка завершена! Скачано новых обложек: {count}");
+        ShowNotification($"Загрузка обложек для {_allGames.Count} игр...");
+        await CoverArtService.LoadCoversParallelAsync(_allGames, forceRefresh: true);
+        ShowNotification("Загрузка обложек завершена!");
+    }
+
+    private async void BtnFetchCovers_Click(object sender, RoutedEventArgs e)
+    {
+        if (_allGames.Count == 0)
+        {
+            ShowOsdToast("В библиотеке нет игр");
+            return;
+        }
+
+        ShowOsdToast($"Параллельная загрузка обложек для {_allGames.Count} игр...");
+        await CoverArtService.LoadCoversParallelAsync(_allGames, forceRefresh: true);
+        ShowOsdToast("Обложки успешно загружены!");
     }
 
     private static async Task<int> DownloadBoxartsForLibraryAsync(IEnumerable<RomItem> roms)
@@ -3456,8 +3612,65 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
         }
 
+        ImgGameBezelOverlay.Source = null;
         ImgGameBezelOverlay.Visibility = Visibility.Collapsed;
-        ImgGameViewport.Margin = new Thickness(0);
+        UpdateViewportStageLayout();
+    }
+
+    public void UpdateGameViewportBezelMargin(BezelPresetItem? active = null)
+    {
+        UpdateViewportStageLayout();
+    }
+
+    private void UpdateViewportStageLayout()
+    {
+        if (GrdGameStageCanvas == null || BorderGameScreenHost == null || ImgGameBezelOverlay == null)
+            return;
+
+        int aspect = NativeLibretroHost.Current != null ? NativeLibretroHost.Current.AspectMode : 0;
+        bool hasActiveBezel = ImgGameBezelOverlay.Source != null && BezelManager.GetActiveBezel() != null;
+
+        // If Bezel is active AND aspect is 4:3 (mode 0), lock inside Bezel cutout
+        if (hasActiveBezel && aspect == 0)
+        {
+            GrdGameStageCanvas.Width = BezelManager.CanvasWidth; // 1920
+            GrdGameStageCanvas.Height = BezelManager.CanvasHeight; // 1080
+
+            BorderGameScreenHost.Width = BezelManager.InnerScreenWidth; // 1376
+            BorderGameScreenHost.Height = BezelManager.InnerScreenHeight; // 1032
+            BorderGameScreenHost.Margin = new Thickness(BezelManager.InnerScreenLeft, BezelManager.InnerScreenTop, 0, 0); // 272, 24, 0, 0
+
+            ImgGameBezelOverlay.Width = BezelManager.CanvasWidth;
+            ImgGameBezelOverlay.Height = BezelManager.CanvasHeight;
+            ImgGameBezelOverlay.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            ImgGameBezelOverlay.Visibility = Visibility.Collapsed;
+            BorderGameScreenHost.Margin = new Thickness(0);
+
+            if (aspect == 1) // 16:9
+            {
+                GrdGameStageCanvas.Width = 1920;
+                GrdGameStageCanvas.Height = 1080;
+                BorderGameScreenHost.Width = 1920;
+                BorderGameScreenHost.Height = 1080;
+            }
+            else if (aspect == 2) // 1:1
+            {
+                GrdGameStageCanvas.Width = 1080;
+                GrdGameStageCanvas.Height = 1080;
+                BorderGameScreenHost.Width = 1080;
+                BorderGameScreenHost.Height = 1080;
+            }
+            else // 0 = 4:3
+            {
+                GrdGameStageCanvas.Width = 1440;
+                GrdGameStageCanvas.Height = 1080;
+                BorderGameScreenHost.Width = 1440;
+                BorderGameScreenHost.Height = 1080;
+            }
+        }
     }
 
     private void BtnGameBezel_Click(object sender, RoutedEventArgs e)
@@ -3864,7 +4077,7 @@ private void LoadBezels()
 
     private void BtnDetectXInput_Click(object sender, RoutedEventArgs e)
     {
-        ShowOsdToast("Обнаружен контроллер XInput (Xbox Controller). Привязки обновлены.");
+        ShowOsdToast("Обнаружен контроллер XInput. Привязки обновлены.");
         LoadRemapBindings(_selectedRemapPlayerIndex);
     }
 
@@ -5078,20 +5291,22 @@ private void LoadBezels()
     private void BtnGameShader_Click(object sender, RoutedEventArgs e)
     {
         NativeLibretroHost.Current.CycleShaderFilter();
-        string filterName = NativeLibretroHost.Current.ShaderFilterMode switch
-        {
-            1 => "CRT Scanlines (-25%)",
-            2 => "Smooth Bilinear",
-            3 => "Handheld LCD Grid",
-            _ => "Pixel-Perfect (Nearest)"
-        };
+        string filterName = NativeLibretroHost.Current.GetShaderModeTitle();
+        if (TxtGameShaderLabel != null) TxtGameShaderLabel.Text = "Фильтр";
         ShowOsdToast($"Видеофильтр: {filterName}");
+    }
+
+    private void BtnGameFrameAdvance_Click(object sender, RoutedEventArgs e)
+    {
+        NativeLibretroHost.Current.StepSingleFrame();
+        ShowOsdToast("Кадр вперед (Покадрово)");
     }
 
     private void BtnGameAspect_Click(object sender, RoutedEventArgs e)
     {
         NativeLibretroHost.Current.CycleAspectMode(GameViewportContainer);
         UpdateInGameHudButtons();
+        UpdateViewportStageLayout();
         string aspectName = NativeLibretroHost.Current.AspectMode switch
         {
             1 => "16:9 Широкоэкранный",
@@ -5398,6 +5613,11 @@ private void LoadBezels()
             }
 
             if (migrated) SaveLibraryToPlaylist();
+            foreach (var game in _allGames)
+            {
+                GameMetadataStore.ApplyToRomItem(game);
+            }
+            _ = CoverArtService.LoadCoversParallelAsync(_allGames, forceRefresh: false);
             ApplyGamesFilter();
             UpdateStats();
         }
@@ -5581,7 +5801,7 @@ private void LoadBezels()
     }
 
 
-    // ==================== V1.5.0 UI SCALABILITY, RESIZING, MOVING & STUDIO CONTROLS ====================
+    // ==================== V1.6.0 UI SCALABILITY, RESIZING, MOVING & STUDIO CONTROLS ====================
 
     private void ApplyUiScale(double scale, bool save = true)
     {
@@ -5938,7 +6158,7 @@ private void LoadBezels()
         GameViewportContainer?.Focus();
     }
 
-    // ==================== PER-GAME & PER-PLATFORM CORE SELECTION (1.5.0) ====================
+    // ==================== PER-GAME & PER-PLATFORM CORE SELECTION (1.6.0) ====================
 
     private RomItem? _coreModalTargetRom;
     private bool _isSyncingPlatformCoreCombo;
@@ -6157,7 +6377,7 @@ private void LoadBezels()
         await StartGameInViewportAsync(rom);
     }
 
-    // ==================== 1.5.0 COMMAND PALETTE (CTRL+K) ====================
+    // ==================== 1.6.0 COMMAND PALETTE (CTRL+K) ====================
 
     private void BtnCommandPalette_Click(object sender, RoutedEventArgs e)
     {
@@ -6218,7 +6438,7 @@ private void LoadBezels()
             ("Опции ядер", "Тонкая настройка видео, аудио и параметров активного ядра", NavBtnCoreOptions),
             ("Читы и тренеры", "База чит-кодов Libretro CHT и встроенный редактор", NavBtnCheats),
             ("Диски и патчи", "Импорт многодисковых игр, сжатие CHD и патчи IPS/BPS", NavBtnImport),
-            ("Экранные рамки", "4-сторонние экранные рамки (Bezels) для ретро-консолей", NavBtnBezels),
+            ("Экранные рамки", "4-сторонние экранные рамки для ретро-консолей", NavBtnBezels),
             ("Шейдеры и фильтры", "Графические фильтры CRT, Scanlines, VHS и GLSL-пресеты", NavBtnShaders),
             ("Сохранения", "Стейты, файлы батарейной памяти SRM и облачный Sync", NavBtnSaves),
             ("Геймпады (1-8)", "Калибровка геймпадов DirectInput/XInput и клавиатуры", NavBtnInputRemap),
@@ -6441,7 +6661,7 @@ private void LoadBezels()
     }
 
 
-    // ==================== 1.5.0 PLATFORM FILTER CHIPS & SORTING ====================
+    // ==================== 1.6.0 PLATFORM FILTER CHIPS & SORTING ====================
 
     private void CmbLibrarySort_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -6558,7 +6778,7 @@ private void LoadBezels()
     }
 
 
-    // ==================== 1.5.0 GAME CONTEXT ACTIONS & CHEATS BUTTON ====================
+    // ==================== 1.6.0 GAME CONTEXT ACTIONS & CHEATS BUTTON ====================
 
     private RomItem? GetRomFromSender(object sender)
     {
@@ -6696,7 +6916,7 @@ private void LoadBezels()
     }
 
 
-    // ==================== 1.5.0 DASHBOARD RECENT GAMES STRIP ====================
+    // ==================== 1.6.0 DASHBOARD RECENT GAMES STRIP ====================
 
     private void UpdateDashboardRecentGames()
     {
@@ -6711,7 +6931,7 @@ private void LoadBezels()
     }
 
 
-    // ==================== 1.5.0 QUICK MENU LIVE STATE STATUS ====================
+    // ==================== 1.6.0 QUICK MENU LIVE STATE STATUS ====================
 
     private void InitQuickMenuStateSlots()
     {
@@ -6786,6 +7006,565 @@ private void LoadBezels()
         {
             TxtQuickSlotStatus.Text = $"Слот #{slot}: Пусто";
             TxtQuickSlotStatus.Foreground = (Brush)FindResource("ThemeTextMuted");
+        }
+    }
+
+
+    // ==================== 1.6.0 GAME HUB, BIGBOX, GPU ANIMATIONS & CUSTOM COVERS ====================
+
+    private RomItem? _activeGameHubItem;
+    private DispatcherTimer? _bigBoxClockTimer;
+
+    private void AnimatePanelEntrance(UIElement? panel)
+    {
+        if (panel == null || SettingsManager.Current == null || !SettingsManager.Current.EnableUiAnimations)
+            return;
+
+        try
+        {
+            var transform = panel.RenderTransform as TranslateTransform;
+            if (transform == null)
+            {
+                transform = new TranslateTransform(0, 14);
+                panel.RenderTransform = transform;
+            }
+            else
+            {
+                transform.Y = 14;
+            }
+
+            panel.Opacity = 0.0;
+
+            var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+
+            var opacityAnim = new System.Windows.Media.Animation.DoubleAnimation
+            {
+                From = 0.0,
+                To = 1.0,
+                Duration = TimeSpan.FromMilliseconds(150),
+                EasingFunction = ease
+            };
+
+            var transAnim = new System.Windows.Media.Animation.DoubleAnimation
+            {
+                From = 14.0,
+                To = 0.0,
+                Duration = TimeSpan.FromMilliseconds(150),
+                EasingFunction = ease
+            };
+
+            panel.BeginAnimation(UIElement.OpacityProperty, opacityAnim);
+            transform.BeginAnimation(TranslateTransform.YProperty, transAnim);
+        }
+        catch { }
+    }
+
+    public void OpenGameHubModal(RomItem item)
+    {
+        if (item == null || PnlGameHubModal == null) return;
+        _activeGameHubItem = item;
+
+        TxtGameHubTitle.Text = item.Name;
+        ImgGameHubCover.Source = item.Icon;
+        ImgGameHubHero.Source = item.Icon;
+
+        TxtGameHubPlatform.Text = item.Platform;
+        TxtGameHubCore.Text = item.CoreDisplayName;
+        TxtGameHubLanguage.Text = !string.IsNullOrEmpty(item.LanguageBadge) ? item.LanguageBadge : "RU [STORM]";
+        TxtGameHubYear.Text = !string.IsNullOrEmpty(item.Year) ? item.Year : "—";
+        TxtGameHubRegion.Text = !string.IsNullOrEmpty(item.Region) ? item.Region : "—";
+
+        TxtGameHubPlaytime.Text = $"Время: {item.PlaytimeText}";
+        TxtGameHubLaunchCount.Text = $"Запусков: {item.LaunchCount}";
+
+        CmbGameHubCompletionStatus.SelectionChanged -= CmbGameHubCompletionStatus_SelectionChanged;
+        CmbGameHubCompletionStatus.Items.Clear();
+        foreach (var s in GameMetadataStore.CompletionStatuses)
+        {
+            CmbGameHubCompletionStatus.Items.Add(s);
+        }
+        CmbGameHubCompletionStatus.SelectedItem = !string.IsNullOrEmpty(item.CompletionStatus) ? item.CompletionStatus : GameMetadataStore.CompletionStatuses[0];
+        CmbGameHubCompletionStatus.SelectionChanged += CmbGameHubCompletionStatus_SelectionChanged;
+
+        TxtGameHubCollection.TextChanged -= TxtGameHubCollection_TextChanged;
+        TxtGameHubCollection.Text = item.CustomCollection ?? "";
+        TxtGameHubCollection.TextChanged += TxtGameHubCollection_TextChanged;
+
+        TxtGameHubUserNotes.TextChanged -= TxtGameHubUserNotes_TextChanged;
+        TxtGameHubUserNotes.Text = item.UserNotes ?? "";
+        TxtGameHubUserNotes.TextChanged += TxtGameHubUserNotes_TextChanged;
+
+        UpdateStarRatingVisuals(item.StarRating);
+
+        // ClearLogo
+        var clearLogo = CoverArtService.LoadClearLogo(item);
+        if (clearLogo != null)
+        {
+            ImgGameHubClearLogo.Source = clearLogo;
+            ImgGameHubClearLogo.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            ImgGameHubClearLogo.Source = null;
+            ImgGameHubClearLogo.Visibility = Visibility.Collapsed;
+        }
+
+        // Screenshots
+        PnlGameHubScreenshots.Children.Clear();
+        var screenshots = CoverArtService.LoadGameScreenshots(item);
+        if (screenshots.Count > 0)
+        {
+            foreach (var shot in screenshots)
+            {
+                var border = new Border
+                {
+                    Width = 120,
+                    Height = 78,
+                    CornerRadius = new CornerRadius(6),
+                    ClipToBounds = true,
+                    Margin = new Thickness(0, 0, 8, 0),
+                    Background = new SolidColorBrush(Color.FromRgb(0x0F, 0x17, 0x2A)),
+                    BorderBrush = (Brush)FindResource("ThemeBorder"),
+                    BorderThickness = new Thickness(1)
+                };
+                var img = new Image
+                {
+                    Source = shot,
+                    Stretch = Stretch.UniformToFill
+                };
+                RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
+                border.Child = img;
+                PnlGameHubScreenshots.Children.Add(border);
+            }
+        }
+        else
+        {
+            PnlGameHubScreenshots.Children.Add(new TextBlock
+            {
+                Text = "Кадры и скриншоты отсутствуют (сделайте скриншот клавишей F8 в игре)",
+                Foreground = (Brush)FindResource("ThemeTextMuted"),
+                FontSize = 11.5,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
+
+        // PDF Game Books & Manuals
+        PnlGameHubPdfs.Children.Clear();
+        var pdfs = CoverArtService.FindGameManualPdfs(item);
+        if (pdfs.Count > 0)
+        {
+            foreach (var pdf in pdfs)
+            {
+                string pdfFileName = Path.GetFileName(pdf);
+                var btn = new Button
+                {
+                    Style = (Style)FindResource("StormSecondaryButton"),
+                    Padding = new Thickness(10, 5, 10, 5),
+                    Margin = new Thickness(0, 0, 8, 0),
+                    ToolTip = $"Открыть документацию: {pdf}"
+                };
+                var sp = new StackPanel { Orientation = Orientation.Horizontal };
+                var path = new System.Windows.Shapes.Path
+                {
+                    Data = Geometry.Parse("M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"),
+                    Fill = new SolidColorBrush(Color.FromRgb(0xEC, 0x48, 0x99)),
+                    Stretch = Stretch.Uniform,
+                    Width = 12,
+                    Height = 12,
+                    Margin = new Thickness(0, 0, 6, 0),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                sp.Children.Add(path);
+                sp.Children.Add(new TextBlock { Text = pdfFileName, FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center });
+                btn.Content = sp;
+                string capturePdf = pdf;
+                btn.Click += (s, e) =>
+                {
+                    try { Process.Start(new ProcessStartInfo(capturePdf) { UseShellExecute = true }); } catch { }
+                };
+                PnlGameHubPdfs.Children.Add(btn);
+            }
+        }
+        else
+        {
+            PnlGameHubPdfs.Children.Add(new TextBlock
+            {
+                Text = "Документация и PDF-руководства не найдены в каталоге книги",
+                Foreground = (Brush)FindResource("ThemeTextMuted"),
+                FontSize = 11.5,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
+
+        PnlGameHubModal.Visibility = Visibility.Visible;
+        if (SettingsManager.Current?.EnableUiAnimations == true)
+        {
+            AnimatePanelEntrance(GameHubDialogBorder);
+        }
+    }
+
+    public void CloseGameHubModal()
+    {
+        if (_activeGameHubItem != null)
+        {
+            GameMetadataStore.UpdateFromRomItem(_activeGameHubItem);
+            _activeGameHubItem = null;
+        }
+        if (PnlGameHubModal != null)
+        {
+            PnlGameHubModal.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void PnlGameHubModal_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource == PnlGameHubModal)
+        {
+            CloseGameHubModal();
+        }
+    }
+
+    private void GameHubDialog_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+    }
+
+    private void BtnCloseGameHub_Click(object sender, RoutedEventArgs e)
+    {
+        CloseGameHubModal();
+    }
+
+    private void BtnGameHubPlay_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeGameHubItem != null)
+        {
+            var game = _activeGameHubItem;
+            CloseGameHubModal();
+            _ = StartGameInViewportAsync(game);
+        }
+    }
+
+    private void BtnGameHubChangeCore_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeGameHubItem != null)
+        {
+            OpenCoreSelectorForGame(_activeGameHubItem);
+        }
+    }
+
+    private void BtnGameHubCheats_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeGameHubItem != null)
+        {
+            var game = _activeGameHubItem;
+            CloseGameHubModal();
+            OpenCheatsForGame(game);
+        }
+    }
+
+    private void BtnGameHubChangeCover_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeGameHubItem != null)
+        {
+            PromptCustomCoverForGame(_activeGameHubItem);
+        }
+    }
+
+    private void BtnGameHubOpenFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeGameHubItem != null)
+        {
+            OpenFolderForGame(_activeGameHubItem);
+        }
+    }
+
+    private void BtnStar_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && int.TryParse(btn.Tag?.ToString(), out int rating))
+        {
+            if (_activeGameHubItem != null)
+            {
+                _activeGameHubItem.StarRating = rating;
+                GameMetadataStore.UpdateFromRomItem(_activeGameHubItem);
+                UpdateStarRatingVisuals(rating);
+            }
+        }
+    }
+
+    private void UpdateStarRatingVisuals(int rating)
+    {
+        var stars = new[] { BtnStar1, BtnStar2, BtnStar3, BtnStar4, BtnStar5 };
+        for (int i = 0; i < stars.Length; i++)
+        {
+            if (stars[i] != null)
+            {
+                stars[i].Foreground = (i < rating)
+                    ? new SolidColorBrush(Color.FromRgb(0xFD, 0xE0, 0x47))
+                    : new SolidColorBrush(Color.FromRgb(0x4B, 0x55, 0x63));
+            }
+        }
+    }
+
+    private void CmbGameHubCompletionStatus_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_activeGameHubItem != null && CmbGameHubCompletionStatus.SelectedItem != null)
+        {
+            _activeGameHubItem.CompletionStatus = CmbGameHubCompletionStatus.SelectedItem.ToString() ?? "";
+            GameMetadataStore.UpdateFromRomItem(_activeGameHubItem);
+        }
+    }
+
+    private void TxtGameHubCollection_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_activeGameHubItem != null)
+        {
+            _activeGameHubItem.CustomCollection = TxtGameHubCollection.Text;
+            GameMetadataStore.UpdateFromRomItem(_activeGameHubItem);
+        }
+    }
+
+    private void TxtGameHubUserNotes_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_activeGameHubItem != null)
+        {
+            _activeGameHubItem.UserNotes = TxtGameHubUserNotes.Text;
+            GameMetadataStore.UpdateFromRomItem(_activeGameHubItem);
+        }
+    }
+
+    private void BtnGameHub_Click(object sender, RoutedEventArgs e)
+    {
+        var item = GetRomFromSender(sender);
+        if (item != null)
+        {
+            OpenGameHubModal(item);
+        }
+    }
+
+    private void ContextOpenGameHub_Click(object sender, RoutedEventArgs e)
+    {
+        var item = GetRomFromSender(sender);
+        if (item != null)
+        {
+            OpenGameHubModal(item);
+        }
+    }
+
+    private void ContextSetCustomCover_Click(object sender, RoutedEventArgs e)
+    {
+        var item = GetRomFromSender(sender);
+        if (item != null)
+        {
+            PromptCustomCoverForGame(item);
+        }
+    }
+
+    public void PromptCustomCoverForGame(RomItem item)
+    {
+        try
+        {
+            var dlg = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Выберите изображение обложки для игры",
+                Filter = "Изображения (*.png;*.jpg;*.jpeg;*.webp)|*.png;*.jpg;*.jpeg;*.webp|Все файлы (*.*)|*.*"
+            };
+            if (dlg.ShowDialog() == true)
+            {
+                bool success = CoverArtService.SetCustomCoverFromFile(item, dlg.FileName);
+                if (success)
+                {
+                    if (_activeGameHubItem == item && ImgGameHubCover != null)
+                    {
+                        ImgGameHubCover.Source = item.Icon;
+                    }
+                    ShowOsdToast("Обложка игры успешно обновлена!");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowOsdToast($"Ошибка смены обложки: {ex.Message}");
+        }
+    }
+
+    public void OpenFolderForGame(RomItem game)
+    {
+        if (game != null && File.Exists(game.FilePath))
+        {
+            try
+            {
+                Process.Start("explorer.exe", $"/select,\"{game.FilePath}\"");
+            }
+            catch { }
+        }
+    }
+
+    // ==================== BIGBOX 10-FOOT CONSOLE MODE ====================
+
+    public void OpenBigBoxMode()
+    {
+        if (PnlBigBoxOverlay == null) return;
+
+        var games = _filteredGames.Count > 0 ? _filteredGames : _allGames;
+        LstBigBoxStrip.ItemsSource = games;
+        if (games.Count > 0)
+        {
+            LstBigBoxStrip.SelectedIndex = 0;
+        }
+
+        TxtBigBoxClock.Text = DateTime.Now.ToString("HH:mm");
+        if (_bigBoxClockTimer == null)
+        {
+            _bigBoxClockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _bigBoxClockTimer.Tick += (s, e) =>
+            {
+                if (TxtBigBoxClock != null && PnlBigBoxOverlay.Visibility == Visibility.Visible)
+                {
+                    TxtBigBoxClock.Text = DateTime.Now.ToString("HH:mm");
+                }
+            };
+        }
+        _bigBoxClockTimer.Start();
+
+        PnlBigBoxOverlay.Visibility = Visibility.Visible;
+        PnlBigBoxOverlay.Focus();
+
+        if (SettingsManager.Current?.EnableUiAnimations == true)
+        {
+            AnimatePanelEntrance(PnlBigBoxOverlay);
+        }
+    }
+
+    public void CloseBigBoxMode()
+    {
+        _bigBoxClockTimer?.Stop();
+        if (PnlBigBoxOverlay != null)
+        {
+            PnlBigBoxOverlay.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    public void ToggleBigBoxMode()
+    {
+        if (PnlBigBoxOverlay != null && PnlBigBoxOverlay.Visibility == Visibility.Visible)
+        {
+            CloseBigBoxMode();
+        }
+        else
+        {
+            OpenBigBoxMode();
+        }
+    }
+
+    private void BtnBigBox_Click(object sender, RoutedEventArgs e)
+    {
+        ToggleBigBoxMode();
+    }
+
+    private void BtnBigBoxExit_Click(object sender, RoutedEventArgs e)
+    {
+        CloseBigBoxMode();
+    }
+
+    private void LstBigBoxStrip_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (LstBigBoxStrip.SelectedItem is RomItem item)
+        {
+            TxtBigBoxTitle.Text = item.Name;
+            TxtBigBoxSubtitle.Text = $"{item.Platform} • {item.CoreDisplayName}";
+            ImgBigBoxShowcaseCover.Source = item.Icon;
+            ImgBigBoxBackdrop.Source = item.Icon;
+
+            int idx = LstBigBoxStrip.SelectedIndex + 1;
+            int total = LstBigBoxStrip.Items.Count;
+            TxtBigBoxGameCounter.Text = $"{idx} из {total}";
+
+            TxtBigBoxStatus.Text = !string.IsNullOrEmpty(item.CompletionStatus) ? item.CompletionStatus : "Не начато";
+            TxtBigBoxRating.Text = item.StarRatingDisplay;
+            TxtBigBoxPlaytime.Text = item.PlaytimeText;
+            TxtBigBoxYear.Text = !string.IsNullOrEmpty(item.Year) ? item.Year : "—";
+        }
+    }
+
+    private void BigBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Left)
+        {
+            if (LstBigBoxStrip.SelectedIndex > 0)
+            {
+                LstBigBoxStrip.SelectedIndex--;
+                LstBigBoxStrip.ScrollIntoView(LstBigBoxStrip.SelectedItem);
+            }
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Right)
+        {
+            if (LstBigBoxStrip.SelectedIndex < LstBigBoxStrip.Items.Count - 1)
+            {
+                LstBigBoxStrip.SelectedIndex++;
+                LstBigBoxStrip.ScrollIntoView(LstBigBoxStrip.SelectedItem);
+            }
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Enter)
+        {
+            BtnBigBoxPlay_Click(sender, e);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.I)
+        {
+            BtnBigBoxHub_Click(sender, e);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.C)
+        {
+            BtnBigBoxCore_Click(sender, e);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.F)
+        {
+            BtnBigBoxFavorite_Click(sender, e);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape || e.Key == Key.F10)
+        {
+            CloseBigBoxMode();
+            e.Handled = true;
+        }
+    }
+
+    private void BtnBigBoxPlay_Click(object sender, RoutedEventArgs e)
+    {
+        if (LstBigBoxStrip.SelectedItem is RomItem item)
+        {
+            CloseBigBoxMode();
+            _ = StartGameInViewportAsync(item);
+        }
+    }
+
+    private void BtnBigBoxHub_Click(object sender, RoutedEventArgs e)
+    {
+        if (LstBigBoxStrip.SelectedItem is RomItem item)
+        {
+            OpenGameHubModal(item);
+        }
+    }
+
+    private void BtnBigBoxCore_Click(object sender, RoutedEventArgs e)
+    {
+        if (LstBigBoxStrip.SelectedItem is RomItem item)
+        {
+            OpenCoreSelectorForGame(item);
+        }
+    }
+
+    private void BtnBigBoxFavorite_Click(object sender, RoutedEventArgs e)
+    {
+        if (LstBigBoxStrip.SelectedItem is RomItem item)
+        {
+            item.IsFavorite = !item.IsFavorite;
+            SavePlaylists();
+            ShowOsdToast(item.IsFavorite ? "Добавлено в Избранное" : "Удалено из Избранного");
         }
     }
 
