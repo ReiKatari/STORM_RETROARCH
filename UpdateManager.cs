@@ -12,7 +12,7 @@ public static class UpdateManager
 {
     public static Version NormalizeVersion(Version? v)
     {
-        if (v == null) return new Version(1, 6, 0);
+        if (v == null) return new Version(1, 7, 0);
         return new Version(Math.Max(0, v.Major), Math.Max(0, v.Minor), Math.Max(0, v.Build));
     }
 
@@ -21,7 +21,7 @@ public static class UpdateManager
         get
         {
             var v = typeof(UpdateManager).Assembly.GetName().Version;
-            return v != null ? NormalizeVersion(v) : new Version(1, 6, 0);
+            return v != null ? NormalizeVersion(v) : new Version(1, 7, 0);
         }
     }
 

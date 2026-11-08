@@ -51,12 +51,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     // In-App Embedded Game Viewport & Interactive Controller Fields
     private RomItem? _activeRomItem;
     private bool _isGameFullscreen;
+    private bool _wasTelemetryVisibleBeforeFs;
     private bool _isCapturingGamepadButton;
     private string _capturingButtonName = "";
     private Border? _activePadButtonBorder;
     private DateTime _lastDropTime = DateTime.MinValue;
     private Image NativeGameImage => ImgGameViewport;
     private Border GameViewportContainer => GameViewportHostBorder;
+    private TextBox TxtSearch => TxtGlobalSearch;
+    private Grid ViewDiscs => ViewImport;
+    private Button NavBtnDiscs => NavBtnImport;
+    private string? _capturingHotkeyActionId;
+    private RomHashReport? _latestHashReport;
 
     public static MainWindow? Instance { get; private set; }
 
@@ -599,7 +605,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     cmdArgs[i].Equals("--screenshot-library-covers", StringComparison.OrdinalIgnoreCase) ||
                     cmdArgs[i].Equals("--screenshot-dos-aspect", StringComparison.OrdinalIgnoreCase) ||
                     cmdArgs[i].Equals("--screenshot-gamehub", StringComparison.OrdinalIgnoreCase) ||
-                    cmdArgs[i].Equals("--screenshot-bigbox", StringComparison.OrdinalIgnoreCase))
+                    cmdArgs[i].Equals("--screenshot-bigbox", StringComparison.OrdinalIgnoreCase) ||
+                    cmdArgs[i].Equals("--screenshot-170-library", StringComparison.OrdinalIgnoreCase) ||
+                    cmdArgs[i].Equals("--screenshot-170-dashboard", StringComparison.OrdinalIgnoreCase) ||
+                    cmdArgs[i].Equals("--screenshot-170-shaders", StringComparison.OrdinalIgnoreCase) ||
+                    cmdArgs[i].Equals("--screenshot-170-hotkeys", StringComparison.OrdinalIgnoreCase) ||
+                    cmdArgs[i].Equals("--screenshot-170-saves", StringComparison.OrdinalIgnoreCase) ||
+                    cmdArgs[i].Equals("--screenshot-170-discs", StringComparison.OrdinalIgnoreCase) ||
+                    cmdArgs[i].Equals("--screenshot-170-ingame", StringComparison.OrdinalIgnoreCase) ||
+                    cmdArgs[i].Equals("--screenshot-170-suite", StringComparison.OrdinalIgnoreCase))
             {
                 bool isSettings = cmdArgs[i].Equals("--screenshot-settings", StringComparison.OrdinalIgnoreCase);
                 bool isBios = cmdArgs[i].Equals("--screenshot-bios", StringComparison.OrdinalIgnoreCase);
@@ -740,7 +754,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                             BtnViewMode_Click(BtnViewBento, new RoutedEventArgs());
                             await CoverArtService.LoadCoversParallelAsync(_allGames, forceRefresh: false);
                             await Task.Delay(500);
-                            await Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Render);
                         }
                         else if (cmdArgs[i].Equals("--screenshot-dos-aspect", StringComparison.OrdinalIgnoreCase))
                         {
@@ -753,7 +766,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                                 UpdateViewportStageLayout();
                                 await Task.Delay(3800);
                                 if (PnlOsdToast != null) PnlOsdToast.Visibility = Visibility.Collapsed;
-                                await Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Render);
                             }
                             else
                             {
@@ -775,7 +787,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                                           ?? new RomItem { Name = "Battletoads", Platform = "Nintendo Entertainment System", CoreDisplayName = "FCEUmm" };
                             OpenGameHubModal(sampleGame);
                             await Task.Delay(350);
-                            await Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Render);
                         }
                         else if (cmdArgs[i].Equals("--screenshot-bigbox", StringComparison.OrdinalIgnoreCase))
                         {
@@ -785,7 +796,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                             await Task.Delay(250);
                             OpenBigBoxMode();
                             await Task.Delay(350);
-                            await Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Render);
                         }
                         else if (cmdArgs[i].Equals("--screenshot-v2-dashboard", StringComparison.OrdinalIgnoreCase))
                         {
@@ -857,6 +867,161 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                             if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
                             EnsureBattletoadsRunningPreview();
                         }
+                                                else if (cmdArgs[i].Equals("--screenshot-170-suite", StringComparison.OrdinalIgnoreCase))
+                        {
+                            string outDir = shotPath;
+                            Directory.CreateDirectory(outDir);
+                            string traceFile = Path.Combine(outDir, "suite_trace.log");
+                            void SnapView(string fileName)
+                            {
+                                AnalyticalSpringEngine.FlushAllImmediately();
+                                UpdateLayout();
+                                int sw = Math.Max(1360, (int)ActualWidth);
+                                int sh = Math.Max(820, (int)ActualHeight);
+                                var rtbS = new RenderTargetBitmap(sw, sh, 96, 96, PixelFormats.Pbgra32);
+                                rtbS.Render(this);
+                                var encS = new PngBitmapEncoder();
+                                encS.Frames.Add(BitmapFrame.Create(rtbS));
+                                using var fsS = File.Create(Path.Combine(outDir, fileName));
+                                encS.Save(fsS);
+                            }
+
+                            File.AppendAllText(traceFile, "1: library\n");
+                            NavBtn_Click(NavBtnLibrary, new RoutedEventArgs());
+                            EnsureBattletoadsTestGame();
+                            BtnViewMode_Click(BtnViewBento, new RoutedEventArgs());
+                            await CoverArtService.LoadCoversParallelAsync(_allGames, forceRefresh: false);
+                            await Task.Delay(300);
+                            SnapView("v170_library.png");
+
+                            File.AppendAllText(traceFile, "2: dashboard\n");
+                            NavBtn_Click(NavBtnMainMenu, new RoutedEventArgs());
+                            await Task.Delay(120);
+                            SnapView("v170_dashboard.png");
+
+                            File.AppendAllText(traceFile, "3: shaders\n");
+                            NavBtn_Click(NavBtnShaders, new RoutedEventArgs());
+                            SyncShaderStudioControls();
+                            LoadShaders();
+                            await Task.Delay(150);
+                            SnapView("v170_shaders.png");
+
+                            File.AppendAllText(traceFile, "4: hotkeys\n");
+                            NavBtn_Click(NavBtnInputRemap, new RoutedEventArgs());
+                            RefreshHotkeyBindings();
+                            await Task.Delay(150);
+                            SnapView("v170_hotkeys.png");
+
+                            File.AppendAllText(traceFile, "5: saves\n");
+                            NavBtn_Click(NavBtnSaves, new RoutedEventArgs());
+                            LoadSaves();
+                            await Task.Delay(150);
+                            SnapView("v170_saves.png");
+
+                            File.AppendAllText(traceFile, "6: discs\n");
+                            NavBtn_Click(NavBtnImport, new RoutedEventArgs());
+                            var sampleRom2 = _allGames.FirstOrDefault(g => File.Exists(g.FilePath));
+                            if (sampleRom2 != null) { await RunRomInspectionAsync(sampleRom2.FilePath); if (PnlOsdToast != null) PnlOsdToast.Visibility = Visibility.Collapsed; }
+                            await Task.Delay(150);
+                            SnapView("v170_discs.png");
+
+                            File.AppendAllText(traceFile, "7: ingame\n");
+                            if (BtnNavGamePlayer != null) BtnNavGamePlayer_Click(BtnNavGamePlayer, new RoutedEventArgs());
+                            if (ViewGamePlayer != null) ViewGamePlayer.Visibility = Visibility.Visible;
+                            if (TxtActiveGameTitle != null) TxtActiveGameTitle.Text = "Battletoads";
+                            if (TxtActiveGamePlatform != null) TxtActiveGamePlatform.Text = "Nintendo Entertainment System";
+                            if (TxtActiveGameCore != null) TxtActiveGameCore.Text = "FCEUmm";
+                            if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
+                            if (TxtSearchPlaceholder != null) TxtSearchPlaceholder.Visibility = Visibility.Collapsed;
+                            if (NativeGameImage != null)
+                            {
+                                NativeGameImage.Visibility = Visibility.Visible;
+                                var wb = new WriteableBitmap(256, 240, 96, 96, PixelFormats.Bgra32, null);
+                                byte[] px = new byte[256 * 240 * 4];
+                                for (int py = 0; py < 240; py++)
+                                {
+                                    for (int pxx = 0; pxx < 256; pxx++)
+                                    {
+                                        int off = (py * 256 + pxx) * 4;
+                                        bool star = ((pxx * 37 + py * 91) % 197 == 0) && py < 160;
+                                        bool horizon = py >= 160;
+                                        bool grid = horizon && ((pxx - 128) * 12 / Math.Max(1, py - 158) % 8 == 0 || py % 12 == 0);
+                                        px[off + 0] = (byte)(star ? 255 : grid ? 246 : horizon ? 58 : 28);
+                                        px[off + 1] = (byte)(star ? 255 : grid ? 92 : horizon ? 22 : 14);
+                                        px[off + 2] = (byte)(star ? 255 : grid ? 139 : horizon ? 42 : 20);
+                                        px[off + 3] = 255;
+                                    }
+                                }
+                                wb.WritePixels(new Int32Rect(0, 0, 256, 240), px, 256 * 4, 0);
+                                NativeGameImage.Source = wb;
+                            }
+                            if (PbRewindBuffer != null) PbRewindBuffer.Value = 68;
+                            if (PnlTelemetryOverlay != null) PnlTelemetryOverlay.Visibility = Visibility.Visible;
+                            for (int k = 0; k < 50; k++) TelemetryMonitorManager.RecordFrameTimeSample(16.55 + Math.Sin(k * 0.35) * 0.28);
+                            if (PolyTelemetrySparkline != null) PolyTelemetrySparkline.Points = TelemetryMonitorManager.BuildSparklinePoints(150, 28);
+                            await Task.Delay(180);
+                            SnapView("v170_ingame.png");
+
+                            File.AppendAllText(traceFile, "DONE\n");
+                            Process.GetCurrentProcess().Kill();
+                            return;
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-170-library", StringComparison.OrdinalIgnoreCase))
+                        {
+                            NavBtn_Click(NavBtnLibrary, new RoutedEventArgs());
+                            EnsureBattletoadsTestGame();
+                            BtnViewMode_Click(BtnViewBento, new RoutedEventArgs());
+                            await CoverArtService.LoadCoversParallelAsync(_allGames, forceRefresh: false);
+                            await Task.Delay(380);
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-170-dashboard", StringComparison.OrdinalIgnoreCase))
+                        {
+                            NavBtn_Click(NavBtnMainMenu, new RoutedEventArgs());
+                            await Task.Delay(380);
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-170-shaders", StringComparison.OrdinalIgnoreCase))
+                        {
+                            NavBtn_Click(NavBtnShaders, new RoutedEventArgs());
+                            SyncShaderStudioControls();
+                            LoadShaders();
+                            await Task.Delay(380);
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-170-hotkeys", StringComparison.OrdinalIgnoreCase))
+                        {
+                            NavBtn_Click(NavBtnInputRemap, new RoutedEventArgs());
+                            RefreshHotkeyBindings();
+                            await Task.Delay(380);
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-170-saves", StringComparison.OrdinalIgnoreCase))
+                        {
+                            NavBtn_Click(NavBtnSaves, new RoutedEventArgs());
+                            LoadSaves();
+                            await Task.Delay(380);
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-170-discs", StringComparison.OrdinalIgnoreCase))
+                        {
+                            NavBtn_Click(NavBtnImport, new RoutedEventArgs());
+                            var sampleRom = _allGames.FirstOrDefault(g => File.Exists(g.FilePath));
+                            if (sampleRom != null) { await RunRomInspectionAsync(sampleRom.FilePath); if (PnlOsdToast != null) PnlOsdToast.Visibility = Visibility.Collapsed; }
+                            await Task.Delay(380);
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-170-ingame", StringComparison.OrdinalIgnoreCase) ||
+                    cmdArgs[i].Equals("--screenshot-170-suite", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (BtnNavGamePlayer != null) NavBtn_Click(BtnNavGamePlayer, new RoutedEventArgs());
+                            if (ViewGamePlayer != null) ViewGamePlayer.Visibility = Visibility.Visible;
+                            if (TxtActiveGameTitle != null) TxtActiveGameTitle.Text = "Battletoads";
+                            if (TxtActiveGamePlatform != null) TxtActiveGamePlatform.Text = "Nintendo Entertainment System";
+                            if (TxtActiveGameCore != null) TxtActiveGameCore.Text = "FCEUmm";
+                            if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
+                            EnsureBattletoadsRunningPreview();
+                            if (PbRewindBuffer != null) PbRewindBuffer.Value = 68;
+                            if (PnlTelemetryOverlay != null) PnlTelemetryOverlay.Visibility = Visibility.Visible;
+                            for (int k = 0; k < 40; k++) TelemetryMonitorManager.RecordFrameTimeSample(16.4 + (k % 5) * 0.12);
+                            if (PolyTelemetrySparkline != null) PolyTelemetrySparkline.Points = TelemetryMonitorManager.BuildSparklinePoints(150, 28);
+                            await Task.Delay(380);
+                        }
+                        AnalyticalSpringEngine.FlushAllImmediately();
                         UpdateLayout();
                         int w = Math.Max(1160, (int)ActualWidth);
                         int h = Math.Max(720, (int)ActualHeight);
@@ -942,6 +1107,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         // Global ESC Modal Dismissal Rule (STORM Law 19) - Checked at the VERY TOP before anything else
         if (e.Key == Key.Escape)
         {
+            if (!string.IsNullOrEmpty(_capturingHotkeyActionId))
+            {
+                CancelHotkeyCapture();
+                e.Handled = true;
+                return;
+            }
             if (_isCapturingGamepadButton && !string.IsNullOrEmpty(_capturingButtonName))
             {
                 CancelGamepadButtonCapture();
@@ -1014,6 +1185,23 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        if (!string.IsNullOrEmpty(_capturingHotkeyActionId))
+        {
+            Key key = (e.Key == Key.System) ? e.SystemKey : e.Key;
+            if (key != Key.LeftCtrl && key != Key.RightCtrl &&
+                key != Key.LeftShift && key != Key.RightShift &&
+                key != Key.LeftAlt && key != Key.RightAlt &&
+                key != Key.LWin && key != Key.RWin)
+            {
+                HotkeyManager.SetBinding(_capturingHotkeyActionId, key);
+                CancelHotkeyCapture();
+                RefreshHotkeyBindings();
+                ShowOsdToast("Горячая клавиша назначена", "#10B981");
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (_isCapturingGamepadButton && !string.IsNullOrEmpty(_capturingButtonName))
         {
             string retroKey = InputRemapManager.ConvertKeyToRetroArch(e.Key);
@@ -1023,6 +1211,86 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         Key actualKey = (e.Key == Key.System) ? e.SystemKey : e.Key;
+
+        if (Keyboard.FocusedElement is not TextBox)
+        {
+            if (HotkeyManager.Matches("quick_menu", actualKey))
+            {
+                ToggleInGameQuickMenu();
+                e.Handled = true;
+                return;
+            }
+            if (HotkeyManager.Matches("save_state", actualKey))
+            {
+                BtnGameSaveState_Click(sender, e);
+                e.Handled = true;
+                return;
+            }
+            if (HotkeyManager.Matches("load_state", actualKey))
+            {
+                BtnGameLoadState_Click(sender, e);
+                e.Handled = true;
+                return;
+            }
+            if (HotkeyManager.Matches("game_screen", actualKey))
+            {
+                BtnNavGamePlayer_Click(sender, e);
+                e.Handled = true;
+                return;
+            }
+            if (HotkeyManager.Matches("screenshot", actualKey))
+            {
+                BtnGameScreenshot_Click(sender, e);
+                e.Handled = true;
+                return;
+            }
+            if (HotkeyManager.Matches("shader_cycle", actualKey))
+            {
+                BtnGameShader_Click(sender, e);
+                e.Handled = true;
+                return;
+            }
+            if (HotkeyManager.Matches("bigbox_mode", actualKey))
+            {
+                ToggleBigBoxMode();
+                e.Handled = true;
+                return;
+            }
+            if (HotkeyManager.Matches("fullscreen", actualKey))
+            {
+                BtnGameFullscreen_Click(sender, e);
+                e.Handled = true;
+                return;
+            }
+            if (HotkeyManager.Matches("frame_advance", actualKey))
+            {
+                if (ViewGamePlayer != null && ViewGamePlayer.Visibility == Visibility.Visible)
+                {
+                    NativeLibretroHost.Current.StepSingleFrame();
+                    ShowOsdToast("Кадр +1", "#38BDF8");
+                }
+                e.Handled = true;
+                return;
+            }
+            if (HotkeyManager.Matches("rewind_hold", actualKey))
+            {
+                BtnGameRewind_Click(sender, e);
+                e.Handled = true;
+                return;
+            }
+            if (HotkeyManager.Matches("fast_forward", actualKey))
+            {
+                BtnGameFastForward_Click(sender, e);
+                e.Handled = true;
+                return;
+            }
+            if (HotkeyManager.Matches("mute_audio", actualKey))
+            {
+                BtnGameMute_Click(sender, e);
+                e.Handled = true;
+                return;
+            }
+        }
 
         // Alt+Enter or F11 toggles Fullscreen anywhere
         if (actualKey == Key.F11 || (actualKey == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt))
@@ -1336,6 +1604,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             PopulateQuickMenuCoreSelector();
         }
         PnlInGameQuickMenu.Visibility = opening ? Visibility.Visible : Visibility.Collapsed;
+        if (opening && BorderInGameQuickMenuDialog != null) AnalyticalSpringEngine.AnimateModalPop(BorderInGameQuickMenuDialog);
 
         if (NativeLibretroHost.Current.IsRunning)
         {
@@ -1468,6 +1737,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _activeNavView = "Shaders";
             ViewShaders.Visibility = Visibility.Visible;
+            SyncShaderStudioControls();
             LoadShaders();
         }
         else if (btn == NavBtnSaves)
@@ -1504,6 +1774,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _activeNavView = "InputRemap";
             ViewInputRemap.Visibility = Visibility.Visible;
+            RefreshHotkeyBindings();
             LoadRemapBindings(1);
         }
         else if (btn == NavBtnAchievements)
@@ -2723,7 +2994,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Dispatcher.Invoke(() => { ShowUpdateDialog(info); });
     }
 
-    private void BtnAbout_Click(object sender, RoutedEventArgs e) => OverlayAbout.Visibility = Visibility.Visible;
+    private void BtnAbout_Click(object sender, RoutedEventArgs e)
+    {
+        OverlayAbout.Visibility = Visibility.Visible;
+        if (BorderAboutDialog != null) AnalyticalSpringEngine.AnimateModalPop(BorderAboutDialog);
+    }
     private void BtnCloseAbout_Click(object sender, RoutedEventArgs e) => OverlayAbout.Visibility = Visibility.Collapsed;
 
     // ==================== WIN32 WNDPROC (DRAG & DROP) ====================
@@ -4410,6 +4685,15 @@ private void LoadBezels()
         TxtTelemLatency.Text = $"Задержка: {snap.EstimatedLatencyMs} мс ({snap.LatencyGrade})";
         TxtTelemCpuRam.Text = $"ЦП: {snap.CpuPercent}% • ОЗУ: {snap.RamUsageMb} МБ";
         TxtTelemDriver.Text = $"Драйвер: {snap.VideoDriver} • {(snap.RetroArchRunning ? "ИГРА АКТИВНА" : "ГОТОВ К ЗАПУСКУ")}";
+
+        if (PolyTelemetrySparkline != null)
+        {
+            PolyTelemetrySparkline.Points = TelemetryMonitorManager.BuildSparklinePoints(150, 28);
+        }
+        if (PbRewindBuffer != null)
+        {
+            PbRewindBuffer.Value = NativeLibretroHost.Current?.RewindFillPercent ?? 0.0;
+        }
     }
 
     // ==================== SMART PER-SYSTEM PROFILES ====================
@@ -4590,11 +4874,11 @@ private void LoadBezels()
             sp.Children.Add(new TextBlock { Text = $"Облако: {(item.RemoteSize > 0 ? (item.RemoteSize / 1024.0).ToString("F1") + " КБ" : "Отсутствует")}", Foreground = (Brush)FindResource("ThemeTextMuted"), FontSize = 11, Margin = new Thickness(0, 0, 0, 10) });
 
             var btnWrap = new WrapPanel();
-            var btnUpload = new Button { Content = "⬆ В облако", Style = (Style)FindResource("StormAccentButton"), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 0, 6, 4) };
+            var btnUpload = new Button { Content = "В облако", Style = (Style)FindResource("StormAccentButton"), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 0, 6, 4) };
             btnUpload.Click += (s, e) => { SaveSyncManager.UploadToRemote(item); RefreshSaveSyncUi(); ShowNotification("STORM RETROARCH", $"Сейв {item.FileName} выгружен в облако!"); };
-            var btnDownload = new Button { Content = "⬇ Из облака", Style = (Style)FindResource("StormSecondaryButton"), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 0, 6, 4) };
+            var btnDownload = new Button { Content = "Из облака", Style = (Style)FindResource("StormSecondaryButton"), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 0, 6, 4) };
             btnDownload.Click += (s, e) => { SaveSyncManager.DownloadFromRemote(item); RefreshSaveSyncUi(); ShowNotification("STORM RETROARCH", $"Сейв {item.FileName} загружен из облака!"); };
-            var btnKeepBoth = new Button { Content = "⇋ Оба файла", Style = (Style)FindResource("StormSecondaryButton"), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 0, 6, 4) };
+            var btnKeepBoth = new Button { Content = "Сохранить оба", Style = (Style)FindResource("StormSecondaryButton"), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 0, 6, 4) };
             btnKeepBoth.Click += (s, e) => { SaveSyncManager.KeepBoth(item); RefreshSaveSyncUi(); ShowNotification("STORM RETROARCH", $"Создана резервная копия для {item.FileName}!"); };
             btnWrap.Children.Add(btnUpload);
             btnWrap.Children.Add(btnDownload);
@@ -4617,9 +4901,9 @@ private void LoadBezels()
             var rowDock = new DockPanel { LastChildFill = true };
             var rowActions = new StackPanel { Orientation = Orientation.Horizontal };
             DockPanel.SetDock(rowActions, Dock.Right);
-            var rUp = new Button { Content = "⬆", Style = (Style)FindResource("StormAccentButton"), Padding = new Thickness(8, 3, 8, 3), Margin = new Thickness(0, 0, 4, 0) };
+            var rUp = new Button { Content = "Выгр.", Style = (Style)FindResource("StormAccentButton"), Padding = new Thickness(8, 3, 8, 3), Margin = new Thickness(0, 0, 4, 0) };
             rUp.Click += (s, e) => { SaveSyncManager.UploadToRemote(item); RefreshSaveSyncUi(); };
-            var rDown = new Button { Content = "⬇", Style = (Style)FindResource("StormSecondaryButton"), Padding = new Thickness(8, 3, 8, 3), Margin = new Thickness(0, 0, 4, 0) };
+            var rDown = new Button { Content = "Загр.", Style = (Style)FindResource("StormSecondaryButton"), Padding = new Thickness(8, 3, 8, 3), Margin = new Thickness(0, 0, 4, 0) };
             rDown.Click += (s, e) => { SaveSyncManager.DownloadFromRemote(item); RefreshSaveSyncUi(); };
             rowActions.Children.Add(rUp);
             rowActions.Children.Add(rDown);
@@ -5384,6 +5668,7 @@ private void LoadBezels()
 
             if (TopTitleBarBorder != null) TopTitleBarBorder.Visibility = Visibility.Collapsed;
             if (TopToolbarBorder != null) TopToolbarBorder.Visibility = Visibility.Collapsed;
+            if (PnlTelemetryOverlay != null) { _wasTelemetryVisibleBeforeFs = PnlTelemetryOverlay.Visibility == Visibility.Visible; PnlTelemetryOverlay.Visibility = Visibility.Collapsed; }
             if (LeftSidebarBorder != null) LeftSidebarBorder.Visibility = Visibility.Collapsed;
             if (BottomFooterBorder != null) BottomFooterBorder.Visibility = Visibility.Collapsed;
 
@@ -5406,6 +5691,7 @@ private void LoadBezels()
         {
             if (TopTitleBarBorder != null) TopTitleBarBorder.Visibility = Visibility.Visible;
             if (TopToolbarBorder != null) TopToolbarBorder.Visibility = Visibility.Visible;
+            if (PnlTelemetryOverlay != null && _wasTelemetryVisibleBeforeFs) PnlTelemetryOverlay.Visibility = Visibility.Visible;
             if (LeftSidebarBorder != null) LeftSidebarBorder.Visibility = Visibility.Visible;
             if (BottomFooterBorder != null) BottomFooterBorder.Visibility = Visibility.Visible;
 
@@ -6138,6 +6424,7 @@ private void LoadBezels()
         if (_isTheaterMode)
         {
             if (TopToolbarBorder != null) TopToolbarBorder.Visibility = Visibility.Collapsed;
+            if (PnlTelemetryOverlay != null) { _wasTelemetryVisibleBeforeFs = PnlTelemetryOverlay.Visibility == Visibility.Visible; PnlTelemetryOverlay.Visibility = Visibility.Collapsed; }
             if (LeftSidebarBorder != null) LeftSidebarBorder.Visibility = Visibility.Collapsed;
             if (SidebarSplitter != null) SidebarSplitter.Visibility = Visibility.Collapsed;
             if (RowDefToolbar != null) RowDefToolbar.Height = new GridLength(0);
@@ -6149,6 +6436,7 @@ private void LoadBezels()
         else
         {
             if (TopToolbarBorder != null) TopToolbarBorder.Visibility = Visibility.Visible;
+            if (PnlTelemetryOverlay != null && _wasTelemetryVisibleBeforeFs) PnlTelemetryOverlay.Visibility = Visibility.Visible;
             if (RowDefToolbar != null) RowDefToolbar.Height = GridLength.Auto;
             ApplySidebarState();
             if (TxtGameTheaterLabel != null) TxtGameTheaterLabel.Text = "Театр";
@@ -6404,6 +6692,7 @@ private void LoadBezels()
             TxtCommandPaletteSearch.Focus();
         }
         PnlCommandPaletteModal.Visibility = Visibility.Visible;
+        if (BorderCommandPaletteDialog != null) AnalyticalSpringEngine.AnimateModalPop(BorderCommandPaletteDialog);
     }
 
     public void CloseCommandPaletteModal()
@@ -6884,7 +7173,10 @@ private void LoadBezels()
         }
 
         if (PnlCoreSelectorModal != null)
+        {
             PnlCoreSelectorModal.Visibility = Visibility.Visible;
+            if (BorderCoreSelectorDialog != null) AnalyticalSpringEngine.AnimateModalPop(BorderCoreSelectorDialog);
+        }
     }
 
     public void OpenCheatsForGame(RomItem game)
@@ -7020,44 +7312,12 @@ private void LoadBezels()
         if (panel == null || SettingsManager.Current == null || !SettingsManager.Current.EnableUiAnimations)
             return;
 
-        try
+        if (panel is FrameworkElement fe)
         {
-            var transform = panel.RenderTransform as TranslateTransform;
-            if (transform == null)
-            {
-                transform = new TranslateTransform(0, 14);
-                panel.RenderTransform = transform;
-            }
-            else
-            {
-                transform.Y = 14;
-            }
-
-            panel.Opacity = 0.0;
-
-            var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
-
-            var opacityAnim = new System.Windows.Media.Animation.DoubleAnimation
-            {
-                From = 0.0,
-                To = 1.0,
-                Duration = TimeSpan.FromMilliseconds(150),
-                EasingFunction = ease
-            };
-
-            var transAnim = new System.Windows.Media.Animation.DoubleAnimation
-            {
-                From = 14.0,
-                To = 0.0,
-                Duration = TimeSpan.FromMilliseconds(150),
-                EasingFunction = ease
-            };
-
-            panel.BeginAnimation(UIElement.OpacityProperty, opacityAnim);
-            transform.BeginAnimation(TranslateTransform.YProperty, transAnim);
+            AnalyticalSpringEngine.AnimatePanelReveal(fe, 12.0, 380f, 30f);
         }
-        catch { }
     }
+
 
     public void OpenGameHubModal(RomItem item)
     {
@@ -7199,7 +7459,7 @@ private void LoadBezels()
         PnlGameHubModal.Visibility = Visibility.Visible;
         if (SettingsManager.Current?.EnableUiAnimations == true)
         {
-            AnimatePanelEntrance(GameHubDialogBorder);
+            if (GameHubDialogBorder != null) AnalyticalSpringEngine.AnimateModalPop(GameHubDialogBorder);
         }
     }
 
@@ -7215,6 +7475,7 @@ private void LoadBezels()
             PnlGameHubModal.Visibility = Visibility.Collapsed;
         }
     }
+
 
     private void PnlGameHubModal_MouseDown(object sender, MouseButtonEventArgs e)
     {
@@ -7568,6 +7829,223 @@ private void LoadBezels()
         }
     }
 
+    // ==================== PHASE 2: SIDEBAR DECKS, SHADERS, HOTKEYS & ROM HASH ====================
+    private void DeckHeader_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string panelName)
+        {
+            StackPanel? target = FindName(panelName) as StackPanel;
+            if (target != null)
+            {
+                bool isExpanded = target.Visibility == Visibility.Visible;
+                target.Visibility = isExpanded ? Visibility.Collapsed : Visibility.Visible;
+                string chevronName = "Chevron" + panelName.Replace("DeckPanel", "Deck");
+                if (FindName(chevronName) is TextBlock ch)
+                {
+                    ch.Text = isExpanded ? "▸" : "▾";
+                }
+            }
+        }
+    }
+
+    private void BtnShaderPreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+
+        if (BtnPresetTrinitron != null) BtnPresetTrinitron.Tag = null;
+        if (BtnPresetArcade != null) BtnPresetArcade.Tag = null;
+        if (BtnPresetVga != null) BtnPresetVga.Tag = null;
+        if (BtnPresetGbLcd != null) BtnPresetGbLcd.Tag = null;
+        if (BtnPresetVhs != null) BtnPresetVhs.Tag = null;
+        if (BtnPresetClean != null) BtnPresetClean.Tag = null;
+
+        btn.Tag = "Active";
+
+        string presetId = "trinitron";
+        if (btn == BtnPresetArcade) presetId = "arcade_rgb";
+        else if (btn == BtnPresetVga) presetId = "ibm_vga";
+        else if (btn == BtnPresetGbLcd) presetId = "gb_lcd";
+        else if (btn == BtnPresetVhs) presetId = "vhs";
+        else if (btn == BtnPresetClean) presetId = "clean_raw";
+
+        NativeLibretroHost.Current.ApplyShaderStudioPreset(presetId);
+        SyncShaderStudioControls();
+        ShowOsdToast($"Шейдер: {btn.Content}", "#8B5CF6");
+    }
+
+    public void SyncShaderStudioControls()
+    {
+        if (SliderShaderScanlines != null)
+        {
+            int scan = (int)Math.Round(NativeLibretroHost.Current.ScanlineIntensity * 100);
+            SliderShaderScanlines.Value = scan;
+            if (TxtShaderScanlinesVal != null) TxtShaderScanlinesVal.Text = $"{scan}%";
+        }
+        if (SliderShaderMask != null)
+        {
+            int mask = (int)Math.Round(NativeLibretroHost.Current.MaskIntensity * 100);
+            SliderShaderMask.Value = mask;
+            if (TxtShaderMaskVal != null) TxtShaderMaskVal.Text = $"{mask}%";
+        }
+        if (SliderShaderVignette != null)
+        {
+            int vig = (int)Math.Round(NativeLibretroHost.Current.VignetteIntensity * 100);
+            SliderShaderVignette.Value = vig;
+            if (TxtShaderVignetteVal != null) TxtShaderVignetteVal.Text = $"{vig}%";
+        }
+        if (SliderShaderBrightness != null)
+        {
+            int bright = (int)Math.Round(NativeLibretroHost.Current.BrightnessGain * 100);
+            SliderShaderBrightness.Value = bright;
+            if (TxtShaderBrightnessVal != null) TxtShaderBrightnessVal.Text = $"{bright}%";
+        }
+        if (CmbShaderColorTemp != null)
+        {
+            CmbShaderColorTemp.SelectedIndex = Math.Clamp(NativeLibretroHost.Current.ColorTemperatureMode, 0, 2);
+        }
+    }
+
+    private void SliderShaderScanlines_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (!_isLoaded || SliderShaderScanlines == null) return;
+        int val = (int)Math.Round(SliderShaderScanlines.Value);
+        if (TxtShaderScanlinesVal != null) TxtShaderScanlinesVal.Text = $"{val}%";
+        NativeLibretroHost.Current.ScanlineIntensity = val / 100.0;
+    }
+
+    private void SliderShaderMask_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (!_isLoaded || SliderShaderMask == null) return;
+        int val = (int)Math.Round(SliderShaderMask.Value);
+        if (TxtShaderMaskVal != null) TxtShaderMaskVal.Text = $"{val}%";
+        NativeLibretroHost.Current.MaskIntensity = val / 100.0;
+    }
+
+    private void SliderShaderVignette_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (!_isLoaded || SliderShaderVignette == null) return;
+        int val = (int)Math.Round(SliderShaderVignette.Value);
+        if (TxtShaderVignetteVal != null) TxtShaderVignetteVal.Text = $"{val}%";
+        NativeLibretroHost.Current.VignetteIntensity = val / 100.0;
+    }
+
+    private void SliderShaderBrightness_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (!_isLoaded || SliderShaderBrightness == null) return;
+        int val = (int)Math.Round(SliderShaderBrightness.Value);
+        if (TxtShaderBrightnessVal != null) TxtShaderBrightnessVal.Text = $"{val}%";
+        NativeLibretroHost.Current.BrightnessGain = val / 100.0;
+    }
+
+    private void CmbShaderColorTemp_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_isLoaded || CmbShaderColorTemp == null) return;
+        NativeLibretroHost.Current.ColorTemperatureMode = CmbShaderColorTemp.SelectedIndex;
+    }
+
+    public void RefreshHotkeyBindings()
+    {
+        if (ItemsHotkeyMatrix != null)
+        {
+            ItemsHotkeyMatrix.ItemsSource = HotkeyManager.GetAllBindings();
+        }
+    }
+
+    private void BtnAssignHotkey_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is HotkeyBindingItem item)
+        {
+            _capturingHotkeyActionId = item.ActionId;
+            if (BadgeHotkeyCapture != null) BadgeHotkeyCapture.Visibility = Visibility.Visible;
+            if (TxtHotkeyCaptureStatus != null)
+                TxtHotkeyCaptureStatus.Text = $"Нажмите клавишу для «{item.Title}» (ESC для отмены)...";
+        }
+    }
+
+    public void CancelHotkeyCapture()
+    {
+        _capturingHotkeyActionId = null;
+        if (BadgeHotkeyCapture != null) BadgeHotkeyCapture.Visibility = Visibility.Collapsed;
+    }
+
+    private void BtnResetHotkeys_Click(object sender, RoutedEventArgs e)
+    {
+        HotkeyManager.ResetAllToDefaults();
+        CancelHotkeyCapture();
+        RefreshHotkeyBindings();
+        ShowOsdToast("Горячие клавиши сброшены по умолчанию", "#10B981");
+    }
+
+    private void BtnToggleLockSaveEntry_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is SaveEntryItem entry)
+        {
+            SaveManager.ToggleLock(entry);
+            LoadSaves();
+            ShowOsdToast(entry.IsLocked ? "Сейв защищён от удаления" : "Защита снята", "#10B981");
+        }
+    }
+
+    private async void BtnInspectRom_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter = "ROM и образы дисков (*.*)|*.*",
+            Title = "Выберите образ игры для вычисления хешей и инспекции"
+        };
+
+        if (dlg.ShowDialog() == true)
+        {
+            await RunRomInspectionAsync(dlg.FileName);
+        }
+    }
+
+    public async Task RunRomInspectionAsync(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath)) return;
+
+        if (TxtHashFileName != null) TxtHashFileName.Text = "Вычисление хешей...";
+
+        var report = await DiscPatchSubsystemManager.InspectRomFileAsync(filePath);
+        _latestHashReport = report;
+
+        if (TxtHashFileName != null) TxtHashFileName.Text = report.FileName;
+        if (TxtHashFormatAndSize != null) TxtHashFormatAndSize.Text = $"{report.ContainerFormat} • {report.FileSizeFormatted}";
+        if (TxtHashHeaderSummary != null) TxtHashHeaderSummary.Text = report.HeaderSummary;
+        if (TxtHashCrc32 != null) TxtHashCrc32.Text = report.Crc32;
+        if (TxtHashMd5 != null) TxtHashMd5.Text = report.Md5;
+        if (TxtHashSha1 != null) TxtHashSha1.Text = report.Sha1;
+
+        ShowOsdToast("Хеши ROM успешно вычислены", "#10B981");
+    }
+
+    private void BtnCopyRomHashReport_Click(object sender, RoutedEventArgs e)
+    {
+        if (_latestHashReport == null)
+        {
+            ShowNotification("STORM RETROARCH", "Сначала выберите файл для инспекции!");
+            return;
+        }
+
+        string reportText = $"[ROM HASH REPORT]\n" +
+                            $"Файл: {_latestHashReport.FileName}\n" +
+                            $"Формат: {_latestHashReport.ContainerFormat}\n" +
+                            $"Размер: {_latestHashReport.FileSizeFormatted}\n" +
+                            $"Заголовок: {_latestHashReport.HeaderSummary}\n" +
+                            $"CRC32: {_latestHashReport.Crc32}\n" +
+                            $"MD5: {_latestHashReport.Md5}\n" +
+                            $"SHA-1: {_latestHashReport.Sha1}\n";
+
+        try
+        {
+            Clipboard.SetText(reportText);
+            ShowOsdToast("Отчёт скопирован в буфер обмена", "#10B981");
+        }
+        catch (Exception ex)
+        {
+            ShowNotification("STORM RETROARCH", $"Ошибка копирования: {ex.Message}");
+        }
+    }
 }
 
 public class CommandPaletteItem

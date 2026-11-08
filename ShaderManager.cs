@@ -102,49 +102,49 @@ public static class ShaderManager
                     string category = "Комбинированные пресеты";
                     string iconData = "M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10 10 10 0 0 0 10-10A10 10 0 0 0 12 2z";
                     string iconColor = "#A78BFA";
-                    string desc = $"Шейдерный пресет Libretro Slang/GLSL ({passes} проходов).";
+                    string desc = $"Шейдерный пресет Libretro Slang/GLSL ({FormatPassCountRu(passes)}).";
 
                     if (relLower.Contains("/crt") || relLower.Contains("crt-"))
                     {
                         category = "CRT и ЭЛТ мониторы";
                         iconData = "M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z";
                         iconColor = "#38BDF8";
-                        desc = $"Эмуляция ЭЛТ-кинескопа, люминофорных триад, апертурной решётки и сканлиний ({passes} проходов).";
+                        desc = $"Эмуляция ЭЛТ-кинескопа, люминофорных триад, апертурной решётки и сканлиний ({FormatPassCountRu(passes)}).";
                     }
                     else if (relLower.Contains("/anti-aliasing") || relLower.Contains("smaa") || relLower.Contains("fxaa"))
                     {
                         category = "Сглаживание (AA / FXAA / SMAA)";
                         iconData = "M7 2v11h3v9l7-12h-4l4-8z";
                         iconColor = "#10B981";
-                        desc = $"Морфологическое и субпиксельное сглаживание зубчатых краёв полигонов ({passes} проходов).";
+                        desc = $"Морфологическое и субпиксельное сглаживание зубчатых краёв полигонов ({FormatPassCountRu(passes)}).";
                     }
                     else if (relLower.Contains("/interpolation") || relLower.Contains("/scale") || relLower.Contains("xbr") || relLower.Contains("hq") || relLower.Contains("fsr"))
                     {
                         category = "Апскейл и интерполяция";
                         iconData = "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z";
                         iconColor = "#FBBF24";
-                        desc = $"Апскейлер сверхвысокого разрешения: xBRZ, ScaleFX, Bicubic и FSR ({passes} проходов).";
+                        desc = $"Апскейлер сверхвысокого разрешения: xBRZ, ScaleFX, Bicubic и FSR ({FormatPassCountRu(passes)}).";
                     }
                     else if (relLower.Contains("/blurs") || relLower.Contains("blur") || relLower.Contains("bloom"))
                     {
                         category = "Размытие и свечение (Bloom / Blur)";
                         iconData = "M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.93V17a1 1 0 0 1-2 0v-.07A8 8 0 0 1 4.07 11H4a1 1 0 0 1 0-2h.07A8 8 0 0 1 11 4.07V4a1 1 0 0 1 2 0v.07A8 8 0 0 1 19.93 11H20a1 1 0 0 1 0 2h-.07A8 8 0 0 1 13 16.93z";
                         iconColor = "#EC4899";
-                        desc = $"Кинематографичное свечение Kawase Bloom, мягкое размытие и светорассеяние ({passes} проходов).";
+                        desc = $"Кинематографичное свечение Kawase Bloom, мягкое размытие и светорассеяние ({FormatPassCountRu(passes)}).";
                     }
                     else if (relLower.Contains("/sharpen") || relLower.Contains("cas") || relLower.Contains("adaptive-sharpen"))
                     {
                         category = "Резкость и чёткость (Sharpen / CAS)";
                         iconData = "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z";
                         iconColor = "#34D399";
-                        desc = $"Контрастно-адаптивное повышение резкости AMD CAS и Adaptive Sharpen ({passes} проходов).";
+                        desc = $"Контрастно-адаптивное повышение резкости AMD CAS и Adaptive Sharpen ({FormatPassCountRu(passes)}).";
                     }
                     else if (relLower.Contains("/handheld") || relLower.Contains("/ntsc") || relLower.Contains("/vhs") || relLower.Contains("/border"))
                     {
                         category = "Портативные и ретро (LCD / NTSC / VHS)";
                         iconData = "M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z";
                         iconColor = "#8B5CF6";
-                        desc = $"Аутентичные ЖК-матрицы Game Boy, GBA, NDS, PSP и аналоговые помехи NTSC/VHS ({passes} проходов).";
+                        desc = $"Аутентичные ЖК-матрицы Game Boy, GBA, NDS, PSP и аналоговые помехи NTSC/VHS ({FormatPassCountRu(passes)}).";
                     }
 
                     _cachedShaders.Add(new ShaderPresetItem
@@ -258,4 +258,15 @@ public static class ShaderManager
             return false;
         }
     }
+
+    private static string FormatPassCountRu(int n)
+    {
+        int mod100 = Math.Abs(n) % 100;
+        int mod10 = mod100 % 10;
+        if (mod100 >= 11 && mod100 <= 19) return $"{n} проходов";
+        if (mod10 == 1) return $"{n} проход";
+        if (mod10 >= 2 && mod10 <= 4) return $"{n} прохода";
+        return $"{n} проходов";
+    }
+
 }

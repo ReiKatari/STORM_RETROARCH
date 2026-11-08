@@ -485,10 +485,139 @@ public class NativeLibretroHost
     private volatile bool _isAudioMuted = false;
     private int _aspectMode = 0; // 0 = 4:3 (Uniform), 1 = 16:9, 2 = 1:1 Pixel, 3 = Fill
 
-    // Rewind ring buffer
-    private readonly List<byte[]> _rewindHistory = new();
-    private const int MaxRewindFrames = 60;
+    // Circular Ring Rewind Buffer (360 frames = ~12 sec of smooth zero-copy rewind at 30 fps)
+    private readonly byte[]?[] _rewindRing = new byte[360][];
+    private int _rewindHead = 0;
+    private int _rewindCount = 0;
     private ulong _frameCount = 0;
+
+    public int RewindBufferCount => _rewindCount;
+    public int RewindBufferCapacity => _rewindRing.Length;
+    public double RewindFillPercent => _rewindRing.Length > 0 ? (_rewindCount * 100.0 / _rewindRing.Length) : 0.0;
+
+    // Interactive Shader Studio Parameters (1.7.0)
+    private double _scanlineIntensity = 0.32;
+    public double ScanlineIntensity
+    {
+        get => _scanlineIntensity;
+        set
+        {
+            _scanlineIntensity = Math.Clamp(value, 0.0, 0.85);
+            if (SettingsManager.Current != null)
+                SettingsManager.Current.ShaderScanlineIntensity = _scanlineIntensity;
+        }
+    }
+
+    private double _maskIntensity = 0.20;
+    public double MaskIntensity
+    {
+        get => _maskIntensity;
+        set
+        {
+            _maskIntensity = Math.Clamp(value, 0.0, 0.75);
+            if (SettingsManager.Current != null)
+                SettingsManager.Current.ShaderMaskIntensity = _maskIntensity;
+        }
+    }
+
+    private double _vignetteIntensity = 0.18;
+    public double VignetteIntensity
+    {
+        get => _vignetteIntensity;
+        set
+        {
+            _vignetteIntensity = Math.Clamp(value, 0.0, 0.70);
+            if (SettingsManager.Current != null)
+                SettingsManager.Current.ShaderVignetteIntensity = _vignetteIntensity;
+        }
+    }
+
+    private double _brightnessGain = 1.04;
+    public double BrightnessGain
+    {
+        get => _brightnessGain;
+        set
+        {
+            _brightnessGain = Math.Clamp(value, 0.75, 1.40);
+            if (SettingsManager.Current != null)
+                SettingsManager.Current.ShaderBrightnessGain = _brightnessGain;
+        }
+    }
+
+    private int _colorTemperatureMode = 0;
+    public int ColorTemperatureMode
+    {
+        get => _colorTemperatureMode;
+        set
+        {
+            _colorTemperatureMode = Math.Clamp(value, 0, 2);
+            if (SettingsManager.Current != null)
+                SettingsManager.Current.ShaderColorTemperatureMode = _colorTemperatureMode;
+        }
+    }
+
+    public void ApplyShaderStudioPreset(string presetId)
+    {
+        switch (presetId.ToLowerInvariant())
+        {
+            case "trinitron":
+                ScanlineIntensity = 0.35;
+                MaskIntensity = 0.25;
+                VignetteIntensity = 0.18;
+                BrightnessGain = 1.08;
+                ColorTemperatureMode = 2;
+                _shaderFilterMode = 3;
+                break;
+            case "arcade_rgb":
+                ScanlineIntensity = 0.40;
+                MaskIntensity = 0.30;
+                VignetteIntensity = 0.15;
+                BrightnessGain = 1.12;
+                ColorTemperatureMode = 0;
+                _shaderFilterMode = 1;
+                break;
+            case "ibm_vga":
+                ScanlineIntensity = 0.25;
+                MaskIntensity = 0.15;
+                VignetteIntensity = 0.10;
+                BrightnessGain = 1.02;
+                ColorTemperatureMode = 0;
+                _shaderFilterMode = 4;
+                break;
+            case "gb_lcd":
+                ScanlineIntensity = 0.15;
+                MaskIntensity = 0.35;
+                VignetteIntensity = 0.12;
+                BrightnessGain = 0.98;
+                ColorTemperatureMode = 1;
+                _shaderFilterMode = 1;
+                break;
+            case "vhs":
+                ScanlineIntensity = 0.30;
+                MaskIntensity = 0.18;
+                VignetteIntensity = 0.28;
+                BrightnessGain = 1.05;
+                ColorTemperatureMode = 1;
+                _shaderFilterMode = 1;
+                break;
+            case "clean_raw":
+            default:
+                ScanlineIntensity = 0.0;
+                MaskIntensity = 0.0;
+                VignetteIntensity = 0.0;
+                BrightnessGain = 1.0;
+                ColorTemperatureMode = 0;
+                _shaderFilterMode = 0;
+                break;
+        }
+
+        SettingsManager.Current.ShaderScanlineIntensity = ScanlineIntensity;
+        SettingsManager.Current.ShaderMaskIntensity = MaskIntensity;
+        SettingsManager.Current.ShaderVignetteIntensity = VignetteIntensity;
+        SettingsManager.Current.ShaderBrightnessGain = BrightnessGain;
+        SettingsManager.Current.ShaderColorTemperatureMode = ColorTemperatureMode;
+        SettingsManager.Save();
+    }
 
     // Audio Output
     private IntPtr _hWaveOut = IntPtr.Zero;
@@ -625,6 +754,7 @@ public class NativeLibretroHost
         _multiDiscPaths.Clear();
         _currentDiscIndex = 0;
         _isDiscEjected = false;
+        lock (_rewindRing) { _rewindHead = 0; _rewindCount = 0; }
 
         string effectiveRomPath = rom.FilePath;
         if (rom.FilePath.EndsWith(".m3u", StringComparison.OrdinalIgnoreCase) && File.Exists(rom.FilePath))
@@ -800,7 +930,7 @@ public class NativeLibretroHost
         _isPaused = false;
         _isFastForward = false;
         _frameCount = 0;
-        _rewindHistory.Clear();
+        lock (_rewindRing) { _rewindHead = 0; _rewindCount = 0; }
 
         _emulationThread = new Thread(EmulationLoop)
         {
@@ -1006,12 +1136,21 @@ public class NativeLibretroHost
             _bgraBuffer = new byte[requiredBytes];
         }
 
-        // Convert raw pixels to BGRA32 with 6 CRT shader modes
+        // Convert raw pixels to BGRA32 with 6 CRT shader modes and Interactive Shader Studio Parameters
         unsafe
         {
             byte* srcBytes = (byte*)data.ToPointer();
             int srcPitch = (int)pitch;
-            bool applyScanlines = (_shaderFilterMode == 1 || _shaderFilterMode == 3);
+            bool applyScanlines = (_shaderFilterMode == 1 || _shaderFilterMode == 3 || _scanlineIntensity > 0.05);
+
+            int scanFactor = Math.Clamp(100 - (int)(_scanlineIntensity * 100), 15, 100);
+            int maskPercent = Math.Clamp((int)(_maskIntensity * 100), 0, 75);
+            int gainVal = Math.Clamp((int)(_brightnessGain * 100), 75, 140);
+            int tempMode = _colorTemperatureMode;
+            bool hasVignette = _vignetteIntensity > 0.05;
+            int vigStr = (int)(_vignetteIntensity * 100);
+            int cx = w / 2;
+            int cy = h / 2;
 
             fixed (byte* dstFixed = _bgraBuffer)
             {
@@ -1022,122 +1161,115 @@ public class NativeLibretroHost
                     bool isOddScanline = applyScanlines && (y % 2 != 0);
 
                     uint* dstUint = (uint*)dstRow;
+                    int dy = y - cy;
+                    int dyTerm = hasVignette ? ((dy * dy * 100) / (cy * cy + 1)) : 0;
 
-                    if (_shaderFilterMode >= 3)
+                    for (int x = 0; x < w; x++)
                     {
-                        // Advanced Shaders (Trinitron Aperture Grille, IBM 5151 Green, Amber Retro)
-                        for (int x = 0; x < w; x++)
-                        {
-                            uint val;
-                            if (_pixelFormat == 1) // XRGB8888
-                            {
-                                val = ((uint*)srcRow)[x];
-                            }
-                            else if (_pixelFormat == 2) // RGB565
-                            {
-                                val = Rgb565Lut[((ushort*)srcRow)[x]];
-                            }
-                            else // 0RGB1555
-                            {
-                                val = Rgb1555Lut[((ushort*)srcRow)[x]];
-                            }
-
-                            uint b = val & 0xFF;
-                            uint g = (val >> 8) & 0xFF;
-                            uint r = (val >> 16) & 0xFF;
-
-                            if (_shaderFilterMode == 3) // Trinitron Aperture Grille
-                            {
-                                if (isOddScanline)
-                                {
-                                    r = r * 85 / 100;
-                                    g = g * 85 / 100;
-                                    b = b * 85 / 100;
-                                }
-                                int sub = x % 3;
-                                if (sub == 0) // Red subpixel phosphor
-                                {
-                                    r = Math.Min(255u, r * 115 / 100);
-                                    g = g * 92 / 100;
-                                    b = b * 92 / 100;
-                                }
-                                else if (sub == 1) // Green subpixel phosphor
-                                {
-                                    r = r * 92 / 100;
-                                    g = Math.Min(255u, g * 115 / 100);
-                                    b = b * 92 / 100;
-                                }
-                                else // Blue subpixel phosphor
-                                {
-                                    r = r * 92 / 100;
-                                    g = g * 92 / 100;
-                                    b = Math.Min(255u, b * 115 / 100);
-                                }
-                                dstUint[x] = 0xFF000000u | (r << 16) | (g << 8) | b;
-                            }
-                            else if (_shaderFilterMode == 4) // IBM 5151 Green Phosphor (P1)
-                            {
-                                uint yLum = (r * 77u + g * 150u + b * 29u) >> 8;
-                                if (isOddScanline) yLum = yLum * 80 / 100;
-                                uint pr = (yLum * 35) >> 8;
-                                uint pg = Math.Min(255u, (yLum * 270) >> 8);
-                                uint pb = (yLum * 45) >> 8;
-                                dstUint[x] = 0xFF000000u | (pr << 16) | (pg << 8) | pb;
-                            }
-                            else // _shaderFilterMode == 5 (Amber Retro Monitor P3)
-                            {
-                                uint yLum = (r * 77u + g * 150u + b * 29u) >> 8;
-                                if (isOddScanline) yLum = yLum * 80 / 100;
-                                uint pr = Math.Min(255u, (yLum * 255) >> 8);
-                                uint pg = Math.Min(255u, (yLum * 175) >> 8);
-                                uint pb = (yLum * 20) >> 8;
-                                dstUint[x] = 0xFF000000u | (pr << 16) | (pg << 8) | pb;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // Blazing fast LUT-based path for Nearest (0), Scanlines (1), Bilinear (2)
+                        uint val;
                         if (_pixelFormat == 1) // XRGB8888
                         {
-                            uint* pSrc = (uint*)srcRow;
-                            if (isOddScanline)
-                            {
-                                for (int x = 0; x < w; x++)
-                                {
-                                    uint val = pSrc[x];
-                                    uint b = (val & 0xFF) * 3 / 4;
-                                    uint g = ((val >> 8) & 0xFF) * 3 / 4;
-                                    uint r = ((val >> 16) & 0xFF) * 3 / 4;
-                                    dstUint[x] = 0xFF000000u | (r << 16) | (g << 8) | b;
-                                }
-                            }
-                            else
-                            {
-                                for (int x = 0; x < w; x++)
-                                {
-                                    dstUint[x] = pSrc[x] | 0xFF000000u;
-                                }
-                            }
+                            val = ((uint*)srcRow)[x];
                         }
                         else if (_pixelFormat == 2) // RGB565
                         {
-                            uint[] lut = isOddScanline ? Rgb565ScanlineLut : Rgb565Lut;
-                            ushort* pSrc = (ushort*)srcRow;
-                            for (int x = 0; x < w; x++)
-                            {
-                                dstUint[x] = lut[pSrc[x]];
-                            }
+                            val = Rgb565Lut[((ushort*)srcRow)[x]];
                         }
                         else // 0RGB1555
                         {
-                            uint[] lut = isOddScanline ? Rgb1555ScanlineLut : Rgb1555Lut;
-                            ushort* pSrc = (ushort*)srcRow;
-                            for (int x = 0; x < w; x++)
+                            val = Rgb1555Lut[((ushort*)srcRow)[x]];
+                        }
+
+                        uint b = val & 0xFF;
+                        uint g = (val >> 8) & 0xFF;
+                        uint r = (val >> 16) & 0xFF;
+
+                        if (_shaderFilterMode == 4) // IBM 5151 Green Phosphor (P1)
+                        {
+                            uint yLum = (r * 77u + g * 150u + b * 29u) >> 8;
+                            if (isOddScanline) yLum = (yLum * (uint)scanFactor) / 100u;
+                            r = (yLum * 35) >> 8;
+                            g = Math.Min(255u, (yLum * 270) >> 8);
+                            b = (yLum * 45) >> 8;
+                        }
+                        else if (_shaderFilterMode == 5) // Amber Retro Monitor P3
+                        {
+                            uint yLum = (r * 77u + g * 150u + b * 29u) >> 8;
+                            if (isOddScanline) yLum = (yLum * (uint)scanFactor) / 100u;
+                            r = Math.Min(255u, (yLum * 255) >> 8);
+                            g = Math.Min(255u, (yLum * 175) >> 8);
+                            b = (yLum * 20) >> 8;
+                        }
+                        else
+                        {
+                            // Scanlines
+                            if (isOddScanline)
                             {
-                                dstUint[x] = lut[pSrc[x]];
+                                r = (r * (uint)scanFactor) / 100u;
+                                g = (g * (uint)scanFactor) / 100u;
+                                b = (b * (uint)scanFactor) / 100u;
+                            }
+
+                            // Aperture Grille / Subpixel Mask
+                            if (maskPercent > 5)
+                            {
+                                int sub = x % 3;
+                                uint boost = (uint)(100 + maskPercent);
+                                uint dim = (uint)(100 - maskPercent / 2);
+                                if (sub == 0)
+                                {
+                                    r = Math.Min(255u, (r * boost) / 100u);
+                                    g = (g * dim) / 100u;
+                                    b = (b * dim) / 100u;
+                                }
+                                else if (sub == 1)
+                                {
+                                    r = (r * dim) / 100u;
+                                    g = Math.Min(255u, (g * boost) / 100u);
+                                    b = (b * dim) / 100u;
+                                }
+                                else
+                                {
+                                    r = (r * dim) / 100u;
+                                    g = (g * dim) / 100u;
+                                    b = Math.Min(255u, (b * boost) / 100u);
+                                }
+                            }
+
+                            // Color Temperature Mode
+                            if (tempMode == 1) // Warm NTSC 5500K
+                            {
+                                r = Math.Min(255u, (r * 106u) / 100u);
+                                b = (b * 93u) / 100u;
+                            }
+                            else if (tempMode == 2) // Cool Trinitron 7500K
+                            {
+                                r = (r * 94u) / 100u;
+                                b = Math.Min(255u, (b * 107u) / 100u);
+                            }
+
+                            // Brightness Gain
+                            if (gainVal != 100)
+                            {
+                                r = Math.Min(255u, (r * (uint)gainVal) / 100u);
+                                g = Math.Min(255u, (g * (uint)gainVal) / 100u);
+                                b = Math.Min(255u, (b * (uint)gainVal) / 100u);
+                            }
+
+                            // Vignette
+                            if (hasVignette)
+                            {
+                                int dx = x - cx;
+                                int dxTerm = (dx * dx * 100) / (cx * cx + 1);
+                                int dist = dxTerm + dyTerm;
+                                int vMult = Math.Clamp(100 - (dist * vigStr / 200), 45, 100);
+                                r = (r * (uint)vMult) / 100u;
+                                g = (g * (uint)vMult) / 100u;
+                                b = (b * (uint)vMult) / 100u;
                             }
                         }
+
+                        dstUint[x] = 0xFF000000u | (r << 16) | (g << 8) | b;
                     }
                 }
             }
@@ -1613,7 +1745,7 @@ public class NativeLibretroHost
                 }
 
                 _frameCount++;
-                if (_frameCount % 15 == 0 && _serializeSize > 0)
+                if (_frameCount % 2 == 0 && _serializeSize > 0)
                 {
                     CaptureRewindFrameLocked();
                 }
@@ -1637,25 +1769,30 @@ public class NativeLibretroHost
         if (_retroSerialize == null || _serializeSize == 0) return;
         try
         {
-            byte[] state = new byte[(int)_serializeSize];
-            GCHandle pin = GCHandle.Alloc(state, GCHandleType.Pinned);
-            try
+            int sz = (int)_serializeSize;
+            lock (_rewindRing)
             {
-                if (_retroSerialize(pin.AddrOfPinnedObject(), _serializeSize))
+                byte[]? slot = _rewindRing[_rewindHead];
+                if (slot == null || slot.Length != sz)
                 {
-                    lock (_rewindHistory)
+                    slot = new byte[sz];
+                    _rewindRing[_rewindHead] = slot;
+                }
+
+                GCHandle pin = GCHandle.Alloc(slot, GCHandleType.Pinned);
+                try
+                {
+                    if (_retroSerialize(pin.AddrOfPinnedObject(), _serializeSize))
                     {
-                        if (_rewindHistory.Count >= MaxRewindFrames)
-                        {
-                            _rewindHistory.RemoveAt(0);
-                        }
-                        _rewindHistory.Add(state);
+                        _rewindHead = (_rewindHead + 1) % _rewindRing.Length;
+                        if (_rewindCount < _rewindRing.Length)
+                            _rewindCount++;
                     }
                 }
-            }
-            finally
-            {
-                pin.Free();
+                finally
+                {
+                    pin.Free();
+                }
             }
         }
         catch { }
@@ -1777,6 +1914,63 @@ public class NativeLibretroHost
 
     public bool SaveState(string? slotOrPath = null) => SaveState(_activeStateSlot, slotOrPath);
 
+    public bool SaveStateToFile(string path) => SaveState(_activeStateSlot, path);
+
+    public BitmapSource? GetCurrentFrameSnapshot(int maxWidth = 320)
+    {
+        try
+        {
+            int w = _lastWidth;
+            int h = _lastHeight;
+            if (w <= 0 || h <= 0) return null;
+            int req = w * h * 4;
+            if (_bgraBuffer.Length < req) return null;
+
+            byte[] copy = new byte[req];
+            Buffer.BlockCopy(_bgraBuffer, 0, copy, 0, req);
+            var src = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, copy, w * 4);
+
+            if (maxWidth > 0 && w > maxWidth)
+            {
+                double scale = (double)maxWidth / w;
+                var transformed = new TransformedBitmap(src, new ScaleTransform(scale, scale));
+                transformed.Freeze();
+                return transformed;
+            }
+
+            src.Freeze();
+            return src;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public void SaveFrameSnapshotPng(string pngPath, int maxWidth = 320)
+    {
+        try
+        {
+            string? dir = Path.GetDirectoryName(pngPath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+
+            BitmapSource? snap = GetCurrentFrameSnapshot(maxWidth);
+            if (snap != null)
+            {
+                var enc = new PngBitmapEncoder();
+                enc.Frames.Add(BitmapFrame.Create(snap));
+                using var fs = File.Create(pngPath);
+                enc.Save(fs);
+            }
+            else
+            {
+                CaptureScreenshot(pngPath);
+            }
+        }
+        catch { }
+    }
+
     public bool SaveState(int slot, string? customPath = null)
     {
         if (!_isRunning || _retroSerialize == null) return false;
@@ -1813,7 +2007,7 @@ public class NativeLibretroHost
                         SaveBatterySave(safeTitle);
 
                         // Also save PNG state preview thumbnail
-                        CaptureScreenshot(statePath + ".png");
+                        SaveFrameSnapshotPng(statePath + ".png", 320);
                         return true;
                     }
                 }
@@ -1872,12 +2066,13 @@ public class NativeLibretroHost
     {
         if (!_isRunning || _retroUnserialize == null) return;
         byte[]? prev = null;
-        lock (_rewindHistory)
+        lock (_rewindRing)
         {
-            if (_rewindHistory.Count > 0)
+            if (_rewindCount > 0)
             {
-                prev = _rewindHistory[^1];
-                _rewindHistory.RemoveAt(_rewindHistory.Count - 1);
+                _rewindHead = (_rewindHead - 1 + _rewindRing.Length) % _rewindRing.Length;
+                _rewindCount--;
+                prev = _rewindRing[_rewindHead];
             }
         }
 
@@ -1989,6 +2184,7 @@ public class NativeLibretroHost
         _multiDiscPaths.Clear();
         _currentDiscIndex = 0;
         _isDiscEjected = false;
+        lock (_rewindRing) { _rewindHead = 0; _rewindCount = 0; }
 
         if (!string.IsNullOrEmpty(CurrentGameTitle))
         {

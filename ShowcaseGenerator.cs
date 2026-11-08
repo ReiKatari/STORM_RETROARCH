@@ -71,7 +71,7 @@ public static class ShowcaseGenerator
             dc.DrawRoundedRectangle(headerBg, headerPen, new Rect(40, 40, width - 80, 100), 8, 8);
 
             // Logo & Title
-            DrawText(dc, "STORM RETROARCH 1.6.0", 60, 52, 15, true, Color.FromRgb(167, 139, 250));
+            DrawText(dc, "STORM RETROARCH 1.7.0", 60, 52, 15, true, Color.FromRgb(167, 139, 250));
             DrawText(dc, "ЭТАЛОННЫЙ ВИЗУАЛЬНЫЙ ПАСПОРТ ЛОКАЛИЗАЦИИ И ЭМУЛЯЦИИ", 240, 53, 11, false, Color.FromRgb(156, 163, 175));
 
             string displayTitle = string.IsNullOrWhiteSpace(gameTitle) ? "CHRONO TRIGGER [MOD - M. RUS]" : gameTitle.ToUpperInvariant();

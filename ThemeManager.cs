@@ -140,6 +140,7 @@ public static class ThemeManager
             SetResourceBrush(res, "ThemeBorder", pal.CardBorder);
             SetResourceBrush(res, "ThemeHeader", pal.HeaderBg);
             SetResourceBrush(res, "ThemeSurfaceHover", pal.IsLight ? "#E2E8F0" : "#241D42");
+            SetResourceBrush(res, "ThemeBgInput", pal.IsLight ? "#F1F5F9" : "#090712");
 
             // Aliases
             SetResourceBrush(res, "BgPrimaryBrush", pal.WindowBg);

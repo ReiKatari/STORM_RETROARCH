@@ -1,3 +1,4 @@
+using System.Windows.Media;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -30,6 +31,62 @@ public static class TelemetryMonitorManager
     private static DateTime _lastCpuCheck = DateTime.UtcNow;
     private static TimeSpan _lastTotalProcessorTime = TimeSpan.Zero;
     private static double _currentCpuUsage = 2.4;
+    private static readonly double[] FrameTimeHistory = new double[60];
+    private static int _historyIndex = 0;
+    private static readonly object HistoryLock = new();
+
+    static TelemetryMonitorManager()
+    {
+        for (int i = 0; i < FrameTimeHistory.Length; i++)
+        {
+            FrameTimeHistory[i] = 16.67;
+        }
+    }
+
+    public static void RecordFrameTimeSample(double frameTimeMs)
+    {
+        lock (HistoryLock)
+        {
+            FrameTimeHistory[_historyIndex] = frameTimeMs > 0 ? frameTimeMs : 16.67;
+            _historyIndex = (_historyIndex + 1) % FrameTimeHistory.Length;
+        }
+    }
+
+    /// <summary>
+    /// Строит коллекцию точек для отображения плавного спарклайна истории времени кадра (Frame-Time).
+    /// </summary>
+    public static PointCollection BuildSparklinePoints(double width, double height)
+    {
+        var points = new PointCollection();
+        if (width <= 0 || height <= 0) return points;
+
+        double[] samples;
+        lock (HistoryLock)
+        {
+            samples = new double[FrameTimeHistory.Length];
+            for (int i = 0; i < FrameTimeHistory.Length; i++)
+            {
+                int idx = (_historyIndex + i) % FrameTimeHistory.Length;
+                samples[i] = FrameTimeHistory[idx];
+            }
+        }
+
+        double minVal = 8.0;
+        double maxVal = 33.33;
+        double stepX = width / Math.Max(1, samples.Length - 1);
+
+        for (int i = 0; i < samples.Length; i++)
+        {
+            double x = i * stepX;
+            double clamped = Math.Clamp(samples[i], minVal, maxVal);
+            double norm = (clamped - minVal) / (maxVal - minVal);
+            double y = height - (norm * height);
+            points.Add(new System.Windows.Point(x, y));
+        }
+
+        points.Freeze();
+        return points;
+    }
 
     /// <summary>
     /// Проверяет, активен ли нативный внутриигровой OSD RetroArch.
@@ -80,10 +137,10 @@ public static class TelemetryMonitorManager
         if (latency < 3.8) latency = 3.8;
 
         string grade;
-        if (latency <= 5.0) grade = "⚡ Ультра-минимальная (E-Sport Zero-Lag)";
-        else if (latency <= 15.0) grade = "✨ Отличная (Быстрый отклик)";
-        else if (latency <= 30.0) grade = "👌 Комфортная (Стандартный буфер)";
-        else grade = "⏳ Высокая (Рекомендуется включить Run-Ahead)";
+        if (latency <= 5.0) grade = "Ультра-минимальная (E-Sport Zero-Lag)";
+        else if (latency <= 15.0) grade = "Отличная (Быстрый отклик)";
+        else if (latency <= 30.0) grade = "Комфортная (Стандартный буфер)";
+        else grade = "Высокая (Рекомендуется включить Run-Ahead)";
 
         return (Math.Round(latency, 1), grade);
     }
@@ -132,7 +189,14 @@ public static class TelemetryMonitorManager
         snapshot.EstimatedLatencyMs = latMs;
         snapshot.LatencyGrade = grade;
 
-        if (snapshot.RetroArchRunning)
+        if (NativeLibretroHost.Current.IsRunning)
+        {
+            double liveFps = NativeLibretroHost.Current.Fps > 0 ? NativeLibretroHost.Current.Fps : 60.0;
+            snapshot.Fps = Math.Round(liveFps, 1);
+            snapshot.FrameTimeMs = Math.Round(1000.0 / Math.Max(1.0, liveFps), 2);
+            snapshot.StatusBadge = $"ИГРА АКТИВНА • {snapshot.Fps:F1} FPS • {latMs} мс задержка";
+        }
+        else if (snapshot.RetroArchRunning)
         {
             snapshot.Fps = 60.0;
             snapshot.FrameTimeMs = 16.67;
@@ -144,6 +208,8 @@ public static class TelemetryMonitorManager
             snapshot.FrameTimeMs = 16.67;
             snapshot.StatusBadge = $"ОЖИДАНИЕ ИГРЫ • Расчётный лаг: {latMs} мс";
         }
+
+        RecordFrameTimeSample(snapshot.FrameTimeMs);
 
         snapshot.VideoDriver = RetroArchConfigManager.GetString("video_driver").ToUpperInvariant();
         if (string.IsNullOrEmpty(snapshot.VideoDriver)) snapshot.VideoDriver = "VULKAN";

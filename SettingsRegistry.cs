@@ -580,6 +580,12 @@ public static class SettingsRegistry
         });
 
         foreach (var it in list) AssignCategoryVisuals(it);
+                foreach (var item in list)
+        {
+            item.Description = TypographyShield.ApplyRussianMicroTypography(item.Description);
+            item.Title = TypographyShield.ApplyRussianMicroTypography(item.Title);
+        }
+
         return list;
     }
     private static void AssignCategoryVisuals(SettingItem item)

@@ -16,7 +16,7 @@ public record CoreInfo(string Name, string Platform, string DllName, string Desc
     public string Version => CoreManager.GetCoreVersion(DllName, CatalogVersion);
     public string VersionBadge => $"Версия {Version}";
     public string FileSizeText => CoreManager.GetCoreSizeFormatted(DllName);
-    public string InstalledStatusBadge => IsInstalled ? $"✔ Установлено ({FileSizeText})" : "⬇ Не установлено";
+    public string InstalledStatusBadge => IsInstalled ? $"✔ Установлено ({FileSizeText})" : "Не установлено";
     public string ActionLabel => IsInstalled ? "Обновить" : "Установить";
     public override string ToString() => IsInstalled ? $"{Name} • Установлено ({Version})" : $"{Name} • Доступно ({Version})";
 }

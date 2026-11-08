@@ -64,6 +64,16 @@ public class UserSettings
     // Auto-Resume & UI Animation Settings (1.6.0)
     public bool AutoSaveLoadOnExit { get; set; } = false;
     public bool EnableUiAnimations { get; set; } = true;
+
+    // Hotkey bindings dictionary (1.7.0)
+    public Dictionary<string, string> CustomHotkeys { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    // Interactive Shader Studio Parameters (1.7.0)
+    public double ShaderScanlineIntensity { get; set; } = 0.32;
+    public double ShaderMaskIntensity { get; set; } = 0.20;
+    public double ShaderVignetteIntensity { get; set; } = 0.18;
+    public double ShaderBrightnessGain { get; set; } = 1.04;
+    public int ShaderColorTemperatureMode { get; set; } = 0;
 }
 
 public static class SettingsManager
@@ -122,6 +132,8 @@ public static class SettingsManager
             Current.DashboardCardOrder = new List<int> { 0, 1, 2, 3 };
         Current.PlatformDefaultCores ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         Current.GameCoreOverrides ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Current.CustomHotkeys ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (Current.ShaderBrightnessGain < 0.5 || Current.ShaderBrightnessGain > 2.0) Current.ShaderBrightnessGain = 1.04;
     }
 
     public static void Load()
