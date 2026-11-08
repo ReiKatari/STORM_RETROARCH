@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -10,16 +11,39 @@ using System.Threading.Tasks;
 
 namespace StormRetroArch;
 
-public record CoreInfo(string Name, string Platform, string DllName, string Description, string Manufacturer = "Universal", string SupportedExtensions = "", string CatalogVersion = "")
+public record CoreInfo(
+    string Name,
+    string Platform,
+    string DllName,
+    string Description,
+    string Manufacturer = "Universal",
+    string SupportedExtensions = "",
+    string CatalogVersion = "",
+    string JitSupportBadge = "Точный цикл",
+    bool SupportsRunAhead = true
+)
 {
     public bool IsInstalled => CoreManager.IsCoreInstalled(DllName);
     public string Version => CoreManager.GetCoreVersion(DllName, CatalogVersion);
     public string VersionBadge => $"Версия {Version}";
     public string FileSizeText => CoreManager.GetCoreSizeFormatted(DllName);
-    public string InstalledStatusBadge => IsInstalled ? $"✔ Установлено ({FileSizeText})" : "Не установлено";
+    public string InstalledStatusBadge => IsInstalled ? $"Установлено ({FileSizeText})" : "Не установлено";
     public string ActionLabel => IsInstalled ? "Обновить" : "Установить";
     public override string ToString() => IsInstalled ? $"{Name} • Установлено ({Version})" : $"{Name} • Доступно ({Version})";
 }
+
+public record CoreBenchmarkResult(
+    string CoreName,
+    string DllFile,
+    bool Is64Bit,
+    int ApiVersion,
+    string LibraryName,
+    string LibraryVersion,
+    string Extensions,
+    double ColdLoadMs,
+    bool AllSymbolsValid,
+    string SummaryRu
+);
 
 public static class CoreManager
 {
@@ -228,31 +252,31 @@ public static class CoreManager
 
     public static readonly List<CoreInfo> GoldenCores = new()
     {
-        new("Snes9x", "Super Nintendo (SNES)", "snes9x_libretro.dll", "Высокоточный и быстрый эмулятор SNES / Super Famicom", "Nintendo", "smc|sfc|fig|swc"),
-        new("Genesis Plus GX", "Sega Genesis / Mega Drive", "genesis_plus_gx_libretro.dll", "Идеальная эмуляция Mega Drive, Master System, Game Gear", "Sega", "md|gen|smd|sms|gg|sg"),
-        new("SwanStation", "Sony PlayStation 1", "swanstation_libretro.dll", "Ультра-производительный PS1 эмулятор с поддержкой PGXP и апскейла", "Sony", "cue|chd|pbp|iso|bin|m3u"),
-        new("FCEUmm", "Nintendo Entertainment System", "fceumm_libretro.dll", "Современный эмулятор NES / Famicom / Dendy с поддержкой мапперов", "Nintendo", "nes|fds|unf|unif"),
-        new("mGBA", "Game Boy Advance", "mgba_libretro.dll", "Быстрый и точный эмулятор GBA, GBC и классического Game Boy", "Nintendo", "gba|gb|gbc"),
-        new("melonDS DS", "Nintendo DS / DSi", "melondsds_libretro.dll", "Превосходная эмуляция Nintendo DS и DSi с сенсорным экраном", "Nintendo", "nds|dsi"),
-        new("Mupen64Plus-Next", "Nintendo 64", "mupen64plus_next_libretro.dll", "Мощный эмулятор N64 с плагинами GLideN64 и ParaLLEl RDP", "Nintendo", "n64|v64|z64"),
-        new("PPSSPP", "Sony PlayStation Portable", "ppsspp_libretro.dll", "Быстрая эмуляция PSP с HD текстурами и шейдерами", "Sony", "iso|cso|pbp"),
-        new("Flycast", "Sega Dreamcast / NAOMI", "flycast_libretro.dll", "Современный мультиплатформенный эмулятор Dreamcast и NAOMI", "Sega", "cdi|gdi|chd|cue"),
-        new("Beetle Saturn", "Sega Saturn", "mednafen_saturn_libretro.dll", "Точнейшая потактовая эмуляция архитектуры Sega Saturn", "Sega", "cue|ccd|chd|toc|m3u"),
-        new("FBNeo", "Arcade / Neo Geo", "fbneo_libretro.dll", "Флагманский эмулятор аркадных автоматов, Neo Geo и CPS-1/2/3", "Arcade", "zip|7z"),
-        new("DOSBox-Pure", "MS-DOS PC", "dosbox_pure_libretro.dll", "Запуск классических игр MS-DOS прямо из ZIP-архивов с геймпадом", "PC / DOS", "zip|dosz|exe|com|bat|iso"),
-        new("Beetle PCE Fast", "PC Engine / TurboGrafx-16", "mednafen_pce_fast_libretro.dll", "Быстрый эмулятор PC Engine HuCard и CD-ROM", "NEC", "pce|sgx|cue|ccd|chd"),
-        new("Stella", "Atari 2600", "stella_libretro.dll", "Эталонный эмулятор классической приставки Atari 2600 VCS", "Atari", "a26|bin"),
-        new("Handy", "Atari Lynx", "handy_libretro.dll", "Эмулятор портативной консоли Atari Lynx", "Atari", "lnx"),
-        new("Beetle NeoPop", "Neo Geo Pocket", "mednafen_ngp_libretro.dll", "Эмулятор Neo Geo Pocket и Pocket Color", "SNK", "ngp|ngc"),
-        new("Beetle WonderSwan", "Bandai WonderSwan", "mednafen_wswan_libretro.dll", "Эмулятор портативной консоли WonderSwan / Color", "Bandai", "ws|wsc"),
-        new("Citra", "Nintendo 3DS", "citra_libretro.dll", "Эмулятор Nintendo 3DS с апскейлом геометрии", "Nintendo", "3ds|3dsx|elf|cci|cxi"),
-        new("Dolphin", "Nintendo GameCube / Wii", "dolphin_libretro.dll", "Флагманский эмулятор GameCube и Wii с высокой кадровой частотой", "Nintendo", "gcm|iso|wbfs|rvz|cso|wad"),
-        new("Gambatte", "Game Boy / Color", "gambatte_libretro.dll", "Потактово точный эмулятор оригинального Game Boy", "Nintendo", "gb|gbc|dmg"),
-        new("Picodrive", "Sega 32X / Sega CD", "picodrive_libretro.dll", "Оптимизированный эмулятор Sega 32X, Mega-CD и Genesis", "Sega", "bin|gen|smd|md|32x|cue|iso"),
-        new("VBA-M", "Game Boy Advance", "vbam_libretro.dll", "Продвинутый эмулятор Game Boy Advance с отладкой", "Nintendo", "gba|gb|gbc"),
-        new("PCSX-ReARMed", "Sony PlayStation 1", "pcsx_rearmed_libretro.dll", "Быстрый эмулятор PS1 для систем любого уровня", "Sony", "bin|cue|img|mdf|pbp|cbn|chd"),
-        new("Beetle PSX HW", "Sony PlayStation 1 (Vulkan)", "mednafen_psx_hw_libretro.dll", "Аппаратно-ускоренный PS1 с Vulkan/OpenGL рендером", "Sony", "cue|ccd|chd|toc|m3u|pbp"),
-        new("MAME 2003-Plus", "Arcade Classics", "mame2003_plus_libretro.dll", "Классический аркадный движок с сотнями исправлений", "Arcade", "zip")
+        new("Snes9x", "Super Nintendo (SNES)", "snes9x_libretro.dll", "Высокоточный и быстрый эмулятор SNES / Super Famicom", "Nintendo", "smc|sfc|fig|swc", "", "Точный цикл", true),
+        new("Genesis Plus GX", "Sega Genesis / Mega Drive", "genesis_plus_gx_libretro.dll", "Идеальная эмуляция Mega Drive, Master System, Game Gear", "Sega", "md|gen|smd|sms|gg|sg", "", "Точный цикл", true),
+        new("SwanStation", "Sony PlayStation 1", "swanstation_libretro.dll", "Ультра-производительный PS1 эмулятор с поддержкой PGXP и апскейла", "Sony", "cue|chd|pbp|iso|bin|m3u", "", "JIT Dynarec", true),
+        new("FCEUmm", "Nintendo Entertainment System", "fceumm_libretro.dll", "Современный эмулятор NES / Famicom / Dendy с поддержкой мапперов", "Nintendo", "nes|fds|unf|unif", "", "Точный цикл", true),
+        new("mGBA", "Game Boy Advance", "mgba_libretro.dll", "Быстрый и точный эмулятор GBA, GBC и классического Game Boy", "Nintendo", "gba|gb|gbc", "", "JIT Dynarec", true),
+        new("melonDS DS", "Nintendo DS / DSi", "melondsds_libretro.dll", "Превосходная эмуляция Nintendo DS и DSi с сенсорным экраном", "Nintendo", "nds|dsi", "", "JIT Dynarec", true),
+        new("Mupen64Plus-Next", "Nintendo 64", "mupen64plus_next_libretro.dll", "Мощный эмулятор N64 с плагинами GLideN64 и ParaLLEl RDP", "Nintendo", "n64|v64|z64", "", "JIT Dynarec", true),
+        new("PPSSPP", "Sony PlayStation Portable", "ppsspp_libretro.dll", "Быстрая эмуляция PSP с HD текстурами и шейдерами", "Sony", "iso|cso|pbp", "", "JIT Dynarec", false),
+        new("Flycast", "Sega Dreamcast / NAOMI", "flycast_libretro.dll", "Современный мультиплатформенный эмулятор Dreamcast и NAOMI", "Sega", "cdi|gdi|chd|cue", "", "JIT Dynarec", false),
+        new("Beetle Saturn", "Sega Saturn", "mednafen_saturn_libretro.dll", "Точнейшая потактовая эмуляция архитектуры Sega Saturn", "Sega", "cue|ccd|chd|toc|m3u", "", "Точный цикл", true),
+        new("FBNeo", "Arcade / Neo Geo", "fbneo_libretro.dll", "Флагманский эмулятор аркадных автоматов, Neo Geo и CPS-1/2/3", "Arcade", "zip|7z", "", "Точный цикл", true),
+        new("DOSBox-Pure", "MS-DOS PC", "dosbox_pure_libretro.dll", "Запуск классических игр MS-DOS прямо из ZIP-архивов с геймпадом", "PC / DOS", "zip|dosz|exe|com|bat|iso", "", "JIT Dynarec", true),
+        new("Beetle PCE Fast", "PC Engine / TurboGrafx-16", "mednafen_pce_fast_libretro.dll", "Быстрый эмулятор PC Engine HuCard и CD-ROM", "NEC", "pce|sgx|cue|ccd|chd", "", "Точный цикл", true),
+        new("Stella", "Atari 2600", "stella_libretro.dll", "Эталонный эмулятор классической приставки Atari 2600 VCS", "Atari", "a26|bin", "", "Точный цикл", true),
+        new("Handy", "Atari Lynx", "handy_libretro.dll", "Эмулятор портативной консоли Atari Lynx", "Atari", "lnx", "", "Точный цикл", true),
+        new("Beetle NeoPop", "Neo Geo Pocket", "mednafen_ngp_libretro.dll", "Эмулятор Neo Geo Pocket и Pocket Color", "SNK", "ngp|ngc", "", "Точный цикл", true),
+        new("Beetle WonderSwan", "Bandai WonderSwan", "mednafen_wswan_libretro.dll", "Эмулятор портативной консоли WonderSwan / Color", "Bandai", "ws|wsc", "", "Точный цикл", true),
+        new("Citra", "Nintendo 3DS", "citra_libretro.dll", "Эмулятор Nintendo 3DS с апскейлом геометрии", "Nintendo", "3ds|3dsx|elf|cci|cxi", "", "JIT Dynarec", false),
+        new("Dolphin", "Nintendo GameCube / Wii", "dolphin_libretro.dll", "Флагманский эмулятор GameCube и Wii с высокой кадровой частотой", "Nintendo", "gcm|iso|wbfs|rvz|cso|wad", "", "JIT Dynarec", false),
+        new("Gambatte", "Game Boy / Color", "gambatte_libretro.dll", "Потактово точный эмулятор оригинального Game Boy", "Nintendo", "gb|gbc|dmg", "", "Точный цикл", true),
+        new("Picodrive", "Sega 32X / Sega CD", "picodrive_libretro.dll", "Оптимизированный эмулятор Sega 32X, Mega-CD и Genesis", "Sega", "bin|gen|smd|md|32x|cue|iso", "", "JIT Dynarec", true),
+        new("VBA-M", "Game Boy Advance", "vbam_libretro.dll", "Продвинутый эмулятор Game Boy Advance с отладкой", "Nintendo", "gba|gb|gbc", "", "Точный цикл", true),
+        new("PCSX-ReARMed", "Sony PlayStation 1", "pcsx_rearmed_libretro.dll", "Быстрый эмулятор PS1 для систем любого уровня", "Sony", "bin|cue|img|mdf|pbp|cbn|chd", "", "JIT Dynarec", true),
+        new("Beetle PSX HW", "Sony PlayStation 1 (Vulkan)", "mednafen_psx_hw_libretro.dll", "Аппаратно-ускоренный PS1 с Vulkan/OpenGL рендером", "Sony", "cue|ccd|chd|toc|m3u|pbp", "", "Vulkan HW", false),
+        new("MAME 2003-Plus", "Arcade Classics", "mame2003_plus_libretro.dll", "Классический аркадный движок с сотнями исправлений", "Arcade", "zip", "", "Точный цикл", true)
     };
 
     public static List<CoreInfo> AllCoresCatalog => _allCoresCatalog;
@@ -792,5 +816,172 @@ public static class CoreManager
         string parent = Path.Combine(Directory.GetParent(AppDir)?.FullName ?? "", "retroarch.exe");
         if (File.Exists(parent)) return parent;
         return null;
+    }
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate uint RetroApiVersionDelegate();
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate void RetroGetSystemInfoDelegate(out NativeLibretroHost.RetroSystemInfo info);
+
+    public static async Task<CoreBenchmarkResult> InspectAndBenchmarkCoreAsync(CoreInfo core)
+    {
+        return await Task.Run(() =>
+        {
+            string dllPath = Path.Combine(CoresDir, core.DllName);
+            if (!File.Exists(dllPath))
+            {
+                return new CoreBenchmarkResult(
+                    core.Name,
+                    core.DllName,
+                    false,
+                    0,
+                    core.Name,
+                    "Не установлено",
+                    core.SupportedExtensions,
+                    0.0,
+                    false,
+                    $"Файл ядра {core.DllName} отсутствует на диске."
+                );
+            }
+
+            bool is64Bit = false;
+            try
+            {
+                using var fs = new FileStream(dllPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var br = new BinaryReader(fs);
+                fs.Seek(0x3C, SeekOrigin.Begin);
+                int peOffset = br.ReadInt32();
+                fs.Seek(peOffset, SeekOrigin.Begin);
+                uint peSignature = br.ReadUInt32(); // 'PE\0\0'
+                if (peSignature == 0x00004550)
+                {
+                    ushort machine = br.ReadUInt16();
+                    is64Bit = (machine == 0x8664); // AMD64
+                }
+            }
+            catch { }
+
+            var sw = Stopwatch.StartNew();
+            IntPtr hDll = IntPtr.Zero;
+            bool loaded = NativeLibrary.TryLoad(dllPath, out hDll);
+            double coldLoadMs = sw.Elapsed.TotalMilliseconds;
+
+            if (!loaded || hDll == IntPtr.Zero)
+            {
+                return new CoreBenchmarkResult(
+                    core.Name,
+                    core.DllName,
+                    is64Bit,
+                    0,
+                    core.Name,
+                    "Ошибка загрузки",
+                    core.SupportedExtensions,
+                    coldLoadMs,
+                    false,
+                    $"Не удалось загрузить бинарный модуль {core.DllName} в адресное пространство."
+                );
+            }
+
+            try
+            {
+                bool hasInit = NativeLibrary.TryGetExport(hDll, "retro_init", out var pInit);
+                bool hasRun = NativeLibrary.TryGetExport(hDll, "retro_run", out var pRun);
+                bool hasSerialize = NativeLibrary.TryGetExport(hDll, "retro_serialize", out var pSerialize);
+                bool hasApiVer = NativeLibrary.TryGetExport(hDll, "retro_api_version", out var pApiVer);
+                bool hasSysInfo = NativeLibrary.TryGetExport(hDll, "retro_get_system_info", out var pSysInfo);
+
+                bool allSymbolsValid = hasInit && hasRun && hasApiVer && hasSysInfo;
+
+                int apiVersion = 0;
+                if (hasApiVer)
+                {
+                    var apiVerFn = Marshal.GetDelegateForFunctionPointer<RetroApiVersionDelegate>(pApiVer);
+                    apiVersion = (int)apiVerFn();
+                }
+
+                string libName = core.Name;
+                string libVersion = "1.0.0";
+                string validExts = core.SupportedExtensions;
+
+                if (hasSysInfo)
+                {
+                    var sysInfoFn = Marshal.GetDelegateForFunctionPointer<RetroGetSystemInfoDelegate>(pSysInfo);
+                    sysInfoFn(out var info);
+                    if (info.LibraryName != IntPtr.Zero)
+                        libName = Marshal.PtrToStringUTF8(info.LibraryName) ?? core.Name;
+                    if (info.LibraryVersion != IntPtr.Zero)
+                        libVersion = Marshal.PtrToStringUTF8(info.LibraryVersion) ?? "1.0.0";
+                    if (info.ValidExtensions != IntPtr.Zero)
+                        validExts = Marshal.PtrToStringUTF8(info.ValidExtensions) ?? core.SupportedExtensions;
+                }
+
+                string summaryRu = $"Ядро «{libName}» (v{libVersion}) успешно проверено. Архитектура: {(is64Bit ? "x64 (64-бит)" : "x86 (32-бит)")}, API Libretro: v{apiVersion}, холодная загрузка DLL: {coldLoadMs:F2} мс, Run-Ahead: {(hasSerialize ? "Поддерживается" : "Ограничено")}, расширения: {validExts}.";
+
+                return new CoreBenchmarkResult(
+                    core.Name,
+                    core.DllName,
+                    is64Bit,
+                    apiVersion,
+                    libName,
+                    libVersion,
+                    validExts,
+                    coldLoadMs,
+                    allSymbolsValid,
+                    summaryRu
+                );
+            }
+            finally
+            {
+                try { NativeLibrary.Free(hDll); } catch { }
+            }
+        });
+    }
+
+    public static async Task<(int Updated, int Failed)> UpdateAllInstalledCoresAsync(IProgress<string>? progress = null)
+    {
+        var installed = AllCoresCatalog.Where(c => c.IsInstalled).ToList();
+        if (installed.Count == 0)
+        {
+            progress?.Report("Установленные ядра не обнаружены.");
+            return (0, 0);
+        }
+
+        progress?.Report($"Начало пакетного обновления ядер Libretro ({installed.Count} шт.)...");
+        int updatedCount = 0;
+        int failedCount = 0;
+        using var semaphore = new SemaphoreSlim(2, 2);
+
+        var tasks = installed.Select(async core =>
+        {
+            await semaphore.WaitAsync();
+            try
+            {
+                progress?.Report($"Обновление ядра: {core.Name} ({core.DllName})...");
+                bool ok = await DownloadCoreAsync(core.DllName);
+                if (ok)
+                {
+                    Interlocked.Increment(ref updatedCount);
+                    progress?.Report($"Ядро {core.Name} успешно обновлено.");
+                }
+                else
+                {
+                    Interlocked.Increment(ref failedCount);
+                    progress?.Report($"Ошибка обновления ядра {core.Name}.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Interlocked.Increment(ref failedCount);
+                progress?.Report($"Исключение при обновлении {core.Name}: {ex.Message}");
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        });
+
+        await Task.WhenAll(tasks);
+        progress?.Report($"Пакетное обновление завершено. Обновлено: {updatedCount}, ошибок: {failedCount}.");
+        return (updatedCount, failedCount);
     }
 }

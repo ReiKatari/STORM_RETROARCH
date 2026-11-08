@@ -5,14 +5,14 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <RootNamespace>StormRetroArch</RootNamespace>
     <AssemblyName>STORM RETROARCH</AssemblyName>
-    <Version>1.7.0</Version>
-    <AssemblyVersion>1.7.0.0</AssemblyVersion>
-    <FileVersion>1.7.0.0</FileVersion>
+    <Version>1.8.0</Version>
+    <AssemblyVersion>1.8.0.0</AssemblyVersion>
+    <FileVersion>1.8.0.0</FileVersion>
     <Authors>STORM TEAM</Authors>
     <Company>STORM TEAM</Company>
     <Product>STORM RETROARCH</Product>
     <Title>STORM RETROARCH</Title>
-    <Description>STORM RETROARCH 1.7.0</Description>
+    <Description>STORM RETROARCH 1.8.0</Description>
     <ApplicationIcon>AppIcon.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <UseWPF>true</UseWPF>
@@ -26,6 +26,14 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <TieredCompilation>true</TieredCompilation>
+    <TieredPGO>true</TieredPGO>
+    <TieredCompilationQuickJitForLoops>true</TieredCompilationQuickJitForLoops>
+    <OptimizationPreference>Speed</OptimizationPreference>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <EnableUnsafeUTF7Encoding>false</EnableUnsafeUTF7Encoding>
+    <EventSourceSupport>false</EventSourceSupport>
     <DefaultItemExcludes>$(DefaultItemExcludes);Installer\**;publish\**;Files\**;obj\**;bin\**</DefaultItemExcludes>
   </PropertyGroup>
 

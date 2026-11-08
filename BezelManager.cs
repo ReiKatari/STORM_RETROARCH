@@ -9,6 +9,8 @@ using System.Windows.Media.Imaging;
 
 namespace StormRetroArch;
 
+public class BezelItem : BezelPresetItem { }
+
 public class BezelPresetItem : INotifyPropertyChanged
 {
     private bool _isActive;
@@ -133,19 +135,22 @@ public static class BezelManager
 
     public static readonly List<BuiltinBezelDef> BuiltinTemplates = new()
     {
-        new("STORM_Midnight_Aurora", "Фирменная неоновая рамка STORM", "Эксклюзив STORM", "", "Тёмно-фиолетовая студийная рамка с неоновым контуром и бликами ЭЛТ-экрана", "#0D0B18", "#A855F7"),
-        new("Nintendo_NES_Famicom", "Рамка Nintendo NES и Famicom", "Nintendo Entertainment System", "", "Классический 8-битный ретро-стиль с бордовыми акцентами и текстурой консоли", "#1A1A22", "#E11D48"),
-        new("MS_DOS_CRT_Monitor", "Рамка MS-DOS и ЭЛТ-монитор", "MS-DOS PC", "", "Классический компьютерный ЭЛТ-монитор IBM PC с янтарно-зелёным индикатором питания", "#161920", "#10B981"),
-        new("Sony_PlayStation_1", "Рамка Sony PlayStation 1", "Sony PlayStation 1", "", "Аутентичная тёмно-серая рамка PS1 с фирменным синим контуром 4:3 и матовыми боковинами", "#1C1C24", "#0055D4"),
-        new("Super_Nintendo_SNES", "Рамка Super Nintendo", "Super Nintendo (SNES)", "", "Фирменные цвета Super Famicom с лавандовыми акцентами и затенением экрана", "#22222E", "#7C3AED"),
-        new("Sega_Mega_Drive_Genesis", "Рамка Sega Mega Drive", "Sega Genesis / Mega Drive", "", "Чёрная текстурированная рамка 16-Бит с золотистым контуром и решётками корпуса", "#121218", "#EAB308"),
-        new("Nintendo_64_Ultra", "Рамка Nintendo 64", "Nintendo 64", "", "Элегантная тёмная рамка с объёмным контуром и кинематографичными тенями", "#181824", "#2563EB"),
-        new("Game_Boy_DMG_01", "Рамка Game Boy DMG-01", "Game Boy / Color", "", "Аутентичный оливково-серый корпус классического Game Boy с матричной окантовкой", "#282C22", "#65A30D"),
-        new("Game_Boy_Advance_Wide", "Рамка Game Boy Advance", "Game Boy Advance", "", "Индиго-рамка портативной консоли GBA с плавным градиентом и индикатором батареи", "#1E1B38", "#8B5CF6"),
-        new("Nintendo_DS_Dual", "Рамка Nintendo DS", "Nintendo DS / DSi", "", "Стильный двухэкранный корпус с бирюзовыми акцентами и боковыми стойками", "#22252A", "#06B6D4"),
-        new("Sega_Saturn_Titanium", "Рамка Sega Saturn", "Sega Saturn", "", "Тёмно-титановый корпус Sega Saturn с неоновыми голубыми линиями", "#181A20", "#38BDF8"),
-        new("Sega_Dreamcast_Spiral", "Рамка Sega Dreamcast", "Sega Dreamcast", "", "Футуристичный стиль консоли Dreamcast с ярко-оранжевой подсветкой", "#20222A", "#F97316"),
-        new("Arcade_Cabinet_CRT", "Аркадный игровой автомат", "Arcade Classics", "", "Классический аркадный кабинет с виниловыми боковинами и глубокой тенью кинескопа", "#14141A", "#EF4444")
+        new("STORM_Aurora_Glass", "STORM Aurora Glass", "Эксклюзив STORM", "", "Фирменная тёмная студийная рамка с неоновым контуром и стеклянными бликами", "#0D0B18", "#A855F7"),
+        new("Sony_Trinitron_PVM", "Sony Trinitron PVM", "Sony Trinitron PVM", "", "Профессиональный студийный ЭЛТ-монитор Sony Trinitron с апертурной решёткой", "#181820", "#0055D4"),
+        new("Arcade_Neon_Cabinet", "Arcade Neon Cabinet", "Arcade Classics", "", "Классический аркадный автомат с неоновой подсветкой и глубокой тенью кинескопа", "#14141A", "#EF4444"),
+        new("Nintendo_NES_Famicom", "NES / Famicom", "Nintendo Entertainment System", "", "Классический 8-битный ретро-стиль с бордовыми акцентами и текстурой консоли", "#1A1A22", "#E11D48"),
+        new("Super_Nintendo_SNES", "Super Nintendo", "Super Nintendo (SNES)", "", "Фирменные цвета Super Famicom с лавандовыми акцентами и затенением экрана", "#22222E", "#7C3AED"),
+        new("Sega_Mega_Drive_Genesis", "Sega Mega Drive", "Sega Genesis / Mega Drive", "", "Чёрная текстурированная рамка 16-Бит с золотистым контуром и решётками корпуса", "#121218", "#EAB308"),
+        new("Sony_PlayStation", "PlayStation", "Sony PlayStation 1", "", "Аутентичный тёмно-серый корпус оригинальной консоли Sony PlayStation 1", "#1C1C24", "#3B82F6"),
+        new("Sega_Saturn_Titanium", "Sega Saturn", "Sega Saturn", "", "Тёмно-титановый корпус Sega Saturn с неоновыми голубыми линиями", "#181A20", "#38BDF8"),
+        new("Sega_Dreamcast_Spiral", "Dreamcast", "Sega Dreamcast", "", "Футуристичный стиль консоли Dreamcast с ярко-оранжевой подсветкой", "#20222A", "#F97316"),
+        new("Nintendo_64_Ultra", "Nintendo 64", "Nintendo 64", "", "Элегантная тёмная рамка N64 с объёмным контуром и кинематографичными тенями", "#181824", "#2563EB"),
+        new("Game_Boy_Advance_Wide", "Game Boy Advance", "Game Boy Advance", "", "Индиго-рамка портативной консоли GBA с плавным градиентом и индикатором батареи", "#1E1B38", "#8B5CF6"),
+        new("IBM_DOS_VGA_Monitor", "IBM DOS VGA Monitor", "MS-DOS PC", "", "Классический компьютерный ЭЛТ-монитор IBM PC с янтарно-зелёным индикатором питания", "#161920", "#10B981"),
+        new("Commodore_1084S", "Commodore 1084S", "Commodore Amiga / C64", "", "Легендарный цветной монитор Commodore 1084S для Amiga и Commodore 64", "#202026", "#F59E0B"),
+        new("PC_Engine_Core", "PC Engine", "PC Engine / TurboGrafx-16", "", "Компактный японский дизайн консоли PC Engine HuCard с неоново-розовым акцентом", "#181922", "#EC4899"),
+        new("Neo_Geo_MVS_Cabinet", "Neo Geo MVS", "SNK Neo Geo", "", "Легендарный аркадный кабинет Neo Geo MVS 100 Mega Shock в тёмно-красных тонах", "#181014", "#DC2626"),
+        new("Atari_Woodgrain", "Atari Woodgrain", "Atari 2600 / 7800", "", "Аутентичная отделка под ореховое дерево классической консоли Atari 2600", "#261914", "#D97706")
     };
 
     static BezelManager()
@@ -300,6 +305,57 @@ public static class BezelManager
     {
         var list = ScanBezels();
         return list.FirstOrDefault(b => b.IsActive);
+    }
+
+    public static BezelPresetItem? FindBestBezelForPlatform(string? platformName)
+    {
+        var bezels = ScanBezels();
+        if (bezels.Count == 0) return null;
+        if (string.IsNullOrWhiteSpace(platformName))
+            return bezels.FirstOrDefault(b => b.Name.Contains("STORM", StringComparison.OrdinalIgnoreCase)) ?? bezels[0];
+
+        string p = platformName.ToLowerInvariant();
+        string targetSlug = "";
+
+        if (p.Contains("nes") || p.Contains("famicom") || p.Contains("dendy"))
+            targetSlug = "Nintendo_NES_Famicom";
+        else if (p.Contains("snes") || p.Contains("super nintendo") || p.Contains("sfc"))
+            targetSlug = "Super_Nintendo_SNES";
+        else if (p.Contains("mega drive") || p.Contains("genesis") || p.Contains("32x") || p.Contains("sega cd"))
+            targetSlug = "Sega_Mega_Drive_Genesis";
+        else if (p.Contains("saturn"))
+            targetSlug = "Sega_Saturn_Titanium";
+        else if (p.Contains("dreamcast") || p.Contains("naomi"))
+            targetSlug = "Sega_Dreamcast_Spiral";
+        else if (p.Contains("ps1") || p.Contains("psx") || p.Contains("playstation 1") || p.Contains("playstation"))
+            targetSlug = "Sony_PlayStation";
+        else if (p.Contains("n64") || p.Contains("nintendo 64"))
+            targetSlug = "Nintendo_64_Ultra";
+        else if (p.Contains("gba") || p.Contains("game boy advance"))
+            targetSlug = "Game_Boy_Advance_Wide";
+        else if (p.Contains("dos") || p.Contains("ms-dos") || p.Contains("pc / dos") || p.Contains("ibm"))
+            targetSlug = "IBM_DOS_VGA_Monitor";
+        else if (p.Contains("amiga") || p.Contains("c64") || p.Contains("commodore"))
+            targetSlug = "Commodore_1084S";
+        else if (p.Contains("pce") || p.Contains("pc engine") || p.Contains("turbografx") || p.Contains("supergrafx"))
+            targetSlug = "PC_Engine_Core";
+        else if (p.Contains("neo geo") || p.Contains("neogeo") || p.Contains("mvs") || p.Contains("aes"))
+            targetSlug = "Neo_Geo_MVS_Cabinet";
+        else if (p.Contains("atari"))
+            targetSlug = "Atari_Woodgrain";
+        else if (p.Contains("arcade") || p.Contains("mame") || p.Contains("fbneo"))
+            targetSlug = "Arcade_Neon_Cabinet";
+        else if (p.Contains("trinitron") || p.Contains("pvm"))
+            targetSlug = "Sony_Trinitron_PVM";
+
+        if (!string.IsNullOrEmpty(targetSlug))
+        {
+            var matched = bezels.FirstOrDefault(b => Path.GetFileNameWithoutExtension(b.ImagePath).Equals(targetSlug, StringComparison.OrdinalIgnoreCase) ||
+                                                    b.Name.Contains(targetSlug.Replace("_", " "), StringComparison.OrdinalIgnoreCase));
+            if (matched != null) return matched;
+        }
+
+        return GetBezelForPlatform(platformName) ?? bezels[0];
     }
 
     public static BezelPresetItem? GetBezelForPlatform(string? platform)
@@ -565,18 +621,8 @@ public static class BezelManager
         {
             if (!Directory.Exists(BordersDir)) Directory.CreateDirectory(BordersDir);
 
-            string v2Marker = Path.Combine(BordersDir, ".storm_bezels_v2.ok");
-            string v3Marker = Path.Combine(BordersDir, ".storm_bezels_v3.ok");
-            string v4Marker = Path.Combine(BordersDir, ".storm_bezels_v4.ok");
-
-            try
-            {
-                if (File.Exists(v2Marker)) File.Delete(v2Marker);
-                if (File.Exists(v3Marker)) File.Delete(v3Marker);
-            }
-            catch { }
-
-            bool forceRegen = !File.Exists(v4Marker);
+            string v5Marker = Path.Combine(BordersDir, ".storm_bezels_v5_180.ok");
+            bool forceRegen = !File.Exists(v5Marker);
 
             foreach (var tmpl in BuiltinTemplates)
             {
@@ -587,7 +633,7 @@ public static class BezelManager
 
                     if (forceRegen || !File.Exists(pngPath))
                     {
-                        GenerateBezelPng(pngPath, tmpl.BaseColorHex, tmpl.AccentColorHex);
+                        GenerateBezelPng(pngPath, tmpl.BaseColorHex, tmpl.AccentColorHex, tmpl.FileSlug);
                     }
 
                     if (forceRegen || !File.Exists(cfgPath))
@@ -605,54 +651,87 @@ public static class BezelManager
 
             if (forceRegen)
             {
-                try { File.WriteAllText(v4Marker, "v4"); } catch { }
+                try { File.WriteAllText(v5Marker, "v5_180"); } catch { }
             }
         }
         catch { }
     }
 
-    private static void GenerateBezelPng(string targetPngPath, string baseHex, string accentHex)
+    private static void GenerateBezelPng(string targetPngPath, string baseHex, string accentHex, string slug)
     {
-        int width = (int)CanvasWidth;
-        int height = (int)CanvasHeight;
+        int width = (int)CanvasWidth;   // 1920
+        int height = (int)CanvasHeight; // 1080
         int stride = width * 4;
         byte[] pixels = new byte[height * stride];
 
         var baseColor = (Color)ColorConverter.ConvertFromString(baseHex);
         var accentColor = (Color)ColorConverter.ConvertFromString(accentHex);
 
-        int cutLeft = (int)InnerScreenLeft;      // 272
-        int cutRight = cutLeft + (int)InnerScreenWidth; // 1648 (1376 width)
-        int cutTop = (int)InnerScreenTop;        // 24
-        int cutBottom = cutTop + (int)InnerScreenHeight; // 1056 (1032 height)
+        // 1440x1080 exact mathematical 4:3 cutout centered in 1920x1080 canvas
+        int cutLeft = (width - 1440) / 2;       // 240
+        int cutRight = cutLeft + 1440;          // 1680
+        int cutTop = 0;
+        int cutBottom = height;                 // 1080
+
+        bool isAtariWood = slug.Equals("Atari_Woodgrain", StringComparison.OrdinalIgnoreCase);
 
         for (int y = 0; y < height; y++)
         {
             double yNorm = (double)y / height;
-            double vShade = 0.78 + 0.35 * Math.Sin(yNorm * Math.PI);
+            double vShade = 0.80 + 0.30 * Math.Sin(yNorm * Math.PI);
+            int rowOffset = y * stride;
 
             for (int x = 0; x < width; x++)
             {
-                int idx = y * stride + x * 4;
+                int idx = rowOffset + x * 4;
 
                 bool insideCutout = (x >= cutLeft && x < cutRight && y >= cutTop && y < cutBottom);
                 if (insideCutout)
                 {
-                    // 100% transparent game screen: zero inner border, zero inner shadow
-                    pixels[idx + 0] = 0;
-                    pixels[idx + 1] = 0;
-                    pixels[idx + 2] = 0;
-                    pixels[idx + 3] = 0;
+                    // Inner CRT tube bevel shadow along the edges of the 1440x1080 screen
+                    int distLeft = x - cutLeft;
+                    int distRight = cutRight - 1 - x;
+                    int distTop = y - cutTop;
+                    int distBottom = cutBottom - 1 - y;
+                    int edgeDist = Math.Min(distLeft, distRight);
+
+                    if (edgeDist < 12)
+                    {
+                        byte shadowAlpha = (byte)((12 - edgeDist) * 11);
+                        pixels[idx + 0] = 0;
+                        pixels[idx + 1] = 0;
+                        pixels[idx + 2] = 0;
+                        pixels[idx + 3] = shadowAlpha;
+                    }
+                    else
+                    {
+                        // Subtle diagonal glass reflection highlight across the screen cutout
+                        double diagPos = x * 0.75 + y * 0.55;
+                        if (diagPos >= 700 && diagPos <= 840)
+                        {
+                            double glareIntensity = Math.Sin((diagPos - 700) / 140.0 * Math.PI);
+                            byte glareAlpha = (byte)(glareIntensity * 12); // ~4.7% maximum opacity glass sheen
+                            pixels[idx + 0] = 255;
+                            pixels[idx + 1] = 255;
+                            pixels[idx + 2] = 255;
+                            pixels[idx + 3] = glareAlpha;
+                        }
+                        else
+                        {
+                            // 100% transparent center viewport
+                            pixels[idx + 0] = 0;
+                            pixels[idx + 1] = 0;
+                            pixels[idx + 2] = 0;
+                            pixels[idx + 3] = 0;
+                        }
+                    }
                 }
                 else
                 {
-                    // Outer 4px neon border strictly OUTSIDE the 1376×1032 game hole
-                    bool isNeonBorder = (x >= cutLeft - 4 && x < cutLeft && y >= cutTop - 4 && y < cutBottom + 4) ||
-                                        (x >= cutRight && x < cutRight + 4 && y >= cutTop - 4 && y < cutBottom + 4) ||
-                                        (y >= cutTop - 4 && y < cutTop && x >= cutLeft - 4 && x < cutRight + 4) ||
-                                        (y >= cutBottom && y < cutBottom + 4 && x >= cutLeft - 4 && x < cutRight + 4);
+                    // Outer 3px accent border right against the 1440x1080 screen cutout
+                    bool isBevelEdge = (x >= cutLeft - 3 && x < cutLeft) || (x >= cutRight && x < cutRight + 3);
 
-                    if (isNeonBorder)
+                    if (isBevelEdge)
                     {
                         pixels[idx + 0] = accentColor.B;
                         pixels[idx + 1] = accentColor.G;
@@ -661,32 +740,40 @@ public static class BezelManager
                     }
                     else
                     {
-                        // Console casing frame (left/right sidebars + top/bottom bars)
                         byte r = (byte)Math.Clamp(baseColor.R * vShade, 0, 255);
                         byte g = (byte)Math.Clamp(baseColor.G * vShade, 0, 255);
                         byte b = (byte)Math.Clamp(baseColor.B * vShade, 0, 255);
 
-                        // Horizontal metallic ribs on left and right sidebars
-                        if ((x >= 32 && x <= 188) || (x >= 1732 && x <= 1888))
+                        // Authentic woodgrain tone variations for Atari Woodgrain
+                        if (isAtariWood)
                         {
-                            if (y >= 140 && y <= 340 && (y % 18 < 5))
+                            double woodWave = Math.Sin(y * 0.14) * 14.0 + Math.Sin(x * 0.05) * 8.0;
+                            r = (byte)Math.Clamp(r + woodWave * 1.5, 20, 255);
+                            g = (byte)Math.Clamp(g + woodWave * 0.8, 12, 220);
+                            b = (byte)Math.Clamp(b + woodWave * 0.3, 8, 180);
+                        }
+
+                        // Speaker grilles on left and right cabinet panels
+                        if ((x >= 40 && x <= 200) || (x >= 1720 && x <= 1880))
+                        {
+                            if (y >= 260 && y <= 720 && (y % 16 < 5))
                             {
-                                r = (byte)(r * 0.62);
-                                g = (byte)(g * 0.62);
-                                b = (byte)(b * 0.62);
+                                r = (byte)(r * 0.45);
+                                g = (byte)(g * 0.45);
+                                b = (byte)(b * 0.45);
                             }
                         }
 
-                        // Outer neon stripe along left & right edges
-                        if ((x >= 18 && x <= 22) || (x >= 1897 && x <= 1901))
+                        // Outer metallic/neon stripe along cabinet edges
+                        if ((x >= 12 && x <= 16) || (x >= 1903 && x <= 1907))
                         {
                             r = accentColor.R;
                             g = accentColor.G;
                             b = accentColor.B;
                         }
 
-                        // Glowing console power LED indicator at bottom-right sidebar
-                        if (x >= 1790 && x <= 1830 && y >= 980 && y <= 992)
+                        // Glowing power LED on lower right sidebar panel
+                        if (x >= 1780 && x <= 1824 && y >= 960 && y <= 974)
                         {
                             r = accentColor.R;
                             g = accentColor.G;

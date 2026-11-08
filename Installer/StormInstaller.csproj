@@ -8,10 +8,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <NoWarn>WFO1000</NoWarn>
     <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
-    <AssemblyName>STORM_RETROARCH_1.7.0_Setup</AssemblyName>
-    <Version>1.7.0</Version>
-    <AssemblyVersion>1.7.0.0</AssemblyVersion>
-    <FileVersion>1.7.0.0</FileVersion>
+    <AssemblyName>STORM_RETROARCH_1.8.0_Setup</AssemblyName>
+    <Version>1.8.0</Version>
+    <AssemblyVersion>1.8.0.0</AssemblyVersion>
+    <FileVersion>1.8.0.0</FileVersion>
     <AssemblyTitle>STORM RETROARCH</AssemblyTitle>
     <Product>STORM RETROARCH</Product>
     <Title>STORM RETROARCH</Title>
@@ -24,6 +24,14 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <TieredCompilation>true</TieredCompilation>
+    <TieredPGO>true</TieredPGO>
+    <TieredCompilationQuickJitForLoops>true</TieredCompilationQuickJitForLoops>
+    <OptimizationPreference>Speed</OptimizationPreference>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <EnableUnsafeUTF7Encoding>false</EnableUnsafeUTF7Encoding>
+    <EventSourceSupport>false</EventSourceSupport>
   </PropertyGroup>
 
   <ItemGroup>

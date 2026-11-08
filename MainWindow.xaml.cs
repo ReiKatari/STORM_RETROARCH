@@ -126,6 +126,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     // Window Bounds & Maximized Persistence Timer
     private DispatcherTimer? _windowPosDebounceTimer;
 
+    private DispatcherTimer? _livePadTesterTimer;
     private int _selectedRemapPlayerIndex = 1;
     private readonly ObservableCollection<RemapButtonBinding> _currentRemapBindings = new();
 
@@ -306,6 +307,63 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             LstCommandPaletteResults.ItemsSource = _filteredPaletteItems;
 
         InitQuickMenuStateSlots();
+
+        // 1.8.0 Ambilux Dynamic Glow Event Subscription
+        NativeLibretroHost.Current.OnAmbiluxColorUpdated += (r, g, b) =>
+        {
+            if (SettingsManager.Current == null || !SettingsManager.Current.AmbiluxGlowEnabled) return;
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+            {
+                if (BdrAmbiluxAmbientGlow != null)
+                {
+                    BdrAmbiluxAmbientGlow.Background = new SolidColorBrush(Color.FromArgb(95, r, g, b));
+                }
+            }));
+        };
+
+        // 1.8.0 Live Gamepad Telemetry & Axis Tester Timer (65ms, active ONLY on ViewInputRemap)
+        _livePadTesterTimer = new DispatcherTimer(DispatcherPriority.Render)
+        {
+            Interval = TimeSpan.FromMilliseconds(65)
+        };
+        _livePadTesterTimer.Tick += (s, e) =>
+        {
+            if (ViewInputRemap == null || ViewInputRemap.Visibility != Visibility.Visible)
+            {
+                _livePadTesterTimer?.Stop();
+                return;
+            }
+            int port = Math.Max(0, _selectedRemapPlayerIndex - 1);
+            var telemetry = NativeLibretroHost.PollGamepadTelemetry(port);
+            if (telemetry.Connected)
+            {
+                int lx = (int)(telemetry.LeftStickX * 100);
+                int ly = (int)(telemetry.LeftStickY * 100);
+                int lt = (int)(telemetry.LeftTrigger * 100);
+                int rt = (int)(telemetry.RightTrigger * 100);
+                if (TxtLivePadTelemetry != null)
+                {
+                    TxtLivePadTelemetry.Text = $"Подключён • Оси L:({lx}%, {ly}%) • LT:{lt}% RT:{rt}%";
+                    TxtLivePadTelemetry.Foreground = (Brush)FindResource("ThemeAccentGlow");
+                }
+                if (!string.IsNullOrEmpty(telemetry.ActiveRetroButton) && telemetry.ActiveRetroButton != "None")
+                {
+                    UpdateControllerPreview(telemetry.ActiveRetroButton);
+                }
+                else
+                {
+                    UpdateControllerPreview(null);
+                }
+            }
+            else
+            {
+                if (TxtLivePadTelemetry != null)
+                {
+                    TxtLivePadTelemetry.Text = "Ожидание XInput геймпада...";
+                    TxtLivePadTelemetry.Foreground = (Brush)FindResource("ThemeTextMuted");
+                }
+            }
+        };
     }
 
     private System.Windows.Threading.DispatcherTimer? _osdToastTimer;
@@ -546,6 +604,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (SliderCardScale != null) SliderCardScale.Value = DynamicCardWidth;
         if (TxtCardScaleReadout != null) TxtCardScaleReadout.Text = $"{Math.Round(DynamicCardWidth)} px";
         ApplyDashboardCardOrder();
+
+        // 1.8.0 Attach Interactive Tactile Hover Springs to Dashboard Bento Cards
+        if (DashCard0 != null) AnalyticalSpringEngine.AttachInteractiveHoverSpring(DashCard0);
+        if (DashCard1 != null) AnalyticalSpringEngine.AttachInteractiveHoverSpring(DashCard1);
+        if (DashCard2 != null) AnalyticalSpringEngine.AttachInteractiveHoverSpring(DashCard2);
+        if (DashCard3 != null) AnalyticalSpringEngine.AttachInteractiveHoverSpring(DashCard3);
+
+        SyncPerformanceControls();
+        SyncBezelControls();
+        SyncGamepadStudioControls();
         SyncQuickSettingsCheckboxes();
 
         _isLoaded = true;
@@ -613,7 +681,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     cmdArgs[i].Equals("--screenshot-170-saves", StringComparison.OrdinalIgnoreCase) ||
                     cmdArgs[i].Equals("--screenshot-170-discs", StringComparison.OrdinalIgnoreCase) ||
                     cmdArgs[i].Equals("--screenshot-170-ingame", StringComparison.OrdinalIgnoreCase) ||
-                    cmdArgs[i].Equals("--screenshot-170-suite", StringComparison.OrdinalIgnoreCase))
+                    cmdArgs[i].Equals("--screenshot-170-suite", StringComparison.OrdinalIgnoreCase) ||
+                    cmdArgs[i].Equals("--screenshot-180-suite", StringComparison.OrdinalIgnoreCase))
             {
                 bool isSettings = cmdArgs[i].Equals("--screenshot-settings", StringComparison.OrdinalIgnoreCase);
                 bool isBios = cmdArgs[i].Equals("--screenshot-bios", StringComparison.OrdinalIgnoreCase);
@@ -867,7 +936,70 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                             if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
                             EnsureBattletoadsRunningPreview();
                         }
-                                                else if (cmdArgs[i].Equals("--screenshot-170-suite", StringComparison.OrdinalIgnoreCase))
+                                                else if (cmdArgs[i].Equals("--screenshot-180-suite", StringComparison.OrdinalIgnoreCase))
+                        {
+                            string outDir = shotPath;
+                            Directory.CreateDirectory(outDir);
+
+                            void SnapView(string fileName)
+                            {
+                                AnalyticalSpringEngine.FlushAllImmediately();
+                                UpdateLayout();
+                                int sw = Math.Max(1360, (int)ActualWidth);
+                                int sh = Math.Max(820, (int)ActualHeight);
+                                var rtbS = new RenderTargetBitmap(sw, sh, 96, 96, PixelFormats.Pbgra32);
+                                rtbS.Render(this);
+                                var encS = new PngBitmapEncoder();
+                                encS.Frames.Add(BitmapFrame.Create(rtbS));
+                                using var fsS = File.Create(Path.Combine(outDir, fileName));
+                                encS.Save(fsS);
+                            }
+
+                            // 1. Dashboard 1.8.0 with JIT Dynarec / Run-Ahead / Precision Pacer
+                            NavBtn_Click(NavBtnMainMenu, new RoutedEventArgs());
+                            SyncPerformanceControls();
+                            await Task.Delay(250);
+                            SnapView("v180_dashboard.png");
+
+                            // 2. Shaders Studio with 6 Sliders & Live Split-Screen ДО / ПОСЛЕ Monitor
+                            NavBtn_Click(NavBtnShaders, new RoutedEventArgs());
+                            SyncShaderStudioControls();
+                            RefreshShaderLivePreview();
+                            LoadShaders();
+                            await Task.Delay(250);
+                            SnapView("v180_shaders.png");
+
+                            // 3. Bezels with 16 Studio HD presets + Auto-Platform & Ambilux
+                            NavBtn_Click(NavBtnBezels, new RoutedEventArgs());
+                            BezelManager.EnsureBuiltinBezels();
+                            SyncBezelControls();
+                            LoadBezels();
+                            await Task.Delay(250);
+                            SnapView("v180_bezels.png");
+
+                            // 4. Cores with JIT Dynarec badges and active ABI Benchmark report
+                            NavBtn_Click(NavBtnCores, new RoutedEventArgs());
+                            RefreshCoresUi();
+                            var sampleCore = CoreManager.AllCoresCatalog.FirstOrDefault(c => c.IsInstalled) ?? CoreManager.AllCoresCatalog.FirstOrDefault();
+                            if (sampleCore != null)
+                            {
+                                await RunCoreBenchmarkAsync(sampleCore);
+                            }
+                            await Task.Delay(300);
+                            SnapView("v180_cores.png");
+
+                            // 5. Input Remap with Deadzone/Trigger/Turbo/Rumble Studio & Controller Telemetry
+                            NavBtn_Click(NavBtnInputRemap, new RoutedEventArgs());
+                            SyncGamepadStudioControls();
+                            RefreshHotkeyBindings();
+                            LoadRemapBindings(1);
+                            UpdateControllerPreview("a");
+                            await Task.Delay(250);
+                            SnapView("v180_input.png");
+
+                            Application.Current.Shutdown(0);
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-170-suite", StringComparison.OrdinalIgnoreCase))
                         {
                             string outDir = shotPath;
                             Directory.CreateDirectory(outDir);
@@ -1648,6 +1780,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         if (BtnNavGamePlayer != null) BtnNavGamePlayer.Tag = null;
 
+        // 1.8.0 Power-Saving: Stop Live Gamepad Telemetry Timer immediately when switching views
+        _livePadTesterTimer?.Stop();
+
         // Hide all views
         if (ViewGamePlayer != null) ViewGamePlayer.Visibility = Visibility.Collapsed;
         ViewMainMenu.Visibility = Visibility.Collapsed;
@@ -1675,6 +1810,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _activeNavView = "MainMenu";
             ViewMainMenu.Visibility = Visibility.Visible;
+            SyncPerformanceControls();
+            if (DashboardCardsGrid != null) AnalyticalSpringEngine.AnimateStaggeredChildren(DashboardCardsGrid);
         }
         else if (btn == NavBtnSettings)
         {
@@ -1716,6 +1853,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ViewCores.Visibility = Visibility.Visible;
             if (_cores.Count == 0) PopulateCoresList("Все ядра (350+)");
             else RefreshCoresUi();
+            if (PanelCoresTiles != null) AnalyticalSpringEngine.AnimateStaggeredChildren(PanelCoresTiles);
         }
         else if (btn == NavBtnNetplay)
         {
@@ -1738,7 +1876,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _activeNavView = "Shaders";
             ViewShaders.Visibility = Visibility.Visible;
             SyncShaderStudioControls();
+            RefreshShaderLivePreview();
             LoadShaders();
+            if (ItemsShaders != null) AnalyticalSpringEngine.AnimateStaggeredChildren(ItemsShaders);
         }
         else if (btn == NavBtnSaves)
         {
@@ -1762,7 +1902,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _activeNavView = "Bezels";
             ViewBezels.Visibility = Visibility.Visible;
+            SyncBezelControls();
             LoadBezels();
+            if (ItemsBezels != null) AnalyticalSpringEngine.AnimateStaggeredChildren(ItemsBezels);
         }
         else if (btn == NavBtnCoreOptions)
         {
@@ -1774,8 +1916,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _activeNavView = "InputRemap";
             ViewInputRemap.Visibility = Visibility.Visible;
+            SyncGamepadStudioControls();
             RefreshHotkeyBindings();
             LoadRemapBindings(1);
+            _livePadTesterTimer?.Start();
         }
         else if (btn == NavBtnAchievements)
         {
@@ -3915,6 +4059,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             BorderGameScreenHost.Height = BezelManager.InnerScreenHeight; // 1032
             BorderGameScreenHost.Margin = new Thickness(BezelManager.InnerScreenLeft, BezelManager.InnerScreenTop, 0, 0); // 272, 24, 0, 0
 
+            if (BdrAmbiluxAmbientGlow != null)
+            {
+                BdrAmbiluxAmbientGlow.Width = BorderGameScreenHost.Width + 52;
+                BdrAmbiluxAmbientGlow.Height = BorderGameScreenHost.Height + 52;
+                BdrAmbiluxAmbientGlow.Margin = new Thickness(BorderGameScreenHost.Margin.Left - 26, BorderGameScreenHost.Margin.Top - 26, 0, 0);
+                BdrAmbiluxAmbientGlow.Visibility = SettingsManager.Current.AmbiluxGlowEnabled ? Visibility.Visible : Visibility.Collapsed;
+            }
+
             ImgGameBezelOverlay.Width = BezelManager.CanvasWidth;
             ImgGameBezelOverlay.Height = BezelManager.CanvasHeight;
             ImgGameBezelOverlay.Visibility = Visibility.Visible;
@@ -3923,6 +4075,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             ImgGameBezelOverlay.Visibility = Visibility.Collapsed;
             BorderGameScreenHost.Margin = new Thickness(0);
+            if (BdrAmbiluxAmbientGlow != null)
+            {
+                BdrAmbiluxAmbientGlow.Width = BorderGameScreenHost.Width + 52;
+                BdrAmbiluxAmbientGlow.Height = BorderGameScreenHost.Height + 52;
+                BdrAmbiluxAmbientGlow.Margin = new Thickness(-26);
+                BdrAmbiluxAmbientGlow.Visibility = SettingsManager.Current.AmbiluxGlowEnabled ? Visibility.Visible : Visibility.Collapsed;
+            }
 
             if (aspect == 1) // 16:9
             {
@@ -4064,6 +4223,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
 private void LoadBezels()
     {
+        BezelManager.EnsureBuiltinBezels();
         var bezels = BezelManager.ScanBezels();
         _allBezels.Clear();
         foreach (var b in bezels) _allBezels.Add(b);
@@ -5133,15 +5293,52 @@ private void LoadBezels()
                 VerticalAlignment = VerticalAlignment.Center
             };
             badgeVer.Child = new TextBlock { Text = c.VersionBadge, Foreground = (Brush)FindResource("ThemeAccentGlow"), FontSize = 9.5, FontWeight = FontWeights.SemiBold };
-            titleSp.Children.Add(badgeVer);
             dockHead.Children.Add(titleSp);
             sp.Children.Add(dockHead);
+
+            badgeVer.Margin = new Thickness(0, 0, 6, 0);
+            var badgeJit = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(32, 139, 92, 246)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(140, 139, 92, 246)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(6, 1, 6, 1),
+                Margin = new Thickness(0, 0, 6, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            badgeJit.Child = new TextBlock
+            {
+                Text = c.JitSupportBadge,
+                Foreground = new SolidColorBrush(Color.FromRgb(196, 181, 253)),
+                FontSize = 9.5,
+                FontWeight = FontWeights.SemiBold
+            };
+            var badgesWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 6) };
+            badgesWrap.Children.Add(badgeVer);
+            badgesWrap.Children.Add(badgeJit);
+            sp.Children.Add(badgesWrap);
 
             sp.Children.Add(new TextBlock { Text = $"Платформа: {c.Platform}", Foreground = (Brush)FindResource("ThemeAccentGlow"), FontWeight = FontWeights.SemiBold, FontSize = 12, Margin = new Thickness(0, 0, 0, 4) });
             sp.Children.Add(new TextBlock { Text = $"Файл: {c.DllName}", Foreground = (Brush)FindResource("ThemeTextMuted"), FontSize = 11, Margin = new Thickness(0, 0, 0, 6) });
             sp.Children.Add(new TextBlock { Text = c.Description, Foreground = (Brush)FindResource("ThemeTextSecondary"), TextWrapping = TextWrapping.Wrap, FontSize = 11.5, Margin = new Thickness(0, 0, 0, 10) });
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal };
+
+            var btnBenchmark = new Button
+            {
+                Content = "Тест ABI",
+                Style = (Style)FindResource("StormSecondaryButton"),
+                Padding = new Thickness(10, 4, 10, 4),
+                Margin = new Thickness(0, 0, 8, 0),
+                Tag = c,
+                ToolTip = "Проверить экспортируемые символы ABI, PE64 и время холодного старта"
+            };
+            btnBenchmark.Click += async (s, e) =>
+            {
+                await RunCoreBenchmarkAsync(c);
+            };
+            btnPanel.Children.Add(btnBenchmark);
             if (installed)
             {
                 var btnUpdate = new Button
@@ -5338,7 +5535,24 @@ private void LoadBezels()
             {
                 if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
                 UpdateInGameHudButtons();
-                ApplyActiveBezelToViewport();
+                if (SettingsManager.Current.AutoBezelByPlatform)
+                {
+                    var bestBezel = BezelManager.FindBestBezelForPlatform(item.Platform);
+                    if (bestBezel != null)
+                    {
+                        BezelManager.ApplyBezel(bestBezel);
+                        foreach (var b in _allBezels) b.IsActive = (b == bestBezel);
+                        ApplyActiveBezelToViewport();
+                    }
+                    else
+                    {
+                        ApplyActiveBezelToViewport();
+                    }
+                }
+                else
+                {
+                    ApplyActiveBezelToViewport();
+                }
                 GameViewportContainer?.Focus();
                 ShowOsdToast($"Игра «{item.Name}» запущена • F1: Меню • F2/F4: Стейты • F11: Полный экран");
             }
@@ -7870,6 +8084,7 @@ private void LoadBezels()
 
         NativeLibretroHost.Current.ApplyShaderStudioPreset(presetId);
         SyncShaderStudioControls();
+        RefreshShaderLivePreview();
         ShowOsdToast($"Шейдер: {btn.Content}", "#8B5CF6");
     }
 
@@ -7903,6 +8118,19 @@ private void LoadBezels()
         {
             CmbShaderColorTemp.SelectedIndex = Math.Clamp(NativeLibretroHost.Current.ColorTemperatureMode, 0, 2);
         }
+        if (SliderShaderCurvature != null)
+        {
+            int cur = (int)Math.Round(NativeLibretroHost.Current.CurvatureIntensity * 100);
+            SliderShaderCurvature.Value = cur;
+            if (TxtShaderCurvatureVal != null) TxtShaderCurvatureVal.Text = $"{cur}%";
+        }
+        if (SliderShaderChromatic != null)
+        {
+            int chr = (int)Math.Round(NativeLibretroHost.Current.ChromaticIntensity * 100);
+            SliderShaderChromatic.Value = chr;
+            if (TxtShaderChromaticVal != null) TxtShaderChromaticVal.Text = $"{chr}%";
+        }
+        RefreshShaderLivePreview();
     }
 
     private void SliderShaderScanlines_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -7911,6 +8139,7 @@ private void LoadBezels()
         int val = (int)Math.Round(SliderShaderScanlines.Value);
         if (TxtShaderScanlinesVal != null) TxtShaderScanlinesVal.Text = $"{val}%";
         NativeLibretroHost.Current.ScanlineIntensity = val / 100.0;
+        RefreshShaderLivePreview();
     }
 
     private void SliderShaderMask_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -7919,6 +8148,7 @@ private void LoadBezels()
         int val = (int)Math.Round(SliderShaderMask.Value);
         if (TxtShaderMaskVal != null) TxtShaderMaskVal.Text = $"{val}%";
         NativeLibretroHost.Current.MaskIntensity = val / 100.0;
+        RefreshShaderLivePreview();
     }
 
     private void SliderShaderVignette_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -7927,6 +8157,7 @@ private void LoadBezels()
         int val = (int)Math.Round(SliderShaderVignette.Value);
         if (TxtShaderVignetteVal != null) TxtShaderVignetteVal.Text = $"{val}%";
         NativeLibretroHost.Current.VignetteIntensity = val / 100.0;
+        RefreshShaderLivePreview();
     }
 
     private void SliderShaderBrightness_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -7935,12 +8166,14 @@ private void LoadBezels()
         int val = (int)Math.Round(SliderShaderBrightness.Value);
         if (TxtShaderBrightnessVal != null) TxtShaderBrightnessVal.Text = $"{val}%";
         NativeLibretroHost.Current.BrightnessGain = val / 100.0;
+        RefreshShaderLivePreview();
     }
 
     private void CmbShaderColorTemp_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_isLoaded || CmbShaderColorTemp == null) return;
         NativeLibretroHost.Current.ColorTemperatureMode = CmbShaderColorTemp.SelectedIndex;
+        RefreshShaderLivePreview();
     }
 
     public void RefreshHotkeyBindings()
@@ -8046,6 +8279,277 @@ private void LoadBezels()
             ShowNotification("STORM RETROARCH", $"Ошибка копирования: {ex.Message}");
         }
     }
+
+// ==================== 1.8.0 PERFORMANCE & JIT DYNAREC STUDIO ====================
+    private void BtnCpuDynarecFast_Click(object sender, RoutedEventArgs e)
+    {
+        CompilerAndPerformanceManager.ApplyCpuDynarecProfile("dynarec_fast");
+        SyncPerformanceControls();
+        ShowOsdToast("Профиль JIT Dynarec: максимальная скорость и отзывчивость");
+    }
+
+    private void BtnCpuEsportsZeroLag_Click(object sender, RoutedEventArgs e)
+    {
+        CompilerAndPerformanceManager.ApplyCpuDynarecProfile("esports_zero_lag");
+        SyncPerformanceControls();
+        ShowOsdToast("Профиль Нулевая задержка: упреждающий расчёт 2 кадров (-33,3 мс) и синхронизатор FPS");
+    }
+
+    private void BtnCpuCycleAccurate_Click(object sender, RoutedEventArgs e)
+    {
+        CompilerAndPerformanceManager.ApplyCpuDynarecProfile("cycle_accurate");
+        SyncPerformanceControls();
+        ShowOsdToast("Профиль Точный цикл: потактовая эмуляция ЦП без JIT и опережения");
+    }
+
+    private void ChkPrecisionPacer_Click(object sender, RoutedEventArgs e)
+    {
+        bool enabled = ChkPrecisionPacer.IsChecked == true;
+        SettingsManager.Current.PrecisionFramePacer = enabled;
+        NativeLibretroHost.Current.PrecisionFramePacerEnabled = enabled;
+        SettingsManager.Save();
+        ShowOsdToast($"Суб-миллисекундный синхронизатор 60,0 FPS: {(enabled ? "ВКЛ" : "ВЫКЛ")}");
+    }
+
+    private void CmbRunAheadFrames_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_isLoaded || CmbRunAheadFrames == null) return;
+        int frames = Math.Clamp(CmbRunAheadFrames.SelectedIndex, 0, 2);
+        SettingsManager.Current.RunAheadFrames = frames;
+        NativeLibretroHost.Current.RunAheadFrames = frames;
+        SettingsManager.Save();
+        ShowOsdToast($"Опережение ввода (Run-Ahead): {frames} кадр{(frames == 1 ? "" : "а")}");
+    }
+
+    private void SyncPerformanceControls()
+    {
+        if (ChkPrecisionPacer != null)
+        {
+            ChkPrecisionPacer.IsChecked = SettingsManager.Current.PrecisionFramePacer;
+        }
+        if (CmbRunAheadFrames != null)
+        {
+            CmbRunAheadFrames.SelectedIndex = Math.Clamp(SettingsManager.Current.RunAheadFrames, 0, 2);
+        }
+        if (BtnCpuDynarecFast != null && BtnCpuEsportsZeroLag != null && BtnCpuCycleAccurate != null)
+        {
+            int frames = SettingsManager.Current.RunAheadFrames;
+            if (frames == 2)
+            {
+                BtnCpuDynarecFast.Tag = null;
+                BtnCpuEsportsZeroLag.Tag = "Active";
+                BtnCpuCycleAccurate.Tag = null;
+            }
+            else if (frames == 0)
+            {
+                BtnCpuDynarecFast.Tag = "Active";
+                BtnCpuEsportsZeroLag.Tag = null;
+                BtnCpuCycleAccurate.Tag = null;
+            }
+        }
+    }
+
+    // ==================== 1.8.0 CORE ABI BENCHMARK & BATCH UPDATER ====================
+    private async void BtnUpdateAllInstalledCores_Click(object sender, RoutedEventArgs e)
+    {
+        ShowOsdToast("Пакетное обновление установленных ядер Libretro...");
+        var progress = new Progress<string>(msg => ShowOsdToast(msg));
+        var res = await CoreManager.UpdateAllInstalledCoresAsync(progress);
+        ShowOsdToast($"Обновление ядер завершено: обновлено {res.Updated}, ошибок {res.Failed}");
+        RefreshCoresUi();
+    }
+
+    private async Task RunCoreBenchmarkAsync(CoreInfo core)
+    {
+        ShowOsdToast($"Тестирование ABI и скорости загрузки «{core.Name}»...");
+        var report = await CoreManager.InspectAndBenchmarkCoreAsync(core);
+        if (BdrCoreBenchmarkResult != null)
+        {
+            BdrCoreBenchmarkResult.Visibility = Visibility.Visible;
+            if (TxtCoreBenchmarkTitle != null)
+                TxtCoreBenchmarkTitle.Text = $"Инспекция ABI: {report.CoreName} ({report.LibraryName} {report.LibraryVersion})";
+            if (TxtCoreBenchmarkDetails != null)
+                TxtCoreBenchmarkDetails.Text = report.SummaryRu;
+        }
+        ShowOsdToast($"Бенчмарк «{report.CoreName}»: {report.ColdLoadMs:F1} мс, ABI v{report.ApiVersion}");
+    }
+
+    public async void BtnBenchmarkCore_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: CoreInfo core })
+        {
+            await RunCoreBenchmarkAsync(core);
+        }
+    }
+
+    private void BtnCloseCoreBenchmark_Click(object sender, RoutedEventArgs e)
+    {
+        if (BdrCoreBenchmarkResult != null)
+            BdrCoreBenchmarkResult.Visibility = Visibility.Collapsed;
+    }
+
+    // ==================== 1.8.0 SHADER STUDIO: CURVATURE, CHROMATIC & LIVE PREVIEW ====================
+    private async void BtnPrecompileShaders_Click(object sender, RoutedEventArgs e)
+    {
+        ShowOsdToast("Компиляция и индексация кэша шейдеров...");
+        var report = await CompilerAndPerformanceManager.PrecompileShaderCacheAsync();
+        ShowOsdToast(report.SummaryRu);
+    }
+
+    private void SliderShaderCurvature_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (!_isLoaded || SliderShaderCurvature == null) return;
+        int cur = (int)Math.Round(SliderShaderCurvature.Value);
+        if (TxtShaderCurvatureVal != null) TxtShaderCurvatureVal.Text = $"{cur}%";
+        NativeLibretroHost.Current.CurvatureIntensity = cur / 100.0;
+        RefreshShaderLivePreview();
+    }
+
+    private void SliderShaderChromatic_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (!_isLoaded || SliderShaderChromatic == null) return;
+        int chr = (int)Math.Round(SliderShaderChromatic.Value);
+        if (TxtShaderChromaticVal != null) TxtShaderChromaticVal.Text = $"{chr}%";
+        NativeLibretroHost.Current.ChromaticIntensity = chr / 100.0;
+        RefreshShaderLivePreview();
+    }
+
+    private void SliderShaderSplitCompare_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (!_isLoaded) return;
+        RefreshShaderLivePreview();
+    }
+
+    private void RefreshShaderLivePreview()
+    {
+        if (ImgShaderLivePreview == null) return;
+        double splitVal = SliderShaderSplitCompare != null ? SliderShaderSplitCompare.Value : 50.0;
+        double ratio = splitVal / 100.0;
+        if (TxtShaderSplitVal != null) TxtShaderSplitVal.Text = $"{(int)splitVal}%";
+        ImgShaderLivePreview.Source = NativeLibretroHost.RenderShaderPreviewSplit(ratio, 560, 315);
+    }
+
+    // ==================== 1.8.0 BEZELS & AMBILUX CONTROLS ====================
+    private void ChkAutoPlatformBezel_Click(object sender, RoutedEventArgs e)
+    {
+        bool enabled = ChkAutoPlatformBezel.IsChecked == true;
+        SettingsManager.Current.AutoBezelByPlatform = enabled;
+        SettingsManager.Save();
+        ShowOsdToast($"Автоподбор рамки по платформе: {(enabled ? "ВКЛ" : "ВЫКЛ")}");
+    }
+
+    private void ChkAmbiluxGlow_Click(object sender, RoutedEventArgs e)
+    {
+        bool enabled = ChkAmbiluxGlow.IsChecked == true;
+        SettingsManager.Current.AmbiluxGlowEnabled = enabled;
+        SettingsManager.Save();
+        if (BdrAmbiluxAmbientGlow != null)
+        {
+            BdrAmbiluxAmbientGlow.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+        }
+        ShowOsdToast($"Фоновое свечение Ambilux: {(enabled ? "ВКЛ" : "ВЫКЛ")}");
+    }
+
+    private void SyncBezelControls()
+    {
+        if (ChkAutoPlatformBezel != null)
+            ChkAutoPlatformBezel.IsChecked = SettingsManager.Current.AutoBezelByPlatform;
+        if (ChkAmbiluxGlow != null)
+            ChkAmbiluxGlow.IsChecked = SettingsManager.Current.AmbiluxGlowEnabled;
+    }
+
+    // ==================== 1.8.0 GAMEPAD DEADZONE, TRIGGER & TURBO STUDIO ====================
+    private void SliderAnalogDeadzone_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (!_isLoaded || SliderAnalogDeadzone == null) return;
+        int dz = (int)Math.Round(SliderAnalogDeadzone.Value);
+        if (TxtAnalogDeadzoneVal != null) TxtAnalogDeadzoneVal.Text = $"{dz}%";
+        SettingsManager.Current.AnalogDeadzonePercent = dz;
+        SettingsManager.Save();
+    }
+
+    private void SliderTriggerThreshold_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (!_isLoaded || SliderTriggerThreshold == null) return;
+        int th = (int)Math.Round(SliderTriggerThreshold.Value);
+        if (TxtTriggerThresholdVal != null) TxtTriggerThresholdVal.Text = $"{th}%";
+        SettingsManager.Current.TriggerThresholdPercent = th;
+        SettingsManager.Save();
+    }
+
+    private void ChkRumbleEnabled_Click(object sender, RoutedEventArgs e)
+    {
+        bool enabled = ChkRumbleEnabled.IsChecked == true;
+        SettingsManager.Current.RumbleEnabled = enabled;
+        SettingsManager.Save();
+        ShowOsdToast($"Виброотдача XInput: {(enabled ? "ВКЛ" : "ВЫКЛ")}");
+    }
+
+    private void BtnTestRumble_Click(object sender, RoutedEventArgs e)
+    {
+        int port = Math.Max(0, _selectedRemapPlayerIndex - 1);
+        NativeLibretroHost.TriggerTestRumble(port, 380);
+        ShowOsdToast($"Тест виброотдачи геймпада (Порт {_selectedRemapPlayerIndex})...");
+    }
+
+    private void ChkTurboButtons_Click(object sender, RoutedEventArgs e)
+    {
+        bool enabled = ChkTurboButtons.IsChecked == true;
+        SettingsManager.Current.TurboButtonsEnabled = enabled;
+        SettingsManager.Save();
+        ShowOsdToast($"Турбо-огонь (A/B/X/Y): {(enabled ? "ВКЛ" : "ВЫКЛ")}");
+    }
+
+    private void CmbTurboFireHz_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_isLoaded || CmbTurboFireHz == null) return;
+        int hz = CmbTurboFireHz.SelectedIndex switch
+        {
+            0 => 5,
+            1 => 10,
+            3 => 30,
+            _ => 15
+        };
+        SettingsManager.Current.TurboFireHz = hz;
+        SettingsManager.Save();
+        ShowOsdToast($"Частота турбо-огня: {hz} Гц");
+    }
+
+    private void SyncGamepadStudioControls()
+    {
+        if (SliderAnalogDeadzone != null)
+        {
+            int dz = Math.Clamp(SettingsManager.Current.AnalogDeadzonePercent, 5, 40);
+            SliderAnalogDeadzone.Value = dz;
+            if (TxtAnalogDeadzoneVal != null) TxtAnalogDeadzoneVal.Text = $"{dz}%";
+        }
+        if (SliderTriggerThreshold != null)
+        {
+            int th = Math.Clamp(SettingsManager.Current.TriggerThresholdPercent, 5, 50);
+            SliderTriggerThreshold.Value = th;
+            if (TxtTriggerThresholdVal != null) TxtTriggerThresholdVal.Text = $"{th}%";
+        }
+        if (ChkRumbleEnabled != null)
+        {
+            ChkRumbleEnabled.IsChecked = SettingsManager.Current.RumbleEnabled;
+        }
+        if (ChkTurboButtons != null)
+        {
+            ChkTurboButtons.IsChecked = SettingsManager.Current.TurboButtonsEnabled;
+        }
+        if (CmbTurboFireHz != null)
+        {
+            int hz = SettingsManager.Current.TurboFireHz;
+            int idx = hz switch
+            {
+                5 => 0,
+                10 => 1,
+                30 => 3,
+                _ => 2
+            };
+            CmbTurboFireHz.SelectedIndex = idx;
+        }
+    }
 }
 
 public class CommandPaletteItem
@@ -8061,4 +8565,5 @@ public class CommandPaletteItem
     public Brush BadgeBorderBrush { get; set; } = Brushes.Transparent;
     public RomItem? Game { get; set; }
     public Action? ExecuteAction { get; set; }
-}
+
+    }

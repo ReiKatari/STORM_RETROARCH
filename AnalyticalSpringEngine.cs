@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace StormRetroArch;
 
@@ -320,6 +323,225 @@ public static class AnalyticalSpringEngine
         }
         ActiveAnimations.Clear();
         CheckHookState();
+    }
+
+
+    private class HoverSpringItem
+    {
+        public FrameworkElement Element { get; }
+        public ScaleTransform ScaleT { get; }
+        public TranslateTransform TransT { get; }
+        public AnalyticalSpring1D ScaleSpring;
+        public AnalyticalSpring1D LiftSpring;
+
+        public HoverSpringItem(FrameworkElement element, ScaleTransform st, TranslateTransform tt)
+        {
+            Element = element;
+            ScaleT = st;
+            TransT = tt;
+            ScaleSpring = new AnalyticalSpring1D((float)st.ScaleX, 1.0f, 420f, 32f);
+            LiftSpring = new AnalyticalSpring1D((float)tt.Y, 0.0f, 420f, 32f);
+        }
+    }
+
+    private static readonly Dictionary<FrameworkElement, HoverSpringItem> ActiveHoverSprings = new();
+    private static bool _isHoverHooked = false;
+    private static long _lastHoverTickTimestamp = 0;
+
+    /// <summary>
+    /// Animates a single UI element sliding up and fading in with an optional start delay.
+    /// Uses RenderTransform without triggering layout invalidation passes.
+    /// </summary>
+    public static void AnimateElementSlideUp(UIElement el, double offsetY = 14.0, double delaySeconds = 0.0)
+    {
+        if (el is not FrameworkElement fe) return;
+
+        if (!SettingsManager.Current.EnableUiAnimations || delaySeconds <= 0.001)
+        {
+            AnimatePanelReveal(fe, offsetY);
+            return;
+        }
+
+        fe.Opacity = 0.0;
+        if (fe.RenderTransform is not TranslateTransform)
+        {
+            fe.RenderTransform = new TranslateTransform(0, offsetY);
+        }
+
+        var timer = new DispatcherTimer(DispatcherPriority.Render)
+        {
+            Interval = TimeSpan.FromSeconds(delaySeconds)
+        };
+        timer.Tick += (s, e) =>
+        {
+            timer.Stop();
+            AnimatePanelReveal(fe, offsetY);
+        };
+        timer.Start();
+    }
+
+    /// <summary>
+    /// Staggered cascade entrance animation for child elements of a Panel or ItemsControl.
+    /// </summary>
+    public static void AnimateStaggeredChildren(object container, int maxItems = 12, double stepDelaySeconds = 0.035, double offsetY = 14.0)
+    {
+        if (container == null) return;
+
+        IEnumerable<UIElement>? children = null;
+        if (container is Panel panel)
+        {
+            children = panel.Children.OfType<UIElement>();
+        }
+        else if (container is ItemsControl ic)
+        {
+            var list = new List<UIElement>();
+            for (int i = 0; i < ic.Items.Count && i < maxItems; i++)
+            {
+                if (ic.ItemContainerGenerator.ContainerFromIndex(i) is UIElement containerEl)
+                {
+                    list.Add(containerEl);
+                }
+            }
+            children = list;
+        }
+        else if (container is IEnumerable<UIElement> enumElements)
+        {
+            children = enumElements;
+        }
+
+        if (children == null) return;
+
+        int index = 0;
+        foreach (var child in children)
+        {
+            if (index >= maxItems) break;
+            AnimateElementSlideUp(child, offsetY, index * stepDelaySeconds);
+            index++;
+        }
+    }
+
+    /// <summary>
+    /// Attaches spring-physics tactile hover responses (Scale + Y-Lift) to a FrameworkElement.
+    /// Detaches immediately from CompositionTarget.Rendering once physics settle (0.0% idle CPU/GPU drain).
+    /// </summary>
+    public static void AttachInteractiveHoverSpring(FrameworkElement element, double hoverScale = 1.018, double hoverLiftY = -2.0)
+    {
+        if (element == null) return;
+
+        element.RenderTransformOrigin = new Point(0.5, 0.5);
+
+        ScaleTransform st;
+        TranslateTransform tt;
+        if (element.RenderTransform is TransformGroup tg &&
+            tg.Children.OfType<ScaleTransform>().FirstOrDefault() is ScaleTransform existingSt &&
+            tg.Children.OfType<TranslateTransform>().FirstOrDefault() is TranslateTransform existingTt)
+        {
+            st = existingSt;
+            tt = existingTt;
+        }
+        else
+        {
+            st = new ScaleTransform(1.0, 1.0);
+            tt = new TranslateTransform(0.0, 0.0);
+            var group = new TransformGroup();
+            group.Children.Add(st);
+            group.Children.Add(tt);
+            element.RenderTransform = group;
+        }
+
+        element.MouseEnter += (s, e) =>
+        {
+            if (!SettingsManager.Current.EnableUiAnimations) return;
+
+            if (!ActiveHoverSprings.TryGetValue(element, out var item))
+            {
+                item = new HoverSpringItem(element, st, tt);
+                ActiveHoverSprings[element] = item;
+            }
+
+            item.ScaleSpring.Target = (float)hoverScale;
+            item.LiftSpring.Target = (float)hoverLiftY;
+            CheckHoverHookState();
+        };
+
+        element.MouseLeave += (s, e) =>
+        {
+            if (!SettingsManager.Current.EnableUiAnimations)
+            {
+                st.ScaleX = 1.0;
+                st.ScaleY = 1.0;
+                tt.Y = 0.0;
+                return;
+            }
+
+            if (!ActiveHoverSprings.TryGetValue(element, out var item))
+            {
+                item = new HoverSpringItem(element, st, tt);
+                ActiveHoverSprings[element] = item;
+            }
+
+            item.ScaleSpring.Target = 1.0f;
+            item.LiftSpring.Target = 0.0f;
+            CheckHoverHookState();
+        };
+    }
+
+    private static void CheckHoverHookState()
+    {
+        if (ActiveHoverSprings.Count > 0 && !_isHoverHooked)
+        {
+            _lastHoverTickTimestamp = Stopwatch.GetTimestamp();
+            CompositionTarget.Rendering += OnHoverRendering;
+            _isHoverHooked = true;
+        }
+        else if (ActiveHoverSprings.Count == 0 && _isHoverHooked)
+        {
+            CompositionTarget.Rendering -= OnHoverRendering;
+            _isHoverHooked = false;
+        }
+    }
+
+    private static void OnHoverRendering(object? sender, EventArgs e)
+    {
+        if (ActiveHoverSprings.Count == 0)
+        {
+            CheckHoverHookState();
+            return;
+        }
+
+        long currentTick = Stopwatch.GetTimestamp();
+        double dt = (double)(currentTick - _lastHoverTickTimestamp) / Stopwatch.Frequency;
+        _lastHoverTickTimestamp = currentTick;
+
+        float dtSeconds = (float)Math.Clamp(dt, 0.001, 0.05);
+        List<FrameworkElement>? toRemove = null;
+
+        foreach (var kvp in ActiveHoverSprings)
+        {
+            var item = kvp.Value;
+            bool sActive = item.ScaleSpring.Step(dtSeconds);
+            bool lActive = item.LiftSpring.Step(dtSeconds);
+
+            item.ScaleT.ScaleX = item.ScaleSpring.Position;
+            item.ScaleT.ScaleY = item.ScaleSpring.Position;
+            item.TransT.Y = item.LiftSpring.Position;
+
+            if (!sActive && !lActive)
+            {
+                toRemove ??= new List<FrameworkElement>();
+                toRemove.Add(item.Element);
+            }
+        }
+
+        if (toRemove != null)
+        {
+            foreach (var elem in toRemove)
+            {
+                ActiveHoverSprings.Remove(elem);
+            }
+        }
+
+        CheckHoverHookState();
     }
 
 }

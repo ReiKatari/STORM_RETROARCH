@@ -15,10 +15,38 @@ using System.Windows.Media.Imaging;
 
 namespace StormRetroArch;
 
+public record GamepadLiveTelemetry(
+    bool Connected,
+    double LeftStickX,
+    double LeftStickY,
+    double RightStickX,
+    double RightStickY,
+    double LeftTrigger,
+    double RightTrigger,
+    string ActiveRetroButton
+);
+
 public class NativeLibretroHost
 {
     private static readonly Lazy<NativeLibretroHost> _instance = new(() => new NativeLibretroHost());
     public static NativeLibretroHost Current => _instance.Value;
+
+    [DllImport("winmm.dll", EntryPoint = "timeBeginPeriod", SetLastError = true)]
+    private static extern uint TimeBeginPeriod(uint uPeriod);
+
+    [DllImport("winmm.dll", EntryPoint = "timeEndPeriod", SetLastError = true)]
+    private static extern uint TimeEndPeriod(uint uPeriod);
+
+    public int RunAheadFrames { get; set; } = 0;
+    public bool PrecisionFramePacerEnabled { get; set; } = true;
+
+    private volatile bool _suppressAvOutput = false;
+    private byte[]? _runAheadStateBuf = null;
+        private int _ambiluxFrameCounter = 0;
+    private byte _ambiluxR = 0, _ambiluxG = 0, _ambiluxB = 0;
+
+    public event Action<byte, byte, byte>? OnAmbiluxColorUpdated;
+
 
     private static readonly uint[] Rgb565Lut = new uint[65536];
     private static readonly uint[] Rgb565ScanlineLut = new uint[65536];
@@ -301,6 +329,108 @@ public class NativeLibretroHost
     private delegate uint XInputGetStateDelegate(uint dwUserIndex, out XInputState pState);
 
     private static XInputGetStateDelegate? _xinputGetState;
+    [StructLayout(LayoutKind.Sequential)]
+    public struct XInputVibration
+    {
+        public ushort wLeftMotorSpeed;
+        public ushort wRightMotorSpeed;
+    }
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate uint XInputSetStateDelegate(uint dwUserIndex, ref XInputVibration pVibration);
+
+    private static XInputSetStateDelegate? _xinputSetState;
+    private static readonly XInputVibration[] _currentVibrations = new XInputVibration[4];
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    private delegate bool RetroSetRumbleStateDelegate(uint port, int effect, ushort strength);
+
+    private static readonly RetroSetRumbleStateDelegate _rumbleDelegate = OnSetRumbleState;
+    private static readonly IntPtr _rumbleDelegatePtr = Marshal.GetFunctionPointerForDelegate(_rumbleDelegate);
+
+    private static bool OnSetRumbleState(uint port, int effect, ushort strength)
+    {
+        if (SettingsManager.Current != null && !SettingsManager.Current.RumbleEnabled) return true;
+        if (port >= 4) return false;
+        EnsureXInputInitialized();
+        if (_xinputSetState == null) return false;
+
+        if (effect == 0) _currentVibrations[port].wLeftMotorSpeed = strength;
+        else if (effect == 1) _currentVibrations[port].wRightMotorSpeed = strength;
+
+        _xinputSetState(port, ref _currentVibrations[port]);
+        return true;
+    }
+
+    public static bool TriggerTestRumble(int port = 0, int durationMs = 350)
+    {
+        try
+        {
+            EnsureXInputInitialized();
+            if (_xinputSetState == null || port < 0 || port >= 4) return false;
+            var vib = new XInputVibration { wLeftMotorSpeed = 38000, wRightMotorSpeed = 48000 };
+            uint res = _xinputSetState((uint)port, ref vib);
+            if (res != 0) return false;
+
+            Task.Run(async () =>
+            {
+                await Task.Delay(Math.Clamp(durationMs, 50, 2000));
+                var zeroVib = new XInputVibration { wLeftMotorSpeed = 0, wRightMotorSpeed = 0 };
+                _xinputSetState((uint)port, ref zeroVib);
+            });
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public static GamepadLiveTelemetry PollGamepadTelemetry(int port = 0)
+    {
+        EnsureXInputInitialized();
+        if (_xinputGetState == null || port < 0 || port >= 4)
+        {
+            return new GamepadLiveTelemetry(false, 0, 0, 0, 0, 0, 0, "Отключён");
+        }
+
+        uint res = _xinputGetState((uint)port, out var state);
+        if (res != 0)
+        {
+            return new GamepadLiveTelemetry(false, 0, 0, 0, 0, 0, 0, "Отключён");
+        }
+
+        var gp = state.Gamepad;
+        double lx = Math.Clamp(gp.sThumbLX / 32768.0, -1.0, 1.0);
+        double ly = Math.Clamp(gp.sThumbLY / 32768.0, -1.0, 1.0);
+        double rx = Math.Clamp(gp.sThumbRX / 32768.0, -1.0, 1.0);
+        double ry = Math.Clamp(gp.sThumbRY / 32768.0, -1.0, 1.0);
+        double lt = Math.Clamp(gp.bLeftTrigger / 255.0, 0.0, 1.0);
+        double rt = Math.Clamp(gp.bRightTrigger / 255.0, 0.0, 1.0);
+
+        var pressedButtons = new List<string>();
+        if ((gp.wButtons & 0x1000) != 0) pressedButtons.Add("A");
+        if ((gp.wButtons & 0x2000) != 0) pressedButtons.Add("B");
+        if ((gp.wButtons & 0x4000) != 0) pressedButtons.Add("X");
+        if ((gp.wButtons & 0x8000) != 0) pressedButtons.Add("Y");
+        if ((gp.wButtons & 0x0100) != 0) pressedButtons.Add("LB");
+        if ((gp.wButtons & 0x0200) != 0) pressedButtons.Add("RB");
+        if ((gp.wButtons & 0x0010) != 0) pressedButtons.Add("Start");
+        if ((gp.wButtons & 0x0020) != 0) pressedButtons.Add("Back");
+        if ((gp.wButtons & 0x0040) != 0) pressedButtons.Add("L3");
+        if ((gp.wButtons & 0x0080) != 0) pressedButtons.Add("R3");
+        if ((gp.wButtons & 0x0001) != 0) pressedButtons.Add("D-Вверх");
+        if ((gp.wButtons & 0x0002) != 0) pressedButtons.Add("D-Вниз");
+        if ((gp.wButtons & 0x0004) != 0) pressedButtons.Add("D-Влево");
+        if ((gp.wButtons & 0x0008) != 0) pressedButtons.Add("D-Вправо");
+        if (lt > 0.15) pressedButtons.Add($"LT ({lt:P0})");
+        if (rt > 0.15) pressedButtons.Add($"RT ({rt:P0})");
+
+        string activeBtn = pressedButtons.Count > 0 ? string.Join(", ", pressedButtons) : "Нейтраль";
+        return new GamepadLiveTelemetry(true, lx, ly, rx, ry, lt, rt, activeBtn);
+    }
+
     private static bool _xinputInitialized = false;
 
     private static void EnsureXInputInitialized()
@@ -313,9 +443,16 @@ public class NativeLibretroHost
         {
             if (NativeLibrary.TryLoad(dll, out var hDll))
             {
-                if (NativeLibrary.TryGetExport(hDll, "XInputGetState", out var pProc))
+                if (NativeLibrary.TryGetExport(hDll, "XInputGetState", out var pGetProc))
                 {
-                    _xinputGetState = Marshal.GetDelegateForFunctionPointer<XInputGetStateDelegate>(pProc);
+                    _xinputGetState = Marshal.GetDelegateForFunctionPointer<XInputGetStateDelegate>(pGetProc);
+                }
+                if (NativeLibrary.TryGetExport(hDll, "XInputSetState", out var pSetProc))
+                {
+                    _xinputSetState = Marshal.GetDelegateForFunctionPointer<XInputSetStateDelegate>(pSetProc);
+                }
+                if (_xinputGetState != null)
+                {
                     break;
                 }
             }
@@ -495,7 +632,7 @@ public class NativeLibretroHost
     public int RewindBufferCapacity => _rewindRing.Length;
     public double RewindFillPercent => _rewindRing.Length > 0 ? (_rewindCount * 100.0 / _rewindRing.Length) : 0.0;
 
-    // Interactive Shader Studio Parameters (1.7.0)
+    // Interactive Shader Studio Parameters (1.8.0)
     private double _scanlineIntensity = 0.32;
     public double ScanlineIntensity
     {
@@ -556,6 +693,31 @@ public class NativeLibretroHost
         }
     }
 
+    private double _curvatureIntensity = 0.0;
+    public double CurvatureIntensity
+    {
+        get => _curvatureIntensity;
+        set
+        {
+            _curvatureIntensity = Math.Clamp(value, 0.0, 0.50);
+            if (SettingsManager.Current != null)
+                SettingsManager.Current.ShaderCurvature = _curvatureIntensity;
+        }
+    }
+
+    private double _chromaticIntensity = 0.0;
+    public double ChromaticIntensity
+    {
+        get => _chromaticIntensity;
+        set
+        {
+            _chromaticIntensity = Math.Clamp(value, 0.0, 1.00);
+            if (SettingsManager.Current != null)
+                SettingsManager.Current.ShaderChromatic = _chromaticIntensity;
+        }
+    }
+
+
     public void ApplyShaderStudioPreset(string presetId)
     {
         switch (presetId.ToLowerInvariant())
@@ -566,6 +728,8 @@ public class NativeLibretroHost
                 VignetteIntensity = 0.18;
                 BrightnessGain = 1.08;
                 ColorTemperatureMode = 2;
+                CurvatureIntensity = 0.10;
+                ChromaticIntensity = 0.15;
                 _shaderFilterMode = 3;
                 break;
             case "arcade_rgb":
@@ -574,6 +738,8 @@ public class NativeLibretroHost
                 VignetteIntensity = 0.15;
                 BrightnessGain = 1.12;
                 ColorTemperatureMode = 0;
+                CurvatureIntensity = 0.16;
+                ChromaticIntensity = 0.22;
                 _shaderFilterMode = 1;
                 break;
             case "ibm_vga":
@@ -582,6 +748,8 @@ public class NativeLibretroHost
                 VignetteIntensity = 0.10;
                 BrightnessGain = 1.02;
                 ColorTemperatureMode = 0;
+                CurvatureIntensity = 0.05;
+                ChromaticIntensity = 0.05;
                 _shaderFilterMode = 4;
                 break;
             case "gb_lcd":
@@ -590,6 +758,8 @@ public class NativeLibretroHost
                 VignetteIntensity = 0.12;
                 BrightnessGain = 0.98;
                 ColorTemperatureMode = 1;
+                CurvatureIntensity = 0.0;
+                ChromaticIntensity = 0.0;
                 _shaderFilterMode = 1;
                 break;
             case "vhs":
@@ -598,6 +768,8 @@ public class NativeLibretroHost
                 VignetteIntensity = 0.28;
                 BrightnessGain = 1.05;
                 ColorTemperatureMode = 1;
+                CurvatureIntensity = 0.12;
+                ChromaticIntensity = 0.35;
                 _shaderFilterMode = 1;
                 break;
             case "clean_raw":
@@ -607,6 +779,8 @@ public class NativeLibretroHost
                 VignetteIntensity = 0.0;
                 BrightnessGain = 1.0;
                 ColorTemperatureMode = 0;
+                CurvatureIntensity = 0.0;
+                ChromaticIntensity = 0.0;
                 _shaderFilterMode = 0;
                 break;
         }
@@ -616,6 +790,8 @@ public class NativeLibretroHost
         SettingsManager.Current.ShaderVignetteIntensity = VignetteIntensity;
         SettingsManager.Current.ShaderBrightnessGain = BrightnessGain;
         SettingsManager.Current.ShaderColorTemperatureMode = ColorTemperatureMode;
+        SettingsManager.Current.ShaderCurvature = CurvatureIntensity;
+        SettingsManager.Current.ShaderChromatic = ChromaticIntensity;
         SettingsManager.Save();
     }
 
@@ -1022,6 +1198,14 @@ public class NativeLibretroHost
     {
         switch (cmd)
         {
+            case 23: // RETRO_ENVIRONMENT_GET_RUMBLE_INTERFACE
+                if (data != IntPtr.Zero)
+                {
+                    Marshal.WriteIntPtr(data, _rumbleDelegatePtr);
+                    return true;
+                }
+                return false;
+
             case 3: // RETRO_ENVIRONMENT_GET_CAN_DUPE
                 if (data != IntPtr.Zero) Marshal.WriteByte(data, 1);
                 return true;
@@ -1125,6 +1309,7 @@ public class NativeLibretroHost
 
     private void OnVideoRefresh(IntPtr data, uint width, uint height, nuint pitch)
     {
+        if (_suppressAvOutput) return;
         if (data == IntPtr.Zero || width == 0 || height == 0) return;
 
         int w = (int)width;
@@ -1136,7 +1321,7 @@ public class NativeLibretroHost
             _bgraBuffer = new byte[requiredBytes];
         }
 
-        // Convert raw pixels to BGRA32 with 6 CRT shader modes and Interactive Shader Studio Parameters
+        // Convert raw pixels to BGRA32 with 6 CRT shader modes, Curvature, Chromatic aberration, and Interactive Shader Studio Parameters
         unsafe
         {
             byte* srcBytes = (byte*)data.ToPointer();
@@ -1149,132 +1334,199 @@ public class NativeLibretroHost
             int tempMode = _colorTemperatureMode;
             bool hasVignette = _vignetteIntensity > 0.05;
             int vigStr = (int)(_vignetteIntensity * 100);
+            double curve = Math.Clamp(_curvatureIntensity, 0.0, 0.5);
+            double chrom = Math.Clamp(_chromaticIntensity, 0.0, 1.0);
+            int chromOffset = (int)Math.Round(chrom * 2.0);
             int cx = w / 2;
             int cy = h / 2;
 
             fixed (byte* dstFixed = _bgraBuffer)
             {
-                for (int y = 0; y < h; y++)
+                IntPtr dstPtr = (IntPtr)dstFixed;
+                IntPtr srcPtr = (IntPtr)srcBytes;
+                bool useParallel = h >= 160 && (_shaderFilterMode != 0 || _scanlineIntensity > 0.05 || _maskIntensity > 0.05 || curve > 0.01 || chrom > 0.01);
+
+                Action<int> processRow = y =>
                 {
-                    byte* srcRow = srcBytes + (y * srcPitch);
-                    byte* dstRow = dstFixed + (y * w * 4);
-                    bool isOddScanline = applyScanlines && (y % 2 != 0);
-
-                    uint* dstUint = (uint*)dstRow;
-                    int dy = y - cy;
-                    int dyTerm = hasVignette ? ((dy * dy * 100) / (cy * cy + 1)) : 0;
-
-                    for (int x = 0; x < w; x++)
+                    unsafe
                     {
-                        uint val;
-                        if (_pixelFormat == 1) // XRGB8888
-                        {
-                            val = ((uint*)srcRow)[x];
-                        }
-                        else if (_pixelFormat == 2) // RGB565
-                        {
-                            val = Rgb565Lut[((ushort*)srcRow)[x]];
-                        }
-                        else // 0RGB1555
-                        {
-                            val = Rgb1555Lut[((ushort*)srcRow)[x]];
-                        }
+                        byte* dstRow = (byte*)dstPtr + (y * w * 4);
+                        byte* srcRow = (byte*)srcPtr + (y * srcPitch);
+                        bool isOddScanline = applyScanlines && (y % 2 != 0);
+                        uint* dstUint = (uint*)dstRow;
+                        int dy = y - cy;
+                        int dyTerm = hasVignette ? ((dy * dy * 100) / (cy * cy + 1)) : 0;
+                        double ny = cy > 0 ? (double)dy / cy : 0.0;
 
-                        uint b = val & 0xFF;
-                        uint g = (val >> 8) & 0xFF;
-                        uint r = (val >> 16) & 0xFF;
-
-                        if (_shaderFilterMode == 4) // IBM 5151 Green Phosphor (P1)
+                        for (int x = 0; x < w; x++)
                         {
-                            uint yLum = (r * 77u + g * 150u + b * 29u) >> 8;
-                            if (isOddScanline) yLum = (yLum * (uint)scanFactor) / 100u;
-                            r = (yLum * 35) >> 8;
-                            g = Math.Min(255u, (yLum * 270) >> 8);
-                            b = (yLum * 45) >> 8;
-                        }
-                        else if (_shaderFilterMode == 5) // Amber Retro Monitor P3
-                        {
-                            uint yLum = (r * 77u + g * 150u + b * 29u) >> 8;
-                            if (isOddScanline) yLum = (yLum * (uint)scanFactor) / 100u;
-                            r = Math.Min(255u, (yLum * 255) >> 8);
-                            g = Math.Min(255u, (yLum * 175) >> 8);
-                            b = (yLum * 20) >> 8;
-                        }
-                        else
-                        {
-                            // Scanlines
-                            if (isOddScanline)
-                            {
-                                r = (r * (uint)scanFactor) / 100u;
-                                g = (g * (uint)scanFactor) / 100u;
-                                b = (b * (uint)scanFactor) / 100u;
-                            }
+                            int sampleX = x;
+                            int sampleY = y;
 
-                            // Aperture Grille / Subpixel Mask
-                            if (maskPercent > 5)
-                            {
-                                int sub = x % 3;
-                                uint boost = (uint)(100 + maskPercent);
-                                uint dim = (uint)(100 - maskPercent / 2);
-                                if (sub == 0)
-                                {
-                                    r = Math.Min(255u, (r * boost) / 100u);
-                                    g = (g * dim) / 100u;
-                                    b = (b * dim) / 100u;
-                                }
-                                else if (sub == 1)
-                                {
-                                    r = (r * dim) / 100u;
-                                    g = Math.Min(255u, (g * boost) / 100u);
-                                    b = (b * dim) / 100u;
-                                }
-                                else
-                                {
-                                    r = (r * dim) / 100u;
-                                    g = (g * dim) / 100u;
-                                    b = Math.Min(255u, (b * boost) / 100u);
-                                }
-                            }
-
-                            // Color Temperature Mode
-                            if (tempMode == 1) // Warm NTSC 5500K
-                            {
-                                r = Math.Min(255u, (r * 106u) / 100u);
-                                b = (b * 93u) / 100u;
-                            }
-                            else if (tempMode == 2) // Cool Trinitron 7500K
-                            {
-                                r = (r * 94u) / 100u;
-                                b = Math.Min(255u, (b * 107u) / 100u);
-                            }
-
-                            // Brightness Gain
-                            if (gainVal != 100)
-                            {
-                                r = Math.Min(255u, (r * (uint)gainVal) / 100u);
-                                g = Math.Min(255u, (g * (uint)gainVal) / 100u);
-                                b = Math.Min(255u, (b * (uint)gainVal) / 100u);
-                            }
-
-                            // Vignette
-                            if (hasVignette)
+                            // Curvature barrel distortion
+                            if (curve > 0.005)
                             {
                                 int dx = x - cx;
-                                int dxTerm = (dx * dx * 100) / (cx * cx + 1);
-                                int dist = dxTerm + dyTerm;
-                                int vMult = Math.Clamp(100 - (dist * vigStr / 200), 45, 100);
-                                r = (r * (uint)vMult) / 100u;
-                                g = (g * (uint)vMult) / 100u;
-                                b = (b * (uint)vMult) / 100u;
-                            }
-                        }
+                                double nx = cx > 0 ? (double)dx / cx : 0.0;
+                                double r2 = nx * nx + ny * ny;
+                                double distort = 1.0 + curve * (r2 * 0.45);
+                                sampleX = cx + (int)(dx * distort);
+                                sampleY = cy + (int)(dy * distort);
 
-                        dstUint[x] = 0xFF000000u | (r << 16) | (g << 8) | b;
+                                if (sampleX < 0 || sampleX >= w || sampleY < 0 || sampleY >= h)
+                                {
+                                    dstUint[x] = 0xFF000000u; // Black bezel border
+                                    continue;
+                                }
+                            }
+
+                            byte* sampleSrcRow = (byte*)srcPtr + (sampleY * srcPitch);
+                            uint val;
+                            if (_pixelFormat == 1) // XRGB8888
+                            {
+                                val = ((uint*)sampleSrcRow)[sampleX];
+                            }
+                            else if (_pixelFormat == 2) // RGB565
+                            {
+                                val = Rgb565Lut[((ushort*)sampleSrcRow)[sampleX]];
+                            }
+                            else // 0RGB1555
+                            {
+                                val = Rgb1555Lut[((ushort*)sampleSrcRow)[sampleX]];
+                            }
+
+                            uint b = val & 0xFF;
+                            uint g = (val >> 8) & 0xFF;
+                            uint r = (val >> 16) & 0xFF;
+
+                            // Chromatic aberration subpixel convergence shift
+                            if (chromOffset > 0)
+                            {
+                                int rxPos = Math.Clamp(sampleX - chromOffset, 0, w - 1);
+                                int bxPos = Math.Clamp(sampleX + chromOffset, 0, w - 1);
+                                if (rxPos != sampleX)
+                                {
+                                    uint rVal = _pixelFormat == 1 ? ((uint*)sampleSrcRow)[rxPos] : (_pixelFormat == 2 ? Rgb565Lut[((ushort*)sampleSrcRow)[rxPos]] : Rgb1555Lut[((ushort*)sampleSrcRow)[rxPos]]);
+                                    r = (rVal >> 16) & 0xFF;
+                                }
+                                if (bxPos != sampleX)
+                                {
+                                    uint bVal = _pixelFormat == 1 ? ((uint*)sampleSrcRow)[bxPos] : (_pixelFormat == 2 ? Rgb565Lut[((ushort*)sampleSrcRow)[bxPos]] : Rgb1555Lut[((ushort*)sampleSrcRow)[bxPos]]);
+                                    b = bVal & 0xFF;
+                                }
+                            }
+
+                            if (_shaderFilterMode == 4) // IBM 5151 Green Phosphor (P1)
+                            {
+                                uint yLum = (r * 77u + g * 150u + b * 29u) >> 8;
+                                if (isOddScanline) yLum = (yLum * (uint)scanFactor) / 100u;
+                                r = (yLum * 35) >> 8;
+                                g = Math.Min(255u, (yLum * 270) >> 8);
+                                b = (yLum * 45) >> 8;
+                            }
+                            else if (_shaderFilterMode == 5) // Amber Retro Monitor P3
+                            {
+                                uint yLum = (r * 77u + g * 150u + b * 29u) >> 8;
+                                if (isOddScanline) yLum = (yLum * (uint)scanFactor) / 100u;
+                                r = Math.Min(255u, (yLum * 255) >> 8);
+                                g = Math.Min(255u, (yLum * 175) >> 8);
+                                b = (yLum * 20) >> 8;
+                            }
+                            else
+                            {
+                                // Scanlines
+                                if (isOddScanline)
+                                {
+                                    r = (r * (uint)scanFactor) / 100u;
+                                    g = (g * (uint)scanFactor) / 100u;
+                                    b = (b * (uint)scanFactor) / 100u;
+                                }
+
+                                // Aperture Grille / Subpixel Mask
+                                if (maskPercent > 5)
+                                {
+                                    int sub = x % 3;
+                                    uint boost = (uint)(100 + maskPercent);
+                                    uint dim = (uint)(100 - maskPercent / 2);
+                                    if (sub == 0)
+                                    {
+                                        r = Math.Min(255u, (r * boost) / 100u);
+                                        g = (g * dim) / 100u;
+                                        b = (b * dim) / 100u;
+                                    }
+                                    else if (sub == 1)
+                                    {
+                                        r = (r * dim) / 100u;
+                                        g = Math.Min(255u, (g * boost) / 100u);
+                                        b = (b * dim) / 100u;
+                                    }
+                                    else
+                                    {
+                                        r = (r * dim) / 100u;
+                                        g = (g * dim) / 100u;
+                                        b = Math.Min(255u, (b * boost) / 100u);
+                                    }
+                                }
+
+                                // Color Temperature Mode
+                                if (tempMode == 1) // Warm NTSC 5500K
+                                {
+                                    r = Math.Min(255u, (r * 106u) / 100u);
+                                    b = (b * 93u) / 100u;
+                                }
+                                else if (tempMode == 2) // Cool Trinitron 7500K
+                                {
+                                    r = (r * 94u) / 100u;
+                                    b = Math.Min(255u, (b * 107u) / 100u);
+                                }
+
+                                // Brightness Gain
+                                if (gainVal != 100)
+                                {
+                                    r = Math.Min(255u, (r * (uint)gainVal) / 100u);
+                                    g = Math.Min(255u, (g * (uint)gainVal) / 100u);
+                                    b = Math.Min(255u, (b * (uint)gainVal) / 100u);
+                                }
+
+                                // Vignette
+                                if (hasVignette)
+                                {
+                                    int dx = x - cx;
+                                    int dxTerm = (dx * dx * 100) / (cx * cx + 1);
+                                    int dist = dxTerm + dyTerm;
+                                    int vMult = Math.Clamp(100 - (dist * vigStr / 200), 45, 100);
+                                    r = (r * (uint)vMult) / 100u;
+                                    g = (g * (uint)vMult) / 100u;
+                                    b = (b * (uint)vMult) / 100u;
+                                }
+                            }
+
+                            dstUint[x] = 0xFF000000u | (r << 16) | (g << 8) | b;
+                        }
+                    }
+                };
+
+                if (useParallel)
+                {
+                    Parallel.For(0, h, new ParallelOptions { MaxDegreeOfParallelism = 4 }, processRow);
+                }
+                else
+                {
+                    for (int y = 0; y < h; y++)
+                    {
+                        processRow(y);
                     }
                 }
             }
         }
-        // Non-blocking UI update: only dispatch if UI has completed the previous frame
+
+        // Live Ambilux edge sampling every 3rd frame
+        if (SettingsManager.Current != null && SettingsManager.Current.AmbiluxGlowEnabled && (++_ambiluxFrameCounter % 3 == 0))
+        {
+            SampleAmbiluxEdgeColors(w, h);
+        }
+
+        // Non-blocking UI update with frame coalescing
         if (Interlocked.CompareExchange(ref _isRendering, 1, 0) == 0)
         {
             byte[] frameCopy = ArrayPool<byte>.Shared.Rent(requiredBytes);
@@ -1304,8 +1556,439 @@ public class NativeLibretroHost
         }
     }
 
+    private void SampleAmbiluxEdgeColors(int w, int h)
+    {
+        if (_bgraBuffer == null || w <= 0 || h <= 0) return;
+        int sumR = 0, sumG = 0, sumB = 0, count = 0;
+        int stride = w * 4;
+
+        // Sample top and bottom rows with step of 8
+        for (int x = 0; x < w; x += 8)
+        {
+            int topIdx = x * 4;
+            int botIdx = (h - 1) * stride + x * 4;
+            if (botIdx + 2 < _bgraBuffer.Length)
+            {
+                sumB += _bgraBuffer[topIdx] + _bgraBuffer[botIdx];
+                sumG += _bgraBuffer[topIdx + 1] + _bgraBuffer[botIdx + 1];
+                sumR += _bgraBuffer[topIdx + 2] + _bgraBuffer[botIdx + 2];
+                count += 2;
+            }
+        }
+
+        // Sample left and right columns with step of 8
+        for (int y = 0; y < h; y += 8)
+        {
+            int leftIdx = y * stride;
+            int rightIdx = y * stride + (w - 1) * 4;
+            if (rightIdx + 2 < _bgraBuffer.Length)
+            {
+                sumB += _bgraBuffer[leftIdx] + _bgraBuffer[rightIdx];
+                sumG += _bgraBuffer[leftIdx + 1] + _bgraBuffer[rightIdx + 1];
+                sumR += _bgraBuffer[leftIdx + 2] + _bgraBuffer[rightIdx + 2];
+                count += 2;
+            }
+        }
+
+        if (count > 0)
+        {
+            byte curR = (byte)(sumR / count);
+            byte curG = (byte)(sumG / count);
+            byte curB = (byte)(sumB / count);
+
+            _ambiluxR = (byte)((_ambiluxR * 3 + curR * 7) / 10);
+            _ambiluxG = (byte)((_ambiluxG * 3 + curG * 7) / 10);
+            _ambiluxB = (byte)((_ambiluxB * 3 + curB * 7) / 10);
+
+            OnAmbiluxColorUpdated?.Invoke(_ambiluxR, _ambiluxG, _ambiluxB);
+        }
+    }
+
+    public static BitmapSource RenderShaderPreviewSplit(double splitRatio01, int width = 640, int height = 360)
+    {
+        double ratio = Math.Clamp(splitRatio01, 0.05, 0.95);
+        int splitX = (int)(width * ratio);
+        int stride = width * 4;
+        byte[] rawPixels = new byte[height * stride];
+        byte[] finalPixels = new byte[height * stride];
+
+        // 1. Generate crisp retro cyberpunk scene into rawPixels
+        int horizonY = (int)(height * 0.56);
+        int sunCenterX = (int)(width * 0.50);
+        int sunCenterY = horizonY;
+        int sunRadius = (int)(height * 0.22);
+
+        for (int y = 0; y < height; y++)
+        {
+            int rowOffset = y * stride;
+            if (y < horizonY)
+            {
+                // Sky gradient: dark indigo (18, 12, 36) -> vibrant sunset purple (88, 22, 84)
+                double factor = (double)y / horizonY;
+                byte skyR = (byte)(18 + (88 - 18) * factor);
+                byte skyG = (byte)(12 + (22 - 12) * factor);
+                byte skyB = (byte)(36 + (84 - 36) * factor);
+
+                for (int x = 0; x < width; x++)
+                {
+                    int pxIdx = rowOffset + x * 4;
+                    byte r = skyR, g = skyG, b = skyB;
+
+                    // Starfield in upper sky
+                    if (y < horizonY - 40 && ((x * 47 + y * 97) % 251 == 0))
+                    {
+                        r = 240; g = 245; b = 255;
+                    }
+
+                    // Synthwave Sun with horizontal black cut lines
+                    int dx = x - sunCenterX;
+                    int dy = y - sunCenterY;
+                    if (dx * dx + dy * dy <= sunRadius * sunRadius)
+                    {
+                        bool isSunStripe = (y % 6 < 2) && (y > sunCenterY - sunRadius + 20);
+                        if (!isSunStripe)
+                        {
+                            double sunFactor = (double)(y - (sunCenterY - sunRadius)) / (sunRadius * 2);
+                            r = (byte)Math.Clamp(255 - sunFactor * 40, 200, 255);
+                            g = (byte)Math.Clamp(230 - sunFactor * 190, 30, 240);
+                            b = (byte)Math.Clamp(50 + sunFactor * 110, 40, 180);
+                        }
+                    }
+
+                    // Distant mountain silhouette
+                    int mountainHeight = (int)(28 * Math.Sin(x * 0.02) + 16 * Math.Sin(x * 0.05 + 1.2));
+                    if (y >= horizonY - mountainHeight && y < horizonY)
+                    {
+                        r = 30; g = 16; b = 48;
+                    }
+
+                    rawPixels[pxIdx + 0] = b;
+                    rawPixels[pxIdx + 1] = g;
+                    rawPixels[pxIdx + 2] = r;
+                    rawPixels[pxIdx + 3] = 255;
+                }
+            }
+            else
+            {
+                // Perspective Grid Floor (Synthwave retro plane)
+                double groundDist = (double)(y - horizonY) / (height - horizonY);
+                byte groundR = (byte)(14 + groundDist * 20);
+                byte groundG = (byte)(8 + groundDist * 14);
+                byte groundB = (byte)(28 + groundDist * 40);
+
+                for (int x = 0; x < width; x++)
+                {
+                    int pxIdx = rowOffset + x * 4;
+                    byte r = groundR, g = groundG, b = groundB;
+
+                    int lineSpacing = Math.Max(2, (int)(18 * Math.Pow(groundDist, 1.8)));
+                    bool isHorizLine = ((y - horizonY) % lineSpacing == 0);
+
+                    double perspSlope = (double)(x - sunCenterX) / Math.Max(1, (y - horizonY + 12));
+                    bool isVertLine = (Math.Abs(perspSlope * 18 - Math.Round(perspSlope * 18)) < 0.06);
+
+                    if (isHorizLine || isVertLine)
+                    {
+                        r = 0; g = 210; b = 255;
+                    }
+
+                    rawPixels[pxIdx + 0] = b;
+                    rawPixels[pxIdx + 1] = g;
+                    rawPixels[pxIdx + 2] = r;
+                    rawPixels[pxIdx + 3] = 255;
+                }
+            }
+        }
+
+        // Draw HUD overlay and retro sprites
+        DrawRetroHud(rawPixels, width, height, stride);
+
+        // 2. Apply CRT Shader Pipeline to columns x >= splitX
+        double curScanline = Current._scanlineIntensity > 0.05 ? Current._scanlineIntensity : 0.32;
+        double curMask = Current._maskIntensity > 0.05 ? Current._maskIntensity : 0.22;
+        double curCurve = Current._curvatureIntensity > 0.01 ? Current._curvatureIntensity : 0.08;
+        double curChrom = Current._chromaticIntensity > 0.01 ? Current._chromaticIntensity : 0.15;
+        double curVig = Current._vignetteIntensity > 0.05 ? Current._vignetteIntensity : 0.18;
+        double curGain = Current._brightnessGain > 0.7 ? Current._brightnessGain : 1.06;
+        int curTemp = Current._colorTemperatureMode;
+
+        int scanFactor = Math.Clamp(100 - (int)(curScanline * 100), 15, 100);
+        int maskPercent = Math.Clamp((int)(curMask * 100), 0, 75);
+        int gainVal = Math.Clamp((int)(curGain * 100), 75, 140);
+        int vigStr = (int)(curVig * 100);
+        int chromOffset = (int)Math.Round(curChrom * 2.0);
+        int cx = width / 2;
+        int cy = height / 2;
+
+        for (int y = 0; y < height; y++)
+        {
+            int rowOffset = y * stride;
+            bool isOdd = (y % 2 != 0);
+            int dy = y - cy;
+            int dyTerm = (dy * dy * 100) / (cy * cy + 1);
+            double ny = cy > 0 ? (double)dy / cy : 0.0;
+
+            for (int x = 0; x < width; x++)
+            {
+                int pxIdx = rowOffset + x * 4;
+
+                // Split divider line (2px in #A78BFA)
+                if (x == splitX || x == splitX + 1)
+                {
+                    finalPixels[pxIdx + 0] = 250; // B
+                    finalPixels[pxIdx + 1] = 139; // G
+                    finalPixels[pxIdx + 2] = 167; // R
+                    finalPixels[pxIdx + 3] = 255;
+                    continue;
+                }
+
+                // Left side: RAW CRISP PIXEL ART ("ДО")
+                if (x < splitX)
+                {
+                    finalPixels[pxIdx + 0] = rawPixels[pxIdx + 0];
+                    finalPixels[pxIdx + 1] = rawPixels[pxIdx + 1];
+                    finalPixels[pxIdx + 2] = rawPixels[pxIdx + 2];
+                    finalPixels[pxIdx + 3] = 255;
+                    continue;
+                }
+
+                // Right side: FULL CRT SHADER PIPELINE ("ПОСЛЕ")
+                int sampleX = x;
+                int sampleY = y;
+
+                // Barrel Curvature
+                if (curCurve > 0.005)
+                {
+                    int dx = x - cx;
+                    double nx = cx > 0 ? (double)dx / cx : 0.0;
+                    double r2 = nx * nx + ny * ny;
+                    double distort = 1.0 + curCurve * (r2 * 0.45);
+                    sampleX = cx + (int)(dx * distort);
+                    sampleY = cy + (int)(dy * distort);
+
+                    if (sampleX < 0 || sampleX >= width || sampleY < 0 || sampleY >= height)
+                    {
+                        finalPixels[pxIdx + 0] = 0;
+                        finalPixels[pxIdx + 1] = 0;
+                        finalPixels[pxIdx + 2] = 0;
+                        finalPixels[pxIdx + 3] = 255;
+                        continue;
+                    }
+                }
+
+                int sampleIdx = sampleY * stride + sampleX * 4;
+                uint b = rawPixels[sampleIdx + 0];
+                uint g = rawPixels[sampleIdx + 1];
+                uint r = rawPixels[sampleIdx + 2];
+
+                // Chromatic Aberration
+                if (chromOffset > 0)
+                {
+                    int rxPos = Math.Clamp(sampleX - chromOffset, 0, width - 1);
+                    int bxPos = Math.Clamp(sampleX + chromOffset, 0, width - 1);
+                    r = rawPixels[sampleY * stride + rxPos * 4 + 2];
+                    b = rawPixels[sampleY * stride + bxPos * 4 + 0];
+                }
+
+                // Scanlines
+                if (isOdd)
+                {
+                    r = (r * (uint)scanFactor) / 100u;
+                    g = (g * (uint)scanFactor) / 100u;
+                    b = (b * (uint)scanFactor) / 100u;
+                }
+
+                // Subpixel Trinitron Aperture Grille
+                if (maskPercent > 5)
+                {
+                    int sub = x % 3;
+                    uint boost = (uint)(100 + maskPercent);
+                    uint dim = (uint)(100 - maskPercent / 2);
+                    if (sub == 0)
+                    {
+                        r = Math.Min(255u, (r * boost) / 100u);
+                        g = (g * dim) / 100u;
+                        b = (b * dim) / 100u;
+                    }
+                    else if (sub == 1)
+                    {
+                        r = (r * dim) / 100u;
+                        g = Math.Min(255u, (g * boost) / 100u);
+                        b = (b * dim) / 100u;
+                    }
+                    else
+                    {
+                        r = (r * dim) / 100u;
+                        g = (g * dim) / 100u;
+                        b = Math.Min(255u, (b * boost) / 100u);
+                    }
+                }
+
+                // Color Temperature
+                if (curTemp == 1) // Warm 5500K
+                {
+                    r = Math.Min(255u, (r * 106u) / 100u);
+                    b = (b * 93u) / 100u;
+                }
+                else if (curTemp == 2) // Cool 7500K
+                {
+                    r = (r * 94u) / 100u;
+                    b = Math.Min(255u, (b * 107u) / 100u);
+                }
+
+                // Brightness Gain
+                if (gainVal != 100)
+                {
+                    r = Math.Min(255u, (r * (uint)gainVal) / 100u);
+                    g = Math.Min(255u, (g * (uint)gainVal) / 100u);
+                    b = Math.Min(255u, (b * (uint)gainVal) / 100u);
+                }
+
+                // Vignette
+                int vdx = x - cx;
+                int vdxTerm = (vdx * vdx * 100) / (cx * cx + 1);
+                int dist = vdxTerm + dyTerm;
+                int vMult = Math.Clamp(100 - (dist * vigStr / 200), 45, 100);
+                r = (r * (uint)vMult) / 100u;
+                g = (g * (uint)vMult) / 100u;
+                b = (b * (uint)vMult) / 100u;
+
+                finalPixels[pxIdx + 0] = (byte)b;
+                finalPixels[pxIdx + 1] = (byte)g;
+                finalPixels[pxIdx + 2] = (byte)r;
+                finalPixels[pxIdx + 3] = 255;
+            }
+        }
+
+        var bmp = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, finalPixels, stride);
+        bmp.Freeze();
+        return bmp;
+    }
+
+    private static void DrawRetroHud(byte[] pixels, int width, int height, int stride)
+    {
+        DrawText5x7(pixels, width, height, stride, "1UP 048500", 24, 14, 255, 230, 0);
+        DrawText5x7(pixels, width, height, stride, "HIGH 120000", width / 2 - 38, 14, 0, 220, 255);
+        DrawText5x7(pixels, width, height, stride, "STAGE 03", width - 84, 14, 255, 60, 160);
+
+        int barYStart = height - 20;
+        int barHeight = 12;
+        var colors = new (int, int, int)[]
+        {
+            (255, 255, 255), // White
+            (255, 255, 0),   // Yellow
+            (0, 255, 255),   // Cyan
+            (0, 255, 0),     // Green
+            (255, 0, 255),   // Magenta
+            (255, 0, 0),     // Red
+            (0, 0, 255),     // Blue
+            (20, 20, 20)     // Black
+        };
+
+        int barWidth = (width - 48) / colors.Length;
+        for (int c = 0; c < colors.Length; c++)
+        {
+            var col = colors[c];
+            int startX = 24 + c * barWidth;
+            for (int y = barYStart; y < barYStart + barHeight; y++)
+            {
+                int rOffset = y * stride;
+                for (int x = startX; x < startX + barWidth - 2; x++)
+                {
+                    int pxIdx = rOffset + x * 4;
+                    pixels[pxIdx + 0] = (byte)col.Item3;
+                    pixels[pxIdx + 1] = (byte)col.Item2;
+                    pixels[pxIdx + 2] = (byte)col.Item1;
+                    pixels[pxIdx + 3] = 255;
+                }
+            }
+        }
+    }
+
+    private static readonly Dictionary<char, byte[]> Font5x7 = new()
+    {
+        ['0'] = new byte[] { 0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E },
+        ['1'] = new byte[] { 0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E },
+        ['2'] = new byte[] { 0x0E, 0x11, 0x01, 0x06, 0x08, 0x10, 0x1F },
+        ['3'] = new byte[] { 0x1F, 0x02, 0x04, 0x02, 0x01, 0x11, 0x0E },
+        ['4'] = new byte[] { 0x02, 0x06, 0x0A, 0x12, 0x1F, 0x02, 0x02 },
+        ['5'] = new byte[] { 0x1F, 0x10, 0x1E, 0x01, 0x01, 0x11, 0x0E },
+        ['6'] = new byte[] { 0x06, 0x08, 0x10, 0x1E, 0x11, 0x11, 0x0E },
+        ['7'] = new byte[] { 0x1F, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08 },
+        ['8'] = new byte[] { 0x0E, 0x11, 0x11, 0x0E, 0x11, 0x11, 0x0E },
+        ['9'] = new byte[] { 0x0E, 0x11, 0x11, 0x0F, 0x01, 0x02, 0x0C },
+        ['A'] = new byte[] { 0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11 },
+        ['B'] = new byte[] { 0x1E, 0x11, 0x11, 0x1E, 0x11, 0x11, 0x1E },
+        ['C'] = new byte[] { 0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E },
+        ['D'] = new byte[] { 0x1C, 0x12, 0x11, 0x11, 0x11, 0x12, 0x1C },
+        ['E'] = new byte[] { 0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x1F },
+        ['F'] = new byte[] { 0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x10 },
+        ['G'] = new byte[] { 0x0E, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0F },
+        ['H'] = new byte[] { 0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11 },
+        ['I'] = new byte[] { 0x0E, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0E },
+        ['J'] = new byte[] { 0x07, 0x02, 0x02, 0x02, 0x02, 0x12, 0x0C },
+        ['K'] = new byte[] { 0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11 },
+        ['L'] = new byte[] { 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F },
+        ['M'] = new byte[] { 0x11, 0x1B, 0x15, 0x15, 0x11, 0x11, 0x11 },
+        ['N'] = new byte[] { 0x11, 0x11, 0x19, 0x15, 0x13, 0x11, 0x11 },
+        ['O'] = new byte[] { 0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E },
+        ['P'] = new byte[] { 0x1E, 0x11, 0x11, 0x1E, 0x10, 0x10, 0x10 },
+        ['Q'] = new byte[] { 0x0E, 0x11, 0x11, 0x11, 0x15, 0x12, 0x0D },
+        ['R'] = new byte[] { 0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11 },
+        ['S'] = new byte[] { 0x0F, 0x10, 0x10, 0x0E, 0x01, 0x01, 0x1E },
+        ['T'] = new byte[] { 0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04 },
+        ['U'] = new byte[] { 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E },
+        ['V'] = new byte[] { 0x11, 0x11, 0x11, 0x11, 0x11, 0x0A, 0x04 },
+        ['W'] = new byte[] { 0x11, 0x11, 0x11, 0x15, 0x15, 0x15, 0x0A },
+        ['X'] = new byte[] { 0x11, 0x11, 0x0A, 0x04, 0x0A, 0x11, 0x11 },
+        ['Y'] = new byte[] { 0x11, 0x11, 0x0A, 0x04, 0x04, 0x04, 0x04 },
+        ['Z'] = new byte[] { 0x1F, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1F },
+        ['-'] = new byte[] { 0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00 }
+    };
+
+    private static void DrawText5x7(byte[] pixels, int width, int height, int stride, string text, int startX, int startY, byte r, byte g, byte b)
+    {
+        int curX = startX;
+        foreach (char ch in text.ToUpperInvariant())
+        {
+            if (ch == ' ')
+            {
+                curX += 4;
+                continue;
+            }
+
+            if (Font5x7.TryGetValue(ch, out var glyph))
+            {
+                for (int gy = 0; gy < 7; gy++)
+                {
+                    int py = startY + gy;
+                    if (py < 0 || py >= height) continue;
+                    int rowOffset = py * stride;
+                    byte rowBits = glyph[gy];
+
+                    for (int gx = 0; gx < 5; gx++)
+                    {
+                        int px = curX + gx;
+                        if (px < 0 || px >= width) continue;
+
+                        if ((rowBits & (1 << (4 - gx))) != 0)
+                        {
+                            int pxIdx = rowOffset + px * 4;
+                            pixels[pxIdx + 0] = b;
+                            pixels[pxIdx + 1] = g;
+                            pixels[pxIdx + 2] = r;
+                            pixels[pxIdx + 3] = 255;
+                        }
+                    }
+                }
+            }
+            curX += 6;
+        }
+    }
+
     private void OnAudioSample(short left, short right)
     {
+        if (_suppressAvOutput) return;
         _audioBuffer[_audioBufferPos++] = left;
         _audioBuffer[_audioBufferPos++] = right;
         if (_audioBufferPos >= _audioBuffer.Length)
@@ -1316,6 +1999,7 @@ public class NativeLibretroHost
 
     private nuint OnAudioSampleBatch(IntPtr data, nuint frames)
     {
+        if (_suppressAvOutput) return frames;
         if (data == IntPtr.Zero || frames == 0) return 0;
         int samples = (int)frames * 2;
         unsafe
@@ -1592,6 +2276,27 @@ public class NativeLibretroHost
             };
         }
 
+        // Handle RETRO_DEVICE_ANALOG = 4
+        if (device == 4)
+        {
+            if (port >= 4 || !_xinputConnected[port]) return 0;
+            var gp = _xinputStates[port].Gamepad;
+            int deadzonePct = SettingsManager.Current != null ? SettingsManager.Current.AnalogDeadzonePercent : 15;
+            short deadzone = (short)(32767 * Math.Clamp(deadzonePct, 5, 40) / 100);
+
+            if (index == 0) // Left Analog Stick
+            {
+                if (id == 0) return Math.Abs(gp.sThumbLX) > deadzone ? gp.sThumbLX : (short)0;
+                if (id == 1) return Math.Abs(gp.sThumbLY) > deadzone ? (short)-gp.sThumbLY : (short)0;
+            }
+            else if (index == 1) // Right Analog Stick
+            {
+                if (id == 0) return Math.Abs(gp.sThumbRX) > deadzone ? gp.sThumbRX : (short)0;
+                if (id == 1) return Math.Abs(gp.sThumbRY) > deadzone ? (short)-gp.sThumbRY : (short)0;
+            }
+            return 0;
+        }
+
         if (device != 1) return 0; // RETRO_DEVICE_JOYPAD
         if (port >= 4) return 0;
 
@@ -1613,7 +2318,12 @@ public class NativeLibretroHost
             const ushort XINPUT_GAMEPAD_B = 0x2000;
             const ushort XINPUT_GAMEPAD_X = 0x4000;
             const ushort XINPUT_GAMEPAD_Y = 0x8000;
-            const short Deadzone = 7849;
+
+            int deadzonePct = SettingsManager.Current != null ? SettingsManager.Current.AnalogDeadzonePercent : 15;
+            short deadzone = (short)(32767 * Math.Clamp(deadzonePct, 5, 40) / 100);
+
+            int triggerPct = SettingsManager.Current != null ? SettingsManager.Current.TriggerThresholdPercent : 12;
+            byte triggerThreshold = (byte)(255 * Math.Clamp(triggerPct, 5, 50) / 100);
 
             bool pressed = id switch
             {
@@ -1621,20 +2331,31 @@ public class NativeLibretroHost
                 1 => (gp.wButtons & (XINPUT_GAMEPAD_X | XINPUT_GAMEPAD_Y)) != 0, // Y button
                 2 => (gp.wButtons & XINPUT_GAMEPAD_BACK) != 0,                   // Select
                 3 => (gp.wButtons & XINPUT_GAMEPAD_START) != 0,                  // Start
-                4 => (gp.wButtons & XINPUT_GAMEPAD_DPAD_UP) != 0 || gp.sThumbLY > Deadzone,
-                5 => (gp.wButtons & XINPUT_GAMEPAD_DPAD_DOWN) != 0 || gp.sThumbLY < -Deadzone,
-                6 => (gp.wButtons & XINPUT_GAMEPAD_DPAD_LEFT) != 0 || gp.sThumbLX < -Deadzone,
-                7 => (gp.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT) != 0 || gp.sThumbLX > Deadzone,
+                4 => (gp.wButtons & XINPUT_GAMEPAD_DPAD_UP) != 0 || gp.sThumbLY > deadzone,
+                5 => (gp.wButtons & XINPUT_GAMEPAD_DPAD_DOWN) != 0 || gp.sThumbLY < -deadzone,
+                6 => (gp.wButtons & XINPUT_GAMEPAD_DPAD_LEFT) != 0 || gp.sThumbLX < -deadzone,
+                7 => (gp.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT) != 0 || gp.sThumbLX > deadzone,
                 8 => (gp.wButtons & (XINPUT_GAMEPAD_A | XINPUT_GAMEPAD_B)) != 0, // A button
                 9 => (gp.wButtons & (XINPUT_GAMEPAD_X | XINPUT_GAMEPAD_Y)) != 0, // X button
-                10 => (gp.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) != 0 || gp.bLeftTrigger > 30, // L
-                11 => (gp.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0 || gp.bRightTrigger > 30, // R
-                12 => gp.bLeftTrigger > 30,                                      // L2
-                13 => gp.bRightTrigger > 30,                                     // R2
+                10 => (gp.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) != 0 || gp.bLeftTrigger > triggerThreshold, // L
+                11 => (gp.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0 || gp.bRightTrigger > triggerThreshold, // R
+                12 => gp.bLeftTrigger > triggerThreshold,                                      // L2
+                13 => gp.bRightTrigger > triggerThreshold,                                     // R2
                 14 => (gp.wButtons & XINPUT_GAMEPAD_LEFT_THUMB) != 0,            // L3
                 15 => (gp.wButtons & XINPUT_GAMEPAD_RIGHT_THUMB) != 0,           // R3
                 _ => false
             };
+
+            // Turbo auto-fire pulse modulation on fire buttons (A, B, X, Y)
+            if (pressed && SettingsManager.Current != null && SettingsManager.Current.TurboButtonsEnabled &&
+                (id == 0 || id == 1 || id == 8 || id == 9))
+            {
+                int hz = Math.Clamp(SettingsManager.Current.TurboFireHz, 5, 30);
+                int cycleFrames = Math.Max(2, (int)Math.Round(60.0 / hz));
+                int halfCycle = Math.Max(1, cycleFrames / 2);
+                bool turboPulse = (_frameCount % (ulong)cycleFrames) < (ulong)halfCycle;
+                pressed = pressed && turboPulse;
+            }
 
             if (pressed) return 1;
         }
@@ -1718,49 +2439,144 @@ public class NativeLibretroHost
 
     private void EmulationLoop()
     {
-        var sw = Stopwatch.StartNew();
-        double targetFrameMs = 1000.0 / (_targetFps > 0 ? _targetFps : 60.0);
-        double nextTickMs = sw.Elapsed.TotalMilliseconds;
-
-        while (_isRunning)
+        TimeBeginPeriod(1);
+        CompilerAndPerformanceManager.ApplyEmulationLowLatencyGc(true);
+        try
         {
-            if (_isPaused)
-            {
-                Thread.Sleep(15);
-                nextTickMs = sw.Elapsed.TotalMilliseconds;
-                continue;
-            }
+            var sw = Stopwatch.StartNew();
+            double targetFrameMs = 1000.0 / (_targetFps > 0 ? _targetFps : 60.0);
+            double nextTickMs = sw.Elapsed.TotalMilliseconds;
 
-            int framesToRun = _isFastForward ? 3 : 1;
-            lock (_coreLock)
+            while (_isRunning)
             {
-                for (int i = 0; i < framesToRun && _isRunning; i++)
+                if (_isPaused)
                 {
-                    _retroRun!();
+                    Thread.Sleep(15);
+                    nextTickMs = sw.Elapsed.TotalMilliseconds;
+                    continue;
                 }
 
-                if (_serializeSize == 0 && _retroSerializeSize != null)
+                int framesToRun = _isFastForward ? 3 : 1;
+                lock (_coreLock)
                 {
-                    try { _serializeSize = _retroSerializeSize(); } catch { }
+                    if (RunAheadFrames > 0 && !_isFastForward && _retroSerializeSize != null && _retroSerialize != null && _retroUnserialize != null)
+                    {
+                        try
+                        {
+                            if (_serializeSize == 0)
+                            {
+                                try { _serializeSize = _retroSerializeSize(); } catch { }
+                            }
+
+                            if (_serializeSize > 0)
+                            {
+                                int sz = (int)_serializeSize;
+                                if (_runAheadStateBuf == null || _runAheadStateBuf.Length != sz)
+                                {
+                                    _runAheadStateBuf = new byte[sz];
+                                }
+
+                                // 1. Run 1 silent frame to advance true simulation state
+                                _suppressAvOutput = true;
+                                _retroRun!();
+
+                                // 2. Serialize advanced true state
+                                GCHandle pin = GCHandle.Alloc(_runAheadStateBuf, GCHandleType.Pinned);
+                                try
+                                {
+                                    _retroSerialize(pin.AddrOfPinnedObject(), _serializeSize);
+                                }
+                                finally
+                                {
+                                    pin.Free();
+                                }
+
+                                // 3. Run extra silent frames if RunAheadFrames == 2
+                                for (int rf = 1; rf < RunAheadFrames && _isRunning; rf++)
+                                {
+                                    _suppressAvOutput = true;
+                                    _retroRun!();
+                                }
+
+                                // 4. Run 1 visible frame that user sees and hears
+                                _suppressAvOutput = false;
+                                _retroRun!();
+
+                                // 5. Unserialize back to the true state advanced by 1 frame
+                                pin = GCHandle.Alloc(_runAheadStateBuf, GCHandleType.Pinned);
+                                try
+                                {
+                                    _retroUnserialize(pin.AddrOfPinnedObject(), _serializeSize);
+                                }
+                                finally
+                                {
+                                    pin.Free();
+                                }
+                            }
+                            else
+                            {
+                                _suppressAvOutput = false;
+                                _retroRun!();
+                            }
+                        }
+                        catch
+                        {
+                            _suppressAvOutput = false;
+                            _retroRun!();
+                        }
+                    }
+                    else
+                    {
+                        _suppressAvOutput = false;
+                        for (int i = 0; i < framesToRun && _isRunning; i++)
+                        {
+                            _retroRun!();
+                        }
+                    }
+
+                    if (_serializeSize == 0 && _retroSerializeSize != null)
+                    {
+                        try { _serializeSize = _retroSerializeSize(); } catch { }
+                    }
+
+                    _frameCount++;
+                    if (_frameCount % 2 == 0 && _serializeSize > 0)
+                    {
+                        CaptureRewindFrameLocked();
+                    }
                 }
 
-                _frameCount++;
-                if (_frameCount % 2 == 0 && _serializeSize > 0)
+                nextTickMs += targetFrameMs;
+                double wait = nextTickMs - sw.Elapsed.TotalMilliseconds;
+                if (PrecisionFramePacerEnabled)
                 {
-                    CaptureRewindFrameLocked();
+                    if (wait > 2.2)
+                    {
+                        Thread.Sleep((int)(wait - 1.5));
+                    }
+                    while (sw.Elapsed.TotalMilliseconds < nextTickMs)
+                    {
+                        Thread.SpinWait(64);
+                    }
+                }
+                else
+                {
+                    if (wait > 1.0)
+                    {
+                        Thread.Sleep((int)wait);
+                    }
+                }
+
+                if (wait < -50.0)
+                {
+                    nextTickMs = sw.Elapsed.TotalMilliseconds;
                 }
             }
-
-            nextTickMs += targetFrameMs;
-            double wait = nextTickMs - sw.Elapsed.TotalMilliseconds;
-            if (wait > 1.0)
-            {
-                Thread.Sleep((int)wait);
-            }
-            else if (wait < -50.0)
-            {
-                nextTickMs = sw.Elapsed.TotalMilliseconds;
-            }
+        }
+        finally
+        {
+            CompilerAndPerformanceManager.ApplyEmulationLowLatencyGc(false);
+            TimeEndPeriod(1);
         }
     }
 

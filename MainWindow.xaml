@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:StormRetroArch"
         x:Name="RootWindow"
-        Title="STORM RETROARCH 1.7.0"
+        Title="STORM RETROARCH 1.8.0"
         Width="1500" Height="890"
         MinWidth="960" MinHeight="620"
         WindowStartupLocation="CenterScreen"
@@ -842,7 +842,7 @@
                 <!-- Left: App Icon & Title with REQUIRED Margin="10,0,24,0" + Engine Status Pill -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Image Source="app_icon.png" Width="22" Height="22" Margin="0,0,8,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                    <TextBlock Text="STORM RETROARCH 1.7.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,24,0"/>
+                    <TextBlock Text="STORM RETROARCH 1.8.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,24,0"/>
 
                     <!-- Engine Status Pill -->
                     <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="12" Padding="8,3" VerticalAlignment="Center">
@@ -1060,7 +1060,7 @@
                     <!-- Sidebar Footer: Version -->
                     <Border DockPanel.Dock="Bottom" Background="#14FFFFFF" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,1,0,0" Padding="12,8">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                            <TextBlock Text="STORM RETROARCH 1.7.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" FontWeight="SemiBold"/>
+                            <TextBlock Text="STORM RETROARCH 1.8.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" FontWeight="SemiBold"/>
                         </StackPanel>
                     </Border>
 
@@ -1496,6 +1496,12 @@
                             <!-- Native In-Process Libretro Precision Lockstep Stage -->
                             <Viewbox x:Name="VbGameStage" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Grid x:Name="GrdGameStageCanvas" Width="1920" Height="1080" Background="#000000">
+                                    <!-- Ambilux Ambient Glow Border (1.8.0) -->
+                                    <Border x:Name="BdrAmbiluxAmbientGlow" Width="1428" Height="1084" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="246,-2,0,0" CornerRadius="14" Background="#288B5CF6" Opacity="0.75" IsHitTestVisible="False">
+                                        <Border.Effect>
+                                            <BlurEffect Radius="48" KernelType="Gaussian"/>
+                                        </Border.Effect>
+                                    </Border>
                                     <Border x:Name="BorderGameScreenHost" Width="1376" Height="1032" Padding="10,6" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="272,24,0,0" Background="#000000" ClipToBounds="True">
                                         <Image x:Name="ImgGameViewport" Stretch="Fill" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                                     </Border>
@@ -1738,7 +1744,7 @@
                                             </Button>
                                         </StackPanel>
                                         <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Text="Командный центр STORM RETROARCH 1.7.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="21" FontWeight="Bold" Margin="0,0,0,3"/>
+                                            <TextBlock Text="Командный центр STORM RETROARCH 1.8.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="21" FontWeight="Bold" Margin="0,0,0,3"/>
                                             <TextBlock Text="Быстрые переходы, оперативная настройка движка Libretro, управление сохранениями и перестраиваемые панели" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5"/>
                                         </StackPanel>
                                     </DockPanel>
@@ -1894,6 +1900,33 @@
                                             <CheckBox x:Name="ChkQuickRewind" Content="Перемотка времени назад" IsChecked="True" Margin="0,0,18,0" Checked="ChkQuickSetting_Changed" Unchecked="ChkQuickSetting_Changed"/>
                                             <CheckBox x:Name="ChkQuickAutoSave" Content="Автосохранение SRAM (5 сек)" IsChecked="True" Margin="0,0,18,0" Checked="ChkQuickSetting_Changed" Unchecked="ChkQuickSetting_Changed"/>
                                         </WrapPanel>
+                                    </Border>
+
+                                    <!-- Emulation Performance, JIT Dynarec & Precision Frame Pacer (1.8.0) -->
+                                    <Border Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="0,8,0,0">
+                                        <DockPanel LastChildFill="True">
+                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <CheckBox x:Name="ChkPrecisionPacer" Content="Суб-мс синхронизатор 60,0 FPS" IsChecked="True" VerticalAlignment="Center" Margin="0,0,14,0" Click="ChkPrecisionPacer_Click"/>
+                                                <TextBlock Text="Опережение:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <ComboBox x:Name="CmbRunAheadFrames" Width="170" Height="26" VerticalAlignment="Center" SelectionChanged="CmbRunAheadFrames_SelectionChanged">
+                                                    <ComboBoxItem Content="Выкл (0 кадров)" IsSelected="True"/>
+                                                    <ComboBoxItem Content="1 кадр (-16,7 мс)"/>
+                                                    <ComboBoxItem Content="2 кадра (-33,3 мс)"/>
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="Профиль ЦП:" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                <Button x:Name="BtnCpuDynarecFast" Style="{StaticResource CapsuleButton}" Tag="Active" Margin="0,0,6,0" Padding="10,3" Click="BtnCpuDynarecFast_Click" ToolTip="Динамическая рекомпиляция JIT для максимальной скорости">
+                                                    <TextBlock Text="JIT Dynarec (Макс. скорость)" FontSize="11" FontWeight="SemiBold"/>
+                                                </Button>
+                                                <Button x:Name="BtnCpuEsportsZeroLag" Style="{StaticResource CapsuleButton}" Margin="0,0,6,0" Padding="10,3" Click="BtnCpuEsportsZeroLag_Click" ToolTip="Киберспортивный профиль: упреждающий расчёт 2 кадров (-33,3 мс)">
+                                                    <TextBlock Text="Нулевая задержка (Run-Ahead 2к)" FontSize="11" FontWeight="SemiBold"/>
+                                                </Button>
+                                                <Button x:Name="BtnCpuCycleAccurate" Style="{StaticResource CapsuleButton}" Margin="0,0,6,0" Padding="10,3" Click="BtnCpuCycleAccurate_Click" ToolTip="Потактово точная интерпретация без динамической компиляции">
+                                                    <TextBlock Text="Точный цикл" FontSize="11" FontWeight="SemiBold"/>
+                                                </Button>
+                                            </WrapPanel>
+                                        </DockPanel>
                                     </Border>
                                 </StackPanel>
                             </Border>
@@ -3104,16 +3137,16 @@
                                     <TextBlock Text="Каталог официальных сборок Libretro Buildbot (350+ ядер) и Золотой набор эмуляторов STORM" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
                                 <WrapPanel Grid.Row="1" VerticalAlignment="Center">
-                                    <Button Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnDownloadGoldenCores_Click">
+                                    <Button x:Name="BtnUpdateAllInstalledCores" Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnUpdateAllInstalledCores_Click" ToolTip="Пакетная загрузка и обновление всех установленных ядер Libretro">
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Path Data="M7 2v11h3v9l7-12h-4l4-8z" Fill="#FFFFFF" Stretch="Uniform" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Скачать рекомендуемые (25)" VerticalAlignment="Center"/>
+                                            <Path Data="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z" Fill="#FFFFFF" Stretch="Uniform" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Обновить установленные ядра" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Button>
-                                    <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnUpdateInstalledCores_Click">
+                                    <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnDownloadGoldenCores_Click">
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Path Data="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0 0 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 0 0 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z" Fill="#38BDF8" Stretch="Uniform" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Обновить установленные" VerticalAlignment="Center"/>
+                                            <Path Data="M7 2v11h3v9l7-12h-4l4-8z" Fill="#38BDF8" Stretch="Uniform" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Скачать рекомендуемые (25)" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Button>
                                     <Button Style="{StaticResource StormSecondaryButton}" Click="BtnUpdateCores_Click">
@@ -3152,12 +3185,28 @@
                                 <Button Content="PC / DOS" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
                                 <Button Content="Commodore" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
                                 <Button Content="SNK" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
-                                <Button Content="Other" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
+                                <Button Content="Прочие" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
                             </WrapPanel>
+                        </Border>
+                        <!-- Core ABI Inspection & Benchmark Report Banner (1.8.0) -->
+                        <Border x:Name="BdrCoreBenchmarkResult" Visibility="Collapsed" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeAccentGlow}" BorderThickness="1.5" CornerRadius="10" Padding="14,10" Margin="0,0,0,12" DockPanel.Dock="Top">
+                            <DockPanel LastChildFill="True">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource StormSecondaryButton}" Padding="8,4" VerticalAlignment="Top" Margin="10,0,0,0" Click="BtnCloseCoreBenchmark_Click">
+                                    <TextBlock Text="Закрыть" FontSize="11"/>
+                                </Button>
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                        <Border Width="8" Height="8" CornerRadius="4" Background="#10B981" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="TxtCoreBenchmarkTitle" Text="Инспекция ABI и бенчмарк ядра" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="13" FontWeight="Bold"/>
+                                    </StackPanel>
+                                    <TextBlock x:Name="TxtCoreBenchmarkDetails" Text="Результаты проверки PE64, экспортируемых функций ABI и времени холодного старта..." Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </DockPanel>
                         </Border>
 
                         <!-- Dynamic View Mode Containers for Cores -->
                         <Grid>
+
                             <!-- Mode 1: Bento Cards (Tiles) -->
                             <ScrollViewer x:Name="ScrollCoresTiles" VerticalScrollBarVisibility="Auto">
                                 <WrapPanel x:Name="PanelCoresTiles" Margin="0,4"/>
@@ -3450,7 +3499,13 @@
                                     <TextBlock Text="Пресеты Slang/GLSL: аутентичные кинескопы CRT Trinitron, апскейл Mega Bezel, сглаживание и VHS" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
                                 <WrapPanel Grid.Row="1" VerticalAlignment="Center">
-                                    <Button Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnDownloadAllShaders_Click">
+                                    <Button x:Name="BtnPrecompileShaders" Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnPrecompileShaders_Click" ToolTip="Индексация и валидация всех пресетов Slang/GLSL в быстрый кэш">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Data="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z" Fill="#FFFFFF" Stretch="Uniform" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Предкомпилировать кэш шейдеров" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnDownloadAllShaders_Click">
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Path Data="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" Fill="#FFFFFF" Stretch="Uniform" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
                                             <TextBlock Text="Скачать пакет шейдеров" VerticalAlignment="Center"/>
@@ -3477,85 +3532,137 @@
                                 </WrapPanel>
                             </Grid>
 
-                            <!-- Живая студия ЭЛТ-луча и пост-обработки (1.7.0 Pro-Emulator) -->
-                            <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="0,0,0,12">
-                                <StackPanel>
-                                    <DockPanel LastChildFill="True" Margin="0,0,0,10">
-                                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
-                                            <TextBlock Text="Цветовая температура:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                            <ComboBox x:Name="CmbShaderColorTemp" Width="170" Height="26" SelectionChanged="CmbShaderColorTemp_SelectionChanged">
-                                                <ComboBoxItem Content="6500K Нейтральная" IsSelected="True"/>
-                                                <ComboBoxItem Content="5500K Тёплая NTSC"/>
-                                                <ComboBoxItem Content="7500K Холодная Trinitron"/>
-                                            </ComboBox>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Border Width="26" Height="26" CornerRadius="6" Background="#208B5CF6" BorderBrush="#608B5CF6" BorderThickness="1" Margin="0,0,8,0" VerticalAlignment="Center">
-                                                <Path Data="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14z" Fill="#A78BFA" Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <!-- Живая студия ЭЛТ-луча и пост-обработки (1.8.0 Pro-Emulator) -->
+                            <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeAccentGlow}" BorderThickness="1.5" CornerRadius="12" Padding="16,14" Margin="0,0,0,14">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="360"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Column 0: Controls & 6 Sliders -->
+                                    <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                        <DockPanel LastChildFill="True" Margin="0,0,0,10">
+                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="Цветовая температура:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <ComboBox x:Name="CmbShaderColorTemp" MinWidth="205" Height="26" SelectionChanged="CmbShaderColorTemp_SelectionChanged">
+                                                    <ComboBoxItem Content="D65 (Стандарт 6500K)" IsSelected="True"/>
+                                                    <ComboBoxItem Content="D50 (Тёплый CRT 5000K)"/>
+                                                    <ComboBoxItem Content="D93 (Японский аркадный 9300K)"/>
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Border Width="28" Height="28" CornerRadius="6" Background="{DynamicResource ThemeAccentSoft}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1" Margin="0,0,8,0">
+                                                    <Path Data="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z" Fill="{DynamicResource ThemeAccentGlow}" Width="15" Height="15" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <TextBlock Text="Живая студия ЭЛТ-луча и кинескопа" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="15" FontWeight="Bold" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </DockPanel>
+
+                                        <!-- 6 1-Click Preset Pills -->
+                                        <WrapPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                            <Button x:Name="BtnPresetTrinitron" Content="Sony Trinitron" Style="{StaticResource CapsuleButton}" Tag="Active" Margin="0,0,6,4" Click="BtnShaderPreset_Click"/>
+                                            <Button x:Name="BtnPresetArcade" Content="Arcade RGB" Style="{StaticResource CapsuleButton}" Margin="0,0,6,4" Click="BtnShaderPreset_Click"/>
+                                            <Button x:Name="BtnPresetVga" Content="IBM DOS VGA" Style="{StaticResource CapsuleButton}" Margin="0,0,6,4" Click="BtnShaderPreset_Click"/>
+                                            <Button x:Name="BtnPresetGbLcd" Content="Game Boy LCD" Style="{StaticResource CapsuleButton}" Margin="0,0,6,4" Click="BtnShaderPreset_Click"/>
+                                            <Button x:Name="BtnPresetVhs" Content="VHS Ретро" Style="{StaticResource CapsuleButton}" Margin="0,0,6,4" Click="BtnShaderPreset_Click"/>
+                                            <Button x:Name="BtnPresetClean" Content="Чистый пиксель" Style="{StaticResource CapsuleButton}" Margin="0,0,6,4" Click="BtnShaderPreset_Click"/>
+                                        </WrapPanel>
+
+                                        <!-- 3x2 UniformGrid of 6 Sliders -->
+                                        <UniformGrid Columns="3" Rows="2">
+                                            <!-- 1. Scanlines -->
+                                            <Border Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,6,6">
+                                                <StackPanel>
+                                                    <DockPanel LastChildFill="True" Margin="0,0,0,4">
+                                                        <TextBlock x:Name="TxtShaderScanlinesVal" Text="35%" DockPanel.Dock="Right" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="12" FontWeight="Bold" Typography.NumeralAlignment="Tabular"/>
+                                                        <TextBlock Text="Сканлайны" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" FontWeight="SemiBold"/>
+                                                    </DockPanel>
+                                                    <Slider x:Name="SliderShaderScanlines" Minimum="0" Maximum="85" Value="35" ValueChanged="SliderShaderScanlines_ValueChanged"/>
+                                                </StackPanel>
                                             </Border>
-                                            <TextBlock Text="Живая студия ЭЛТ-луча и пост-обработки" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </DockPanel>
 
-                                    <!-- 6 1-Click Preset Pills -->
-                                    <WrapPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                        <Button x:Name="BtnPresetTrinitron" Content="Sony Trinitron" Style="{StaticResource CapsuleButton}" Tag="Active" Margin="0,0,6,4" Click="BtnShaderPreset_Click"/>
-                                        <Button x:Name="BtnPresetArcade" Content="Arcade RGB" Style="{StaticResource CapsuleButton}" Margin="0,0,6,4" Click="BtnShaderPreset_Click"/>
-                                        <Button x:Name="BtnPresetVga" Content="IBM DOS VGA" Style="{StaticResource CapsuleButton}" Margin="0,0,6,4" Click="BtnShaderPreset_Click"/>
-                                        <Button x:Name="BtnPresetGbLcd" Content="Game Boy LCD" Style="{StaticResource CapsuleButton}" Margin="0,0,6,4" Click="BtnShaderPreset_Click"/>
-                                        <Button x:Name="BtnPresetVhs" Content="VHS Ретро" Style="{StaticResource CapsuleButton}" Margin="0,0,6,4" Click="BtnShaderPreset_Click"/>
-                                        <Button x:Name="BtnPresetClean" Content="Чистый пиксель" Style="{StaticResource CapsuleButton}" Margin="0,0,6,4" Click="BtnShaderPreset_Click"/>
-                                    </WrapPanel>
+                                            <!-- 2. Aperture Mask -->
+                                            <Border Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,6,6">
+                                                <StackPanel>
+                                                    <DockPanel LastChildFill="True" Margin="0,0,0,4">
+                                                        <TextBlock x:Name="TxtShaderMaskVal" Text="25%" DockPanel.Dock="Right" Foreground="#38BDF8" FontSize="12" FontWeight="Bold" Typography.NumeralAlignment="Tabular"/>
+                                                        <TextBlock Text="Апертурная маска" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" FontWeight="SemiBold"/>
+                                                    </DockPanel>
+                                                    <Slider x:Name="SliderShaderMask" Minimum="0" Maximum="75" Value="25" ValueChanged="SliderShaderMask_ValueChanged"/>
+                                                </StackPanel>
+                                            </Border>
 
-                                    <!-- 4 Live Parameter Sliders with Tabular Numerals -->
-                                    <UniformGrid Columns="4" Rows="1">
-                                        <!-- 1. Scanlines -->
-                                        <Border Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,6,0">
-                                            <StackPanel>
-                                                <DockPanel LastChildFill="True" Margin="0,0,0,4">
-                                                    <TextBlock x:Name="TxtShaderScanlinesVal" Text="35%" DockPanel.Dock="Right" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="12" FontWeight="Bold" Typography.NumeralAlignment="Tabular"/>
-                                                    <TextBlock Text="Сканлайны" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" FontWeight="SemiBold"/>
+                                            <!-- 3. Curvature (0..50) -->
+                                            <Border Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,0,6">
+                                                <StackPanel>
+                                                    <DockPanel LastChildFill="True" Margin="0,0,0,4">
+                                                        <TextBlock x:Name="TxtShaderCurvatureVal" Text="0%" DockPanel.Dock="Right" Foreground="#A78BFA" FontSize="12" FontWeight="Bold" Typography.NumeralAlignment="Tabular"/>
+                                                        <TextBlock Text="Кривизна кинескопа" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" FontWeight="SemiBold"/>
+                                                    </DockPanel>
+                                                    <Slider x:Name="SliderShaderCurvature" Minimum="0" Maximum="50" Value="0" ValueChanged="SliderShaderCurvature_ValueChanged"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- 4. Chromatic RGB (0..100) -->
+                                            <Border Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,6,0">
+                                                <StackPanel>
+                                                    <DockPanel LastChildFill="True" Margin="0,0,0,4">
+                                                        <TextBlock x:Name="TxtShaderChromaticVal" Text="0%" DockPanel.Dock="Right" Foreground="#EC4899" FontSize="12" FontWeight="Bold" Typography.NumeralAlignment="Tabular"/>
+                                                        <TextBlock Text="Сведение лучей RGB" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" FontWeight="SemiBold"/>
+                                                    </DockPanel>
+                                                    <Slider x:Name="SliderShaderChromatic" Minimum="0" Maximum="100" Value="0" ValueChanged="SliderShaderChromatic_ValueChanged"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- 5. Vignette -->
+                                            <Border Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,6,0">
+                                                <StackPanel>
+                                                    <DockPanel LastChildFill="True" Margin="0,0,0,4">
+                                                        <TextBlock x:Name="TxtShaderVignetteVal" Text="18%" DockPanel.Dock="Right" Foreground="#FBBF24" FontSize="12" FontWeight="Bold" Typography.NumeralAlignment="Tabular"/>
+                                                        <TextBlock Text="Виньетка кинескопа" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" FontWeight="SemiBold"/>
+                                                    </DockPanel>
+                                                    <Slider x:Name="SliderShaderVignette" Minimum="0" Maximum="60" Value="18" ValueChanged="SliderShaderVignette_ValueChanged"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- 6. Brightness Gain -->
+                                            <Border Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,0,0">
+                                                <StackPanel>
+                                                    <DockPanel LastChildFill="True" Margin="0,0,0,4">
+                                                        <TextBlock x:Name="TxtShaderBrightnessVal" Text="108%" DockPanel.Dock="Right" Foreground="#34D399" FontSize="12" FontWeight="Bold" Typography.NumeralAlignment="Tabular"/>
+                                                        <TextBlock Text="Яркость ЭЛТ" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" FontWeight="SemiBold"/>
+                                                    </DockPanel>
+                                                    <Slider x:Name="SliderShaderBrightness" Minimum="80" Maximum="140" Value="108" ValueChanged="SliderShaderBrightness_ValueChanged"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </UniformGrid>
+                                    </StackPanel>
+
+                                    <!-- Column 1: Sunken CRT Monitor Frame (Split-Screen ДО / ПОСЛЕ Preview) -->
+                                    <Border Grid.Column="1" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1.5" CornerRadius="10" Padding="10">
+                                        <DockPanel LastChildFill="True">
+                                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                                <TextBlock x:Name="TxtShaderSplitVal" Text="50%" DockPanel.Dock="Right" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="12" FontWeight="Bold" Typography.NumeralAlignment="Tabular"/>
+                                                <TextBlock Text="Сравнение ДО / ПОСЛЕ" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="Bold"/>
+                                            </DockPanel>
+
+                                            <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                                                <Slider x:Name="SliderShaderSplitCompare" Minimum="0" Maximum="100" Value="50" ValueChanged="SliderShaderSplitCompare_ValueChanged"/>
+                                                <DockPanel Margin="0,2,0,0">
+                                                    <TextBlock Text="◄ Исходный пиксель" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10"/>
+                                                    <TextBlock Text="ЭЛТ-фильтр ►" HorizontalAlignment="Right" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10"/>
                                                 </DockPanel>
-                                                <Slider x:Name="SliderShaderScanlines" Minimum="0" Maximum="85" Value="35" ValueChanged="SliderShaderScanlines_ValueChanged"/>
                                             </StackPanel>
-                                        </Border>
 
-                                        <!-- 2. Aperture Mask -->
-                                        <Border Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,6,0">
-                                            <StackPanel>
-                                                <DockPanel LastChildFill="True" Margin="0,0,0,4">
-                                                    <TextBlock x:Name="TxtShaderMaskVal" Text="25%" DockPanel.Dock="Right" Foreground="#38BDF8" FontSize="12" FontWeight="Bold" Typography.NumeralAlignment="Tabular"/>
-                                                    <TextBlock Text="Апертурная маска" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" FontWeight="SemiBold"/>
-                                                </DockPanel>
-                                                <Slider x:Name="SliderShaderMask" Minimum="0" Maximum="75" Value="25" ValueChanged="SliderShaderMask_ValueChanged"/>
-                                            </StackPanel>
-                                        </Border>
-
-                                        <!-- 3. Vignette -->
-                                        <Border Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,6,0">
-                                            <StackPanel>
-                                                <DockPanel LastChildFill="True" Margin="0,0,0,4">
-                                                    <TextBlock x:Name="TxtShaderVignetteVal" Text="18%" DockPanel.Dock="Right" Foreground="#FBBF24" FontSize="12" FontWeight="Bold" Typography.NumeralAlignment="Tabular"/>
-                                                    <TextBlock Text="Виньетка кинескопа" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" FontWeight="SemiBold"/>
-                                                </DockPanel>
-                                                <Slider x:Name="SliderShaderVignette" Minimum="0" Maximum="60" Value="18" ValueChanged="SliderShaderVignette_ValueChanged"/>
-                                            </StackPanel>
-                                        </Border>
-
-                                        <!-- 4. Brightness Gain -->
-                                        <Border Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="10,8">
-                                            <StackPanel>
-                                                <DockPanel LastChildFill="True" Margin="0,0,0,4">
-                                                    <TextBlock x:Name="TxtShaderBrightnessVal" Text="108%" DockPanel.Dock="Right" Foreground="#34D399" FontSize="12" FontWeight="Bold" Typography.NumeralAlignment="Tabular"/>
-                                                    <TextBlock Text="Яркость ЭЛТ" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" FontWeight="SemiBold"/>
-                                                </DockPanel>
-                                                <Slider x:Name="SliderShaderBrightness" Minimum="80" Maximum="140" Value="108" ValueChanged="SliderShaderBrightness_ValueChanged"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </UniformGrid>
-                                </StackPanel>
+                                            <!-- CRT Monitor Screen Surface -->
+                                            <Border CornerRadius="6" ClipToBounds="True" Background="#000000" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1">
+                                                <Image x:Name="ImgShaderLivePreview" Height="186" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                                            </Border>
+                                        </DockPanel>
+                                    </Border>
+                                </Grid>
                             </Border>
-
                             <!-- Filters Bar -->
                             <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="10,8">
                                 <DockPanel LastChildFill="True">
@@ -4039,7 +4146,7 @@
                                     <Button Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnToggleManualBezelPanel_Click">
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Path Data="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" Fill="#FFFFFF" Stretch="Uniform" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="+ Добавить рамку вручную" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                            <TextBlock Text="Добавить рамку вручную" VerticalAlignment="Center" FontWeight="SemiBold"/>
                                         </StackPanel>
                                     </Button>
                                     <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnDisableBezel_Click">
@@ -4191,6 +4298,8 @@
                                                 <ComboBoxItem Content="Core Provided" Tag="22"/>
                                             </ComboBox>
 
+                                            <CheckBox x:Name="ChkAutoPlatformBezel" Content="Автоподбор рамки по платформе" IsChecked="True" VerticalAlignment="Center" Margin="0,0,14,0" Click="ChkAutoPlatformBezel_Click"/>
+                                            <CheckBox x:Name="ChkAmbiluxGlow" Content="Фоновое свечение Ambilux" IsChecked="True" VerticalAlignment="Center" Margin="0,0,14,0" Click="ChkAmbiluxGlow_Click"/>
                                             <CheckBox x:Name="ChkBezelIntegerScale" Content="Целочисленное масштабирование" VerticalAlignment="Center" Click="ChkBezelIntegerScale_Click"/>
                                         </WrapPanel>
                                     </Border>
@@ -4521,6 +4630,71 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Gamepad Deadzone, Trigger, Turbo & Rumble Studio Card (1.8.0) -->
+                        <Border DockPanel.Dock="Top" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeAccentGlow}" BorderThickness="1.5" CornerRadius="10" Padding="14,10" Margin="0,0,0,12">
+                            <StackPanel>
+                                <DockPanel LastChildFill="True" Margin="0,0,0,8">
+                                    <Border DockPanel.Dock="Right" Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="6" Padding="10,3">
+                                        <TextBlock x:Name="TxtLivePadTelemetry" Text="Ожидание XInput геймпада..." Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" FontWeight="SemiBold" Typography.NumeralAlignment="Tabular"/>
+                                    </Border>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Border Width="26" Height="26" CornerRadius="6" Background="{DynamicResource ThemeAccentSoft}" BorderBrush="{DynamicResource ThemeAccent}" BorderThickness="1" Margin="0,0,8,0">
+                                            <Path Data="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" Fill="{DynamicResource ThemeAccentGlow}" Width="14" Height="14" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <TextBlock Text="Калибровка стиков, турбо-огня и виброотдачи геймпада" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="13.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </DockPanel>
+
+                                <!-- 4-Column Bento Strip -->
+                                <UniformGrid Columns="4" Rows="1">
+                                    <!-- 1. Analog Stick Deadzone -->
+                                    <Border Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,6,0">
+                                        <StackPanel>
+                                            <DockPanel LastChildFill="True" Margin="0,0,0,4">
+                                                <TextBlock x:Name="TxtAnalogDeadzoneVal" Text="15%" DockPanel.Dock="Right" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="12" FontWeight="Bold" Typography.NumeralAlignment="Tabular"/>
+                                                <TextBlock Text="Мёртвая зона стиков" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" FontWeight="SemiBold"/>
+                                            </DockPanel>
+                                            <Slider x:Name="SliderAnalogDeadzone" Minimum="5" Maximum="40" Value="15" ValueChanged="SliderAnalogDeadzone_ValueChanged"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- 2. Trigger Threshold -->
+                                    <Border Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,6,0">
+                                        <StackPanel>
+                                            <DockPanel LastChildFill="True" Margin="0,0,0,4">
+                                                <TextBlock x:Name="TxtTriggerThresholdVal" Text="12%" DockPanel.Dock="Right" Foreground="#38BDF8" FontSize="12" FontWeight="Bold" Typography.NumeralAlignment="Tabular"/>
+                                                <TextBlock Text="Порог курков LT / RT" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" FontWeight="SemiBold"/>
+                                            </DockPanel>
+                                            <Slider x:Name="SliderTriggerThreshold" Minimum="5" Maximum="50" Value="12" ValueChanged="SliderTriggerThreshold_ValueChanged"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- 3. Rumble XInput & Test -->
+                                    <Border Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,6,0">
+                                        <DockPanel LastChildFill="True">
+                                            <Button x:Name="BtnTestRumble" DockPanel.Dock="Right" Style="{StaticResource StormSecondaryButton}" Padding="8,4" VerticalAlignment="Center" Click="BtnTestRumble_Click" ToolTip="Проверить вибрацию на текущем порте">
+                                                <TextBlock Text="Тест вибрации" FontSize="11"/>
+                                            </Button>
+                                            <CheckBox x:Name="ChkRumbleEnabled" Content="Виброотдача XInput" IsChecked="True" VerticalAlignment="Center" Click="ChkRumbleEnabled_Click"/>
+                                        </DockPanel>
+                                    </Border>
+
+                                    <!-- 4. Turbo Buttons & Frequency -->
+                                    <Border Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="10,8">
+                                        <DockPanel LastChildFill="True">
+                                            <ComboBox x:Name="CmbTurboFireHz" DockPanel.Dock="Right" Width="85" Height="26" VerticalAlignment="Center" SelectionChanged="CmbTurboFireHz_SelectionChanged">
+                                                <ComboBoxItem Content="5 Гц"/>
+                                                <ComboBoxItem Content="10 Гц"/>
+                                                <ComboBoxItem Content="15 Гц" IsSelected="True"/>
+                                                <ComboBoxItem Content="30 Гц"/>
+                                            </ComboBox>
+                                            <CheckBox x:Name="ChkTurboButtons" Content="Турбо-огонь (A/B/X/Y)" IsChecked="False" VerticalAlignment="Center" Margin="0,0,6,0" Click="ChkTurboButtons_Click"/>
+                                        </DockPanel>
+                                    </Border>
+                                </UniformGrid>
                             </StackPanel>
                         </Border>
 
@@ -5096,7 +5270,7 @@
         <Border x:Name="BottomFooterBorder" Grid.Row="4" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,1,0,0" Padding="12,0">
             <DockPanel LastChildFill="True">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                    <TextBlock Text="STORM RETROARCH 1.7.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                    <TextBlock Text="STORM RETROARCH 1.8.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,14,0"/>
                     <TextBlock Text="100% LIBRETRO COMPATIBLE" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center"/>
                 </StackPanel>
                 <TextBlock x:Name="TxtFooterStatus" Text="Готово к работе" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center"/>
@@ -5194,7 +5368,7 @@
                     <DockPanel Margin="0,0,0,14">
                         <Image Source="app_icon.png" Width="44" Height="44" Margin="0,0,14,0" RenderOptions.BitmapScalingMode="HighQuality"/>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="STORM RETROARCH 1.7.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="18" FontWeight="Bold"/>
+                            <TextBlock Text="STORM RETROARCH 1.8.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="18" FontWeight="Bold"/>
                             <TextBlock Text="STORM AURORA FLUID UNIFIED DESIGN SYSTEM" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="11" FontWeight="SemiBold"/>
                         </StackPanel>
                     </DockPanel>

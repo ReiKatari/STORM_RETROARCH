@@ -65,15 +65,30 @@ public class UserSettings
     public bool AutoSaveLoadOnExit { get; set; } = false;
     public bool EnableUiAnimations { get; set; } = true;
 
-    // Hotkey bindings dictionary (1.7.0)
+    // Hotkey bindings dictionary (1.8.0)
     public Dictionary<string, string> CustomHotkeys { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-    // Interactive Shader Studio Parameters (1.7.0)
+    // Interactive Shader Studio Parameters (1.8.0)
     public double ShaderScanlineIntensity { get; set; } = 0.32;
     public double ShaderMaskIntensity { get; set; } = 0.20;
     public double ShaderVignetteIntensity { get; set; } = 0.18;
     public double ShaderBrightnessGain { get; set; } = 1.04;
     public int ShaderColorTemperatureMode { get; set; } = 0;
+    public double ShaderCurvature { get; set; } = 0.0;
+    public double ShaderChromatic { get; set; } = 0.0;
+
+    // Emulation Performance & Run-Ahead (1.8.0)
+    public int RunAheadFrames { get; set; } = 0;
+    public bool PrecisionFramePacer { get; set; } = true;
+    public bool AutoBezelByPlatform { get; set; } = true;
+    public bool AmbiluxGlowEnabled { get; set; } = true;
+
+    // Gamepad, Deadzone, Rumble & Turbo (1.8.0)
+    public int AnalogDeadzonePercent { get; set; } = 15;
+    public int TriggerThresholdPercent { get; set; } = 12;
+    public bool RumbleEnabled { get; set; } = true;
+    public int TurboFireHz { get; set; } = 15;
+    public bool TurboButtonsEnabled { get; set; } = false;
 }
 
 public static class SettingsManager
@@ -82,6 +97,7 @@ public static class SettingsManager
     private static readonly string LegacySettingsDir = Path.Combine(AppDataRoot, "STORM RETROARCH");
     private static readonly string LegacySettingsFile = Path.Combine(LegacySettingsDir, "settings.json");
 
+    public static string AppRootDir => CoreManager.AppDir;
     public static string LocalSettingsFile => Path.Combine(CoreManager.AppDir, "settings.json");
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -134,6 +150,12 @@ public static class SettingsManager
         Current.GameCoreOverrides ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         Current.CustomHotkeys ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (Current.ShaderBrightnessGain < 0.5 || Current.ShaderBrightnessGain > 2.0) Current.ShaderBrightnessGain = 1.04;
+        if (Current.ShaderCurvature < 0.0 || Current.ShaderCurvature > 0.5) Current.ShaderCurvature = 0.0;
+        if (Current.ShaderChromatic < 0.0 || Current.ShaderChromatic > 1.0) Current.ShaderChromatic = 0.0;
+        if (Current.RunAheadFrames < 0 || Current.RunAheadFrames > 2) Current.RunAheadFrames = 0;
+        if (Current.AnalogDeadzonePercent < 5 || Current.AnalogDeadzonePercent > 40) Current.AnalogDeadzonePercent = 15;
+        if (Current.TriggerThresholdPercent < 5 || Current.TriggerThresholdPercent > 50) Current.TriggerThresholdPercent = 12;
+        if (Current.TurboFireHz < 5 || Current.TurboFireHz > 30) Current.TurboFireHz = 15;
     }
 
     public static void Load()
