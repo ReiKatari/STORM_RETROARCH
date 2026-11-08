@@ -546,7 +546,7 @@ public static class AnalyticalSpringEngine
 
 
     // ------------------------------------------------------------------------------------------------
-    // 1.9.0 Enhanced Spring Choreography: Backdrop + Dialog Spring & View Transition Glides
+    // 2.0.0 Enhanced Spring Choreography: Backdrop + Dialog Spring & View Transition Glides
     // ------------------------------------------------------------------------------------------------
 
     private class DialogBackdropAnimation

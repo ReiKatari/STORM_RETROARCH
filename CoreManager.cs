@@ -281,9 +281,70 @@ public static class CoreManager
 
     public static List<CoreInfo> AllCoresCatalog => _allCoresCatalog;
 
+    private static DateTime _lastCoresDirWriteTimeUtc = DateTime.MinValue;
+    private static readonly HashSet<string> _installedCoresCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, string> _coreSizeCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object _coresCacheLock = new();
+
+    public static void RefreshCoresCache(bool force = false)
+    {
+        lock (_coresCacheLock)
+        {
+            if (!Directory.Exists(CoresDir))
+            {
+                _installedCoresCache.Clear();
+                _coreSizeCache.Clear();
+                return;
+            }
+
+            try
+            {
+                DateTime curWrite = Directory.GetLastWriteTimeUtc(CoresDir);
+                if (!force && curWrite == _lastCoresDirWriteTimeUtc && _installedCoresCache.Count > 0)
+                {
+                    return;
+                }
+
+                _installedCoresCache.Clear();
+                _coreSizeCache.Clear();
+
+                var files = Directory.GetFiles(CoresDir, "*.dll");
+                foreach (var f in files)
+                {
+                    string dll = Path.GetFileName(f);
+                    _installedCoresCache.Add(dll);
+
+                    try
+                    {
+                        var fi = new FileInfo(f);
+                        long bytes = fi.Length;
+                        if (bytes >= 1024 * 1024)
+                        {
+                            double mb = bytes / (1024.0 * 1024.0);
+                            _coreSizeCache[dll] = $"{mb:0.0} МБ".Replace('.', ',');
+                        }
+                        else
+                        {
+                            double kb = bytes / 1024.0;
+                            _coreSizeCache[dll] = $"{kb:0.0} КБ".Replace('.', ',');
+                        }
+                    }
+                    catch { }
+                }
+                _lastCoresDirWriteTimeUtc = curWrite;
+            }
+            catch { }
+        }
+    }
+
     public static bool IsCoreInstalled(string dllName)
     {
-        return File.Exists(Path.Combine(CoresDir, dllName));
+        if (string.IsNullOrWhiteSpace(dllName)) return false;
+        RefreshCoresCache();
+        lock (_coresCacheLock)
+        {
+            return _installedCoresCache.Contains(dllName);
+        }
     }
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _coreVersionCache = new(StringComparer.OrdinalIgnoreCase);
@@ -378,28 +439,13 @@ public static class CoreManager
     public static string GetCoreSizeFormatted(string dllName)
     {
         if (string.IsNullOrWhiteSpace(dllName)) return "Онлайн-пакет";
-        string path = Path.Combine(CoresDir, dllName);
-        if (!File.Exists(path)) return "Онлайн-пакет";
-
-        try
+        RefreshCoresCache();
+        lock (_coresCacheLock)
         {
-            var fi = new FileInfo(path);
-            long bytes = fi.Length;
-            if (bytes >= 1024 * 1024)
-            {
-                double mb = bytes / (1024.0 * 1024.0);
-                return $"{mb:0.0} МБ".Replace('.', ',');
-            }
-            else
-            {
-                double kb = bytes / 1024.0;
-                return $"{kb:0.0} КБ".Replace('.', ',');
-            }
+            if (_coreSizeCache.TryGetValue(dllName, out var cachedSize))
+                return cachedSize;
         }
-        catch
-        {
-            return "Онлайн-пакет";
-        }
+        return "Онлайн-пакет";
     }
 
 

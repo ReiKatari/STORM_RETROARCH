@@ -48,6 +48,11 @@ public record NetplayRoomItem(string Username, string GameName, string CoreName,
 
 public partial class MainWindow : Window, INotifyPropertyChanged
 {
+    private static void LogCheckpoint(string msg)
+    {
+        try { File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "run.log"), $"[CP {DateTime.Now:HH:mm:ss.fff}] {msg}\n"); } catch { }
+    }
+
     // In-App Embedded Game Viewport & Interactive Controller Fields
     private RomItem? _activeRomItem;
     private bool _isGameFullscreen;
@@ -101,7 +106,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     }
 
     public double DynamicBentoWidth => _dynamicCardWidth;
-    public double DynamicBentoHeight => Math.Round(_dynamicCardWidth * 0.465, 0);
+    public double DynamicBentoHeight => Math.Max(206.0, Math.Round(_dynamicCardWidth * 0.465, 0));
     public double DynamicBentoCoverWidth => Math.Round(_dynamicCardWidth * 0.285, 0);
     public double DynamicBentoCoverHeight => Math.Max(96, DynamicBentoHeight - 24);
     public double DynamicCompactWidth => Math.Round(_dynamicCardWidth * 0.52, 0);
@@ -308,7 +313,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         InitQuickMenuStateSlots();
 
-        // 1.9.0 Ambilux Dynamic Glow Event Subscription
+        // 2.0.0 Ambilux Dynamic Glow Event Subscription
         NativeLibretroHost.Current.OnAmbiluxColorUpdated += (r, g, b) =>
         {
             if (SettingsManager.Current == null || !SettingsManager.Current.AmbiluxGlowEnabled) return;
@@ -321,7 +326,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }));
         };
 
-        // 1.9.0 Live Gamepad Telemetry & Axis Tester Timer (65ms, active ONLY on ViewInputRemap)
+        // 2.0.0 Live Gamepad Telemetry & Axis Tester Timer (65ms, active ONLY on ViewInputRemap)
         _livePadTesterTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
             Interval = TimeSpan.FromMilliseconds(65)
@@ -605,7 +610,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (TxtCardScaleReadout != null) TxtCardScaleReadout.Text = $"{Math.Round(DynamicCardWidth)} px";
         ApplyDashboardCardOrder();
 
-        // 1.9.0 Attach Interactive Tactile Hover Springs to Dashboard Bento Cards
+        // 2.0.0 Attach Interactive Tactile Hover Springs to Dashboard Bento Cards
         if (DashCard0 != null) AnalyticalSpringEngine.AttachInteractiveHoverSpring(DashCard0);
         if (DashCard1 != null) AnalyticalSpringEngine.AttachInteractiveHoverSpring(DashCard1);
         if (DashCard2 != null) AnalyticalSpringEngine.AttachInteractiveHoverSpring(DashCard2);
@@ -617,6 +622,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SyncQuickSettingsCheckboxes();
 
         _isLoaded = true;
+        LogCheckpoint("Before InitStudio200"); InitStudio200(); LogCheckpoint("After InitStudio200");
 
         ForceForegroundWindow(hwnd);
 
@@ -631,10 +637,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         // Automated UI Screenshot Capture (--screenshot <path> / --screenshot-settings <path> / --screenshot-bios <path>)
-        string[] cmdArgs = Environment.GetCommandLineArgs();
+        LogCheckpoint("Before Screenshot loop"); string[] cmdArgs = Environment.GetCommandLineArgs();
         for (int i = 0; i < cmdArgs.Length - 1; i++)
         {
-            if (cmdArgs[i].Equals("--screenshot", StringComparison.OrdinalIgnoreCase) ||
+            if (cmdArgs[i].Equals("--screenshot-200-suite", StringComparison.OrdinalIgnoreCase) ||
+                cmdArgs[i].Equals("--screenshot", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-settings", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-bios", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-bezels", StringComparison.OrdinalIgnoreCase) ||
@@ -937,7 +944,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                             if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
                             EnsureBattletoadsRunningPreview();
                         }
-                                                else if (cmdArgs[i].Equals("--screenshot-190-suite", StringComparison.OrdinalIgnoreCase))
+                                                else if (cmdArgs[i].Equals("--screenshot-200-suite", StringComparison.OrdinalIgnoreCase))
+                        {
+                            await RunScreenshot200SuiteAsync(shotPath);
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-190-suite", StringComparison.OrdinalIgnoreCase))
                         {
                             string outDir = shotPath;
                             Directory.CreateDirectory(outDir);
@@ -998,7 +1009,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                             await Task.Delay(250);
                             SnapView("v190_library.png");
 
-                            // 5. ViewMainMenu: Дашборд 1.9.0
+                            // 5. ViewMainMenu: Дашборд 2.0.0
                             NavBtn_Click(NavBtnMainMenu, new RoutedEventArgs());
                             SyncPerformanceControls();
                             if (PnlOsdToast != null) PnlOsdToast.Visibility = Visibility.Collapsed;
@@ -1027,7 +1038,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                                 encS.Save(fsS);
                             }
 
-                            // 1. Dashboard 1.9.0 with JIT Dynarec / Run-Ahead / Precision Pacer
+                            // 1. Dashboard 2.0.0 with JIT Dynarec / Run-Ahead / Precision Pacer
                             NavBtn_Click(NavBtnMainMenu, new RoutedEventArgs());
                             SyncPerformanceControls();
                             await Task.Delay(250);
@@ -1311,6 +1322,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         // Global ESC Modal Dismissal Rule (STORM Law 19) - Checked at the VERY TOP before anything else
         if (e.Key == Key.Escape)
         {
+            if (PnlOnScreenKeyboard != null && PnlOnScreenKeyboard.Visibility == Visibility.Visible)
+            {
+                PnlOnScreenKeyboard.Visibility = Visibility.Collapsed;
+                e.Handled = true;
+                return;
+            }
             if (!string.IsNullOrEmpty(_capturingHotkeyActionId))
             {
                 CancelHotkeyCapture();
@@ -1439,6 +1456,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (HotkeyManager.Matches("game_screen", actualKey))
             {
                 BtnNavGamePlayer_Click(sender, e);
+                e.Handled = true;
+                return;
+            }
+            if (HotkeyManager.Matches("instant_replay", actualKey))
+            {
+                TriggerInstantReplaySave();
                 e.Handled = true;
                 return;
             }
@@ -1865,7 +1888,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         if (BtnNavGamePlayer != null) BtnNavGamePlayer.Tag = null;
 
-        // 1.9.0 Power-Saving: Stop Live Gamepad Telemetry Timer immediately when switching views
+        // 2.0.0 Power-Saving: Stop Live Gamepad Telemetry Timer immediately when switching views
         _livePadTesterTimer?.Stop();
 
         // Hide all views
@@ -2112,7 +2135,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
 
         // 2. Games library view modes (3 modes: Bento, List, Poster Grid)
-        GamesBentoScroll.Visibility = (_currentViewMode == ViewDisplayMode.Bento) ? Visibility.Visible : Visibility.Collapsed;
+        IcGamesBento.Visibility = (_currentViewMode == ViewDisplayMode.Bento) ? Visibility.Visible : Visibility.Collapsed;
         LvGames.Visibility = (_currentViewMode == ViewDisplayMode.Ozone) ? Visibility.Visible : Visibility.Collapsed;
         GamesIconsScroll.Visibility = (_currentViewMode == ViewDisplayMode.Compact) ? Visibility.Visible : Visibility.Collapsed;
 
@@ -2600,7 +2623,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (!match) continue;
             }
 
-            // 1.9.0 Smart Collections filter
+            // 2.0.0 Smart Collections filter
             if (_selectedSmartCollection == "Русские переводы")
             {
                 bool isRus = (g.LanguageBadge?.Contains("RUS", StringComparison.OrdinalIgnoreCase) == true) ||
@@ -3201,6 +3224,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         LocalizationManager.SetLanguage(selected.Code);
         SettingsManager.Current.LanguageCode = selected.Code;
         SettingsManager.Save();
+        ApplyLocalization();
     }
 
     private void CmbTheme_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -5649,7 +5673,7 @@ private void LoadBezels()
     {
         _activeRomItem = item;
 
-        // 1.9.0 Check per-game profile override
+        // 2.0.0 Check per-game profile override
         var profile = PerGameProfileManager.TryLoadProfileForGame(item.Name);
         if (profile != null)
         {
@@ -5997,6 +6021,13 @@ private void LoadBezels()
         NativeLibretroHost.Current.ToggleMute();
         UpdateInGameHudButtons();
         ShowOsdToast(NativeLibretroHost.Current.IsAudioMuted ? "Звук отключён" : "Звук включён");
+    }
+
+    private async void TriggerInstantReplaySave()
+    {
+        string title = NativeLibretroHost.Current.CurrentGameTitle;
+        var res = await InstantReplayRecorder.Instance.SaveLast30SecondsAsync(title);
+        ShowOsdToast(res.MessageRu);
     }
 
     private void BtnGameScreenshot_Click(object sender, RoutedEventArgs e)
@@ -8465,7 +8496,7 @@ private void LoadBezels()
         }
     }
 
-// ==================== 1.9.0 PERFORMANCE & JIT DYNAREC STUDIO ====================
+// ==================== 2.0.0 PERFORMANCE & JIT DYNAREC STUDIO ====================
     private void BtnCpuDynarecFast_Click(object sender, RoutedEventArgs e)
     {
         CompilerAndPerformanceManager.ApplyCpuDynarecProfile("dynarec_fast");
@@ -8534,7 +8565,7 @@ private void LoadBezels()
         }
     }
 
-    // ==================== 1.9.0 CORE ABI BENCHMARK & BATCH UPDATER ====================
+    // ==================== 2.0.0 CORE ABI BENCHMARK & BATCH UPDATER ====================
     private async void BtnUpdateAllInstalledCores_Click(object sender, RoutedEventArgs e)
     {
         ShowOsdToast("Пакетное обновление установленных ядер Libretro...");
@@ -8573,7 +8604,7 @@ private void LoadBezels()
             BdrCoreBenchmarkResult.Visibility = Visibility.Collapsed;
     }
 
-    // ==================== 1.9.0 SHADER STUDIO: CURVATURE, CHROMATIC & LIVE PREVIEW ====================
+    // ==================== 2.0.0 SHADER STUDIO: CURVATURE, CHROMATIC & LIVE PREVIEW ====================
     private async void BtnPrecompileShaders_Click(object sender, RoutedEventArgs e)
     {
         ShowOsdToast("Компиляция и индексация кэша шейдеров...");
@@ -8614,7 +8645,7 @@ private void LoadBezels()
         ImgShaderLivePreview.Source = NativeLibretroHost.RenderShaderPreviewSplit(ratio, 560, 315);
     }
 
-    // ==================== 1.9.0 BEZELS & AMBILUX CONTROLS ====================
+    // ==================== 2.0.0 BEZELS & AMBILUX CONTROLS ====================
     private void ChkAutoPlatformBezel_Click(object sender, RoutedEventArgs e)
     {
         bool enabled = ChkAutoPlatformBezel.IsChecked == true;
@@ -8643,7 +8674,7 @@ private void LoadBezels()
             ChkAmbiluxGlow.IsChecked = SettingsManager.Current.AmbiluxGlowEnabled;
     }
 
-    // ==================== 1.9.0 GAMEPAD DEADZONE, TRIGGER & TURBO STUDIO ====================
+    // ==================== 2.0.0 GAMEPAD DEADZONE, TRIGGER & TURBO STUDIO ====================
     private void SliderAnalogDeadzone_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (!_isLoaded || SliderAnalogDeadzone == null) return;
@@ -8737,7 +8768,7 @@ private void LoadBezels()
     }
 
     // =========================================================================
-    // 1.9.0 PHASE 2: RAM SCANNER, AUDIO DSP STUDIO, QUICK MENU 2.0 & SMART COLLECTIONS
+    // 2.0.0 PHASE 2: RAM SCANNER, AUDIO DSP STUDIO, QUICK MENU 2.0 & SMART COLLECTIONS
     // =========================================================================
 
     // --- 1. RAM CHEAT SCANNER (ViewCheats) ---

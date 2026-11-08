@@ -10,6 +10,29 @@ using System.Threading.Tasks;
 
 namespace StormRetroArch;
 
+public class AchievementItem
+{
+    public string Id { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string Description { get; set; } = "";
+    public int Points { get; set; } = 10;
+    public string BadgeUrl { get; set; } = "";
+    public bool Unlocked { get; set; }
+    public DateTime? UnlockedAt { get; set; }
+}
+
+public class LiveRamAchievementRule
+{
+    public string Id { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string Description { get; set; } = "";
+    public int Points { get; set; } = 10;
+    public uint RamAddress { get; set; }
+    public byte Width { get; set; } = 1; // 1 = byte, 2 = uint16, 4 = uint32
+    public uint TargetValue { get; set; }
+    public bool Unlocked { get; set; }
+}
+
 public class CheevosGameSupportItem
 {
     public string GameTitle { get; set; } = "";
@@ -152,4 +175,132 @@ public static class AchievementsManager
             : $"https://retroachievements.org/user/{Uri.EscapeDataString(user)}";
         Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
     }
+    public static event Action<AchievementItem>? OnAchievementUnlocked;
+
+    private static readonly List<LiveRamAchievementRule> _activeLiveRules = new();
+    private static readonly object _rulesLock = new();
+
+    static AchievementsManager()
+    {
+        InitializeDefaultLiveRules();
+    }
+
+    public static void RegisterLiveRule(LiveRamAchievementRule rule)
+    {
+        lock (_rulesLock)
+        {
+            _activeLiveRules.Add(rule);
+        }
+    }
+
+    public static void ResetLiveRules()
+    {
+        lock (_rulesLock)
+        {
+            foreach (var rule in _activeLiveRules)
+            {
+                rule.Unlocked = false;
+            }
+        }
+    }
+
+    public static void InitializeDefaultLiveRules()
+    {
+        lock (_rulesLock)
+        {
+            _activeLiveRules.Clear();
+            _activeLiveRules.Add(new LiveRamAchievementRule
+            {
+                Id = "nes_smb_world1",
+                Title = "Первый шаг в Грибное Королевство",
+                Description = "Пройден уровень 1-1 в Super Mario Bros. (ОЗУ $075F)",
+                Points = 10,
+                RamAddress = 0x075F,
+                Width = 1,
+                TargetValue = 1
+            });
+            _activeLiveRules.Add(new LiveRamAchievementRule
+            {
+                Id = "snes_smw_yoshi",
+                Title = "Друг динозавров",
+                Description = "Йоши оседлан в Super Mario World (ОЗУ $187A)",
+                Points = 15,
+                RamAddress = 0x187A,
+                Width = 1,
+                TargetValue = 1
+            });
+            _activeLiveRules.Add(new LiveRamAchievementRule
+            {
+                Id = "md_sonic_rings",
+                Title = "Золотая лихорадка",
+                Description = "Собрано 100 колец в Sonic the Hedgehog (ОЗУ $FE20)",
+                Points = 20,
+                RamAddress = 0xFE20,
+                Width = 2,
+                TargetValue = 100
+            });
+            _activeLiveRules.Add(new LiveRamAchievementRule
+            {
+                Id = "universal_score_milestone",
+                Title = "Мастер аркад",
+                Description = "Набрано более 10 000 очков в текущей игре",
+                Points = 25,
+                RamAddress = 0x0100,
+                Width = 2,
+                TargetValue = 10000
+            });
+        }
+    }
+
+    public static void EvaluateLiveRamTick(ReadOnlySpan<byte> ram)
+    {
+        if (ram.IsEmpty) return;
+
+        lock (_rulesLock)
+        {
+            foreach (var rule in _activeLiveRules)
+            {
+                if (rule.Unlocked) continue;
+                if (rule.RamAddress + rule.Width > ram.Length) continue;
+
+                uint val = 0;
+                if (rule.Width == 1)
+                {
+                    val = ram[(int)rule.RamAddress];
+                }
+                else if (rule.Width == 2 && rule.RamAddress + 1 < (uint)ram.Length)
+                {
+                    val = (uint)(ram[(int)rule.RamAddress] | (ram[(int)rule.RamAddress + 1] << 8));
+                }
+                else if (rule.Width == 4 && rule.RamAddress + 3 < (uint)ram.Length)
+                {
+                    val = (uint)(ram[(int)rule.RamAddress] | 
+                                 (ram[(int)rule.RamAddress + 1] << 8) | 
+                                 (ram[(int)rule.RamAddress + 2] << 16) | 
+                                 (ram[(int)rule.RamAddress + 3] << 24));
+                }
+
+                if (val >= rule.TargetValue && rule.TargetValue > 0)
+                {
+                    rule.Unlocked = true;
+                    var item = new AchievementItem
+                    {
+                        Id = rule.Id,
+                        Title = rule.Title,
+                        Description = rule.Description,
+                        Points = rule.Points,
+                        Unlocked = true,
+                        UnlockedAt = DateTime.Now
+                    };
+
+                    try
+                    {
+                        OnAchievementUnlocked?.Invoke(item);
+                    }
+                    catch { }
+                }
+            }
+        }
+    }
+
 }

@@ -54,7 +54,7 @@ public record GamepadLiveTelemetry(
 
 
 
-public class NativeLibretroHost
+public partial class NativeLibretroHost
 
 {
 
@@ -77,6 +77,27 @@ public class NativeLibretroHost
 
 
     public int RunAheadFrames { get; set; } = 0;
+
+    // 2.0.0 CRT Phosphor Halation & Virtual Key Injection
+    public double HalationIntensity { get; set; } = 0.12;
+    private readonly bool[] _virtualKeysDown = new bool[512];
+
+    public void InjectVirtualKeyEvent(bool down, uint retroKeyCode, uint unicodeChar = 0, ushort modifiers = 0)
+    {
+        if (retroKeyCode < (uint)_virtualKeysDown.Length)
+        {
+            _virtualKeysDown[retroKeyCode] = down;
+        }
+
+        if (_keyboardCallback != null)
+        {
+            try
+            {
+                _keyboardCallback(down, retroKeyCode, unicodeChar, modifiers);
+            }
+            catch { }
+        }
+    }
 
     public bool PrecisionFramePacerEnabled { get; set; } = true;
 
@@ -466,7 +487,7 @@ public class NativeLibretroHost
 
 
 
-    // Libretro Virtual Disk Control Interface (1.9.0)
+    // Libretro Virtual Disk Control Interface (2.0.0)
 
     [StructLayout(LayoutKind.Sequential)]
 
@@ -1320,7 +1341,7 @@ public class NativeLibretroHost
 
 
 
-    // Libretro Virtual Disk Control Interface (1.9.0)
+    // Libretro Virtual Disk Control Interface (2.0.0)
 
     private RetroDiskSetEjectState? _diskSetEjectState;
 
@@ -1340,7 +1361,7 @@ public class NativeLibretroHost
 
 
 
-    // Deterministic Input Replay (BSV / TAS) (1.9.0)
+    // Deterministic Input Replay (BSV / TAS) (2.0.0)
 
     private FileStream? _replayRecordStream;
 
@@ -1366,7 +1387,7 @@ public class NativeLibretroHost
 
 
 
-    // Interactive Shader Studio Parameters (1.9.0)
+    // Interactive Shader Studio Parameters (2.0.0)
 
     private double _scanlineIntensity = 0.32;
 
@@ -4212,7 +4233,7 @@ public class NativeLibretroHost
 
         {
 
-            // Studio Audio DSP & Soft-Limiter Pipeline (1.9.0)
+            // Studio Audio DSP & Soft-Limiter Pipeline (2.0.0)
 
             AudioDspEngine.Shared.ProcessStereoPcm16(_audioBuffer.AsSpan(0, _audioBufferPos), (int)_sampleRate);
 
@@ -6467,7 +6488,7 @@ public class NativeLibretroHost
 
     // ------------------------------------------------------------------------------------------------
 
-    // 1.9.0 Live System RAM Inspection & Poking API
+    // 2.0.0 Live System RAM Inspection & Poking API
 
     // ------------------------------------------------------------------------------------------------
 
@@ -6595,7 +6616,7 @@ public class NativeLibretroHost
 
     // ------------------------------------------------------------------------------------------------
 
-    // 1.9.0 Virtual Multi-Disc Control API
+    // 2.0.0 Virtual Multi-Disc Control API
 
     // ------------------------------------------------------------------------------------------------
 
@@ -6765,7 +6786,7 @@ public class NativeLibretroHost
 
     // ------------------------------------------------------------------------------------------------
 
-    // 1.9.0 Deterministic Input Replay (BSV / TAS) API
+    // 2.0.0 Deterministic Input Replay (BSV / TAS) API
 
     // ------------------------------------------------------------------------------------------------
 

@@ -82,6 +82,11 @@ public static class SaveManager
     public static readonly string SavesDir = Path.Combine(CoreManager.AppDir, "saves");
     public static readonly string StatesDir = Path.Combine(CoreManager.AppDir, "states");
 
+    private static DateTime _lastSavesWriteTimeUtc = DateTime.MinValue;
+    private static DateTime _lastStatesWriteTimeUtc = DateTime.MinValue;
+    private static readonly List<SaveEntryItem> _cachedSaves = new();
+    private static readonly object _savesLock = new();
+
     static SaveManager()
     {
         try
@@ -92,9 +97,25 @@ public static class SaveManager
         catch { }
     }
 
-    public static List<SaveEntryItem> ScanSavesAndStates()
+    public static List<SaveEntryItem> ScanSavesAndStates(bool forceRefresh = false)
     {
-        var list = new List<SaveEntryItem>();
+        lock (_savesLock)
+        {
+            if (!forceRefresh)
+            {
+                try
+                {
+                    DateTime savesTime = Directory.Exists(SavesDir) ? Directory.GetLastWriteTimeUtc(SavesDir) : DateTime.MinValue;
+                    DateTime statesTime = Directory.Exists(StatesDir) ? Directory.GetLastWriteTimeUtc(StatesDir) : DateTime.MinValue;
+                    if (savesTime == _lastSavesWriteTimeUtc && statesTime == _lastStatesWriteTimeUtc && _cachedSaves.Count > 0)
+                    {
+                        return new List<SaveEntryItem>(_cachedSaves);
+                    }
+                }
+                catch { }
+            }
+
+            var list = new List<SaveEntryItem>();
 
         // 1. Scan Saves (.srm, .sav, .eep, .nv)
         if (Directory.Exists(SavesDir))
@@ -226,7 +247,19 @@ public static class SaveManager
             catch { }
         }
 
-        return list.OrderByDescending(s => s.ModifiedDate).ToList();
+        var sorted = list.OrderByDescending(s => s.ModifiedDate).ToList();
+
+            try
+            {
+                _lastSavesWriteTimeUtc = Directory.Exists(SavesDir) ? Directory.GetLastWriteTimeUtc(SavesDir) : DateTime.MinValue;
+                _lastStatesWriteTimeUtc = Directory.Exists(StatesDir) ? Directory.GetLastWriteTimeUtc(StatesDir) : DateTime.MinValue;
+            }
+            catch { }
+
+            _cachedSaves.Clear();
+            _cachedSaves.AddRange(sorted);
+            return sorted;
+        }
     }
 
     public static string CreateZipBackup()

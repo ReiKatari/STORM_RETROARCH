@@ -48,6 +48,9 @@ public static class ShaderManager
     public static readonly string FiltersDir = Path.Combine(CoreManager.AppDir, "filters");
 
     private static readonly List<ShaderPresetItem> _cachedShaders = new();
+    private static DateTime _lastShadersDirWriteTimeUtc = DateTime.MinValue;
+    private static int _lastShadersCount = 0;
+    private static readonly object _shadersLock = new();
 
     static ShaderManager()
     {
@@ -60,9 +63,24 @@ public static class ShaderManager
         catch { }
     }
 
-    public static List<ShaderPresetItem> GetAllShaders()
+    public static List<ShaderPresetItem> GetAllShaders(bool forceRefresh = false)
     {
-        _cachedShaders.Clear();
+        lock (_shadersLock)
+        {
+            if (!forceRefresh && Directory.Exists(ShadersDir))
+            {
+                try
+                {
+                    DateTime currentWrite = Directory.GetLastWriteTimeUtc(ShadersDir);
+                    if (currentWrite == _lastShadersDirWriteTimeUtc && _cachedShaders.Count > 0)
+                    {
+                        return new List<ShaderPresetItem>(_cachedShaders);
+                    }
+                }
+                catch { }
+            }
+
+            _cachedShaders.Clear();
 
         if (Directory.Exists(ShadersDir))
         {
@@ -172,7 +190,18 @@ public static class ShaderManager
                             (activeShader.Contains(Path.GetFileName(item.RelativePath), StringComparison.OrdinalIgnoreCase));
         }
 
+        try
+        {
+            if (Directory.Exists(ShadersDir))
+            {
+                _lastShadersDirWriteTimeUtc = Directory.GetLastWriteTimeUtc(ShadersDir);
+                _lastShadersCount = _cachedShaders.Count;
+            }
+        }
+        catch { }
+
         return _cachedShaders.OrderBy(s => s.Category).ThenBy(s => s.Name).ToList();
+        }
     }
 
     public static void ApplyShader(ShaderPresetItem item)

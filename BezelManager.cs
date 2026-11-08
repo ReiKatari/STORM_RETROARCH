@@ -232,10 +232,40 @@ public static class BezelManager
         return directPng;
     }
 
-    public static List<BezelPresetItem> ScanBezels()
+    private static DateTime _lastBordersDirWriteTimeUtc = DateTime.MinValue;
+    private static int _lastBordersCount = 0;
+    private static readonly List<BezelPresetItem> _cachedBezels = new();
+    private static readonly object _bezelsLock = new();
+
+    public static List<BezelPresetItem> ScanBezels(bool forceRefresh = false)
     {
-        EnsureBuiltinBezels();
-        var list = new List<BezelPresetItem>();
+        lock (_bezelsLock)
+        {
+            EnsureBuiltinBezels();
+
+            if (!forceRefresh && Directory.Exists(BordersDir))
+            {
+                try
+                {
+                    DateTime currentWrite = Directory.GetLastWriteTimeUtc(BordersDir);
+                    if (currentWrite == _lastBordersDirWriteTimeUtc && _cachedBezels.Count > 0)
+                    {
+                        // Refresh active state in 0.0 ms without disk I/O
+                        string curOverlay = RetroArchConfigManager.GetString("input_overlay", "");
+                        bool ovrEnabled = RetroArchConfigManager.GetBool("input_overlay_enable", false);
+                        foreach (var b in _cachedBezels)
+                        {
+                            b.IsActive = ovrEnabled && !string.IsNullOrEmpty(curOverlay) &&
+                                         (curOverlay.Equals(b.CfgPath, StringComparison.OrdinalIgnoreCase) ||
+                                          Path.GetFileName(curOverlay).Equals(Path.GetFileName(b.CfgPath), StringComparison.OrdinalIgnoreCase));
+                        }
+                        return new List<BezelPresetItem>(_cachedBezels);
+                    }
+                }
+                catch { }
+            }
+
+            var list = new List<BezelPresetItem>();
 
         try
         {
@@ -291,14 +321,29 @@ public static class BezelManager
         catch { }
 
         // Put built-in studio templates first in exact order, followed by custom bezels
-        return list
-            .OrderBy(b =>
+            var sorted = list
+                .OrderBy(b =>
+                {
+                    int idx = BuiltinTemplates.FindIndex(t => t.Name.Equals(b.Name, StringComparison.OrdinalIgnoreCase));
+                    return idx >= 0 ? idx : 1000;
+                })
+                .ThenBy(b => b.Name)
+                .ToList();
+
+            try
             {
-                int idx = BuiltinTemplates.FindIndex(t => t.Name.Equals(b.Name, StringComparison.OrdinalIgnoreCase));
-                return idx >= 0 ? idx : 1000;
-            })
-            .ThenBy(b => b.Name)
-            .ToList();
+                if (Directory.Exists(BordersDir))
+                {
+                    _lastBordersDirWriteTimeUtc = Directory.GetLastWriteTimeUtc(BordersDir);
+                    _lastBordersCount = sorted.Count;
+                }
+            }
+            catch { }
+
+            _cachedBezels.Clear();
+            _cachedBezels.AddRange(sorted);
+            return sorted;
+        }
     }
 
     public static BezelPresetItem? GetActiveBezel()
