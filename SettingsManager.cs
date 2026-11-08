@@ -65,10 +65,10 @@ public class UserSettings
     public bool AutoSaveLoadOnExit { get; set; } = false;
     public bool EnableUiAnimations { get; set; } = true;
 
-    // Hotkey bindings dictionary (1.8.0)
+    // Hotkey bindings dictionary (1.9.0)
     public Dictionary<string, string> CustomHotkeys { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-    // Interactive Shader Studio Parameters (1.8.0)
+    // Interactive Shader Studio Parameters (1.9.0)
     public double ShaderScanlineIntensity { get; set; } = 0.32;
     public double ShaderMaskIntensity { get; set; } = 0.20;
     public double ShaderVignetteIntensity { get; set; } = 0.18;
@@ -77,18 +77,26 @@ public class UserSettings
     public double ShaderCurvature { get; set; } = 0.0;
     public double ShaderChromatic { get; set; } = 0.0;
 
-    // Emulation Performance & Run-Ahead (1.8.0)
+    // Emulation Performance & Run-Ahead (1.9.0)
     public int RunAheadFrames { get; set; } = 0;
     public bool PrecisionFramePacer { get; set; } = true;
     public bool AutoBezelByPlatform { get; set; } = true;
     public bool AmbiluxGlowEnabled { get; set; } = true;
 
-    // Gamepad, Deadzone, Rumble & Turbo (1.8.0)
+    // Gamepad, Deadzone, Rumble & Turbo (1.9.0)
     public int AnalogDeadzonePercent { get; set; } = 15;
     public int TriggerThresholdPercent { get; set; } = 12;
     public bool RumbleEnabled { get; set; } = true;
     public int TurboFireHz { get; set; } = 15;
     public bool TurboButtonsEnabled { get; set; } = false;
+
+    // Studio Audio DSP & Soft-Limiter Pipeline (1.9.0)
+    public string AudioDspPreset { get; set; } = "Чистый студийный";
+    public int AudioBassGainDb { get; set; } = 0;
+    public int AudioTrebleGainDb { get; set; } = 0;
+    public int AudioStereoWidthPercent { get; set; } = 100;
+    public int AudioReverbPercent { get; set; } = 0;
+    public bool AudioSoftLimiter { get; set; } = true;
 }
 
 public static class SettingsManager

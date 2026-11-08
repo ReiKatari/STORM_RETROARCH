@@ -23,6 +23,7 @@ public static class CoverArtService
     static CoverArtService()
     {
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("STORM-GAMES-WORLD/3.0 (Multi-Platform Media Engine)");
+        EnsureMediaIndexStarted();
     }
 
     private class StormMediaIndex
@@ -115,7 +116,35 @@ public static class CoverArtService
         }
     }
 
-    private static readonly Lazy<StormMediaIndex> _mediaIndex = new(() => new StormMediaIndex());
+    private static volatile StormMediaIndex? _mediaIndexInstance;
+    private static readonly object _mediaIndexLock = new();
+    private static Task? _mediaIndexTask;
+
+    public static void EnsureMediaIndexStarted()
+    {
+        if (_mediaIndexInstance != null || _mediaIndexTask != null) return;
+        lock (_mediaIndexLock)
+        {
+            if (_mediaIndexInstance != null || _mediaIndexTask != null) return;
+            _mediaIndexTask = Task.Run(() =>
+            {
+                try
+                {
+                    _mediaIndexInstance = new StormMediaIndex();
+                }
+                catch { }
+            });
+        }
+    }
+
+    private static StormMediaIndex? MediaIndex
+    {
+        get
+        {
+            EnsureMediaIndexStarted();
+            return _mediaIndexInstance;
+        }
+    }
 
     public static string NormalizeLookupKey(string name)
     {
@@ -246,21 +275,17 @@ public static class CoverArtService
         try
         {
             using var ms = new MemoryStream(imageBytes);
-            var decoder = BitmapDecoder.Create(ms, BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.OnLoad);
-            if (decoder.Frames.Count == 0) return false;
-            var frame = decoder.Frames[0];
+            var bi = new BitmapImage();
+            bi.BeginInit();
+            bi.CacheOption = BitmapCacheOption.OnLoad;
+            bi.StreamSource = ms;
+            bi.DecodePixelWidth = 240;
+            bi.EndInit();
+            bi.Freeze();
 
-            BitmapSource finalBmp = frame;
-            if (frame.PixelWidth > 320)
+            Application.Current?.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
             {
-                double scale = 320.0 / frame.PixelWidth;
-                finalBmp = new TransformedBitmap(frame, new ScaleTransform(scale, scale));
-            }
-            finalBmp.Freeze();
-
-            Application.Current?.Dispatcher.BeginInvoke(() =>
-            {
-                item.Icon = finalBmp;
+                item.Icon = bi;
             });
             return true;
         }
@@ -273,17 +298,13 @@ public static class CoverArtService
         try
         {
             using var ms = new MemoryStream(imageBytes);
-            var decoder = BitmapDecoder.Create(ms, BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.OnLoad);
-            if (decoder.Frames.Count == 0) return false;
-            var frame = decoder.Frames[0];
-
-            BitmapSource finalBmp = frame;
-            if (frame.PixelWidth > 320)
-            {
-                double scale = 320.0 / frame.PixelWidth;
-                finalBmp = new TransformedBitmap(frame, new ScaleTransform(scale, scale));
-            }
-            finalBmp.Freeze();
+            var bi = new BitmapImage();
+            bi.BeginInit();
+            bi.CacheOption = BitmapCacheOption.OnLoad;
+            bi.StreamSource = ms;
+            bi.DecodePixelWidth = 240;
+            bi.EndInit();
+            bi.Freeze();
 
             try
             {
@@ -291,15 +312,15 @@ public static class CoverArtService
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
 
                 var encoder = new PngBitmapEncoder();
-                encoder.Frames.Add(BitmapFrame.Create(finalBmp));
+                encoder.Frames.Add(BitmapFrame.Create(bi));
                 using var fs = File.Create(cacheFile);
                 encoder.Save(fs);
             }
             catch { }
 
-            Application.Current?.Dispatcher.BeginInvoke(() =>
+            Application.Current?.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
             {
-                item.Icon = finalBmp;
+                item.Icon = bi;
             });
             return true;
         }
@@ -315,7 +336,7 @@ public static class CoverArtService
         {
             string key = NormalizeLookupKey(cleanName);
             if (string.IsNullOrEmpty(key)) return "";
-            var covers = _mediaIndex.Value.Covers;
+            var covers = MediaIndex?.Covers; if (covers == null) return "";
             if (covers.TryGetValue(key, out var path) && File.Exists(path))
             {
                 return path;
@@ -384,7 +405,7 @@ public static class CoverArtService
             {
                 string url = $"https://en.wikipedia.org/api/rest_v1/page/summary/{Uri.EscapeDataString(q)}";
                 using var req = new HttpRequestMessage(HttpMethod.Get, url);
-                req.Headers.UserAgent.ParseAdd("STORM-RETROARCH/1.8.0 (Game Media Engine; contact@stormgamesworld.ru)");
+                req.Headers.UserAgent.ParseAdd("STORM-RETROARCH/1.9.0 (Game Media Engine; contact@stormgamesworld.ru)");
                 using var resp = await _httpClient.SendAsync(req).ConfigureAwait(false);
                 if (!resp.IsSuccessStatusCode) continue;
 
@@ -405,7 +426,7 @@ public static class CoverArtService
                 if (!string.IsNullOrEmpty(imgUrl))
                 {
                     using var imgReq = new HttpRequestMessage(HttpMethod.Get, imgUrl);
-                    imgReq.Headers.UserAgent.ParseAdd("STORM-RETROARCH/1.8.0 (Game Media Engine)");
+                    imgReq.Headers.UserAgent.ParseAdd("STORM-RETROARCH/1.9.0 (Game Media Engine)");
                     using var imgResp = await _httpClient.SendAsync(imgReq).ConfigureAwait(false);
                     if (imgResp.IsSuccessStatusCode)
                     {
@@ -606,7 +627,7 @@ public static class CoverArtService
             }
 
             string key = NormalizeLookupKey(item.Name);
-            var logos = _mediaIndex.Value.Logos;
+            var logos = MediaIndex?.Logos; if (logos == null) return null;
             if (logos.TryGetValue(key, out var stormPath) && File.Exists(stormPath))
             {
                 return LoadBitmapFromPath(stormPath);
@@ -623,7 +644,7 @@ public static class CoverArtService
         try
         {
             string key = NormalizeLookupKey(item.Name);
-            var screenshots = _mediaIndex.Value.Screenshots;
+            var screenshots = MediaIndex?.Screenshots; if (screenshots == null) return list;
             if (screenshots.TryGetValue(key, out var paths))
             {
                 foreach (var p in paths)
@@ -719,6 +740,7 @@ public static class CoverArtService
             var bmp = new BitmapImage();
             bmp.BeginInit();
             bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.DecodePixelWidth = 240;
             bmp.UriSource = new Uri(path, UriKind.Absolute);
             bmp.EndInit();
             bmp.Freeze();

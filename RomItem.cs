@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System;
 using System.ComponentModel;
 using System.IO;
@@ -250,7 +251,14 @@ public class RomItem : INotifyPropertyChanged
 
     public ImageSource? Icon
     {
-        get => _icon;
+        get
+        {
+            if (_icon == null)
+            {
+                _icon = GetCachedPlatformIcon(Platform);
+            }
+            return _icon;
+        }
         set => SetField(ref _icon, value);
     }
 
@@ -416,7 +424,15 @@ public class RomItem : INotifyPropertyChanged
         return (cleanTitle, year, region, langBadge, combinedVersion);
     }
 
-    public void GeneratePixelIcon()
+    private static readonly ConcurrentDictionary<string, BitmapSource> _platformIconCache = new(StringComparer.OrdinalIgnoreCase);
+
+    public static BitmapSource GetCachedPlatformIcon(string? platform)
+    {
+        string key = string.IsNullOrWhiteSpace(platform) ? "RETRO" : platform.Trim();
+        return _platformIconCache.GetOrAdd(key, CreatePlatformIconBitmap);
+    }
+
+    private static BitmapSource CreatePlatformIconBitmap(string platformKey)
     {
         try
         {
@@ -438,8 +454,8 @@ public class RomItem : INotifyPropertyChanged
                     g.FillRectangle(bgBrush, 0, 0, w, h);
                 }
 
-                // Compute color scheme from Platform / Title hash
-                uint hash = (uint)Math.Abs((Platform + Name).GetHashCode());
+                // Compute color scheme from Platform hash
+                uint hash = (uint)Math.Abs(platformKey.GetHashCode());
                 byte accentR = (byte)(80 + (hash & 0x7F));
                 byte accentG = (byte)(80 + ((hash >> 7) & 0x7F));
                 byte accentB = (byte)(140 + ((hash >> 14) & 0x7F));
@@ -464,7 +480,7 @@ public class RomItem : INotifyPropertyChanged
                 }
 
                 // 4. Platform pill badge at top
-                string platBadge = !string.IsNullOrWhiteSpace(Platform) ? Platform.ToUpperInvariant() : "RETRO";
+                string platBadge = platformKey.ToUpperInvariant();
                 if (platBadge.Length > 20) platBadge = platBadge.Substring(0, 20);
                 using (var pillBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(45, 50, 70)))
                 using (var pillPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(80, accentColor), 1f))
@@ -494,7 +510,6 @@ public class RomItem : INotifyPropertyChanged
                 using (var emblemPen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(120, accentColor), 2f))
                 using (var emblemFill = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(30, accentColor)))
                 {
-                    // Gamepad body contour
                     g.FillEllipse(emblemFill, cx - 60, cy - 35, 120, 70);
                     g.DrawEllipse(emblemPen, cx - 60, cy - 35, 120, 70);
 
@@ -507,8 +522,7 @@ public class RomItem : INotifyPropertyChanged
                     g.FillEllipse(emblemPen.Brush, cx + 34, cy - 2, 8, 8);
                 }
 
-                // 6. Title Text (Bold, wrapped)
-                string titleToDraw = !string.IsNullOrWhiteSpace(Title) ? Title : Name;
+                // 6. Platform Title Text
                 using (var titleFont = new System.Drawing.Font("Segoe UI", 13f, System.Drawing.FontStyle.Bold))
                 using (var titleBrush = new System.Drawing.SolidBrush(System.Drawing.Color.White))
                 using (var sf = new System.Drawing.StringFormat
@@ -519,15 +533,10 @@ public class RomItem : INotifyPropertyChanged
                 })
                 {
                     var titleRect = new System.Drawing.RectangleF(16, 230, w - 32, 85);
-                    g.DrawString(titleToDraw, titleFont, titleBrush, titleRect, sf);
+                    g.DrawString(platformKey, titleFont, titleBrush, titleRect, sf);
                 }
 
-                // 7. Year & Region at bottom
-                string footerText = "";
-                if (!string.IsNullOrEmpty(Year)) footerText += Year;
-                if (!string.IsNullOrEmpty(Region)) footerText += (footerText.Length > 0 ? $" • [{Region}]" : $"[{Region}]");
-                if (string.IsNullOrEmpty(footerText)) footerText = "STORM RETROARCH";
-
+                // 7. Footer text
                 using (var footerFont = new System.Drawing.Font("Segoe UI", 10f, System.Drawing.FontStyle.Regular))
                 using (var footerBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(160, 170, 185)))
                 using (var sfFooter = new System.Drawing.StringFormat
@@ -536,7 +545,7 @@ public class RomItem : INotifyPropertyChanged
                     LineAlignment = System.Drawing.StringAlignment.Center
                 })
                 {
-                    g.DrawString(footerText, footerFont, footerBrush, new System.Drawing.RectangleF(16, 335, w - 32, 25), sfFooter);
+                    g.DrawString("STORM RETROARCH", footerFont, footerBrush, new System.Drawing.RectangleF(16, 335, w - 32, 25), sfFooter);
                 }
 
                 // 8. Outer Card Border
@@ -546,7 +555,6 @@ public class RomItem : INotifyPropertyChanged
                 }
             }
 
-            // Convert System.Drawing.Bitmap -> WPF BitmapSource
             using var ms = new MemoryStream();
             bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
             ms.Position = 0;
@@ -555,13 +563,27 @@ public class RomItem : INotifyPropertyChanged
             bi.BeginInit();
             bi.CacheOption = BitmapCacheOption.OnLoad;
             bi.StreamSource = ms;
+            bi.DecodePixelWidth = 240;
             bi.EndInit();
             bi.Freeze();
-
-            Icon = bi;
+            return bi;
         }
-        catch { }
+        catch
+        {
+            var empty = BitmapSource.Create(1, 1, 96, 96, PixelFormats.Bgra32, null, new byte[4], 4);
+            empty.Freeze();
+            return empty;
+        }
     }
+
+    public void GeneratePixelIcon()
+    {
+        if (_icon == null)
+        {
+            Icon = GetCachedPlatformIcon(Platform);
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)

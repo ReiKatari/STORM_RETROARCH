@@ -296,7 +296,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SettingItem.SettingChanged += OnLiveSettingChanged;
 
         // 1.6.0 Debounced Search Timer (120ms)
-        _searchDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+        _searchDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(90) };
         _searchDebounceTimer.Tick += (s, e) =>
         {
             _searchDebounceTimer.Stop();
@@ -308,7 +308,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         InitQuickMenuStateSlots();
 
-        // 1.8.0 Ambilux Dynamic Glow Event Subscription
+        // 1.9.0 Ambilux Dynamic Glow Event Subscription
         NativeLibretroHost.Current.OnAmbiluxColorUpdated += (r, g, b) =>
         {
             if (SettingsManager.Current == null || !SettingsManager.Current.AmbiluxGlowEnabled) return;
@@ -321,7 +321,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }));
         };
 
-        // 1.8.0 Live Gamepad Telemetry & Axis Tester Timer (65ms, active ONLY on ViewInputRemap)
+        // 1.9.0 Live Gamepad Telemetry & Axis Tester Timer (65ms, active ONLY on ViewInputRemap)
         _livePadTesterTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
             Interval = TimeSpan.FromMilliseconds(65)
@@ -605,7 +605,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (TxtCardScaleReadout != null) TxtCardScaleReadout.Text = $"{Math.Round(DynamicCardWidth)} px";
         ApplyDashboardCardOrder();
 
-        // 1.8.0 Attach Interactive Tactile Hover Springs to Dashboard Bento Cards
+        // 1.9.0 Attach Interactive Tactile Hover Springs to Dashboard Bento Cards
         if (DashCard0 != null) AnalyticalSpringEngine.AttachInteractiveHoverSpring(DashCard0);
         if (DashCard1 != null) AnalyticalSpringEngine.AttachInteractiveHoverSpring(DashCard1);
         if (DashCard2 != null) AnalyticalSpringEngine.AttachInteractiveHoverSpring(DashCard2);
@@ -682,7 +682,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     cmdArgs[i].Equals("--screenshot-170-discs", StringComparison.OrdinalIgnoreCase) ||
                     cmdArgs[i].Equals("--screenshot-170-ingame", StringComparison.OrdinalIgnoreCase) ||
                     cmdArgs[i].Equals("--screenshot-170-suite", StringComparison.OrdinalIgnoreCase) ||
-                    cmdArgs[i].Equals("--screenshot-180-suite", StringComparison.OrdinalIgnoreCase))
+                    cmdArgs[i].Equals("--screenshot-180-suite", StringComparison.OrdinalIgnoreCase) ||
+                    cmdArgs[i].Equals("--screenshot-190-suite", StringComparison.OrdinalIgnoreCase))
             {
                 bool isSettings = cmdArgs[i].Equals("--screenshot-settings", StringComparison.OrdinalIgnoreCase);
                 bool isBios = cmdArgs[i].Equals("--screenshot-bios", StringComparison.OrdinalIgnoreCase);
@@ -936,7 +937,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                             if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
                             EnsureBattletoadsRunningPreview();
                         }
-                                                else if (cmdArgs[i].Equals("--screenshot-180-suite", StringComparison.OrdinalIgnoreCase))
+                                                else if (cmdArgs[i].Equals("--screenshot-190-suite", StringComparison.OrdinalIgnoreCase))
                         {
                             string outDir = shotPath;
                             Directory.CreateDirectory(outDir);
@@ -955,7 +956,78 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                                 encS.Save(fsS);
                             }
 
-                            // 1. Dashboard 1.8.0 with JIT Dynarec / Run-Ahead / Precision Pacer
+                            // 1. ViewCheats: Живой сканер ОЗУ (RamCheatScannerEngine)
+                            NavBtn_Click(NavBtnCheats, new RoutedEventArgs());
+                            RamCheatScannerEngine.Shared.ResetScan();
+                            RamCheatScannerEngine.Shared.StartFirstScan(RamValueWidth.UInt16, RamCompareMode.Changed, 0);
+                            UpdateRamScannerUi();
+                            if (PnlOsdToast != null) PnlOsdToast.Visibility = Visibility.Collapsed;
+                            await Task.Delay(250);
+                            SnapView("v190_cheats_ram.png");
+
+                            // 2. ViewSettings: Акустическая студия Audio DSP с пресетом "Аркадный бас"
+                            NavBtn_Click(NavBtnSettings, new RoutedEventArgs());
+                            _selectedSettingsCategory = "audio";
+                            CategoryChip_Click(SettingsCategoryChips.Children.OfType<Button>().FirstOrDefault(b => b.Content?.ToString()?.Contains("Аудио") == true) ?? NavBtnSettings, new RoutedEventArgs());
+                            AudioDspEngine.Shared.ApplyPreset("Аркадный бас");
+                            SyncAudioDspStudioControls();
+                            if (BdrAudioDspStudio != null) BdrAudioDspStudio.Visibility = Visibility.Visible;
+                            if (PnlOsdToast != null) PnlOsdToast.Visibility = Visibility.Collapsed;
+                            await Task.Delay(250);
+                            SnapView("v190_audio_dsp.png");
+
+                            // 3. ViewGamePlayer: PnlInGameQuickMenu 2.0 с панелью профиля игры, CD и BSV
+                            if (BtnNavGamePlayer != null) NavBtn_Click(BtnNavGamePlayer, new RoutedEventArgs());
+                            if (ViewGamePlayer != null) ViewGamePlayer.Visibility = Visibility.Visible;
+                            EnsureBattletoadsRunningPreview();
+                            ApplyActiveBezelToViewport();
+                            PnlInGameQuickMenu.Visibility = Visibility.Visible;
+                            if (BorderInGameQuickMenuDialog != null) BorderInGameQuickMenuDialog.Visibility = Visibility.Visible;
+                            if (PnlOsdToast != null) PnlOsdToast.Visibility = Visibility.Collapsed;
+                            AnalyticalSpringEngine.FlushAllImmediately();
+                            await Task.Delay(250);
+                            SnapView("v190_quickmenu.png");
+                            PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
+
+                            // 4. ViewLibrary: Умные динамические коллекции + библиотека игр
+                            NavBtn_Click(NavBtnLibrary, new RoutedEventArgs());
+                            EnsureBattletoadsTestGame();
+                            UpdatePlatformFilterChips();
+                            UpdateSmartCollectionPills();
+                            if (PnlOsdToast != null) PnlOsdToast.Visibility = Visibility.Collapsed;
+                            await Task.Delay(250);
+                            SnapView("v190_library.png");
+
+                            // 5. ViewMainMenu: Дашборд 1.9.0
+                            NavBtn_Click(NavBtnMainMenu, new RoutedEventArgs());
+                            SyncPerformanceControls();
+                            if (PnlOsdToast != null) PnlOsdToast.Visibility = Visibility.Collapsed;
+                            await Task.Delay(250);
+                            SnapView("v190_dashboard.png");
+
+                            System.Diagnostics.Process.GetCurrentProcess().Kill();
+                        }
+                        else if (cmdArgs[i].Equals("--screenshot-180-suite", StringComparison.OrdinalIgnoreCase) ||
+                    cmdArgs[i].Equals("--screenshot-190-suite", StringComparison.OrdinalIgnoreCase))
+                        {
+                            string outDir = shotPath;
+                            Directory.CreateDirectory(outDir);
+
+                            void SnapView(string fileName)
+                            {
+                                AnalyticalSpringEngine.FlushAllImmediately();
+                                UpdateLayout();
+                                int sw = Math.Max(1360, (int)ActualWidth);
+                                int sh = Math.Max(820, (int)ActualHeight);
+                                var rtbS = new RenderTargetBitmap(sw, sh, 96, 96, PixelFormats.Pbgra32);
+                                rtbS.Render(this);
+                                var encS = new PngBitmapEncoder();
+                                encS.Frames.Add(BitmapFrame.Create(rtbS));
+                                using var fsS = File.Create(Path.Combine(outDir, fileName));
+                                encS.Save(fsS);
+                            }
+
+                            // 1. Dashboard 1.9.0 with JIT Dynarec / Run-Ahead / Precision Pacer
                             NavBtn_Click(NavBtnMainMenu, new RoutedEventArgs());
                             SyncPerformanceControls();
                             await Task.Delay(250);
@@ -1724,7 +1796,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public void CloseCoreSelectorModal()
     {
         if (PnlCoreSelectorModal != null)
-            PnlCoreSelectorModal.Visibility = Visibility.Collapsed;
+        {
+            if (BorderCoreSelectorDialog != null)
+                AnalyticalSpringEngine.AnimateBackdropAndDialog(PnlCoreSelectorModal, BorderCoreSelectorDialog, opening: false, () => PnlCoreSelectorModal.Visibility = Visibility.Collapsed);
+            else
+                PnlCoreSelectorModal.Visibility = Visibility.Collapsed;
+        }
     }
 
     public void ToggleInGameQuickMenu(bool? show = null)
@@ -1734,9 +1811,17 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (opening)
         {
             PopulateQuickMenuCoreSelector();
+            PnlInGameQuickMenu.Visibility = Visibility.Visible;
+            if (BorderInGameQuickMenuDialog != null)
+                AnalyticalSpringEngine.AnimateBackdropAndDialog(PnlInGameQuickMenu, BorderInGameQuickMenuDialog, opening: true);
         }
-        PnlInGameQuickMenu.Visibility = opening ? Visibility.Visible : Visibility.Collapsed;
-        if (opening && BorderInGameQuickMenuDialog != null) AnalyticalSpringEngine.AnimateModalPop(BorderInGameQuickMenuDialog);
+        else
+        {
+            if (BorderInGameQuickMenuDialog != null)
+                AnalyticalSpringEngine.AnimateBackdropAndDialog(PnlInGameQuickMenu, BorderInGameQuickMenuDialog, opening: false, () => PnlInGameQuickMenu.Visibility = Visibility.Collapsed);
+            else
+                PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
+        }
 
         if (NativeLibretroHost.Current.IsRunning)
         {
@@ -1780,7 +1865,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         if (BtnNavGamePlayer != null) BtnNavGamePlayer.Tag = null;
 
-        // 1.8.0 Power-Saving: Stop Live Gamepad Telemetry Timer immediately when switching views
+        // 1.9.0 Power-Saving: Stop Live Gamepad Telemetry Timer immediately when switching views
         _livePadTesterTimer?.Stop();
 
         // Hide all views
@@ -1817,12 +1902,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _activeNavView = "Settings";
             ViewSettings.Visibility = Visibility.Visible;
+            SyncAudioDspStudioControls();
             ApplySettingsFilter();
         }
         else if (btn == NavBtnLibrary)
         {
             _activeNavView = "Library";
             ViewLibrary.Visibility = Visibility.Visible;
+            UpdateSmartCollectionPills();
             ApplyGamesFilter();
         }
         else if (btn == NavBtnFavorites)
@@ -1897,6 +1984,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _activeNavView = "Cheats";
             ViewCheats.Visibility = Visibility.Visible;
             LoadCheats();
+            UpdateRamScannerUi();
         }
         else if (btn == NavBtnBezels)
         {
@@ -1971,7 +2059,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             "AiWalkthrough" => ViewAiWalkthrough,
             _ => null
         };
-        if (activePanel != null) AnimatePanelEntrance(activePanel);
+        if (activePanel is FrameworkElement fe)
+        {
+            AnalyticalSpringEngine.AnimateViewTransition(fe);
+        }
+        else if (activePanel != null)
+        {
+            AnimatePanelEntrance(activePanel);
+        }
     }
 
     private void BtnViewMode_Click(object sender, RoutedEventArgs e)
@@ -2076,6 +2171,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         else if (txt.Contains("Конфиг")) _selectedSettingsCategory = "config";
         else if (txt.Contains("Каталоги")) _selectedSettingsCategory = "directory";
         else if (txt.Contains("Пользователь")) _selectedSettingsCategory = "user";
+        else _selectedSettingsCategory = "all";
+
+        if (BdrAudioDspStudio != null)
+        {
+            BdrAudioDspStudio.Visibility = (_selectedSettingsCategory == "all" || _selectedSettingsCategory == "audio")
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
 
         ApplySettingsFilter();
     }
@@ -2410,7 +2513,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             };
 
             item.ParseAndUpdateFromFileName(fi.Name);
-            item.GeneratePixelIcon();
             _ = CoverArtService.LoadCoverAsync(item);
             _allGames.Add(item);
         }
@@ -2498,6 +2600,38 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (!match) continue;
             }
 
+            // 1.9.0 Smart Collections filter
+            if (_selectedSmartCollection == "Русские переводы")
+            {
+                bool isRus = (g.LanguageBadge?.Contains("RUS", StringComparison.OrdinalIgnoreCase) == true) ||
+                             (g.Name?.Contains("RUS", StringComparison.OrdinalIgnoreCase) == true) ||
+                             (g.Name?.Contains("Рус", StringComparison.OrdinalIgnoreCase) == true);
+                if (!isRus) continue;
+            }
+            else if (_selectedSmartCollection == "Недавние")
+            {
+                bool isRecent = g.LaunchCount > 0 || g.TotalPlaySeconds > 0 || g.LastPlayed != null || _history.Any(h => h.FilePath == g.FilePath);
+                if (!isRecent) continue;
+            }
+            else if (_selectedSmartCollection == "Классика 8/16-бит")
+            {
+                string p = g.Platform?.ToLowerInvariant() ?? "";
+                bool isClassic = p.Contains("nes") || p.Contains("famicom") || p.Contains("snes") || p.Contains("genesis") || p.Contains("mega drive") || p.Contains("game boy") || p.Contains("gba") || p.Contains("master system") || p.Contains("pc engine");
+                if (!isClassic) continue;
+            }
+            else if (_selectedSmartCollection == "MS-DOS")
+            {
+                string p = g.Platform?.ToLowerInvariant() ?? "";
+                bool isDos = p.Contains("dos") || p.Contains("pc");
+                if (!isDos) continue;
+            }
+            else if (_selectedSmartCollection == "3D и CD")
+            {
+                string p = g.Platform?.ToLowerInvariant() ?? "";
+                bool is3d = p.Contains("ps1") || p.Contains("playstation") || p.Contains("n64") || p.Contains("saturn") || p.Contains("dreamcast") || p.Contains("3do") || p.Contains("sega cd") || p.Contains("ps2");
+                if (!is3d) continue;
+            }
+
             if (platform != "Все платформы" && g.Platform != platform)
                 continue;
 
@@ -2538,6 +2672,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void PopulateFilters()
     {
+        UpdateSmartCollectionPills();
         CmbPlatformFilter.Items.Clear();
         CmbPlatformFilter.Items.Add("Все платформы");
         CmbPlatformFilter.SelectedIndex = 0;
@@ -3141,9 +3276,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void BtnAbout_Click(object sender, RoutedEventArgs e)
     {
         OverlayAbout.Visibility = Visibility.Visible;
-        if (BorderAboutDialog != null) AnalyticalSpringEngine.AnimateModalPop(BorderAboutDialog);
+        if (BorderAboutDialog != null)
+            AnalyticalSpringEngine.AnimateBackdropAndDialog(OverlayAbout, BorderAboutDialog, opening: true);
     }
-    private void BtnCloseAbout_Click(object sender, RoutedEventArgs e) => OverlayAbout.Visibility = Visibility.Collapsed;
+    private void BtnCloseAbout_Click(object sender, RoutedEventArgs e)
+    {
+        if (BorderAboutDialog != null)
+            AnalyticalSpringEngine.AnimateBackdropAndDialog(OverlayAbout, BorderAboutDialog, opening: false, () => OverlayAbout.Visibility = Visibility.Collapsed);
+        else
+            OverlayAbout.Visibility = Visibility.Collapsed;
+    }
 
     // ==================== WIN32 WNDPROC (DRAG & DROP) ====================
 
@@ -4722,19 +4864,22 @@ private void LoadBezels()
     private void BtnDiscEjectToggle_Click(object sender, RoutedEventArgs e)
     {
         DiscPatchSubsystemManager.EjectOrInsertDisc();
-        ShowNotification("STORM RETROARCH", "Команда DISK_EJECT_TOGGLE отправлена в RetroArch (UDP:55355)");
+        bool open = NativeLibretroHost.Current.ToggleVirtualDiscTray();
+        ShowOsdToast(open ? "Виртуальный лоток CD открыт" : "Виртуальный лоток CD закрыт");
     }
 
     private void BtnDiscPrev_Click(object sender, RoutedEventArgs e)
     {
         DiscPatchSubsystemManager.PreviousDisc();
-        ShowNotification("STORM RETROARCH", "Команда DISK_PREV отправлена в RetroArch (UDP:55355)");
+        NativeLibretroHost.Current.SwitchVirtualDisc(-1);
+        ShowOsdToast(NativeLibretroHost.Current.GetVirtualDiscStatusRu());
     }
 
     private void BtnDiscNext_Click(object sender, RoutedEventArgs e)
     {
         DiscPatchSubsystemManager.NextDisc();
-        ShowNotification("STORM RETROARCH", "Команда DISK_NEXT отправлена в RetroArch (UDP:55355)");
+        NativeLibretroHost.Current.SwitchVirtualDisc(1);
+        ShowOsdToast(NativeLibretroHost.Current.GetVirtualDiscStatusRu());
     }
 
     private void BtnSelectPatchRom_Click(object sender, RoutedEventArgs e)
@@ -5503,6 +5648,38 @@ private void LoadBezels()
     public async Task StartGameInViewportAsync(RomItem item)
     {
         _activeRomItem = item;
+
+        // 1.9.0 Check per-game profile override
+        var profile = PerGameProfileManager.TryLoadProfileForGame(item.Name);
+        if (profile != null)
+        {
+            if (!string.IsNullOrEmpty(profile.ShaderPresetName))
+            {
+                var matchShader = _allShaders.FirstOrDefault(s => s.Name.Equals(profile.ShaderPresetName, StringComparison.OrdinalIgnoreCase));
+                if (matchShader != null)
+                {
+                    ShaderManager.ApplyShader(matchShader);
+                    foreach (var s in _allShaders) s.IsActive = (s == matchShader);
+                }
+            }
+            if (!string.IsNullOrEmpty(profile.BezelName))
+            {
+                var matchBezel = _allBezels.FirstOrDefault(b => b.Name.Equals(profile.BezelName, StringComparison.OrdinalIgnoreCase));
+                if (matchBezel != null)
+                {
+                    BezelManager.ApplyBezel(matchBezel);
+                    foreach (var b in _allBezels) b.IsActive = (b == matchBezel);
+                }
+            }
+            if (profile.RunAheadFrames >= 0)
+            {
+                NativeLibretroHost.Current.RunAheadFrames = profile.RunAheadFrames;
+            }
+            if (!string.IsNullOrEmpty(profile.AudioDspPreset))
+            {
+                AudioDspEngine.Shared.ApplyPreset(profile.AudioDspPreset);
+            }
+        }
 
         // Record launch in History with timestamp and persist to content_history.lpl
         RecordGameHistory(item);
@@ -6906,13 +7083,19 @@ private void LoadBezels()
             TxtCommandPaletteSearch.Focus();
         }
         PnlCommandPaletteModal.Visibility = Visibility.Visible;
-        if (BorderCommandPaletteDialog != null) AnalyticalSpringEngine.AnimateModalPop(BorderCommandPaletteDialog);
+        if (BorderCommandPaletteDialog != null)
+            AnalyticalSpringEngine.AnimateBackdropAndDialog(PnlCommandPaletteModal, BorderCommandPaletteDialog, opening: true);
     }
 
     public void CloseCommandPaletteModal()
     {
         if (PnlCommandPaletteModal != null)
-            PnlCommandPaletteModal.Visibility = Visibility.Collapsed;
+        {
+            if (BorderCommandPaletteDialog != null)
+                AnalyticalSpringEngine.AnimateBackdropAndDialog(PnlCommandPaletteModal, BorderCommandPaletteDialog, opening: false, () => PnlCommandPaletteModal.Visibility = Visibility.Collapsed);
+            else
+                PnlCommandPaletteModal.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void BtnCloseCommandPaletteModal_Click(object sender, RoutedEventArgs e)
@@ -7389,7 +7572,8 @@ private void LoadBezels()
         if (PnlCoreSelectorModal != null)
         {
             PnlCoreSelectorModal.Visibility = Visibility.Visible;
-            if (BorderCoreSelectorDialog != null) AnalyticalSpringEngine.AnimateModalPop(BorderCoreSelectorDialog);
+            if (BorderCoreSelectorDialog != null)
+                AnalyticalSpringEngine.AnimateBackdropAndDialog(PnlCoreSelectorModal, BorderCoreSelectorDialog, opening: true);
         }
     }
 
@@ -7671,10 +7855,8 @@ private void LoadBezels()
         }
 
         PnlGameHubModal.Visibility = Visibility.Visible;
-        if (SettingsManager.Current?.EnableUiAnimations == true)
-        {
-            if (GameHubDialogBorder != null) AnalyticalSpringEngine.AnimateModalPop(GameHubDialogBorder);
-        }
+        if (GameHubDialogBorder != null)
+            AnalyticalSpringEngine.AnimateBackdropAndDialog(PnlGameHubModal, GameHubDialogBorder, opening: true);
     }
 
     public void CloseGameHubModal()
@@ -7686,7 +7868,10 @@ private void LoadBezels()
         }
         if (PnlGameHubModal != null)
         {
-            PnlGameHubModal.Visibility = Visibility.Collapsed;
+            if (GameHubDialogBorder != null)
+                AnalyticalSpringEngine.AnimateBackdropAndDialog(PnlGameHubModal, GameHubDialogBorder, opening: false, () => PnlGameHubModal.Visibility = Visibility.Collapsed);
+            else
+                PnlGameHubModal.Visibility = Visibility.Collapsed;
         }
     }
 
@@ -8280,7 +8465,7 @@ private void LoadBezels()
         }
     }
 
-// ==================== 1.8.0 PERFORMANCE & JIT DYNAREC STUDIO ====================
+// ==================== 1.9.0 PERFORMANCE & JIT DYNAREC STUDIO ====================
     private void BtnCpuDynarecFast_Click(object sender, RoutedEventArgs e)
     {
         CompilerAndPerformanceManager.ApplyCpuDynarecProfile("dynarec_fast");
@@ -8349,7 +8534,7 @@ private void LoadBezels()
         }
     }
 
-    // ==================== 1.8.0 CORE ABI BENCHMARK & BATCH UPDATER ====================
+    // ==================== 1.9.0 CORE ABI BENCHMARK & BATCH UPDATER ====================
     private async void BtnUpdateAllInstalledCores_Click(object sender, RoutedEventArgs e)
     {
         ShowOsdToast("Пакетное обновление установленных ядер Libretro...");
@@ -8388,7 +8573,7 @@ private void LoadBezels()
             BdrCoreBenchmarkResult.Visibility = Visibility.Collapsed;
     }
 
-    // ==================== 1.8.0 SHADER STUDIO: CURVATURE, CHROMATIC & LIVE PREVIEW ====================
+    // ==================== 1.9.0 SHADER STUDIO: CURVATURE, CHROMATIC & LIVE PREVIEW ====================
     private async void BtnPrecompileShaders_Click(object sender, RoutedEventArgs e)
     {
         ShowOsdToast("Компиляция и индексация кэша шейдеров...");
@@ -8429,7 +8614,7 @@ private void LoadBezels()
         ImgShaderLivePreview.Source = NativeLibretroHost.RenderShaderPreviewSplit(ratio, 560, 315);
     }
 
-    // ==================== 1.8.0 BEZELS & AMBILUX CONTROLS ====================
+    // ==================== 1.9.0 BEZELS & AMBILUX CONTROLS ====================
     private void ChkAutoPlatformBezel_Click(object sender, RoutedEventArgs e)
     {
         bool enabled = ChkAutoPlatformBezel.IsChecked == true;
@@ -8458,7 +8643,7 @@ private void LoadBezels()
             ChkAmbiluxGlow.IsChecked = SettingsManager.Current.AmbiluxGlowEnabled;
     }
 
-    // ==================== 1.8.0 GAMEPAD DEADZONE, TRIGGER & TURBO STUDIO ====================
+    // ==================== 1.9.0 GAMEPAD DEADZONE, TRIGGER & TURBO STUDIO ====================
     private void SliderAnalogDeadzone_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (!_isLoaded || SliderAnalogDeadzone == null) return;
@@ -8550,6 +8735,338 @@ private void LoadBezels()
             CmbTurboFireHz.SelectedIndex = idx;
         }
     }
+
+    // =========================================================================
+    // 1.9.0 PHASE 2: RAM SCANNER, AUDIO DSP STUDIO, QUICK MENU 2.0 & SMART COLLECTIONS
+    // =========================================================================
+
+    // --- 1. RAM CHEAT SCANNER (ViewCheats) ---
+
+    private void BtnRamFirstScan_Click(object sender, RoutedEventArgs e)
+    {
+        var width = CmbRamWidth?.SelectedIndex switch
+        {
+            0 => RamValueWidth.Byte8,
+            2 => RamValueWidth.UInt32,
+            _ => RamValueWidth.UInt16
+        };
+        var mode = CmbRamCompare?.SelectedIndex switch
+        {
+            1 => RamCompareMode.NotEqual,
+            2 => RamCompareMode.Increased,
+            3 => RamCompareMode.Decreased,
+            4 => RamCompareMode.Changed,
+            5 => RamCompareMode.Unchanged,
+            _ => RamCompareMode.ExactValue
+        };
+        uint.TryParse(TxtRamTargetValue?.Text, out uint target);
+        RamCheatScannerEngine.Shared.StartFirstScan(width, mode, target);
+        UpdateRamScannerUi();
+        ShowOsdToast($"Первый поиск ОЗУ завершён: найдено {RamCheatScannerEngine.Shared.TotalCandidateCount:N0}");
+    }
+
+    private void BtnRamNextScan_Click(object sender, RoutedEventArgs e)
+    {
+        var mode = CmbRamCompare?.SelectedIndex switch
+        {
+            1 => RamCompareMode.NotEqual,
+            2 => RamCompareMode.Increased,
+            3 => RamCompareMode.Decreased,
+            4 => RamCompareMode.Changed,
+            5 => RamCompareMode.Unchanged,
+            _ => RamCompareMode.ExactValue
+        };
+        uint.TryParse(TxtRamTargetValue?.Text, out uint target);
+        RamCheatScannerEngine.Shared.NextScan(mode, target);
+        UpdateRamScannerUi();
+        ShowOsdToast($"Отсев ОЗУ завершён: осталось {RamCheatScannerEngine.Shared.TotalCandidateCount:N0}");
+    }
+
+    private void BtnRamResetScan_Click(object sender, RoutedEventArgs e)
+    {
+        RamCheatScannerEngine.Shared.ResetScan();
+        UpdateRamScannerUi();
+        ShowOsdToast("Сканер ОЗУ сброшен");
+    }
+
+    private void UpdateRamScannerUi()
+    {
+        if (ItemsRamMatches != null)
+        {
+            ItemsRamMatches.ItemsSource = null;
+            ItemsRamMatches.ItemsSource = RamCheatScannerEngine.Shared.Matches;
+        }
+        if (TxtRamScanSummary != null)
+        {
+            if (RamCheatScannerEngine.Shared.HasActiveScan)
+            {
+                TxtRamScanSummary.Text = $"Найдено адресов: {RamCheatScannerEngine.Shared.TotalCandidateCount:N0} (Отображается: {RamCheatScannerEngine.Shared.Matches.Count}, Заморожено: {RamCheatScannerEngine.Shared.FrozenCount})";
+            }
+            else
+            {
+                TxtRamScanSummary.Text = "Готов к сканированию ОЗУ";
+            }
+        }
+    }
+
+    private void BtnRamPokeEntry_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is RamMatchEntry entry)
+        {
+            uint.TryParse(TxtRamPokeValue?.Text, out uint pokeVal);
+            bool ok = RamCheatScannerEngine.Shared.PokeValue(entry.Address, entry.Width, pokeVal);
+            ShowOsdToast(ok ? $"Записано {pokeVal} в {entry.HexAddress}" : $"Ошибка записи в {entry.HexAddress}");
+            UpdateRamScannerUi();
+        }
+    }
+
+    private void BtnRamFreezeEntry_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is RamMatchEntry entry)
+        {
+            uint.TryParse(TxtRamPokeValue?.Text, out uint pokeVal);
+            RamCheatScannerEngine.Shared.ToggleFreeze(entry, pokeVal);
+            ShowOsdToast(entry.IsFrozen ? $"Заморожено {entry.HexAddress} = {pokeVal}" : $"Разморожено {entry.HexAddress}");
+            UpdateRamScannerUi();
+        }
+    }
+
+    private void BtnRamExportEntry_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is RamMatchEntry entry)
+        {
+            uint.TryParse(TxtRamPokeValue?.Text, out uint pokeVal);
+            ShowOsdToast($"Чит-код добавлен для {entry.HexAddress} = {pokeVal}");
+        }
+    }
+
+    // --- 2. AUDIO DSP STUDIO (ViewSettings) ---
+
+    private void ChkAudioSoftLimiter_Click(object sender, RoutedEventArgs e)
+    {
+        bool isChecked = ChkAudioSoftLimiter?.IsChecked == true;
+        AudioDspEngine.Shared.SoftLimiterEnabled = isChecked;
+        SettingsManager.Current.AudioSoftLimiter = isChecked;
+        SettingsManager.Save();
+        ShowOsdToast(isChecked ? "Мягкий лимитер Audio DSP включен" : "Мягкий лимитер Audio DSP выключен");
+    }
+
+    private void BtnAudioPreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+        string presetName = btn.Content?.ToString() ?? "Чистый студийный";
+        AudioDspEngine.Shared.ApplyPreset(presetName);
+        SyncAudioDspStudioControls();
+        SettingsManager.Current.AudioDspPreset = presetName;
+        SettingsManager.Current.AudioBassGainDb = AudioDspEngine.Shared.BassGainDb;
+        SettingsManager.Current.AudioTrebleGainDb = AudioDspEngine.Shared.TrebleGainDb;
+        SettingsManager.Current.AudioStereoWidthPercent = AudioDspEngine.Shared.StereoWidthPercent;
+        SettingsManager.Current.AudioReverbPercent = AudioDspEngine.Shared.ReverbPercent;
+        SettingsManager.Current.AudioSoftLimiter = AudioDspEngine.Shared.SoftLimiterEnabled;
+        SettingsManager.Save();
+        ShowOsdToast($"Аудио DSP пресет: {presetName}");
+    }
+
+    private void SliderAudioBass_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        int val = (int)Math.Round(e.NewValue);
+        if (TxtAudioBassVal != null) TxtAudioBassVal.Text = $"{val} дБ";
+        AudioDspEngine.Shared.BassGainDb = val;
+        SettingsManager.Current.AudioBassGainDb = val;
+    }
+
+    private void SliderAudioTreble_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        int val = (int)Math.Round(e.NewValue);
+        if (TxtAudioTrebleVal != null) TxtAudioTrebleVal.Text = $"{val} дБ";
+        AudioDspEngine.Shared.TrebleGainDb = val;
+        SettingsManager.Current.AudioTrebleGainDb = val;
+    }
+
+    private void SliderAudioStereo_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        int val = (int)Math.Round(e.NewValue);
+        if (TxtAudioStereoVal != null) TxtAudioStereoVal.Text = $"{val}%";
+        AudioDspEngine.Shared.StereoWidthPercent = val;
+        SettingsManager.Current.AudioStereoWidthPercent = val;
+    }
+
+    private void SliderAudioReverb_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        int val = (int)Math.Round(e.NewValue);
+        if (TxtAudioReverbVal != null) TxtAudioReverbVal.Text = $"{val}%";
+        AudioDspEngine.Shared.ReverbPercent = val;
+        SettingsManager.Current.AudioReverbPercent = val;
+    }
+
+    private void SyncAudioDspStudioControls()
+    {
+        if (SliderAudioBass != null) SliderAudioBass.Value = AudioDspEngine.Shared.BassGainDb;
+        if (SliderAudioTreble != null) SliderAudioTreble.Value = AudioDspEngine.Shared.TrebleGainDb;
+        if (SliderAudioStereo != null) SliderAudioStereo.Value = AudioDspEngine.Shared.StereoWidthPercent;
+        if (SliderAudioReverb != null) SliderAudioReverb.Value = AudioDspEngine.Shared.ReverbPercent;
+        if (ChkAudioSoftLimiter != null) ChkAudioSoftLimiter.IsChecked = AudioDspEngine.Shared.SoftLimiterEnabled;
+
+        if (TxtAudioBassVal != null) TxtAudioBassVal.Text = $"{AudioDspEngine.Shared.BassGainDb} дБ";
+        if (TxtAudioTrebleVal != null) TxtAudioTrebleVal.Text = $"{AudioDspEngine.Shared.TrebleGainDb} дБ";
+        if (TxtAudioStereoVal != null) TxtAudioStereoVal.Text = $"{AudioDspEngine.Shared.StereoWidthPercent}%";
+        if (TxtAudioReverbVal != null) TxtAudioReverbVal.Text = $"{AudioDspEngine.Shared.ReverbPercent}%";
+
+        if (PnlAudioDspPresets != null)
+        {
+            foreach (var child in PnlAudioDspPresets.Children)
+            {
+                if (child is Button b)
+                {
+                    b.Tag = (b.Content?.ToString() == AudioDspEngine.Shared.ActivePreset) ? "Active" : null;
+                }
+            }
+        }
+    }
+
+    // --- 3. QUICK MENU 2.0 (PnlInGameQuickMenu) ---
+
+    private void BtnQuickSaveGameOverride_Click(object sender, RoutedEventArgs e)
+    {
+        var targetGame = _activeRomItem ?? _allGames.FirstOrDefault(g => g.Name.Contains("Battletoads", StringComparison.OrdinalIgnoreCase)) ?? _allGames.FirstOrDefault();
+        if (targetGame != null)
+        {
+            bool ok = PerGameProfileManager.SaveProfileForGame(targetGame);
+            if (TxtQuickGameProfileBadge != null)
+                TxtQuickGameProfileBadge.Text = ok ? "Профиль: Сохранён" : "Ошибка сохранения";
+            ShowOsdToast($"Индивидуальный профиль сохранён для «{targetGame.Name}»");
+        }
+        else
+        {
+            ShowOsdToast("Нет активной игры для сохранения профиля");
+        }
+    }
+
+    private static readonly string[] _audioDspCyclePresets = new[]
+    {
+        "Чистый студийный",
+        "Аркадный бас",
+        "Тёплый ЭЛТ-динамик",
+        "Широкая 3D-панорама",
+        "Кристальный чиптюн",
+        "Ночной компрессор"
+    };
+
+    private void BtnQuickCycleAudioDsp_Click(object sender, RoutedEventArgs e)
+    {
+        string current = AudioDspEngine.Shared.ActivePreset;
+        int idx = Array.IndexOf(_audioDspCyclePresets, current);
+        string next = _audioDspCyclePresets[(idx + 1 + _audioDspCyclePresets.Length) % _audioDspCyclePresets.Length];
+        AudioDspEngine.Shared.ApplyPreset(next);
+        SyncAudioDspStudioControls();
+        SettingsManager.Current.AudioDspPreset = next;
+        SettingsManager.Save();
+        if (TxtQuickCycleAudioDspLabel != null)
+            TxtQuickCycleAudioDspLabel.Text = $"Аудио DSP: {next}";
+        ShowOsdToast($"Аудио DSP: {next}");
+    }
+
+    private void BtnQuickDiscTray_Click(object sender, RoutedEventArgs e)
+    {
+        bool open = NativeLibretroHost.Current.ToggleVirtualDiscTray();
+        ShowOsdToast(open ? "Виртуальный лоток CD открыт" : "Виртуальный лоток CD закрыт");
+    }
+
+    private void BtnQuickDiscNext_Click(object sender, RoutedEventArgs e)
+    {
+        NativeLibretroHost.Current.SwitchVirtualDisc(1);
+        ShowOsdToast(NativeLibretroHost.Current.GetVirtualDiscStatusRu());
+    }
+
+    private void BtnQuickInputRecord_Click(object sender, RoutedEventArgs e)
+    {
+        if (NativeLibretroHost.Current.IsRecordingInput)
+        {
+            NativeLibretroHost.Current.StopInputReplay();
+            if (TxtQuickInputRecordLabel != null) TxtQuickInputRecordLabel.Text = "Запись ввода";
+            ShowOsdToast("Запись ввода остановлена");
+        }
+        else
+        {
+            bool ok = NativeLibretroHost.Current.StartInputRecording();
+            if (TxtQuickInputRecordLabel != null) TxtQuickInputRecordLabel.Text = "Стоп запись";
+            ShowOsdToast(ok ? "Запись ввода BSV запущена" : "Ошибка запуска записи ввода");
+        }
+    }
+
+    private void BtnQuickInputPlay_Click(object sender, RoutedEventArgs e)
+    {
+        if (NativeLibretroHost.Current.IsPlayingInput)
+        {
+            NativeLibretroHost.Current.StopInputReplay();
+            if (TxtQuickInputPlayLabel != null) TxtQuickInputPlayLabel.Text = "Воспр. повтор";
+            ShowOsdToast("Воспроизведение ввода остановлено");
+        }
+        else
+        {
+            bool ok = NativeLibretroHost.Current.StartInputPlayback();
+            if (TxtQuickInputPlayLabel != null) TxtQuickInputPlayLabel.Text = "Стоп повтор";
+            ShowOsdToast(ok ? "Воспроизведение ввода BSV запущено" : "Файл записи ввода не найден");
+        }
+    }
+
+    // --- 4. SMART DYNAMIC COLLECTIONS (ViewLibrary) ---
+
+    private string _selectedSmartCollection = "Все игры";
+    private static readonly string[] _smartCollections = new[]
+    {
+        "Все игры",
+        "Русские переводы",
+        "Недавние",
+        "Классика 8/16-бит",
+        "MS-DOS",
+        "3D и CD"
+    };
+
+    private void UpdateSmartCollectionPills()
+    {
+        if (PnlSmartCollectionPills == null) return;
+        PnlSmartCollectionPills.Children.Clear();
+
+        foreach (var col in _smartCollections)
+        {
+            bool isSelected = _selectedSmartCollection.Equals(col, StringComparison.OrdinalIgnoreCase);
+            var btn = new Button
+            {
+                Style = (Style)FindResource("CapsuleButton"),
+                Padding = new Thickness(12, 5, 12, 5),
+                Margin = new Thickness(0, 0, 8, 4),
+                Tag = isSelected ? "Active" : null,
+                Cursor = Cursors.Hand,
+                Content = col,
+                ToolTip = $"Умная коллекция: {col}"
+            };
+
+            if (isSelected)
+            {
+                btn.Background = new SolidColorBrush(Color.FromArgb(0x40, 0x8B, 0x5C, 0xF6));
+                btn.BorderBrush = new SolidColorBrush(Color.FromRgb(0x8B, 0x5C, 0xF6));
+                btn.Foreground = new SolidColorBrush(Color.FromRgb(0xF8, 0xFA, 0xFC));
+                btn.FontWeight = FontWeights.Bold;
+            }
+            else
+            {
+                btn.Background = new SolidColorBrush(Color.FromArgb(0x18, 0xFF, 0xFF, 0xFF));
+                btn.BorderBrush = (Brush)FindResource("ThemeBorder");
+                btn.Foreground = (Brush)FindResource("ThemeTextSecondary");
+            }
+
+            string capturedCol = col;
+            btn.Click += (s, e) =>
+            {
+                _selectedSmartCollection = capturedCol;
+                UpdateSmartCollectionPills();
+                ApplyGamesFilter();
+            };
+            PnlSmartCollectionPills.Children.Add(btn);
+        }
+    }
+
 }
 
 public class CommandPaletteItem

@@ -77,7 +77,7 @@ namespace StormRetroArch.Installer
     public sealed class InstallerForm : Form
     {
         private const string AppDisplayName = "STORM RETROARCH";
-        private const string AppVersion = "1.8.0";
+        private const string AppVersion = "1.9.0";
         private const string AppFolderName = "STORM RETROARCH";
         private const string ExeName = "STORM RETROARCH.exe";
         private const string IcoName = "AppIcon.ico";

@@ -544,4 +544,239 @@ public static class AnalyticalSpringEngine
         CheckHoverHookState();
     }
 
+
+    // ------------------------------------------------------------------------------------------------
+    // 1.9.0 Enhanced Spring Choreography: Backdrop + Dialog Spring & View Transition Glides
+    // ------------------------------------------------------------------------------------------------
+
+    private class DialogBackdropAnimation
+    {
+        public UIElement Backdrop { get; }
+        public FrameworkElement Dialog { get; }
+        public ScaleTransform ScaleT { get; }
+        public TranslateTransform TransT { get; }
+        public AnalyticalSpring1D BackdropOpacitySpring;
+        public AnalyticalSpring1D DialogOpacitySpring;
+        public AnalyticalSpring1D DialogScaleSpring;
+        public AnalyticalSpring1D DialogTranslateSpring;
+        public bool IsOpening { get; }
+        public Action? OnClosed { get; }
+
+        public DialogBackdropAnimation(
+            UIElement backdrop,
+            FrameworkElement dialog,
+            ScaleTransform st,
+            TranslateTransform tt,
+            bool isOpening,
+            Action? onClosed)
+        {
+            Backdrop = backdrop;
+            Dialog = dialog;
+            ScaleT = st;
+            TransT = tt;
+            IsOpening = isOpening;
+            OnClosed = onClosed;
+
+            float targetBackdropOp = isOpening ? 1.0f : 0.0f;
+            float targetDialogOp = isOpening ? 1.0f : 0.0f;
+            float targetScale = isOpening ? 1.0f : 0.93f;
+            float targetTransY = isOpening ? 0.0f : 16.0f;
+
+            float currentBackdropOp = isOpening ? 0.0f : (float)backdrop.Opacity;
+            float currentDialogOp = isOpening ? 0.0f : (float)dialog.Opacity;
+            float currentScale = isOpening ? 0.93f : (float)st.ScaleX;
+            float currentTransY = isOpening ? 16.0f : (float)tt.Y;
+
+            BackdropOpacitySpring = new AnalyticalSpring1D(currentBackdropOp, targetBackdropOp, 440f, 34f);
+            DialogOpacitySpring = new AnalyticalSpring1D(currentDialogOp, targetDialogOp, 440f, 34f);
+            DialogScaleSpring = new AnalyticalSpring1D(currentScale, targetScale, 440f, 34f);
+            DialogTranslateSpring = new AnalyticalSpring1D(currentTransY, targetTransY, 440f, 34f);
+        }
+    }
+
+    private static readonly Dictionary<FrameworkElement, DialogBackdropAnimation> ActiveDialogSprings = new();
+    private static bool _isDialogHooked = false;
+    private static long _lastDialogTickTimestamp = 0;
+
+    /// <summary>
+    /// Smoothly springs dialog Scale (0.93 <-> 1.0), TranslateY (16 <-> 0), and backdrop Opacity (0 <-> 1)
+    /// on both open and close without layout thrashing.
+    /// </summary>
+    public static void AnimateBackdropAndDialog(UIElement backdropOverlay, FrameworkElement dialogBox, bool opening, Action? onClosed = null)
+    {
+        if (backdropOverlay == null || dialogBox == null) return;
+
+        dialogBox.RenderTransformOrigin = new Point(0.5, 0.5);
+
+        ScaleTransform st;
+        TranslateTransform tt;
+        if (dialogBox.RenderTransform is TransformGroup tg && tg.Children.Count >= 2 &&
+            tg.Children[0] is ScaleTransform s && tg.Children[1] is TranslateTransform t)
+        {
+            st = s;
+            tt = t;
+        }
+        else
+        {
+            st = new ScaleTransform(opening ? 0.93 : 1.0, opening ? 0.93 : 1.0);
+            tt = new TranslateTransform(0, opening ? 16.0 : 0.0);
+            var group = new TransformGroup();
+            group.Children.Add(st);
+            group.Children.Add(tt);
+            dialogBox.RenderTransform = group;
+        }
+
+        if (!SettingsManager.Current.EnableUiAnimations)
+        {
+            if (opening)
+            {
+                backdropOverlay.Visibility = Visibility.Visible;
+                backdropOverlay.Opacity = 1.0;
+                dialogBox.Visibility = Visibility.Visible;
+                dialogBox.Opacity = 1.0;
+                st.ScaleX = 1.0;
+                st.ScaleY = 1.0;
+                tt.Y = 0.0;
+            }
+            else
+            {
+                backdropOverlay.Visibility = Visibility.Collapsed;
+                dialogBox.Visibility = Visibility.Collapsed;
+                onClosed?.Invoke();
+            }
+            ActiveDialogSprings.Remove(dialogBox);
+            CheckDialogHookState();
+            return;
+        }
+
+        if (opening)
+        {
+            backdropOverlay.Visibility = Visibility.Visible;
+            backdropOverlay.Opacity = 0.0;
+            dialogBox.Visibility = Visibility.Visible;
+            dialogBox.Opacity = 0.0;
+            st.ScaleX = 0.93;
+            st.ScaleY = 0.93;
+            tt.Y = 16.0;
+        }
+
+        var anim = new DialogBackdropAnimation(backdropOverlay, dialogBox, st, tt, opening, onClosed);
+        ActiveDialogSprings[dialogBox] = anim;
+        CheckDialogHookState();
+    }
+
+    private static void CheckDialogHookState()
+    {
+        if (ActiveDialogSprings.Count > 0 && !_isDialogHooked)
+        {
+            _lastDialogTickTimestamp = Stopwatch.GetTimestamp();
+            CompositionTarget.Rendering += OnDialogRendering;
+            _isDialogHooked = true;
+        }
+        else if (ActiveDialogSprings.Count == 0 && _isDialogHooked)
+        {
+            CompositionTarget.Rendering -= OnDialogRendering;
+            _isDialogHooked = false;
+        }
+    }
+
+    private static void OnDialogRendering(object? sender, EventArgs e)
+    {
+        if (ActiveDialogSprings.Count == 0)
+        {
+            CheckDialogHookState();
+            return;
+        }
+
+        long currentTick = Stopwatch.GetTimestamp();
+        double dt = (double)(currentTick - _lastDialogTickTimestamp) / Stopwatch.Frequency;
+        _lastDialogTickTimestamp = currentTick;
+
+        float dtSeconds = (float)Math.Clamp(dt, 0.001, 0.05);
+        List<FrameworkElement>? toRemove = null;
+
+        foreach (var kvp in ActiveDialogSprings)
+        {
+            var anim = kvp.Value;
+            bool bActive = anim.BackdropOpacitySpring.Step(dtSeconds);
+            bool dOpActive = anim.DialogOpacitySpring.Step(dtSeconds);
+            bool scActive = anim.DialogScaleSpring.Step(dtSeconds);
+            bool trActive = anim.DialogTranslateSpring.Step(dtSeconds);
+
+            anim.Backdrop.Opacity = Math.Clamp(anim.BackdropOpacitySpring.Position, 0.0, 1.0);
+            anim.Dialog.Opacity = Math.Clamp(anim.DialogOpacitySpring.Position, 0.0, 1.0);
+            anim.ScaleT.ScaleX = anim.DialogScaleSpring.Position;
+            anim.ScaleT.ScaleY = anim.DialogScaleSpring.Position;
+            anim.TransT.Y = anim.DialogTranslateSpring.Position;
+
+            if (!bActive && !dOpActive && !scActive && !trActive)
+            {
+                toRemove ??= new List<FrameworkElement>();
+                toRemove.Add(anim.Dialog);
+
+                if (!anim.IsOpening)
+                {
+                    anim.Backdrop.Visibility = Visibility.Collapsed;
+                    anim.Dialog.Visibility = Visibility.Collapsed;
+                    anim.OnClosed?.Invoke();
+                }
+            }
+        }
+
+        if (toRemove != null)
+        {
+            foreach (var elem in toRemove)
+            {
+                ActiveDialogSprings.Remove(elem);
+            }
+        }
+
+        CheckDialogHookState();
+    }
+
+    /// <summary>
+    /// Crisp 14px -> 0 directional glide + Opacity 0.3 -> 1.0 analytical spring (stiffness=480, damping=34)
+    /// for buttery 60–120 FPS view transitions with zero layout thrash.
+    /// </summary>
+    public static void AnimateViewTransition(FrameworkElement viewRoot)
+    {
+        if (viewRoot == null) return;
+
+        if (!SettingsManager.Current.EnableUiAnimations)
+        {
+            viewRoot.Opacity = 1.0;
+            if (viewRoot.RenderTransform is TranslateTransform tt)
+            {
+                tt.Y = 0.0;
+            }
+            else
+            {
+                viewRoot.RenderTransform = new TranslateTransform(0, 0);
+            }
+            ActiveAnimations.Remove(viewRoot);
+            CheckHookState();
+            return;
+        }
+
+        TranslateTransform translateTransform;
+        if (viewRoot.RenderTransform is TranslateTransform existingTt)
+        {
+            translateTransform = existingTt;
+        }
+        else
+        {
+            translateTransform = new TranslateTransform(0, 14.0);
+            viewRoot.RenderTransform = translateTransform;
+        }
+
+        viewRoot.Opacity = 0.3;
+        translateTransform.Y = 14.0;
+
+        var opacitySpring = new AnalyticalSpring1D(0.3f, 1.0f, 480f, 34f);
+        var ySpring = new AnalyticalSpring1D(14.0f, 0.0f, 480f, 34f);
+
+        ActiveAnimations[viewRoot] = new ActiveAnimation(viewRoot, opacitySpring, ySpring, false);
+        CheckHookState();
+    }
+
 }
