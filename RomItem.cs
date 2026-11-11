@@ -34,6 +34,8 @@ public class RomItem : INotifyPropertyChanged
     private string _region = "";
     private string _languageBadge = "";
     private string _versionBadge = "";
+    private string _rawNoIntroName = "";
+    private string _regionDisplay = "";
 
     // Playtime, Launch & Library Metadata (1.6.0)
     private long _totalPlaySeconds;
@@ -136,6 +138,18 @@ public class RomItem : INotifyPropertyChanged
                 OnPropertyChanged(nameof(HasRegion));
             }
         }
+    }
+
+    public string RawNoIntroName
+    {
+        get => _rawNoIntroName;
+        set => SetField(ref _rawNoIntroName, value);
+    }
+
+    public string RegionDisplay
+    {
+        get => _regionDisplay;
+        set => SetField(ref _regionDisplay, value);
     }
 
     public string LanguageBadge
@@ -344,18 +358,26 @@ public class RomItem : INotifyPropertyChanged
     public void ParseAndUpdateFromFileName(string fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName)) return;
-        var (cleanName, yr, reg, lang, ver) = ParseFileName(fileName);
+        var (cleanName, yr, reg, lang, ver, rawNoIntro, regDisp) = ParseFileNameDetailed(fileName, FilePath);
         if (!string.IsNullOrEmpty(cleanName)) Name = cleanName;
         if (!string.IsNullOrEmpty(yr)) Year = yr;
         if (!string.IsNullOrEmpty(reg)) Region = reg;
+        if (!string.IsNullOrEmpty(regDisp)) RegionDisplay = regDisp;
         if (!string.IsNullOrEmpty(lang)) LanguageBadge = lang;
         if (!string.IsNullOrEmpty(ver)) VersionBadge = ver;
+        if (!string.IsNullOrEmpty(rawNoIntro)) RawNoIntroName = rawNoIntro;
     }
 
     public static (string CleanName, string Year, string Region, string LanguageBadge, string VersionBadge) ParseFileName(string fileName)
     {
+        var res = ParseFileNameDetailed(fileName, null);
+        return (res.CleanName, res.Year, res.Region, res.LanguageBadge, res.VersionBadge);
+    }
+
+    public static (string CleanName, string Year, string Region, string LanguageBadge, string VersionBadge, string RawNoIntroName, string RegionDisplay) ParseFileNameDetailed(string fileName, string? filePath = null)
+    {
         string baseName = Path.GetFileNameWithoutExtension(fileName).Trim();
-        if (string.IsNullOrEmpty(baseName)) return ("", "", "", "", "");
+        if (string.IsNullOrEmpty(baseName)) return ("", "", "", "", "", "", "");
 
         // 1. Content counter like (1G+1M)
         string contentPart = "";
@@ -369,7 +391,7 @@ public class RomItem : INotifyPropertyChanged
         // 2. Version / CRC / Serial like (1.0 - 9806CB84) or (1.0)
         string verPart = "";
         var mVer = Regex.Match(baseName, @"\(([^()\[\]]+?)\)\s*$");
-        if (mVer.Success && !Regex.IsMatch(mVer.Groups[1].Value.Trim(), @"^(19\d{2}|20\d{2}|USA|Europe|Japan|World)$", RegexOptions.IgnoreCase))
+        if (mVer.Success && !Regex.IsMatch(mVer.Groups[1].Value.Trim(), @"^(19\d{2}|20\d{2}|USA|Europe|Japan|World|Asia|Korea|Russia)$", RegexOptions.IgnoreCase))
         {
             string vStr = mVer.Groups[1].Value.Trim();
             var parts = vStr.Split(new[] { " - " }, StringSplitOptions.RemoveEmptyEntries);
@@ -391,12 +413,12 @@ public class RomItem : INotifyPropertyChanged
             year = mYr.Groups[1].Value;
         }
 
-        // 4. Square brackets [...]
+        // 4. Square brackets [...] and language badges
         var bracketMatches = Regex.Matches(baseName, @"\[([^\[\]]+)\]");
-        string region = "";
+        string explicitRegionInBrackets = "";
         string langBadge = "";
 
-        var knownRegions = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        var knownBracketRegions = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "WW", "US", "EU", "JP", "RU", "AS", "KR", "CN", "TW", "BR", "AU", "DE", "FR", "ES", "IT", "UK", "NL", "SE", "CA"
         };
@@ -408,9 +430,9 @@ public class RomItem : INotifyPropertyChanged
             {
                 langBadge = tok;
             }
-            else if (knownRegions.Contains(tok))
+            else if (knownBracketRegions.Contains(tok))
             {
-                if (string.IsNullOrEmpty(region)) region = tok.ToUpperInvariant();
+                if (string.IsNullOrEmpty(explicitRegionInBrackets)) explicitRegionInBrackets = tok.ToUpperInvariant();
             }
             else if (tok.Equals("RUS", StringComparison.OrdinalIgnoreCase) ||
                      tok.Equals("ENG", StringComparison.OrdinalIgnoreCase) ||
@@ -422,18 +444,136 @@ public class RomItem : INotifyPropertyChanged
             {
                 if (string.IsNullOrEmpty(langBadge)) langBadge = tok.ToUpperInvariant();
             }
+            else if (tok.Contains("RUS", StringComparison.OrdinalIgnoreCase) || tok.StartsWith("T+Rus", StringComparison.OrdinalIgnoreCase) || tok.StartsWith("T-Rus", StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.IsNullOrEmpty(langBadge)) langBadge = "RUS";
+            }
         }
 
-        // 5. Legacy region parens
-        if (string.IsNullOrEmpty(region))
+        // 5. Region detection from baseName and filePath
+        string region = "";
+        string regionDisplay = "";
+
+        // Check combined regions first
+        if (Regex.IsMatch(baseName, @"\((?:Japan,\s*USA|JU)\)", RegexOptions.IgnoreCase))
         {
-            if (Regex.IsMatch(baseName, @"\(USA\)", RegexOptions.IgnoreCase)) region = "US";
-            else if (Regex.IsMatch(baseName, @"\(Europe\)", RegexOptions.IgnoreCase)) region = "EU";
-            else if (Regex.IsMatch(baseName, @"\(Japan\)", RegexOptions.IgnoreCase)) region = "JP";
-            else if (Regex.IsMatch(baseName, @"\(World\)", RegexOptions.IgnoreCase)) region = "WW";
+            region = "JP-US";
+            regionDisplay = "Япония / США";
+        }
+        else if (Regex.IsMatch(baseName, @"\((?:USA,\s*Europe|UE)\)", RegexOptions.IgnoreCase))
+        {
+            region = "US-EU";
+            regionDisplay = "США / Европа";
+        }
+        else if (Regex.IsMatch(baseName, @"\((?:Japan|J|JP|Jpn|Asia|Japan,\s*Korea)\)|\bNTSC-J\b", RegexOptions.IgnoreCase))
+        {
+            region = "JP";
+            regionDisplay = "Япония (NTSC-J)";
+        }
+        else if (Regex.IsMatch(baseName, @"\((?:Europe|E|EU|Euro|PAL|UK|Germany|G|France|F|Spain|S|Italy|I|Australia)\)", RegexOptions.IgnoreCase))
+        {
+            region = "EU";
+            regionDisplay = "Европа (PAL)";
+        }
+        else if (Regex.IsMatch(baseName, @"\((?:USA|U|US|USA,\s*Canada|North\s*America)\)|\bNTSC-U\b", RegexOptions.IgnoreCase))
+        {
+            region = "US";
+            regionDisplay = "США (NTSC-U)";
+        }
+        else if (Regex.IsMatch(baseName, @"\((?:World|W|WW)\)", RegexOptions.IgnoreCase))
+        {
+            region = "WORLD";
+            regionDisplay = "Мир (World)";
+        }
+        else if (Regex.IsMatch(baseName, @"\((?:Korea|K|Kor)\)", RegexOptions.IgnoreCase))
+        {
+            region = "KR";
+            regionDisplay = "Корея";
+        }
+        else if (Regex.IsMatch(baseName, @"\((?:Russia|R|Rus)\)", RegexOptions.IgnoreCase))
+        {
+            region = "RU";
+            regionDisplay = "Россия";
+        }
+        else if (!string.IsNullOrEmpty(explicitRegionInBrackets))
+        {
+            region = explicitRegionInBrackets switch
+            {
+                "JP" or "AS" => "JP",
+                "US" or "CA" => "US",
+                "EU" or "UK" or "DE" or "FR" or "ES" or "IT" => "EU",
+                "WW" => "WORLD",
+                "KR" => "KR",
+                "RU" => "RU",
+                _ => explicitRegionInBrackets
+            };
+            regionDisplay = region switch
+            {
+                "JP" => "Япония (NTSC-J)",
+                "US" => "США (NTSC-U)",
+                "EU" => "Европа (PAL)",
+                "WORLD" => "Мир (World)",
+                "KR" => "Корея",
+                "RU" => "Россия",
+                _ => region
+            };
         }
 
-        // 6. Combined version badge (Never prefix with 'v')
+        // Folder check if region still empty
+        if (string.IsNullOrEmpty(region) && !string.IsNullOrWhiteSpace(filePath))
+        {
+            string normPath = filePath.Replace('/', '\\');
+            var segments = normPath.Split('\\', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var seg in segments)
+            {
+                string segUp = seg.Trim().ToUpperInvariant();
+                if (segUp is "FAMICOM" or "SUPER FAMICOM" or "JAPAN" or "NTSC-J")
+                {
+                    region = "JP";
+                    regionDisplay = "Япония (NTSC-J)";
+                    break;
+                }
+                if (segUp is "EUROPE" or "PAL")
+                {
+                    region = "EU";
+                    regionDisplay = "Европа (PAL)";
+                    break;
+                }
+                if (segUp is "USA" or "NTSC-U" or "NORTH AMERICA")
+                {
+                    region = "US";
+                    regionDisplay = "США (NTSC-U)";
+                    break;
+                }
+            }
+        }
+
+        // 6. Form RawNoIntroName:
+        // Name without extension, with square brackets stripped, multi-track (Track X) stripped,
+        // and GoodTools abbreviations converted to No-Intro Libretro standard:
+        // (J) -> (Japan), (U) -> (USA), (E) -> (Europe), (W) -> (World), (JU) -> (Japan, USA), (UE) -> (USA, Europe), (K) -> (Korea)
+        string noTrack = Regex.Replace(baseName, @"\s*\((?:Track|track)\s*\d+\)", "", RegexOptions.IgnoreCase);
+        string noBrackets = Regex.Replace(noTrack, @"\s*\[[^\]]*\]", "").Trim();
+
+        string rawNoIntro = Regex.Replace(noBrackets, @"\(([A-Za-z0-9,\s]+)\)", m =>
+        {
+            string code = m.Groups[1].Value.Trim().ToUpperInvariant();
+            return code switch
+            {
+                "J" or "JP" or "JPN" => "(Japan)",
+                "U" or "US" => "(USA)",
+                "E" or "EU" or "EURO" => "(Europe)",
+                "W" => "(World)",
+                "JU" => "(Japan, USA)",
+                "UE" => "(USA, Europe)",
+                "K" or "KOR" => "(Korea)",
+                "R" or "RUS" => "(Russia)",
+                _ => m.Value
+            };
+        });
+        rawNoIntro = Regex.Replace(rawNoIntro, @"\s+", " ").Trim();
+
+        // 7. Combined version badge (Never prefix with 'v')
         string cleanVerPart = verPart.TrimStart('v', 'V').Trim();
         string combinedVersion = cleanVerPart;
         if (!string.IsNullOrEmpty(contentPart))
@@ -441,13 +581,14 @@ public class RomItem : INotifyPropertyChanged
             combinedVersion = !string.IsNullOrEmpty(combinedVersion) ? $"{combinedVersion} • {contentPart}" : contentPart;
         }
 
-        // 7. Clean Title: Strictly the title BEFORE year / brackets / parens
-        var mEarliest = Regex.Match(baseName, @"(\((19\d{2}|20\d{2})\)|\[|\((USA|Europe|Japan|World))", RegexOptions.IgnoreCase);
+        // 8. Clean Title: Strictly the title BEFORE year / brackets / parens
+        var mEarliest = Regex.Match(baseName, @"(\((19\d{2}|20\d{2})\)|\[|\((USA|Europe|Japan|World|J|U|E|W|JU|UE|K|JP|US|EU|RU|Russia))", RegexOptions.IgnoreCase);
         string cleanTitle = mEarliest.Success ? baseName.Substring(0, mEarliest.Index).Trim() : baseName;
         cleanTitle = Regex.Replace(cleanTitle, @"\[[^\[\]]*\]|\([^()]*\)", "").Trim();
         cleanTitle = Regex.Replace(cleanTitle, @"\s+", " ").Trim();
+        if (string.IsNullOrEmpty(cleanTitle)) cleanTitle = baseName;
 
-        return (cleanTitle, year, region, langBadge, combinedVersion);
+        return (cleanTitle, year, region, langBadge, combinedVersion, rawNoIntro, regionDisplay);
     }
 
     private static readonly ConcurrentDictionary<string, BitmapSource> _platformIconCache = new(StringComparer.OrdinalIgnoreCase);

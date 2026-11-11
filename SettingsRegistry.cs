@@ -31,7 +31,7 @@ public static class SettingsRegistry
         list.Add(new SettingItem
         {
             CategoryId = "drivers", CategoryName = "Драйверы", Title = "Аудио ресемплер", CfgKey = "audio_resampler", Kind = SettingControlKind.ComboBox,
-            Description = "Алгоритм передискретизации частоты звука (Sinc — наивысшее качество).",
+            Description = "Алгоритм передискретизации частоты звука (Sinc - наивысшее качество).",
             Options = new() { "sinc", "cc", "nearest" }
         });
         list.Add(new SettingItem
@@ -164,7 +164,7 @@ public static class SettingsRegistry
         });
         list.Add(new SettingItem
         {
-            CategoryId = "video", CategoryName = "Видео", Title = "Кратность масштаба окна (1x–6x)", CfgKey = "video_scale", Kind = SettingControlKind.ComboBox,
+            CategoryId = "video", CategoryName = "Видео", Title = "Кратность масштаба окна (1x-6x)", CfgKey = "video_scale", Kind = SettingControlKind.ComboBox,
             Description = "Коэффициент увеличения окна относительно базового разрешения ретро-консоли.",
             Options = new() { "1", "2", "3", "4", "5", "6" }
         });
@@ -236,7 +236,7 @@ public static class SettingsRegistry
         list.Add(new SettingItem
         {
             CategoryId = "audio", CategoryName = "Аудио", Title = "Задержка аудио", CfgKey = "audio_latency", Kind = SettingControlKind.Slider,
-            Description = "Размер аудио-буфера в миллисекундах (32–64 мс оптимально для WASAPI).",
+            Description = "Размер аудио-буфера в миллисекундах (32-64 мс оптимально для WASAPI).",
             Min = 8, Max = 128, Step = 8, Unit = "мс"
         });
         list.Add(new SettingItem
@@ -266,7 +266,7 @@ public static class SettingsRegistry
         list.Add(new SettingItem
         {
             CategoryId = "input", CategoryName = "Ввод и Клавиши", Title = "Двойное нажатие для выхода", CfgKey = "quit_press_twice", Kind = SettingControlKind.Toggle,
-            Description = "Защита от случайного закрытия игры — требует нажать клавишу выхода дважды."
+            Description = "Защита от случайного закрытия игры - требует нажать клавишу выхода дважды."
         });
         list.Add(new SettingItem
         {
@@ -325,7 +325,7 @@ public static class SettingsRegistry
         list.Add(new SettingItem
         {
             CategoryId = "latency", CategoryName = "Задержка", Title = "Кадры Run-Ahead (1..6)", CfgKey = "run_ahead_frames", Kind = SettingControlKind.Slider,
-            Description = "Количество кадров упреждения (для NES/SNES/Genesis обычно 1–2 кадра).",
+            Description = "Количество кадров упреждения (для NES/SNES/Genesis обычно 1-2 кадра).",
             Min = 1, Max = 6, Step = 1, Unit = "кадра"
         });
 

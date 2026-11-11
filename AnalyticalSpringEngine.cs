@@ -11,7 +11,7 @@ namespace StormRetroArch;
 
 /// <summary>
 /// 1D Analytical Damped Spring using Hooke's Law with semi-implicit Euler integration and 2x sub-stepping.
-/// Frame-rate independent physics across 60–120+ Hz displays.
+/// Frame-rate independent physics across 60-120+ Hz displays.
 /// </summary>
 public struct AnalyticalSpring1D
 {
@@ -736,7 +736,7 @@ public static class AnalyticalSpringEngine
 
     /// <summary>
     /// Crisp 14px -> 0 directional glide + Opacity 0.3 -> 1.0 analytical spring (stiffness=480, damping=34)
-    /// for buttery 60–120 FPS view transitions with zero layout thrash.
+    /// for buttery 60-120 FPS view transitions with zero layout thrash.
     /// </summary>
     public static void AnimateViewTransition(FrameworkElement viewRoot)
     {

@@ -8,10 +8,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <NoWarn>WFO1000</NoWarn>
     <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
-    <AssemblyName>STORM_RETROARCH_2.2.0_Setup</AssemblyName>
-    <Version>2.2.0</Version>
-    <AssemblyVersion>2.2.0.0</AssemblyVersion>
-    <FileVersion>2.2.0.0</FileVersion>
+    <AssemblyName>STORM_RETROARCH_2.3.0_Setup</AssemblyName>
+    <Version>2.3.0</Version>
+    <AssemblyVersion>2.3.0.0</AssemblyVersion>
+    <FileVersion>2.3.0.0</FileVersion>
     <AssemblyTitle>STORM RETROARCH</AssemblyTitle>
     <Product>STORM RETROARCH</Product>
     <Title>STORM RETROARCH</Title>

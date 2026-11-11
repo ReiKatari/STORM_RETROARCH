@@ -15,10 +15,19 @@ namespace StormRetroArch;
 
 public static class CoverArtService
 {
-    private static readonly HttpClient _httpClient = new HttpClient
+    private static readonly HttpClient _httpClient = new(new SocketsHttpHandler
     {
-        Timeout = TimeSpan.FromSeconds(7)
+        MaxConnectionsPerServer = 16,
+        PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+        AutomaticDecompression = System.Net.DecompressionMethods.All
+    })
+    {
+        Timeout = TimeSpan.FromSeconds(10)
     };
+
+    public static string ThumbnailsRoot => Directory.Exists(CoreManager.InstallDir)
+        ? Path.Combine(CoreManager.InstallDir, "thumbnails")
+        : Path.Combine(CoreManager.AppDir, "thumbnails");
 
     static CoverArtService()
     {
@@ -77,7 +86,33 @@ public static class CoverArtService
                     key = NormalizeLookupKey(parent);
                 }
 
-                if (!string.IsNullOrEmpty(key) && !dict.ContainsKey(key))
+                if (string.IsNullOrEmpty(key)) continue;
+
+                // Extract platform from relative folder path
+                string rel = Path.GetRelativePath(root, f);
+                string? dir = Path.GetDirectoryName(rel);
+                string platKey = "";
+                if (!string.IsNullOrEmpty(dir))
+                {
+                    var segs = dir.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var seg in segs)
+                    {
+                        string k = CoreManager.NormalizePlatformKey(seg);
+                        if (!string.IsNullOrEmpty(k) && k != "unknown")
+                        {
+                            platKey = k;
+                            break;
+                        }
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(platKey))
+                {
+                    string compoundKey = $"{platKey}__{key}";
+                    if (!dict.ContainsKey(compoundKey)) dict[compoundKey] = f;
+                }
+
+                if (!dict.ContainsKey(key))
                 {
                     dict[key] = f;
                 }
@@ -190,12 +225,14 @@ public static class CoverArtService
         {
             string safePlatform = SanitizeFileName(item.Platform);
             string safeName = SanitizeFileName(item.Name);
-            string cacheDir = Path.Combine(CoreManager.AppDir, "thumbnails", safePlatform);
+            string cacheDir = Path.Combine(ThumbnailsRoot, safePlatform);
             if (!Directory.Exists(cacheDir)) Directory.CreateDirectory(cacheDir);
 
-            string cacheFile = Path.Combine(cacheDir, $"{safeName}.png");
+            // Region-isolated cache key
+            string regKey = string.IsNullOrWhiteSpace(item.Region) ? "AUTO" : SanitizeFileName(item.Region.ToUpperInvariant());
+            string cacheFile = Path.Combine(cacheDir, $"{safeName}__{regKey}.png");
 
-            // 1. Check local thumbnails cache (unless forceRefresh)
+            // 1. Check local regional cache (unless forceRefresh)
             if (!forceRefresh && File.Exists(cacheFile))
             {
                 byte[] existing = await File.ReadAllBytesAsync(cacheFile).ConfigureAwait(false);
@@ -213,32 +250,86 @@ public static class CoverArtService
                 try { File.Delete(cacheFile); } catch { }
             }
 
-            // 2. Fast O(1) in-memory index from K:\STORM GAMES WORLD\public\images\COVERS
-            string localCover = FindLocalStormCover(item.Name, item.Region, item.Platform);
-            if (!string.IsNullOrEmpty(localCover) && File.Exists(localCover))
+            // 2. Check cover next to ROM file in user directory
+            if (!string.IsNullOrWhiteSpace(item.FilePath) && File.Exists(item.FilePath))
             {
-                byte[] localBytes = await File.ReadAllBytesAsync(localCover).ConfigureAwait(false);
-                if (IsSupportedBitmapBytes(localBytes) && TryApplyBytesToItemAndCache(item, localBytes, cacheFile))
+                try
                 {
-                    return;
+                    string? romDir = Path.GetDirectoryName(item.FilePath);
+                    string romBase = Path.GetFileNameWithoutExtension(item.FilePath);
+                    if (!string.IsNullOrEmpty(romDir) && Directory.Exists(romDir))
+                    {
+                        string[] exts = { ".png", ".jpg", ".jpeg", ".webp" };
+                        foreach (var imgExt in exts)
+                        {
+                            string sidecar = Path.Combine(romDir, romBase + imgExt);
+                            if (File.Exists(sidecar))
+                            {
+                                byte[] sidecarBytes = await File.ReadAllBytesAsync(sidecar).ConfigureAwait(false);
+                                if (IsSupportedBitmapBytes(sidecarBytes) && TryApplyBytesToItemAndCache(item, sidecarBytes, cacheFile))
+                                    return;
+                            }
+                        }
+
+                        string[] genericNames = { "cover", "folder" };
+                        foreach (var gen in genericNames)
+                        {
+                            foreach (var imgExt in exts)
+                            {
+                                string genSidecar = Path.Combine(romDir, gen + imgExt);
+                                if (File.Exists(genSidecar))
+                                {
+                                    byte[] sidecarBytes = await File.ReadAllBytesAsync(genSidecar).ConfigureAwait(false);
+                                    if (IsSupportedBitmapBytes(sidecarBytes) && TryApplyBytesToItemAndCache(item, sidecarBytes, cacheFile))
+                                        return;
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            // Fast reserve check for local StormMediaIndex if Region is empty or RU
+            bool tryStormIndexFirst = string.IsNullOrEmpty(item.Region) || item.Region.Equals("RU", StringComparison.OrdinalIgnoreCase);
+            if (tryStormIndexFirst)
+            {
+                string localCover = FindLocalStormCover(item.Name, item.Region, item.Platform);
+                if (!string.IsNullOrEmpty(localCover) && File.Exists(localCover))
+                {
+                    byte[] localBytes = await File.ReadAllBytesAsync(localCover).ConfigureAwait(false);
+                    if (IsSupportedBitmapBytes(localBytes) && TryApplyBytesToItemAndCache(item, localBytes, cacheFile))
+                        return;
                 }
             }
 
-            // 3. Online Libretro Thumbnails Server (with underscore colon replacement)
-            byte[]? downloadedBytes = await FetchLibretroThumbnailAsync(item.Name, item.Region, item.Platform).ConfigureAwait(false);
+            // 3. Online Libretro Thumbnails Server (thumbnails.libretro.com)
+            byte[]? downloadedBytes = await FetchLibretroThumbnailAsync(item).ConfigureAwait(false);
             if (downloadedBytes != null && IsSupportedBitmapBytes(downloadedBytes))
             {
                 if (TryApplyBytesToItemAndCache(item, downloadedBytes, cacheFile)) return;
             }
 
-            // 4. Wikipedia REST API Fallback
+            // 4. Reserve check for local StormMediaIndex if not tried first
+            if (!tryStormIndexFirst)
+            {
+                string localCover = FindLocalStormCover(item.Name, item.Region, item.Platform);
+                if (!string.IsNullOrEmpty(localCover) && File.Exists(localCover))
+                {
+                    byte[] localBytes = await File.ReadAllBytesAsync(localCover).ConfigureAwait(false);
+                    if (IsSupportedBitmapBytes(localBytes) && TryApplyBytesToItemAndCache(item, localBytes, cacheFile))
+                        return;
+                }
+            }
+
+            // 5. Wikipedia REST API Fallback (with strict 'game' verification)
             byte[]? wikiBytes = await FetchWikipediaCoverAsync(item.Name).ConfigureAwait(false);
             if (wikiBytes != null && IsSupportedBitmapBytes(wikiBytes))
             {
                 if (TryApplyBytesToItemAndCache(item, wikiBytes, cacheFile)) return;
             }
 
-            // 5. Fallback to 280x380 studio poster
+            // 6. Fallback to 280x380 studio poster
             if (item.Icon == null)
             {
                 Application.Current?.Dispatcher.BeginInvoke(() => item.GeneratePixelIcon());
@@ -336,19 +427,22 @@ public static class CoverArtService
         {
             string key = NormalizeLookupKey(cleanName);
             if (string.IsNullOrEmpty(key)) return "";
-            var covers = MediaIndex?.Covers; if (covers == null) return "";
+            var covers = MediaIndex?.Covers;
+            if (covers == null) return "";
+
+            string platKey = CoreManager.NormalizePlatformKey(platform);
+            if (!string.IsNullOrEmpty(platKey))
+            {
+                string compoundKey = $"{platKey}__{key}";
+                if (covers.TryGetValue(compoundKey, out var exactPath) && File.Exists(exactPath))
+                {
+                    return exactPath;
+                }
+            }
+
             if (covers.TryGetValue(key, out var path) && File.Exists(path))
             {
                 return path;
-            }
-
-            // Instant O(N) in-memory prefix match without re-scanning K:\ disk
-            foreach (var kv in covers)
-            {
-                if (kv.Key.Length >= 5 && (kv.Key.StartsWith(key, StringComparison.OrdinalIgnoreCase) || key.StartsWith(kv.Key, StringComparison.OrdinalIgnoreCase)))
-                {
-                    if (File.Exists(kv.Value)) return kv.Value;
-                }
             }
         }
         catch { }
@@ -365,27 +459,214 @@ public static class CoverArtService
                ext.Equals(".bmp", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static async Task<byte[]?> FetchLibretroThumbnailAsync(string rawTitle, string region, string platform)
+    public static Task<byte[]?> FetchLibretroThumbnailAsync(string rawTitle, string region, string platform)
     {
-        string sysDir = MapPlatformToLibretroDir(platform);
-        if (string.IsNullOrEmpty(sysDir)) return null;
+        var dummy = new RomItem { Name = rawTitle, Region = region, Platform = platform };
+        return FetchLibretroThumbnailAsync(dummy);
+    }
 
-        string ghRepo = sysDir.Replace(' ', '_');
-        var candidates = BuildLibretroCandidates(rawTitle, region, platform);
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task<List<string>>> _libretroDirIndexTasks = new(StringComparer.OrdinalIgnoreCase);
 
-        string[] folders = { "Named_Boxarts", "Named_Titles" };
-        foreach (var folder in folders)
+    private static Task<List<string>> GetLibretroDirectoryIndexAsync(string encSys, string folder)
+    {
+        string cacheKey = $"{encSys}/{folder}";
+        return _libretroDirIndexTasks.GetOrAdd(cacheKey, async _ =>
         {
-            int limit = folder == "Named_Boxarts" ? Math.Min(candidates.Count, 14) : Math.Min(candidates.Count, 6);
-            for (int idx = 0; idx < limit; idx++)
+            var pngNames = new List<string>();
+            try
             {
-                string cand = candidates[idx];
-                string encSys = Uri.EscapeDataString(sysDir);
-                string encCand = Uri.EscapeDataString(cand);
+                string dirUrl = $"https://thumbnails.libretro.com/{encSys}/{folder}/";
+                using var res = await _httpClient.GetAsync(dirUrl).ConfigureAwait(false);
+                if (!res.IsSuccessStatusCode) return pngNames;
+                string html = await res.Content.ReadAsStringAsync().ConfigureAwait(false);
+                foreach (Match m in Regex.Matches(html, @"href=""([^""]+\.png)""", RegexOptions.IgnoreCase))
+                {
+                    string rawHref = m.Groups[1].Value;
+                    if (rawHref.Contains("/") || rawHref.StartsWith("?")) continue;
+                    string decoded = Uri.UnescapeDataString(rawHref);
+                    if (decoded.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                    {
+                        pngNames.Add(decoded.Substring(0, decoded.Length - 4));
+                    }
+                }
+            }
+            catch { }
+            return pngNames;
+        });
+    }
 
-                string cdnUrl = $"https://thumbnails.libretro.com/{encSys}/{folder}/{encCand}.png";
-                var data = await TryDownloadBufferWithSymlink(cdnUrl).ConfigureAwait(false);
-                if (data != null && IsSupportedBitmapBytes(data)) return data;
+    private static int ScoreServerRegionMatch(string serverEntryName, string preferredRegion)
+    {
+        string upper = serverEntryName.ToUpperInvariant();
+        string reg = (preferredRegion ?? "").Trim().ToUpperInvariant();
+
+        // Penalize mini/collection re-releases slightly compared to original boxarts
+        int penalty = (upper.Contains("COLLECTION)") || upper.Contains("MINI)") || upper.Contains("VIRTUAL CONSOLE)") || upper.Contains("(BETA") || upper.Contains("(PROTO") || upper.Contains("(SAMPLE")) ? -15 : 0;
+
+        if (reg is "JP" or "JPN" or "JAPAN")
+        {
+            if (upper.Contains("(JAPAN)") || upper.Contains("(JAPAN) (")) return 100 + penalty;
+            if (upper.Contains("(JAPAN, USA)") || upper.Contains("(JAPAN, KOREA)") || upper.Contains("(JAPAN, EUROPE)")) return 90 + penalty;
+            if (upper.Contains("(WORLD)") || upper.Contains("(ASIA)")) return 70 + penalty;
+            if (upper.Contains("(USA)")) return 25 + penalty;
+            if (upper.Contains("(EUROPE)")) return 20 + penalty;
+            return 40 + penalty;
+        }
+        if (reg is "EU" or "EUR" or "EUROPE" or "PAL")
+        {
+            if (upper.Contains("(EUROPE)") || upper.Contains("(EUROPE) (")) return 100 + penalty;
+            if (upper.Contains("(USA, EUROPE)") || upper.Contains("(JAPAN, EUROPE)") || upper.Contains("(UK)")) return 90 + penalty;
+            if (upper.Contains("(GERMANY)") || upper.Contains("(FRANCE)") || upper.Contains("(SPAIN)") || upper.Contains("(ITALY)")) return 82 + penalty;
+            if (upper.Contains("(WORLD)")) return 75 + penalty;
+            if (upper.Contains("(USA)")) return 30 + penalty;
+            if (upper.Contains("(JAPAN)")) return 15 + penalty;
+            return 40 + penalty;
+        }
+        if (reg == "JP-US")
+        {
+            if (upper.Contains("(JAPAN, USA)")) return 100 + penalty;
+            if (upper.Contains("(JAPAN)")) return 92 + penalty;
+            if (upper.Contains("(USA)")) return 88 + penalty;
+            if (upper.Contains("(WORLD)")) return 75 + penalty;
+            return 35 + penalty;
+        }
+        if (reg == "US-EU")
+        {
+            if (upper.Contains("(USA, EUROPE)")) return 100 + penalty;
+            if (upper.Contains("(USA)")) return 92 + penalty;
+            if (upper.Contains("(EUROPE)")) return 88 + penalty;
+            if (upper.Contains("(WORLD)")) return 75 + penalty;
+            return 35 + penalty;
+        }
+        if (reg == "KR")
+        {
+            if (upper.Contains("(KOREA)")) return 100 + penalty;
+            if (upper.Contains("(JAPAN, KOREA)") || upper.Contains("(ASIA)")) return 88 + penalty;
+            if (upper.Contains("(WORLD)")) return 70 + penalty;
+            return 30 + penalty;
+        }
+
+        // Default / US / WORLD
+        if (upper.Contains("(USA)") || upper.Contains("(USA) (")) return 100 + penalty;
+        if (upper.Contains("(USA, EUROPE)") || upper.Contains("(NORTH AMERICA)")) return 92 + penalty;
+        if (upper.Contains("(WORLD)")) return 85 + penalty;
+        if (upper.Contains("(EUROPE)")) return 45 + penalty;
+        if (upper.Contains("(JAPAN)")) return 25 + penalty;
+        return 60 + penalty;
+    }
+
+    private static List<string> MatchCandidatesInDirectoryIndex(List<string> indexEntries, List<string> exactCandidates, string rawTitle, string preferredRegion)
+    {
+        var matched = new List<string>();
+        var indexSet = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var e in indexEntries)
+        {
+            if (!indexSet.ContainsKey(e)) indexSet[e] = e;
+        }
+
+        // 1. Exact candidate match in strict regional priority order
+        foreach (var cand in exactCandidates)
+        {
+            if (indexSet.TryGetValue(cand, out var actual) && !matched.Contains(actual))
+            {
+                matched.Add(actual);
+            }
+        }
+        if (matched.Count > 0) return matched;
+
+        // 2. No-Intro dual-title (~ alias) and regional subtitle matching (e.g. "Bare Knuckle II - Shitou e no Requiem ~ Streets of Rage II (Japan, Europe)")
+        string targetNorm = NormalizeLookupKey(rawTitle);
+        string targetArabic = NormalizeLookupKey(Regex.Replace(rawTitle, @"\bII\b", "2").Replace("III", "3").Replace("IV", "4"));
+        if (string.IsNullOrEmpty(targetNorm)) return matched;
+
+        var scored = new List<(string Entry, int Score)>();
+        foreach (var entry in indexEntries)
+        {
+            int parenIdx = entry.IndexOf('(');
+            string titlePart = (parenIdx > 0 ? entry.Substring(0, parenIdx) : entry).Trim();
+            var tildeAliases = titlePart.Split('~', StringSplitOptions.RemoveEmptyEntries);
+
+            int titleMatchBonus = 0;
+            foreach (var alias in tildeAliases)
+            {
+                string aliasTrim = alias.Trim();
+                string aliasNorm = NormalizeLookupKey(aliasTrim);
+                string aliasArabic = NormalizeLookupKey(Regex.Replace(aliasTrim, @"\bII\b", "2").Replace("III", "3").Replace("IV", "4"));
+                if (aliasNorm == targetNorm || (!string.IsNullOrEmpty(targetArabic) && aliasArabic == targetArabic))
+                {
+                    titleMatchBonus = 200;
+                    break;
+                }
+
+                // Check primary title before " - " / "_ " subtitle inside a ~ alias (e.g. "Bare Knuckle II - Shitou e no Requiem")
+                int sepIdx = aliasTrim.IndexOf(" - ", StringComparison.Ordinal);
+                if (sepIdx < 0) sepIdx = aliasTrim.IndexOf("_ ", StringComparison.Ordinal);
+                if (sepIdx > 0)
+                {
+                    string mainPart = aliasTrim.Substring(0, sepIdx).Trim();
+                    string mainNorm = NormalizeLookupKey(mainPart);
+                    string mainArabic = NormalizeLookupKey(Regex.Replace(mainPart, @"\bII\b", "2").Replace("III", "3").Replace("IV", "4"));
+                    if (mainNorm == targetNorm || (!string.IsNullOrEmpty(targetArabic) && mainArabic == targetArabic))
+                    {
+                        titleMatchBonus = Math.Max(titleMatchBonus, tildeAliases.Length > 1 ? 185 : 140);
+                    }
+                }
+            }
+
+            if (titleMatchBonus > 0)
+            {
+                int totalScore = titleMatchBonus + ScoreServerRegionMatch(entry, preferredRegion);
+                scored.Add((entry, totalScore));
+            }
+        }
+
+        foreach (var s in scored.OrderByDescending(x => x.Score))
+        {
+            if (!matched.Contains(s.Entry)) matched.Add(s.Entry);
+            if (matched.Count >= 4) break;
+        }
+
+        return matched;
+    }
+
+    public static async Task<byte[]?> FetchLibretroThumbnailAsync(RomItem item)
+    {
+        if (item == null || string.IsNullOrWhiteSpace(item.Name)) return null;
+
+        var sysDirs = GetLibretroDirs(item.Platform, item.Extension);
+        if (sysDirs.Count == 0) return null;
+
+        var candidates = BuildLibretroCandidates(item.Name, item.Region, item.Platform, item.RawNoIntroName);
+        string[] folders = { "Named_Boxarts", "Named_Titles" };
+
+        foreach (var sysDir in sysDirs)
+        {
+            string encSys = Uri.EscapeDataString(sysDir);
+            foreach (var folder in folders)
+            {
+                var dirIndex = await GetLibretroDirectoryIndexAsync(encSys, folder).ConfigureAwait(false);
+                if (dirIndex.Count > 0)
+                {
+                    var verifiedMatches = MatchCandidatesInDirectoryIndex(dirIndex, candidates, item.Name, item.Region);
+                    foreach (var exactServerName in verifiedMatches)
+                    {
+                        string cdnUrl = $"https://thumbnails.libretro.com/{encSys}/{folder}/{Uri.EscapeDataString(exactServerName)}.png";
+                        var data = await TryDownloadBufferWithSymlink(cdnUrl).ConfigureAwait(false);
+                        if (data != null && IsSupportedBitmapBytes(data)) return data;
+                    }
+                }
+                else
+                {
+                    // Fallback direct probe if directory index was unreachable
+                    int limit = folder == "Named_Boxarts" ? Math.Min(candidates.Count, 8) : Math.Min(candidates.Count, 4);
+                    for (int idx = 0; idx < limit; idx++)
+                    {
+                        string encCand = Uri.EscapeDataString(candidates[idx]);
+                        string cdnUrl = $"https://thumbnails.libretro.com/{encSys}/{folder}/{encCand}.png";
+                        var data = await TryDownloadBufferWithSymlink(cdnUrl).ConfigureAwait(false);
+                        if (data != null && IsSupportedBitmapBytes(data)) return data;
+                    }
+                }
             }
         }
 
@@ -405,13 +686,22 @@ public static class CoverArtService
             {
                 string url = $"https://en.wikipedia.org/api/rest_v1/page/summary/{Uri.EscapeDataString(q)}";
                 using var req = new HttpRequestMessage(HttpMethod.Get, url);
-                req.Headers.UserAgent.ParseAdd("STORM-RETROARCH/2.2.0 (Game Media Engine; contact@stormgamesworld.ru)");
+                req.Headers.UserAgent.ParseAdd("STORM-RETROARCH/2.3.0 (Game Media Engine; contact@stormgamesworld.ru)");
                 using var resp = await _httpClient.SendAsync(req).ConfigureAwait(false);
                 if (!resp.IsSuccessStatusCode) continue;
 
                 string json = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
+
+                // Strict validation: must contain 'game' in description or extract
+                string desc = root.TryGetProperty("description", out var descProp) ? (descProp.GetString() ?? "") : "";
+                string extract = root.TryGetProperty("extract", out var extProp) ? (extProp.GetString() ?? "") : "";
+                string combined = (desc + " " + extract).ToLowerInvariant();
+                if (!combined.Contains("game"))
+                {
+                    continue;
+                }
 
                 string? imgUrl = null;
                 if (root.TryGetProperty("originalimage", out var orig) && orig.TryGetProperty("source", out var origSrc))
@@ -426,7 +716,7 @@ public static class CoverArtService
                 if (!string.IsNullOrEmpty(imgUrl))
                 {
                     using var imgReq = new HttpRequestMessage(HttpMethod.Get, imgUrl);
-                    imgReq.Headers.UserAgent.ParseAdd("STORM-RETROARCH/2.2.0 (Game Media Engine)");
+                    imgReq.Headers.UserAgent.ParseAdd("STORM-RETROARCH/2.3.0 (Game Media Engine)");
                     using var imgResp = await _httpClient.SendAsync(imgReq).ConfigureAwait(false);
                     if (imgResp.IsSuccessStatusCode)
                     {
@@ -476,28 +766,58 @@ public static class CoverArtService
 
     public static List<string> BuildLibretroCandidates(string rawTitle, string preferredRegion, string platform)
     {
+        return BuildLibretroCandidates(rawTitle, preferredRegion, platform, "");
+    }
+
+    public static List<string> BuildLibretroCandidates(string rawTitle, string preferredRegion, string platform, string rawNoIntro)
+    {
         string clean = Regex.Replace(rawTitle, @"\[[^\]]*\]|\([^)]*\)", "").Trim();
         clean = Regex.Replace(clean, @"\s+", " ").Trim();
         string colonNorm = Regex.Replace(clean, @"\s*:\s*", " - ").Trim();
 
-        string regUpper = (preferredRegion ?? "US").ToUpperInvariant();
-        List<string> regionSuffixes;
+        string regUpper = (preferredRegion ?? "").ToUpperInvariant();
+        List<string> primarySuffixes;
+        List<string> fallbackSuffixes;
 
-        if (regUpper.Contains("JP") || regUpper.Contains("JAP"))
+        if (regUpper.Contains("JP-US") || regUpper.Contains("JU"))
         {
-            regionSuffixes = new List<string> { "(Japan)", "(Japan, USA)", "(World)", "(USA)", "(Europe)" };
+            primarySuffixes = new List<string> { "(Japan, USA)", "(Japan)", "(USA)", "(World)" };
+            fallbackSuffixes = new List<string> { "(Europe)" };
+        }
+        else if (regUpper.Contains("US-EU") || regUpper.Contains("UE"))
+        {
+            primarySuffixes = new List<string> { "(USA, Europe)", "(USA)", "(Europe)", "(World)" };
+            fallbackSuffixes = new List<string> { "(Japan)" };
+        }
+        else if (regUpper.Contains("JP") || regUpper.Contains("JAP"))
+        {
+            primarySuffixes = new List<string> { "(Japan)", "(Japan, USA)", "(Japan) (En)", "(Japan, Korea)", "(Asia)", "(World)" };
+            fallbackSuffixes = new List<string> { "(USA)", "(Europe)" };
         }
         else if (regUpper.Contains("EU") || regUpper.Contains("PAL"))
         {
-            regionSuffixes = new List<string> { "(Europe)", "(USA, Europe)", "(World)", "(USA)", "(Japan)" };
+            primarySuffixes = new List<string> { "(Europe)", "(Europe) (En,Fr,De)", "(Europe) (En,Fr,De,Es,It)", "(Europe) (En,Fr,De,Es)", "(USA, Europe)", "(UK)", "(Germany)", "(France)", "(World)" };
+            fallbackSuffixes = new List<string> { "(USA)", "(Japan)" };
+        }
+        else if (regUpper.Contains("KR"))
+        {
+            primarySuffixes = new List<string> { "(Korea)", "(Japan, Korea)", "(Asia)", "(World)", "(USA)" };
+            fallbackSuffixes = new List<string> { "(Europe)", "(Japan)" };
         }
         else if (regUpper.Contains("RU") || regUpper.Contains("RUS"))
         {
-            regionSuffixes = new List<string> { "(Russia)", "(USA)", "(USA, Europe)", "(World)", "(Europe)", "(Japan)" };
+            primarySuffixes = new List<string> { "(Russia)", "(Europe)", "(USA)", "(World)" };
+            fallbackSuffixes = new List<string> { "(Japan)" };
         }
-        else
+        else if (regUpper.Contains("WORLD") || regUpper.Contains("WW"))
         {
-            regionSuffixes = new List<string> { "(USA)", "(USA, Europe)", "(World)", "(Europe)", "(Japan)" };
+            primarySuffixes = new List<string> { "(World)", "(USA, Europe)", "(USA)", "(Europe)", "(Japan)" };
+            fallbackSuffixes = new List<string>();
+        }
+        else // US or empty
+        {
+            primarySuffixes = new List<string> { "(USA)", "(USA, Europe)", "(World)", "(Europe)", "(Japan)" };
+            fallbackSuffixes = new List<string>();
         }
 
         var baseTitles = new List<string>();
@@ -509,7 +829,7 @@ public static class CoverArtService
             if (!string.IsNullOrEmpty(norm) && !baseTitles.Contains(norm)) baseTitles.Add(norm);
         }
 
-        // 1. If title contains " - ", generate "_ " variants FIRST!
+        // 1. If title contains " - ", generate "_ " variants
         if (colonNorm.Contains(" - "))
         {
             string underAll = colonNorm.Replace(" - ", "_ ");
@@ -537,7 +857,7 @@ public static class CoverArtService
         }
         PushBase(colonNorm);
 
-        // 3. Roman <-> Arabic swaps (II <-> 2, III <-> 3, etc.)
+        // 3. Roman <-> Arabic swaps
         (string From, string To)[] swaps =
         {
             (" II", " 2"), (" 2", " II"),
@@ -555,7 +875,7 @@ public static class CoverArtService
             }
         }
 
-        // 4. Known expansions (e.g. Dungeon Master II)
+        // 4. Known expansions
         if (colonNorm.Contains("Dungeon Master II", StringComparison.OrdinalIgnoreCase) &&
             !colonNorm.Contains("Skullkeep", StringComparison.OrdinalIgnoreCase))
         {
@@ -563,50 +883,39 @@ public static class CoverArtService
             PushBase("Dungeon Master II - The Legend of Skullkeep");
         }
 
-        // 5. Subtitle after dash (e.g. "Forgotten Realms - Unlimited Adventures" -> "Unlimited Adventures") & prefix before dash
-        if (colonNorm.Contains(" - "))
+        var results = new List<string>();
+        void PushResult(string r)
         {
-            var parts = colonNorm.Split(new[] { " - " }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length >= 2)
-            {
-                string suffixTitle = parts[parts.Length - 1].Trim();
-                if (suffixTitle.Length >= 5) PushBase(suffixTitle);
-            }
-            string prefix = parts[0].Trim();
-            PushBase(prefix);
+            string norm = Regex.Replace(r, @"[&*/:`<>?\|""]", "_");
+            norm = Regex.Replace(norm, @"\s+", " ").Trim();
+            if (!string.IsNullOrEmpty(norm) && !results.Contains(norm)) results.Add(norm);
         }
 
-        var results = new List<string>();
+        // Candidate #1: exact RawNoIntroName (standard No-Intro name without brackets)
+        if (!string.IsNullOrWhiteSpace(rawNoIntro))
+        {
+            PushResult(rawNoIntro);
+        }
+
         bool isDos = (platform ?? "").Contains("DOS", StringComparison.OrdinalIgnoreCase);
         if (isDos)
         {
-            // Libretro DOS thumbnails use bare titles without (USA)/(Europe) tags first
-            foreach (var b in baseTitles)
+            foreach (var b in baseTitles) PushResult(b);
+            foreach (var suf in primarySuffixes.Take(2))
             {
-                if (!results.Contains(b)) results.Add(b);
-            }
-            foreach (var suf in regionSuffixes.Take(2))
-            {
-                foreach (var b in baseTitles.Take(3))
-                {
-                    string cand = $"{b} {suf}";
-                    if (!results.Contains(cand)) results.Add(cand);
-                }
+                foreach (var b in baseTitles.Take(3)) PushResult($"{b} {suf}");
             }
         }
         else
         {
-            foreach (var suf in regionSuffixes)
+            foreach (var suf in primarySuffixes)
             {
-                foreach (var b in baseTitles)
-                {
-                    string cand = $"{b} {suf}";
-                    if (!results.Contains(cand)) results.Add(cand);
-                }
+                foreach (var b in baseTitles) PushResult($"{b} {suf}");
             }
-            foreach (var b in baseTitles)
+            foreach (var b in baseTitles) PushResult(b);
+            foreach (var suf in fallbackSuffixes)
             {
-                if (!results.Contains(b)) results.Add(b);
+                foreach (var b in baseTitles) PushResult($"{b} {suf}");
             }
         }
 
@@ -754,63 +1063,199 @@ public static class CoverArtService
 
     public static string MapPlatformToLibretroDir(string platform)
     {
-        if (string.IsNullOrWhiteSpace(platform)) return "Nintendo - Nintendo Entertainment System";
-        string p = platform.ToUpperInvariant();
+        return MapPlatformToLibretroDir(platform, "");
+    }
 
+    public static string MapPlatformToLibretroDir(string platform, string ext)
+    {
+        var dirs = GetLibretroDirs(platform, ext);
+        return dirs.Count > 0 ? dirs[0] : "Nintendo - Nintendo Entertainment System";
+    }
+
+    public static List<string> GetLibretroDirs(string platform, string ext = "")
+    {
+        var list = new List<string>();
+        string p = (platform ?? "").Trim().ToUpperInvariant();
+        string e = (ext ?? "").Trim().ToLowerInvariant();
+
+        void Add(string d)
+        {
+            if (!string.IsNullOrEmpty(d) && !list.Contains(d)) list.Add(d);
+        }
+
+        // Nintendo
         if (p.Contains("SUPER NINTENDO") || p.Contains("SNES") || p.Contains("SUPER FAMICOM"))
-            return "Nintendo - Super Nintendo Entertainment System";
-        if (p.Contains("NINTENDO 64") || p.Contains("N64"))
-            return "Nintendo - Nintendo 64";
-        if (p.Contains("GAME BOY ADVANCE") || p.Contains("GBA"))
-            return "Nintendo - Game Boy Advance";
-        if (p.Contains("GAME BOY COLOR") || p.Contains("GBC"))
-            return "Nintendo - Game Boy Color";
-        if (p.Contains("GAME BOY") || p.Contains("GAMEBOY"))
-            return "Nintendo - Game Boy";
-        if (p.Contains("NINTENDO DS") || p.Contains("NDS"))
-            return "Nintendo - Nintendo DS";
-        if (p.Contains("NINTENDO 3DS") || p.Contains("3DS"))
-            return "Nintendo - Nintendo 3DS";
-        if (p.Contains("GAMECUBE"))
-            return "Nintendo - GameCube";
-        if (p.Contains("NES") || p.Contains("FAMICOM") || p.Contains("NINTENDO ENTERTAINMENT"))
-            return "Nintendo - Nintendo Entertainment System";
-        if (p.Contains("GENESIS") || p.Contains("MEGA DRIVE") || p.Contains("MEGADRIVE"))
-            return "Sega - Mega Drive - Genesis";
-        if (p.Contains("MASTER SYSTEM"))
-            return "Sega - Master System - Mark III";
-        if (p.Contains("GAME GEAR"))
-            return "Sega - Game Gear";
-        if (p.Contains("SATURN"))
-            return "Sega - Saturn";
-        if (p.Contains("DREAMCAST"))
-            return "Sega - Dreamcast";
-        if (p.Contains("PLAYSTATION PORTABLE") || p.Contains("PSP"))
-            return "Sony - PlayStation Portable";
-        if (p.Contains("PLAYSTATION 2") || p.Contains("PS2"))
-            return "Sony - PlayStation 2";
-        if (p.Contains("PLAYSTATION") || p.Contains("PS1") || p.Contains("PSX"))
-            return "Sony - PlayStation";
-        if (p.Contains("PC ENGINE") || p.Contains("TURBOGRAFX"))
-            return "NEC - PC Engine - TurboGrafx 16";
-        if (p.Contains("ATARI 2600"))
-            return "Atari - 2600";
-        if (p.Contains("ATARI 7800"))
-            return "Atari - 7800";
-        if (p.Contains("LYNX"))
-            return "Atari - Lynx";
-        if (p.Contains("JAGUAR"))
-            return "Atari - Jaguar";
-        if (p.Contains("NEO GEO POCKET"))
-            return "SNK - Neo Geo Pocket Color";
-        if (p.Contains("WONDERSWAN"))
-            return "Bandai - WonderSwan Color";
-        if (p.Contains("ARCADE") || p.Contains("FBNEO") || p.Contains("NEO GEO"))
-            return "FBNeo - Arcade Games";
-        if (p.Contains("DOS") || p.Contains("MS-DOS"))
-            return "DOS";
+            Add("Nintendo - Super Nintendo Entertainment System");
+        else if (p.Contains("FAMILY COMPUTER DISK") || p.Contains("FAMICOM DISK") || p.Contains("FDS") || e == ".fds")
+            Add("Nintendo - Family Computer Disk System");
+        else if (p.Contains("NINTENDO 64") || p.Contains("N64"))
+            Add("Nintendo - Nintendo 64");
+        else if (p.Contains("GAME BOY ADVANCE") || p.Contains("GBA") || e == ".gba")
+            Add("Nintendo - Game Boy Advance");
+        else if (p.Contains("GAME BOY COLOR") || p.Contains("GBC") || e == ".gbc")
+            Add("Nintendo - Game Boy Color");
+        else if (p.Contains("GAME BOY / COLOR") || p.Contains("GAME BOY"))
+        {
+            if (e == ".gbc") { Add("Nintendo - Game Boy Color"); Add("Nintendo - Game Boy"); }
+            else { Add("Nintendo - Game Boy"); Add("Nintendo - Game Boy Color"); }
+        }
+        else if (p.Contains("NINTENDO 3DS") || p.Contains("3DS"))
+            Add("Nintendo - Nintendo 3DS");
+        else if (p.Contains("NINTENDO DS") || p.Contains("NDS") || p.Contains("DSI"))
+            Add("Nintendo - Nintendo DS");
+        else if (p.Contains("VIRTUAL BOY") || p.Contains("VB"))
+            Add("Nintendo - Virtual Boy");
+        else if (p.Contains("POKEMON MINI") || p.Contains("POKÉMON MINI"))
+            Add("Nintendo - Pokemon Mini");
+        else if (p.Contains("WII U") || p.Contains("WIIU"))
+            Add("Nintendo - Wii U");
+        else if (p.Contains("GAMECUBE / WII") || (p.Contains("GAMECUBE") && p.Contains("WII")))
+        {
+            if (e is ".wbfs" or ".wad" or ".wua") { Add("Nintendo - Wii"); Add("Nintendo - GameCube"); }
+            else { Add("Nintendo - GameCube"); Add("Nintendo - Wii"); }
+        }
+        else if (p.Contains("GAMECUBE"))
+            Add("Nintendo - GameCube");
+        else if (p.Contains("WII"))
+            Add("Nintendo - Wii");
+        else if (p.Contains("NES") || p.Contains("FAMICOM") || p.Contains("NINTENDO ENTERTAINMENT") || p.Contains("DENDY"))
+            Add("Nintendo - Nintendo Entertainment System");
 
-        return "Nintendo - Nintendo Entertainment System";
+        // Sega
+        if (p.Contains("MEGA-CD") || p.Contains("SEGA CD") || p.Contains("SEGACD"))
+        {
+            Add("Sega - Mega-CD - Sega CD");
+            Add("Sega - Mega Drive - Genesis");
+        }
+        else if (p.Contains("SEGA 32X") || p.Contains("32X"))
+        {
+            Add("Sega - 32X");
+            Add("Sega - Mega Drive - Genesis");
+        }
+        else if (p.Contains("MASTER SYSTEM / GAME GEAR") || (p.Contains("MASTER SYSTEM") && p.Contains("GAME GEAR")))
+        {
+            if (e == ".gg") { Add("Sega - Game Gear"); Add("Sega - Master System - Mark III"); }
+            else { Add("Sega - Master System - Mark III"); Add("Sega - Game Gear"); }
+        }
+        else if (p.Contains("GAME GEAR") || e == ".gg")
+            Add("Sega - Game Gear");
+        else if (p.Contains("SG-1000") || p.Contains("SG1000"))
+            Add("Sega - SG-1000");
+        else if (p.Contains("MASTER SYSTEM") || p.Contains("SMS"))
+            Add("Sega - Master System - Mark III");
+        else if (p.Contains("GENESIS") || p.Contains("MEGA DRIVE") || p.Contains("MEGADRIVE"))
+            Add("Sega - Mega Drive - Genesis");
+        else if (p.Contains("SATURN"))
+            Add("Sega - Saturn");
+        else if (p.Contains("DREAMCAST"))
+            Add("Sega - Dreamcast");
+
+        // Sony
+        if (p.Contains("PLAYSTATION VITA") || p.Contains("PS VITA") || p.Contains("PSVITA"))
+            Add("Sony - PlayStation Vita");
+        else if (p.Contains("PLAYSTATION PORTABLE") || p.Contains("PSP"))
+            Add("Sony - PlayStation Portable");
+        else if (p.Contains("PLAYSTATION 3") || p.Contains("PS3"))
+            Add("Sony - PlayStation 3");
+        else if (p.Contains("PLAYSTATION 2") || p.Contains("PS2"))
+            Add("Sony - PlayStation 2");
+        else if (p.Contains("PLAYSTATION") || p.Contains("PS1") || p.Contains("PSX"))
+            Add("Sony - PlayStation");
+
+        // NEC
+        if (p.Contains("PC ENGINE CD") || p.Contains("TURBOGRAFX-CD") || p.Contains("TURBOGRAFX CD"))
+            Add("NEC - PC Engine CD - TurboGrafx-CD");
+        else if (p.Contains("SUPERGRAFX") || p.Contains("SUPER GRAFX"))
+            Add("NEC - PC Engine SuperGrafx");
+        else if (p.Contains("PC-FX") || p.Contains("PCFX"))
+            Add("NEC - PC-FX");
+        else if (p.Contains("PC ENGINE") || p.Contains("TURBOGRAFX") || p.Contains("TG-16") || p.Contains("TG16"))
+            Add("NEC - PC Engine - TurboGrafx 16");
+
+        // SNK & Bandai
+        if (p.Contains("NEO GEO POCKET") || p.Contains("NGP") || p.Contains("NGPC"))
+        {
+            Add("SNK - Neo Geo Pocket Color");
+            Add("SNK - Neo Geo Pocket");
+        }
+        else if (p.Contains("NEO GEO CD"))
+            Add("SNK - Neo Geo CD");
+        else if (p.Contains("NEO GEO") || p.Contains("NEOGEO"))
+            Add("SNK - Neo Geo");
+
+        if (p.Contains("WONDERSWAN") || p.Contains("WSWAN"))
+        {
+            Add("Bandai - WonderSwan Color");
+            Add("Bandai - WonderSwan");
+        }
+
+        // Arcade
+        if (p.Contains("ARCADE") || p.Contains("FBNEO") || p.Contains("MAME"))
+        {
+            Add("FBNeo - Arcade Games");
+            Add("MAME");
+        }
+
+        // Computers
+        if (p.Contains("DOS") || p.Contains("MS-DOS"))
+            Add("DOS");
+        if (p.Contains("SCUMMVM") || p.Contains("SCUMM"))
+            Add("ScummVM");
+        if (p.Contains("AMIGA"))
+            Add("Commodore - Amiga");
+        if (p.Contains("COMMODORE 64") || p.Contains("C64"))
+            Add("Commodore - 64");
+        if (p.Contains("ZX SPECTRUM") || p.Contains("SPECTRUM"))
+            Add("Sinclair - ZX Spectrum");
+        if (p.Contains("AMSTRAD") || p.Contains("CPC"))
+            Add("Amstrad - CPC");
+        if (p.Contains("MSX2"))
+            Add("Microsoft - MSX2");
+        else if (p.Contains("MSX"))
+            Add("Microsoft - MSX");
+        if (p.Contains("PC-98") || p.Contains("PC98"))
+            Add("NEC - PC-98");
+        if (p.Contains("X68000"))
+            Add("Sharp - X68000");
+
+        // Atari
+        if (p.Contains("ATARI 2600") || p.Contains("2600"))
+            Add("Atari - 2600");
+        if (p.Contains("ATARI 5200") || p.Contains("5200"))
+            Add("Atari - 5200");
+        if (p.Contains("ATARI 7800") || p.Contains("7800"))
+            Add("Atari - 7800");
+        if (p.Contains("ATARI 800") || p.Contains("ATARI 8-BIT"))
+            Add("Atari - 800");
+        if (p.Contains("ATARI ST"))
+            Add("Atari - ST");
+        if (p.Contains("ATARI LYNX") || p.Contains("LYNX"))
+            Add("Atari - Lynx");
+        if (p.Contains("ATARI JAGUAR") || p.Contains("JAGUAR"))
+            Add("Atari - Jaguar");
+
+        // Other classic consoles
+        if (p.Contains("3DO"))
+            Add("The 3DO Company - 3DO");
+        if (p.Contains("COLECOVISION") || p.Contains("COLECO"))
+            Add("Coleco - ColecoVision");
+        if (p.Contains("INTELLIVISION"))
+            Add("Mattel - Intellivision");
+        if (p.Contains("VECTREX"))
+            Add("GCE - Vectrex");
+        if (p.Contains("ODYSSEY"))
+            Add("Magnavox - Odyssey2");
+        if (p.Contains("CHANNEL F") || p.Contains("CHANNELF"))
+            Add("Fairchild - Channel F");
+        if (p.Contains("XBOX"))
+            Add("Microsoft - Xbox");
+
+        if (list.Count == 0)
+        {
+            Add("Nintendo - Nintendo Entertainment System");
+        }
+
+        return list;
     }
 
     private static string SanitizeFileName(string name)

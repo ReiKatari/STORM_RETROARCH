@@ -106,7 +106,7 @@ public class UserSettings
     public bool InstantReplayEnabled { get; set; } = true;
     public bool GamepadUiNavigation { get; set; } = true;
 
-    // 2.2.0 Hardware Engine, Universal Bezel and Mega Bezel Pipeline
+    // 2.3.0 Hardware Engine, Universal Bezel and Mega Bezel Pipeline
     public string GraphicsBackend { get; set; } = "Auto";
     public bool AutoDownloadMissingCoreOnLaunch { get; set; } = true;
     public bool UniversalBezelForAllCores { get; set; } = true;

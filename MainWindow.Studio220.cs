@@ -13,7 +13,7 @@ using Microsoft.Win32;
 namespace StormRetroArch;
 
 /// <summary>
-/// Phase 2.2.0 Studio UI, Hardware GPU Engine, Universal Bezel and Mega Bezel Integrator.
+/// Phase 2.3.0 Studio UI, Hardware GPU Engine, Universal Bezel and Mega Bezel Integrator.
 /// </summary>
 public partial class MainWindow
 {
@@ -385,7 +385,7 @@ public partial class MainWindow
             : "Универсальный режим рамок: ВЫКЛ");
     }
 
-    // ==================== 5. UNIFIED 2.2.0 LAUNCH PIPELINE ====================
+    // ==================== 5. UNIFIED 2.3.0 LAUNCH PIPELINE ====================
 
     public async Task LaunchGameUnified220Async(RomItem item)
     {
@@ -584,7 +584,7 @@ public partial class MainWindow
         }
     }
 
-    // ==================== 6. SCREENSHOT 2.2.0 SUITE ====================
+    // ==================== 6. SCREENSHOT 2.3.0 SUITE ====================
 
     public async Task RunScreenshot220SuiteAsync(string outDir)
     {
@@ -616,7 +616,7 @@ public partial class MainWindow
                 Log("Saved " + targetFile + " (" + new FileInfo(targetFile).Length + " bytes)");
             }
 
-            // 1. v220_dashboard.png - Dashboard showing 2.2.0
+            // 1. v220_dashboard.png - Dashboard showing 2.3.0
             NavBtn_Click(NavBtnMainMenu, new RoutedEventArgs());
             if (PnlOsdToast != null) PnlOsdToast.Visibility = Visibility.Collapsed;
             if (BdrDeviceHotplugToast != null) BdrDeviceHotplugToast.Visibility = Visibility.Collapsed;

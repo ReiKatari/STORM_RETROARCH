@@ -120,7 +120,7 @@ public sealed class InstantReplayRecorder
             snapshotCount = _count;
             if (snapshotCount == 0)
             {
-                return (false, "", 0, "Буфер повтора пуст — запись начнётся после запуска игры.");
+                return (false, "", 0, "Буфер повтора пуст - запись начнётся после запуска игры.");
             }
 
             framesSnapshot = new byte[snapshotCount][];

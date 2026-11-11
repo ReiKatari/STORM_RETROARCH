@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:StormRetroArch"
         x:Name="RootWindow"
-        Title="STORM RETROARCH 2.2.0"
+        Title="STORM RETROARCH 2.3.0"
         Width="1500" Height="890"
         MinWidth="960" MinHeight="620"
         WindowStartupLocation="CenterScreen"
@@ -848,7 +848,7 @@
                 <!-- Left: App Icon & Title with REQUIRED Margin="10,0,24,0" + Engine Status Pill -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Image Source="app_icon.png" Width="22" Height="22" Margin="0,0,8,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                    <TextBlock Text="STORM RETROARCH 2.2.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,24,0"/>
+                    <TextBlock Text="STORM RETROARCH 2.3.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,24,0"/>
 
                     <!-- Engine Status Pill -->
                     <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="12" Padding="8,3" VerticalAlignment="Center">
@@ -1076,7 +1076,7 @@
                     <!-- Sidebar Footer: Version -->
                     <Border DockPanel.Dock="Bottom" Background="#14FFFFFF" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,1,0,0" Padding="12,8">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                            <TextBlock Text="STORM RETROARCH 2.2.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" FontWeight="SemiBold"/>
+                            <TextBlock Text="STORM RETROARCH 2.3.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" FontWeight="SemiBold"/>
                         </StackPanel>
                     </Border>
 
@@ -1646,7 +1646,7 @@
                                         </Grid>
 
                                         <!-- Active Game & Live Core Switcher Bar -->
-                                        <!-- 2.2.0 Active Input Device Bar -->
+                                        <!-- 2.3.0 Active Input Device Bar -->
                                         <Border DockPanel.Dock="Top" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="0,0,0,10">
                                             <DockPanel LastChildFill="True">
                                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
@@ -2011,7 +2011,7 @@
                                             </Button>
                                         </StackPanel>
                                         <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Text="Командный центр STORM RETROARCH 2.2.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="21" FontWeight="Bold" Margin="0,0,0,3"/>
+                                            <TextBlock Text="Командный центр STORM RETROARCH 2.3.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="21" FontWeight="Bold" Margin="0,0,0,3"/>
                                             <TextBlock Text="Быстрые переходы, оперативная настройка движка Libretro, управление сохранениями и перестраиваемые панели" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5"/>
                                         </StackPanel>
                                     </DockPanel>
@@ -2048,7 +2048,7 @@
                                                 <TextBlock Text="Синхронизация" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Button>
-                                        <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="4,0" Click="BtnQuickNavGamepads_Click" ToolTip="Настройка геймпадов и клавиатуры (1–8 игроков)">
+                                        <Button Style="{StaticResource StormSecondaryButton}" Height="36" Margin="4,0" Click="BtnQuickNavGamepads_Click" ToolTip="Настройка геймпадов и клавиатуры (1-8 игроков)">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                 <Path Data="M15 7.5V2H9v5.5l3 3 3-3zM7.5 9H2v6h5.5l3-3-3-3zM9 16.5V22h6v-5.5l-3-3-3 3zM16.5 9l-3 3 3 3H22V9h-5.5z" Fill="#FBBF24" Width="13" Height="13" Stretch="Uniform" Margin="0,0,7,0" VerticalAlignment="Center"/>
                                                 <TextBlock Text="Геймпады (1-8)" VerticalAlignment="Center"/>
@@ -2199,7 +2199,7 @@
                                     <!-- 2.0.0 Hardware Strip (OpenGL HW Render, WASAPI 15 мс, DRC VRR, Gamepad UI Nav) -->
                                     <Border Background="{DynamicResource ThemeHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="12,7" Margin="0,8,0,0">
                                         <WrapPanel VerticalAlignment="Center">
-                                            <TextBlock Text="Аппаратный стек 2.2.0:" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                                            <TextBlock Text="Аппаратный стек 2.3.0:" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,14,0"/>
                                             <CheckBox x:Name="ChkMainHwRender" Content="Аппаратный 3D Vulkan / D3D11-12 / GLCore" IsChecked="True" Margin="0,0,16,0" Checked="ChkMainHwRender_Changed" Unchecked="ChkMainHwRender_Changed"/>
                                             <CheckBox x:Name="ChkMainWasapi" Content="Звук WASAPI (15 мс)" IsChecked="True" Margin="0,0,16,0" Checked="ChkMainWasapi_Changed" Unchecked="ChkMainWasapi_Changed"/>
                                             <CheckBox x:Name="ChkMainDrc" Content="Синхронизация DRC (VRR / 120 Гц)" IsChecked="True" Margin="0,0,16,0" Checked="ChkMainDrc_Changed" Unchecked="ChkMainDrc_Changed"/>
@@ -2453,7 +2453,7 @@
                     </ScrollViewer>
                 </Grid>
 
-                <!-- VIEW 2:  НАСТРОЙКИ (SETTINGS — ВСЕ 16 КАТЕГОРИЙ + BENTO КАРТОЧКИ + OZONE + ТАБЛИЦА) -->
+                <!-- VIEW 2:  НАСТРОЙКИ (SETTINGS - ВСЕ 16 КАТЕГОРИЙ + BENTO КАРТОЧКИ + OZONE + ТАБЛИЦА) -->
                 <Grid x:Name="ViewSettings" Visibility="Collapsed" Margin="22,14">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/> <!-- Category Chips & Live Filter -->
@@ -2755,8 +2755,8 @@
 
                         <!-- Platform & Status Dropdown Filters & Sort Selector (Docked Right BEFORE flexible Search Box) -->
                         <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
-                            <ComboBox x:Name="CmbLibrarySort" Width="168" Height="28" Margin="0,0,8,0" SelectionChanged="CmbLibrarySort_SelectionChanged" ToolTip="Сортировка списка игр">
-                                <ComboBoxItem Content="По названию (А–Я)" IsSelected="True"/>
+                            <ComboBox x:Name="CmbLibrarySort" Width="158" Height="28" Margin="0,0,6,0" SelectionChanged="CmbLibrarySort_SelectionChanged" ToolTip="Сортировка списка игр">
+                                <ComboBoxItem Content="По названию (А-Я)" IsSelected="True"/>
                                 <ComboBoxItem Content="По платформе"/>
                                 <ComboBoxItem Content="По ядру Libretro"/>
                                 <ComboBoxItem Content="По размеру файла"/>
@@ -2764,8 +2764,9 @@
                                 <ComboBoxItem Content="По рейтингу"/>
                                 <ComboBoxItem Content="По числу запусков"/>
                             </ComboBox>
-                            <ComboBox x:Name="CmbPlatformFilter" Width="162" Height="28" Margin="0,0,8,0" SelectionChanged="CmbPlatformFilter_SelectionChanged"/>
-                            <ComboBox x:Name="CmbStatusFilter" Width="136" Height="28" SelectionChanged="CmbStatusFilter_SelectionChanged"/>
+                            <ComboBox x:Name="CmbPlatformFilter" Width="152" Height="28" Margin="0,0,6,0" SelectionChanged="CmbPlatformFilter_SelectionChanged"/>
+                            <ComboBox x:Name="CmbLibraryCoreFilter" Width="176" Height="28" Margin="0,0,6,0" SelectionChanged="CmbLibraryCoreFilter_SelectionChanged" ToolTip="Фильтр игр по эмуляторному ядру выбранной платформы"/>
+                            <ComboBox x:Name="CmbStatusFilter" Width="128" Height="28" SelectionChanged="CmbStatusFilter_SelectionChanged"/>
                         </StackPanel>
 
                         <!-- Flexible Center Search Box -->
@@ -2810,7 +2811,7 @@
                             <!-- Right: Live Card Zoom Slider + Driver Info -->
                             <StackPanel Margin="0,2,0,2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                 <TextBlock Text="Размер карточек:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <Button Content="−" Style="{StaticResource CapsuleButton}" Padding="6,1" FontSize="12" FontWeight="Bold" Margin="0,0,4,0" Click="BtnCardScaleDown_Click" ToolTip="Уменьшить размер карточек игр"/>
+                                <Button Content="-" Style="{StaticResource CapsuleButton}" Padding="6,1" FontSize="12" FontWeight="Bold" Margin="0,0,4,0" Click="BtnCardScaleDown_Click" ToolTip="Уменьшить размер карточек игр"/>
                                 <Slider x:Name="SliderCardScale" Width="95" Minimum="270" Maximum="540" Value="380" VerticalAlignment="Center" Margin="0,0,4,0" ValueChanged="SliderCardScale_ValueChanged" ToolTip="Плавно изменить размер карточек и обложек"/>
                                 <Button Content="+" Style="{StaticResource CapsuleButton}" Padding="6,1" FontSize="12" FontWeight="Bold" Margin="0,0,6,0" Click="BtnCardScaleUp_Click" ToolTip="Увеличить размер карточек игр"/>
                                 <TextBlock x:Name="TxtCardScaleReadout" Text="380 px" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="11" FontWeight="SemiBold" Width="42" VerticalAlignment="Center" Margin="0,0,10,0"/>
@@ -2858,7 +2859,7 @@
                                                 MouseLeftButtonDown="GameCard_MouseLeftButtonDown"
                                                 PreviewMouseMove="GameCard_PreviewMouseMove"
                                                 Drop="GameCard_Drop"
-                                                ToolTip="Двойной клик — запуск игры • Правый клик — меню действий • Перетащите карточку для смены места">
+                                                ToolTip="Двойной клик - запуск игры • Правый клик - меню действий • Перетащите карточку для смены места">
                                             <DockPanel LastChildFill="True">
                                                 <!-- Left: Scalable High-Res Boxart Cover -->
                                                 <Border DockPanel.Dock="Left"
@@ -3555,7 +3556,10 @@
                                 <!-- Status Filter Chips -->
                                 <Button x:Name="BtnCoresFilterAll" Content="Все ядра" Style="{StaticResource CategoryChipButton}" Tag="Active" Margin="0,0,6,4" Click="BtnCoresStatusFilter_Click"/>
                                 <Button x:Name="BtnCoresFilterInstalled" Content="Установленные" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoresStatusFilter_Click"/>
-                                <Button x:Name="BtnCoresFilterAvailable" Content="Доступные к установке" Style="{StaticResource CategoryChipButton}" Margin="0,0,12,4" Click="BtnCoresStatusFilter_Click"/>
+                                <Button x:Name="BtnCoresFilterAvailable" Content="Доступные к установке" Style="{StaticResource CategoryChipButton}" Margin="0,0,10,4" Click="BtnCoresStatusFilter_Click"/>
+
+                                <!-- Platform Filter -->
+                                <ComboBox x:Name="CmbCoresPlatformFilter" Height="28" MinWidth="180" Margin="0,0,10,4" SelectionChanged="CmbCoresPlatformFilter_SelectionChanged" ToolTip="Фильтр ядер по игровой платформе"/>
 
                                 <!-- Search Box -->
                                 <Border Background="{DynamicResource ThemeBgWindow}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="6" Padding="8,2" Margin="0,0,12,4" VerticalAlignment="Center" Width="260">
@@ -3854,22 +3858,22 @@
                                         </Grid.RowDefinitions>
 
                                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Файл образа:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="0,3"/>
-                                        <TextBox Grid.Row="0" Grid.Column="1" x:Name="TxtHashFileName" IsReadOnly="True" Height="26" MinHeight="26" Padding="8,0" Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" Margin="0,3" Text="—"/>
+                                        <TextBox Grid.Row="0" Grid.Column="1" x:Name="TxtHashFileName" IsReadOnly="True" Height="26" MinHeight="26" Padding="8,0" Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" Margin="0,3" Text="-"/>
 
                                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Формат / Размер:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="0,3"/>
-                                        <TextBox Grid.Row="1" Grid.Column="1" x:Name="TxtHashFormatAndSize" IsReadOnly="True" Height="26" MinHeight="26" Padding="8,0" Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" Margin="0,3" Text="—" Typography.NumeralAlignment="Tabular"/>
+                                        <TextBox Grid.Row="1" Grid.Column="1" x:Name="TxtHashFormatAndSize" IsReadOnly="True" Height="26" MinHeight="26" Padding="8,0" Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" Margin="0,3" Text="-" Typography.NumeralAlignment="Tabular"/>
 
                                         <TextBlock Grid.Row="2" Grid.Column="0" Text="Заголовок ROM:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="0,3"/>
-                                        <TextBox Grid.Row="2" Grid.Column="1" x:Name="TxtHashHeaderSummary" IsReadOnly="True" Height="26" MinHeight="26" Padding="8,0" Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" Margin="0,3" Text="—"/>
+                                        <TextBox Grid.Row="2" Grid.Column="1" x:Name="TxtHashHeaderSummary" IsReadOnly="True" Height="26" MinHeight="26" Padding="8,0" Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" Margin="0,3" Text="-"/>
 
                                         <TextBlock Grid.Row="3" Grid.Column="0" Text="CRC32:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="0,3"/>
-                                        <TextBox Grid.Row="3" Grid.Column="1" x:Name="TxtHashCrc32" IsReadOnly="True" Height="26" MinHeight="26" Padding="8,0" Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" Margin="0,3" Text="—" Typography.NumeralAlignment="Tabular" FontWeight="Bold" Foreground="{DynamicResource ThemeAccentGlow}"/>
+                                        <TextBox Grid.Row="3" Grid.Column="1" x:Name="TxtHashCrc32" IsReadOnly="True" Height="26" MinHeight="26" Padding="8,0" Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" Margin="0,3" Text="-" Typography.NumeralAlignment="Tabular" FontWeight="Bold" Foreground="{DynamicResource ThemeAccentGlow}"/>
 
                                         <TextBlock Grid.Row="4" Grid.Column="0" Text="MD5:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="0,3"/>
-                                        <TextBox Grid.Row="4" Grid.Column="1" x:Name="TxtHashMd5" IsReadOnly="True" Height="26" MinHeight="26" Padding="8,0" Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" Margin="0,3" Text="—" Typography.NumeralAlignment="Tabular"/>
+                                        <TextBox Grid.Row="4" Grid.Column="1" x:Name="TxtHashMd5" IsReadOnly="True" Height="26" MinHeight="26" Padding="8,0" Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" Margin="0,3" Text="-" Typography.NumeralAlignment="Tabular"/>
 
                                         <TextBlock Grid.Row="5" Grid.Column="0" Text="SHA-1:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="0,3"/>
-                                        <TextBox Grid.Row="5" Grid.Column="1" x:Name="TxtHashSha1" IsReadOnly="True" Height="26" MinHeight="26" Padding="8,0" Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" Margin="0,3" Text="—" Typography.NumeralAlignment="Tabular"/>
+                                        <TextBox Grid.Row="5" Grid.Column="1" x:Name="TxtHashSha1" IsReadOnly="True" Height="26" MinHeight="26" Padding="8,0" Background="{DynamicResource ThemeBgInput}" BorderBrush="{DynamicResource ThemeBorderSubtle}" Margin="0,3" Text="-" Typography.NumeralAlignment="Tabular"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -4477,7 +4481,7 @@
                                 </Grid.RowDefinitions>
                                 <StackPanel Grid.Row="0" VerticalAlignment="Center" Margin="0,0,0,9">
                                     <TextBlock Text="Читы и тренеры игр" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="Готовые читы на русском языке для игр вашей библиотеки (Battletoads, Armor Alley и др.) с активацией в один клик" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="Полная база Libretro (26 800+ игр на 65+ платформах), 100% поддержка игр вашей библиотеки и живой сканер ОЗУ" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
                                 <WrapPanel Grid.Row="1" VerticalAlignment="Center">
                                     <Button Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnDownloadCheatsDb_Click">
@@ -4527,9 +4531,9 @@
                     <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="Разрядность:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" Margin="0,0,6,0" VerticalAlignment="Center"/>
                         <ComboBox x:Name="CmbRamWidth" MinWidth="148" Height="28" Margin="0,0,10,0" VerticalAlignment="Center">
-                            <ComboBoxItem Content="8 бит (0–255)"/>
-                            <ComboBoxItem Content="16 бит (0–65535)" IsSelected="True"/>
-                            <ComboBoxItem Content="32 бит (0–4294967295)"/>
+                            <ComboBoxItem Content="8 бит (0-255)"/>
+                            <ComboBoxItem Content="16 бит (0-65535)" IsSelected="True"/>
+                            <ComboBoxItem Content="32 бит (0-4294967295)"/>
                         </ComboBox>
 
                         <TextBlock Text="Сравнение:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" Margin="0,0,6,0" VerticalAlignment="Center"/>
@@ -4615,7 +4619,7 @@
                         <!-- 2 Columns: Files List & Cheat Details -->
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="380"/>
+                                <ColumnDefinition Width="410"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
@@ -4623,11 +4627,12 @@
                             <Border Grid.Column="0" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,14,0">
                                 <DockPanel LastChildFill="True">
                                     <TextBox x:Name="TxtSearchCheats" DockPanel.Dock="Top" Tag="Поиск игры или платформы..." Margin="0,0,0,8" TextChanged="TxtSearchCheats_TextChanged"/>
-                                    <!-- Filter Toggle: Library vs All -->
-                                    <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
-                                        <Button x:Name="BtnCheatsFilterLibrary" Content="Моя библиотека" Style="{StaticResource CategoryChipButton}" Tag="Active" Margin="0,0,6,0" Click="BtnCheatsFilter_Click"/>
-                                        <Button x:Name="BtnCheatsFilterAll" Content="Все чит-файлы" Style="{StaticResource CategoryChipButton}" Click="BtnCheatsFilter_Click"/>
-                                    </WrapPanel>
+                                    <ComboBox x:Name="CmbCheatsPlatformFilter" DockPanel.Dock="Top" Height="28" Margin="0,0,0,8" SelectionChanged="CmbCheatsPlatformFilter_SelectionChanged" ToolTip="Фильтр чит-файлов по игровой платформе"/>
+                                    <!-- Filter Toggle: All DB vs Library (Zero Clipping 2-Column Grid) -->
+                                    <UniformGrid DockPanel.Dock="Top" Columns="2" Margin="0,0,0,10">
+                                        <Button x:Name="BtnCheatsFilterAll" Content="Все читы" Style="{StaticResource CategoryChipButton}" Tag="Active" Padding="8,5" FontSize="11.5" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Margin="0,0,4,0" Click="BtnCheatsFilter_Click"/>
+                                        <Button x:Name="BtnCheatsFilterLibrary" Content="Библиотека" Style="{StaticResource CategoryChipButton}" Padding="8,5" FontSize="11.5" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Margin="4,0,0,0" Click="BtnCheatsFilter_Click"/>
+                                    </UniformGrid>
                                     <ListBox x:Name="ListCheatFiles" Background="Transparent" BorderThickness="0"
                                          VirtualizingPanel.IsVirtualizing="True"
                                          VirtualizingPanel.VirtualizationMode="Recycling"
@@ -4652,7 +4657,22 @@
                                                         </Grid.ColumnDefinitions>
                                                         <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
                                                             <TextBlock Text="{Binding GameName}" Foreground="{DynamicResource ThemeTextPrimary}" FontWeight="Bold" FontSize="12.5" TextTrimming="CharacterEllipsis"/>
-                                                            <TextBlock Text="{Binding Platform}" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                                                            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                                <TextBlock Text="{Binding Platform}" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                                                <Border Margin="6,0,0,0" Background="#166534" BorderBrush="#22C55E" BorderThickness="1" CornerRadius="3" Padding="4,1" VerticalAlignment="Center">
+                                                                    <Border.Style>
+                                                                        <Style TargetType="Border">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsLibraryGame}" Value="True">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Border.Style>
+                                                                    <TextBlock Text="В БИБЛИОТЕКЕ" Foreground="#86EFAC" FontSize="9" FontWeight="Bold"/>
+                                                                </Border>
+                                                            </StackPanel>
                                                         </StackPanel>
                                                         <Border Grid.Column="1" VerticalAlignment="Center" CornerRadius="4" Padding="6,2" Background="{DynamicResource ThemeSurfaceLight}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1">
                                                             <TextBlock Text="{Binding CheatCountBadge}" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="11" FontWeight="SemiBold"/>
@@ -4854,7 +4874,7 @@
                                 </StackPanel>
                             </Border>
 
-<!-- BdrMegaBezelOnlineHub (2.2.0) -->
+<!-- BdrMegaBezelOnlineHub (2.3.0) -->
                             <Border x:Name="BdrMegaBezelOnlineHub" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="0,0,0,12">
                                 <StackPanel>
                                     <!-- Top DockPanel -->
@@ -5931,7 +5951,7 @@
         <Border x:Name="BottomFooterBorder" Grid.Row="4" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,1,0,0" Padding="12,0">
             <DockPanel LastChildFill="True">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                    <TextBlock Text="STORM RETROARCH 2.2.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                    <TextBlock Text="STORM RETROARCH 2.3.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,14,0"/>
                     <TextBlock Text="100% LIBRETRO COMPATIBLE" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center"/>
                 </StackPanel>
                 <TextBlock x:Name="TxtFooterStatus" Text="Готово к работе" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center"/>
@@ -6029,7 +6049,7 @@
                     <DockPanel Margin="0,0,0,14">
                         <Image Source="app_icon.png" Width="44" Height="44" Margin="0,0,14,0" RenderOptions.BitmapScalingMode="HighQuality"/>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="STORM RETROARCH 2.2.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="18" FontWeight="Bold"/>
+                            <TextBlock Text="STORM RETROARCH 2.3.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="18" FontWeight="Bold"/>
                             <TextBlock Text="STORM AURORA FLUID UNIFIED DESIGN SYSTEM" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="11" FontWeight="SemiBold"/>
                         </StackPanel>
                     </DockPanel>

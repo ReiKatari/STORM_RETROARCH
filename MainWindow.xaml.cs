@@ -126,7 +126,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string _coreSearchQuery = "";
 
     // Cheats Filter
-    private bool _cheatsFilterLibraryOnly = true;
+    private bool _cheatsFilterLibraryOnly = false;
+    private List<CheatFileItem> _allCheatFilesMaster = new();
+    private string _selectedCheatsPlatformFilter = "ALL";
+    private string _selectedCoresPlatformFilter = "ALL";
+    private CancellationTokenSource? _cheatsCountCts;
 
     // Window Bounds & Maximized Persistence Timer
     private DispatcherTimer? _windowPosDebounceTimer;
@@ -326,7 +330,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }));
         };
 
-        // 2.2.0 Multi-Device Input Engine & Controller Hotkey Studio
+        // 2.3.0 Multi-Device Input Engine & Controller Hotkey Studio
         DeviceInputProfileEngine.Initialize();
         DeviceInputProfileEngine.OnDeviceProfileActivated += (dev, msg) =>
         {
@@ -640,7 +644,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SyncQuickSettingsCheckboxes();
 
         _isLoaded = true;
-        LogCheckpoint("Before InitStudio200"); InitStudio200(); InitStudio210(); InitStudio220Subsystem(); LogCheckpoint("After InitStudio220");
+        LogCheckpoint("Before InitStudio200"); InitStudio200(); InitStudio210(); InitStudio220Subsystem(); InitStudio230Subsystem(); LogCheckpoint("After InitStudio220");
 
         ForceForegroundWindow(hwnd);
 
@@ -658,7 +662,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         LogCheckpoint("Before Screenshot loop"); string[] cmdArgs = Environment.GetCommandLineArgs();
         for (int i = 0; i < cmdArgs.Length - 1; i++)
         {
-            if (cmdArgs[i].Equals("--screenshot-220-suite", StringComparison.OrdinalIgnoreCase) || cmdArgs[i].Equals("--screenshot-210-suite", StringComparison.OrdinalIgnoreCase) || cmdArgs[i].Equals("--screenshot-200-suite", StringComparison.OrdinalIgnoreCase) ||
+            if (cmdArgs[i].Equals("--screenshot-230-suite", StringComparison.OrdinalIgnoreCase) || cmdArgs[i].Equals("--screenshot-220-suite", StringComparison.OrdinalIgnoreCase) || cmdArgs[i].Equals("--screenshot-210-suite", StringComparison.OrdinalIgnoreCase) || cmdArgs[i].Equals("--screenshot-200-suite", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-settings", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-bios", StringComparison.OrdinalIgnoreCase) ||
@@ -962,7 +966,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                             if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
                             EnsureBattletoadsRunningPreview();
                         }
-                                                else if (cmdArgs[i].Equals("--screenshot-220-suite", StringComparison.OrdinalIgnoreCase)) { await RunScreenshot220SuiteAsync(shotPath); } else if (cmdArgs[i].Equals("--screenshot-210-suite", StringComparison.OrdinalIgnoreCase)) { await RunScreenshot210SuiteAsync(shotPath); } else if (cmdArgs[i].Equals("--screenshot-200-suite", StringComparison.OrdinalIgnoreCase))
+                                                else if (cmdArgs[i].Equals("--screenshot-230-suite", StringComparison.OrdinalIgnoreCase)) { await RunScreenshot230SuiteAsync(shotPath); } else if (cmdArgs[i].Equals("--screenshot-220-suite", StringComparison.OrdinalIgnoreCase)) { await RunScreenshot220SuiteAsync(shotPath); } else if (cmdArgs[i].Equals("--screenshot-210-suite", StringComparison.OrdinalIgnoreCase)) { await RunScreenshot210SuiteAsync(shotPath); } else if (cmdArgs[i].Equals("--screenshot-200-suite", StringComparison.OrdinalIgnoreCase))
                         {
                             await RunScreenshot200SuiteAsync(shotPath);
                         }
@@ -2604,10 +2608,20 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         if (dlg.ShowDialog() == true)
         {
-            foreach (var f in dlg.FileNames) AddRomFile(f);
-            SaveLibraryToPlaylist();
-            ApplyGamesFilter();
-            UpdateStats();
+            var newlyAdded = new List<RomItem>();
+            foreach (var f in dlg.FileNames)
+            {
+                var item = AddRomFileInternal(f);
+                if (item != null) newlyAdded.Add(item);
+            }
+            if (newlyAdded.Count > 0)
+            {
+                RefreshAllLibraryFiltersAndCounts();
+                SaveLibraryToPlaylist();
+                ApplyGamesFilter();
+                LoadCheats();
+                _ = CoverArtService.LoadCoversParallelAsync(newlyAdded, forceRefresh: false);
+            }
         }
     }
 
@@ -2643,21 +2657,28 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         try
         {
-            var files = Directory.GetFiles(dir, "*.*", SearchOption.AllDirectories);
-            string[] validExts = { ".nes", ".sfc", ".smc", ".md", ".gen", ".bin", ".cue", ".iso", ".chd", ".n64", ".z64", ".gba", ".gb", ".gbc", ".nds", ".3ds", ".zip", ".7z" };
+            var romFiles = CoreManager.ScanSupportedRomFilesInDirectory(dir);
+            var newlyAdded = new List<RomItem>();
 
-            int added = 0;
-            foreach (var file in files)
+            foreach (var file in romFiles)
             {
-                string ext = Path.GetExtension(file).ToLowerInvariant();
-                if (validExts.Contains(ext))
+                var item = AddRomFileInternal(file);
+                if (item != null)
                 {
-                    AddRomFile(file);
-                    added++;
+                    newlyAdded.Add(item);
                 }
             }
 
-            ShowNotification("STORM RETROARCH", $"Сканирование завершено: найдено и добавлено {added} игр!");
+            if (newlyAdded.Count > 0)
+            {
+                RefreshAllLibraryFiltersAndCounts();
+                SaveLibraryToPlaylist();
+                ApplyGamesFilter();
+                LoadCheats();
+                _ = CoverArtService.LoadCoversParallelAsync(newlyAdded, forceRefresh: false);
+            }
+
+            ShowNotification("STORM RETROARCH", $"Сканирование завершено: найдено и добавлено {newlyAdded.Count} игр!");
         }
         catch (Exception ex)
         {
@@ -2665,10 +2686,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private void AddRomFile(string filePath)
+    private RomItem? AddRomFileInternal(string filePath)
     {
         if (_allGames.Any(g => g.FilePath.Equals(filePath, StringComparison.OrdinalIgnoreCase)))
-            return;
+            return null;
 
         try
         {
@@ -2688,10 +2709,26 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             };
 
             item.ParseAndUpdateFromFileName(fi.Name);
-            _ = CoverArtService.LoadCoverAsync(item);
             _allGames.Add(item);
+            return item;
         }
-        catch { }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private void AddRomFile(string filePath)
+    {
+        var item = AddRomFileInternal(filePath);
+        if (item != null)
+        {
+            RefreshAllLibraryFiltersAndCounts();
+            SaveLibraryToPlaylist();
+            ApplyGamesFilter();
+            LoadCheats();
+            _ = CoverArtService.LoadCoversParallelAsync(new[] { item }, forceRefresh: false);
+        }
     }
 
     private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e)
@@ -2748,8 +2785,153 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private void CmbPlatformFilter_SelectionChanged(object sender, SelectionChangedEventArgs e) { if (IsLoaded) ApplyGamesFilter(); }
-    private void CmbStatusFilter_SelectionChanged(object sender, SelectionChangedEventArgs e) { if (IsLoaded) ApplyGamesFilter(); }
+    private string GetSelectedPlatform()
+    {
+        if (CmbPlatformFilter?.SelectedItem is ComboBoxItem cbi && cbi.Tag is string tag)
+            return tag;
+        return CmbPlatformFilter?.SelectedItem?.ToString() ?? "Все платформы";
+    }
+
+    private string GetSelectedStatus()
+    {
+        if (CmbStatusFilter?.SelectedItem is ComboBoxItem cbi && cbi.Tag is string tag)
+            return tag;
+        return CmbStatusFilter?.SelectedItem?.ToString() ?? "Все статусы";
+    }
+
+    private void SetSelectedPlatform(string plat)
+    {
+        if (CmbPlatformFilter == null) return;
+        for (int i = 0; i < CmbPlatformFilter.Items.Count; i++)
+        {
+            var item = CmbPlatformFilter.Items[i];
+            string tag = (item as ComboBoxItem)?.Tag?.ToString() ?? item?.ToString() ?? "";
+            if (string.Equals(tag, plat, StringComparison.OrdinalIgnoreCase))
+            {
+                CmbPlatformFilter.SelectedIndex = i;
+                break;
+            }
+        }
+    }
+
+    private void SyncPlatformCoreTargetTo(string platform)
+    {
+        if (CmbPlatformCoreTarget == null || string.IsNullOrWhiteSpace(platform) || platform == "Все платформы")
+            return;
+
+        for (int i = 0; i < CmbPlatformCoreTarget.Items.Count; i++)
+        {
+            if (string.Equals(CmbPlatformCoreTarget.Items[i]?.ToString(), platform, StringComparison.OrdinalIgnoreCase))
+            {
+                if (CmbPlatformCoreTarget.SelectedIndex != i)
+                {
+                    CmbPlatformCoreTarget.SelectedIndex = i;
+                }
+                else
+                {
+                    UpdatePlatformDefaultCoreDropdown();
+                }
+                return;
+            }
+        }
+    }
+
+    private void UpdateLibraryCoreFilterDropdown(string currentPlatform)
+    {
+        if (CmbLibraryCoreFilter == null) return;
+
+        string prevSelectedTag = (CmbLibraryCoreFilter.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "ALL";
+        CmbLibraryCoreFilter.SelectionChanged -= CmbLibraryCoreFilter_SelectionChanged;
+        CmbLibraryCoreFilter.Items.Clear();
+
+        if (string.IsNullOrWhiteSpace(currentPlatform) || currentPlatform == "Все платформы")
+        {
+            var coresUsedInLib = _allGames
+                .Where(g => !string.IsNullOrEmpty(g.CoreDll))
+                .GroupBy(g => g.CoreDll, StringComparer.OrdinalIgnoreCase)
+                .Select(g => new { Dll = g.Key, Name = g.First().CoreDisplayName ?? g.Key, Count = g.Count() })
+                .OrderBy(x => x.Name)
+                .ToList();
+
+            var allItem = new ComboBoxItem
+            {
+                Tag = "ALL",
+                Content = $"Все ядра ({coresUsedInLib.Count})"
+            };
+            CmbLibraryCoreFilter.Items.Add(allItem);
+
+            ComboBoxItem? toSelect = allItem;
+            foreach (var c in coresUsedInLib)
+            {
+                var item = new ComboBoxItem
+                {
+                    Tag = c.Dll,
+                    Content = $"{c.Name} ({c.Count})"
+                };
+                CmbLibraryCoreFilter.Items.Add(item);
+                if (string.Equals(c.Dll, prevSelectedTag, StringComparison.OrdinalIgnoreCase))
+                    toSelect = item;
+            }
+            CmbLibraryCoreFilter.SelectedItem = toSelect;
+        }
+        else
+        {
+            var compatibleCores = CoreManager.GetCompatibleCoresForPlatform(currentPlatform);
+            var allItem = new ComboBoxItem
+            {
+                Tag = "ALL",
+                Content = $"Все ядра платформы ({compatibleCores.Count})"
+            };
+            CmbLibraryCoreFilter.Items.Add(allItem);
+
+            ComboBoxItem? toSelect = allItem;
+            foreach (var core in compatibleCores)
+            {
+                int gamesCount = _allGames.Count(g =>
+                    g.Platform.Equals(currentPlatform, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(g.CoreDll, core.DllName, StringComparison.OrdinalIgnoreCase));
+
+                var item = new ComboBoxItem
+                {
+                    Tag = core.DllName,
+                    Content = $"{core.Name} ({gamesCount})"
+                };
+                CmbLibraryCoreFilter.Items.Add(item);
+                if (string.Equals(core.DllName, prevSelectedTag, StringComparison.OrdinalIgnoreCase))
+                    toSelect = item;
+            }
+            CmbLibraryCoreFilter.SelectedItem = toSelect;
+        }
+
+        CmbLibraryCoreFilter.SelectionChanged += CmbLibraryCoreFilter_SelectionChanged;
+    }
+
+    private void CmbLibraryCoreFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (IsLoaded)
+        {
+            ApplyGamesFilter();
+        }
+    }
+
+    private void CmbPlatformFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        string selectedPlat = GetSelectedPlatform();
+        _selectedChipPlatform = selectedPlat;
+        UpdatePlatformFilterChips();
+        UpdateLibraryCoreFilterDropdown(selectedPlat);
+        if (selectedPlat != "Все платформы")
+        {
+            SyncPlatformCoreTargetTo(selectedPlat);
+        }
+        ApplyGamesFilter();
+    }
+
+    private void CmbStatusFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (IsLoaded) ApplyGamesFilter();
+    }
 
     private void ApplyGamesFilter()
     {
@@ -2757,8 +2939,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         string globalSearch = TxtSearch?.Text?.Trim().ToLowerInvariant() ?? "";
         string search = !string.IsNullOrEmpty(libSearch) ? libSearch : globalSearch;
 
-        string platform = CmbPlatformFilter?.SelectedItem?.ToString() ?? "Все платформы";
-        string status = CmbStatusFilter?.SelectedItem?.ToString() ?? "Все статусы";
+        string platform = GetSelectedPlatform();
+        string status = GetSelectedStatus();
+        string selectedCoreTag = (CmbLibraryCoreFilter?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "ALL";
 
         var matchingGames = new List<RomItem>();
         foreach (var g in _allGames)
@@ -2775,8 +2958,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (!match) continue;
             }
 
-            // 2.0.0 Smart Collections filter
-            if (_selectedSmartCollection == "Русские переводы")
+            // 2.0.0 / 2.3.0 Smart Collections filter
+            if (_selectedSmartCollection == "Избранное")
+            {
+                if (!g.IsFavorite) continue;
+            }
+            else if (_selectedSmartCollection == "Русские переводы")
             {
                 bool isRus = (g.LanguageBadge?.Contains("RUS", StringComparison.OrdinalIgnoreCase) == true) ||
                              (g.Name?.Contains("RUS", StringComparison.OrdinalIgnoreCase) == true) ||
@@ -2790,24 +2977,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
             else if (_selectedSmartCollection == "Классика 8/16-бит")
             {
-                string p = g.Platform?.ToLowerInvariant() ?? "";
-                bool isClassic = p.Contains("nes") || p.Contains("famicom") || p.Contains("snes") || p.Contains("genesis") || p.Contains("mega drive") || p.Contains("game boy") || p.Contains("gba") || p.Contains("master system") || p.Contains("pc engine");
-                if (!isClassic) continue;
+                if (!IsClassic8Or16BitGame(g)) continue;
             }
             else if (_selectedSmartCollection == "MS-DOS")
             {
-                string p = g.Platform?.ToLowerInvariant() ?? "";
-                bool isDos = p.Contains("dos") || p.Contains("pc");
-                if (!isDos) continue;
+                if (!IsDosOrPcComputerGame(g)) continue;
             }
             else if (_selectedSmartCollection == "3D и CD")
             {
-                string p = g.Platform?.ToLowerInvariant() ?? "";
-                bool is3d = p.Contains("ps1") || p.Contains("playstation") || p.Contains("n64") || p.Contains("saturn") || p.Contains("dreamcast") || p.Contains("3do") || p.Contains("sega cd") || p.Contains("ps2");
-                if (!is3d) continue;
+                if (!Is3dOrCdConsoleGame(g)) continue;
             }
 
-            if (platform != "Все платформы" && g.Platform != platform)
+            if (platform != "Все платформы" && !string.Equals(g.Platform, platform, StringComparison.OrdinalIgnoreCase))
                 continue;
 
             if (status == "Готовы к запуску" && !g.IsCoreInstalled)
@@ -2816,7 +2997,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 continue;
             if (status != "Все статусы" && status != "Готовы к запуску" && status != "Требуют ядра")
             {
-                if (g.CompletionStatus != status)
+                if (!string.Equals(g.CompletionStatus, status, StringComparison.OrdinalIgnoreCase))
+                    continue;
+            }
+
+            if (!string.IsNullOrEmpty(selectedCoreTag) && !selectedCoreTag.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.Equals(g.CoreDll, selectedCoreTag, StringComparison.OrdinalIgnoreCase))
                     continue;
             }
 
@@ -2847,43 +3034,124 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void PopulateFilters()
     {
-        UpdateSmartCollectionPills();
-        CmbPlatformFilter.Items.Clear();
-        CmbPlatformFilter.Items.Add("Все платформы");
-        CmbPlatformFilter.SelectedIndex = 0;
+        RefreshAllLibraryFiltersAndCounts();
+    }
 
-        CmbStatusFilter.Items.Clear();
-        CmbStatusFilter.Items.Add("Все статусы");
-        CmbStatusFilter.Items.Add("Готовы к запуску");
-        CmbStatusFilter.Items.Add("Требуют ядра");
-        foreach (var cs in GameMetadataStore.CompletionStatuses)
+    public void RefreshAllLibraryFiltersAndCounts()
+    {
+        UpdateSmartCollectionPills();
+        UpdatePlatformFilterChips();
+
+        if (CmbPlatformFilter != null)
         {
-            CmbStatusFilter.Items.Add(cs);
+            string currentPlat = GetSelectedPlatform();
+            var distinctPlats = _allGames
+                .Select(g => g.Platform)
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .GroupBy(p => p)
+                .OrderBy(g => g.Key)
+                .Select(g => new { Platform = g.Key, Count = g.Count() })
+                .ToList();
+
+            CmbPlatformFilter.SelectionChanged -= CmbPlatformFilter_SelectionChanged;
+            CmbPlatformFilter.Items.Clear();
+
+            var allPlatItem = new ComboBoxItem
+            {
+                Tag = "Все платформы",
+                Content = $"Все платформы ({_allGames.Count})"
+            };
+            CmbPlatformFilter.Items.Add(allPlatItem);
+
+            ComboBoxItem? toSelect = allPlatItem;
+            foreach (var p in distinctPlats)
+            {
+                var item = new ComboBoxItem
+                {
+                    Tag = p.Platform,
+                    Content = $"{p.Platform} ({p.Count})"
+                };
+                CmbPlatformFilter.Items.Add(item);
+                if (string.Equals(p.Platform, currentPlat, StringComparison.OrdinalIgnoreCase))
+                {
+                    toSelect = item;
+                }
+            }
+
+            CmbPlatformFilter.SelectedItem = toSelect;
+            CmbPlatformFilter.SelectionChanged += CmbPlatformFilter_SelectionChanged;
         }
-        CmbStatusFilter.SelectedIndex = 0;
+
+        if (CmbStatusFilter != null)
+        {
+            string currentStatus = GetSelectedStatus();
+            string selectedPlat = GetSelectedPlatform();
+            var pool = (selectedPlat == "Все платформы" || string.IsNullOrWhiteSpace(selectedPlat))
+                ? _allGames
+                : _allGames.Where(g => g.Platform.Equals(selectedPlat, StringComparison.OrdinalIgnoreCase));
+
+            int totalCount = pool.Count();
+            int readyCount = pool.Count(g => g.IsCoreInstalled);
+            int missingCount = totalCount - readyCount;
+
+            CmbStatusFilter.SelectionChanged -= CmbStatusFilter_SelectionChanged;
+            CmbStatusFilter.Items.Clear();
+
+            var allStatusItem = new ComboBoxItem
+            {
+                Tag = "Все статусы",
+                Content = $"Все статусы ({totalCount})"
+            };
+            CmbStatusFilter.Items.Add(allStatusItem);
+
+            var readyItem = new ComboBoxItem
+            {
+                Tag = "Готовы к запуску",
+                Content = $"Готовы к запуску ({readyCount})"
+            };
+            CmbStatusFilter.Items.Add(readyItem);
+
+            var missingItem = new ComboBoxItem
+            {
+                Tag = "Требуют ядра",
+                Content = $"Требуют ядра ({missingCount})"
+            };
+            CmbStatusFilter.Items.Add(missingItem);
+
+            ComboBoxItem? toSelectStatus = allStatusItem;
+            if (currentStatus == "Готовы к запуску") toSelectStatus = readyItem;
+            else if (currentStatus == "Требуют ядра") toSelectStatus = missingItem;
+
+            foreach (var cs in GameMetadataStore.CompletionStatuses)
+            {
+                int csCount = pool.Count(g => string.Equals(g.CompletionStatus, cs, StringComparison.OrdinalIgnoreCase));
+                var item = new ComboBoxItem
+                {
+                    Tag = cs,
+                    Content = $"{cs} ({csCount})"
+                };
+                CmbStatusFilter.Items.Add(item);
+                if (string.Equals(cs, currentStatus, StringComparison.OrdinalIgnoreCase))
+                {
+                    toSelectStatus = item;
+                }
+            }
+
+            CmbStatusFilter.SelectedItem = toSelectStatus;
+            CmbStatusFilter.SelectionChanged += CmbStatusFilter_SelectionChanged;
+        }
+
+        UpdateLibraryCoreFilterDropdown(GetSelectedPlatform());
+        UpdateStats();
     }
 
     private void UpdateStats()
     {
-        if (CmbPlatformFilter != null)
-        {
-            string currentPlat = CmbPlatformFilter.SelectedItem?.ToString() ?? "Все платформы";
-            var distinctPlats = _allGames.Select(g => g.Platform).Where(p => !string.IsNullOrWhiteSpace(p)).Distinct().OrderBy(p => p).ToList();
-            if (CmbPlatformFilter.Items.Count != distinctPlats.Count + 1)
-            {
-                CmbPlatformFilter.SelectionChanged -= CmbPlatformFilter_SelectionChanged;
-                CmbPlatformFilter.Items.Clear();
-                CmbPlatformFilter.Items.Add("Все платформы");
-                foreach (var p in distinctPlats) CmbPlatformFilter.Items.Add(p);
-                CmbPlatformFilter.SelectedItem = CmbPlatformFilter.Items.Contains(currentPlat) ? currentPlat : "Все платформы";
-                CmbPlatformFilter.SelectionChanged += CmbPlatformFilter_SelectionChanged;
-            }
-        }
-        TxtStatTotalGames.Text = _allGames.Count.ToString();
-        TxtStatCoresReady.Text = _allGames.Count(g => g.IsCoreInstalled).ToString();
+        if (TxtStatTotalGames != null) TxtStatTotalGames.Text = _allGames.Count.ToString();
+        if (TxtStatCoresReady != null) TxtStatCoresReady.Text = _allGames.Count(g => g.IsCoreInstalled).ToString();
         long totalBytes = _allGames.Sum(g => g.FileSizeBytes);
-        TxtStatTotalSize.Text = RomItem.FormatFileSize(totalBytes);
-        TxtStatDriver.Text = RetroArchConfigManager.GetString("video_driver", "vulkan").ToUpperInvariant();
+        if (TxtStatTotalSize != null) TxtStatTotalSize.Text = RomItem.FormatFileSize(totalBytes);
+        if (TxtStatDriver != null) TxtStatDriver.Text = RetroArchConfigManager.GetString("video_driver", "vulkan").ToUpperInvariant();
     }
 
     private void LvGames_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -2938,7 +3206,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _filteredGames.Remove(item);
             _favorites.Remove(item);
             _history.Remove(item);
-            UpdateStats();
+            RefreshAllLibraryFiltersAndCounts();
+            SaveLibraryToPlaylist();
+            ApplyGamesFilter();
+            LoadCheats();
         }
     }
 
@@ -2959,6 +3230,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (existing != null) _favorites.Remove(existing);
                 ShowOsdToast($"Игра «{item.Name}» убрана из Избранного");
             }
+            RefreshAllLibraryFiltersAndCounts();
             UpdatePlaylistEmptyStates();
             SavePlaylists();
         }
@@ -3507,13 +3779,63 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     // ==================== CORE CATALOG FILTERING ====================
 
+    private void PopulateCoresPlatformFilter()
+    {
+        if (CmbCoresPlatformFilter == null) return;
+        CmbCoresPlatformFilter.SelectionChanged -= CmbCoresPlatformFilter_SelectionChanged;
+        CmbCoresPlatformFilter.Items.Clear();
+
+        var standardPlatforms = CoreManager.GetStandardPlatformsList();
+        int totalCatalogCores = CoreManager.AllCoresCatalog.Count;
+
+        var allItem = new ComboBoxItem
+        {
+            Tag = "ALL",
+            Content = $"Фильтр по платформе: Все платформы ({totalCatalogCores})"
+        };
+        CmbCoresPlatformFilter.Items.Add(allItem);
+
+        foreach (var plat in standardPlatforms)
+        {
+            int coresForPlat = CoreManager.GetCompatibleCoresForPlatform(plat).Count;
+            var item = new ComboBoxItem
+            {
+                Tag = plat,
+                Content = $"{plat} ({coresForPlat})"
+            };
+            CmbCoresPlatformFilter.Items.Add(item);
+        }
+
+        CmbCoresPlatformFilter.SelectedIndex = 0;
+        _selectedCoresPlatformFilter = "ALL";
+        CmbCoresPlatformFilter.SelectionChanged += CmbCoresPlatformFilter_SelectionChanged;
+    }
+
+    private void CmbCoresPlatformFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (CmbCoresPlatformFilter?.SelectedItem is ComboBoxItem cbi && cbi.Tag is string tag)
+        {
+            _selectedCoresPlatformFilter = tag;
+        }
+        else
+        {
+            _selectedCoresPlatformFilter = "ALL";
+        }
+        PopulateCoresList(_selectedCoreManufacturer);
+    }
+
     private void PopulateCoresList(string filter)
     {
         _selectedCoreManufacturer = filter;
         _cores.Clear();
 
         IEnumerable<CoreInfo> baseList;
-        if (filter == "Золотой набор (25)")
+
+        if (!string.IsNullOrEmpty(_selectedCoresPlatformFilter) && !_selectedCoresPlatformFilter.Equals("ALL", StringComparison.OrdinalIgnoreCase))
+        {
+            baseList = CoreManager.GetCompatibleCoresForPlatform(_selectedCoresPlatformFilter);
+        }
+        else if (filter == "Золотой набор (25)")
         {
             baseList = CoreManager.GoldenCores;
         }
@@ -3537,6 +3859,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             baseList = CoreManager.GetCoresByManufacturer(filter);
         }
+
+        int totalCount = baseList.Count();
+        int installedCount = baseList.Count(c => c.IsInstalled);
+        int availableCount = totalCount - installedCount;
+
+        if (BtnCoresFilterAll != null) BtnCoresFilterAll.Content = $"Все ядра ({totalCount})";
+        if (BtnCoresFilterInstalled != null) BtnCoresFilterInstalled.Content = $"Установленные ({installedCount})";
+        if (BtnCoresFilterAvailable != null) BtnCoresFilterAvailable.Content = $"Доступные к установке ({availableCount})";
 
         if (_coreStatusFilter == "Installed")
             baseList = baseList.Where(c => c.IsInstalled);
@@ -4008,29 +4338,77 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void LoadCheats()
     {
         CheatManager.CleanupDuplicateAndSampleCheats(_allGames);
-        var files = CheatManager.ScanCheats();
+        var files = CheatManager.ScanCheats(_allGames);
+        _allCheatFilesMaster = files;
         _allCheatFiles.Clear();
         foreach (var f in files) _allCheatFiles.Add(f);
+
+        if (BtnCheatsFilterAll != null)
+            BtnCheatsFilterAll.Content = $"Все читы ({_allCheatFilesMaster.Count:N0})";
+        int libCnt = _allCheatFilesMaster.Count(x => x.IsLibraryGame);
+        if (BtnCheatsFilterLibrary != null)
+            BtnCheatsFilterLibrary.Content = $"В библиотеке ({libCnt:N0})";
+
+        PopulateCheatsPlatformFilter();
         ApplyCheatsFilter();
 
-        if (_filteredCheatFiles.Count > 0)
+        _cheatsCountCts?.Cancel();
+        _cheatsCountCts = new CancellationTokenSource();
+        _ = CheatManager.PopulateCheatCountsAsync(_allCheatFilesMaster, _cheatsCountCts.Token);
+    }
+
+    private void PopulateCheatsPlatformFilter()
+    {
+        if (CmbCheatsPlatformFilter == null) return;
+        string prevTag = (CmbCheatsPlatformFilter.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? _selectedCheatsPlatformFilter ?? "ALL";
+
+        var basePool = _cheatsFilterLibraryOnly ? _allCheatFilesMaster.Where(x => x.IsLibraryGame) : _allCheatFilesMaster;
+        var platCounts = CheatManager.GetPlatformCounts(basePool);
+
+        CmbCheatsPlatformFilter.SelectionChanged -= CmbCheatsPlatformFilter_SelectionChanged;
+        CmbCheatsPlatformFilter.Items.Clear();
+
+        int totalInPool = basePool.Count();
+        var allItem = new ComboBoxItem
         {
-            if (NativeLibretroHost.Current.IsRunning && !string.IsNullOrWhiteSpace(NativeLibretroHost.Current.CurrentGameTitle))
+            Tag = "ALL",
+            Content = $"Все платформы ({totalInPool:N0})"
+        };
+        CmbCheatsPlatformFilter.Items.Add(allItem);
+
+        ComboBoxItem? toSelect = allItem;
+        foreach (var (plat, totalCnt, libCnt) in platCounts)
+        {
+            int cnt = _cheatsFilterLibraryOnly ? libCnt : totalCnt;
+            if (cnt <= 0) continue;
+            var item = new ComboBoxItem
             {
-                var activeMatch = _filteredCheatFiles.FirstOrDefault(f =>
-                    f.GameName.Contains(NativeLibretroHost.Current.CurrentGameTitle, StringComparison.OrdinalIgnoreCase) ||
-                    NativeLibretroHost.Current.CurrentGameTitle.Contains(f.GameName, StringComparison.OrdinalIgnoreCase));
-                if (activeMatch != null)
-                {
-                    ListCheatFiles.SelectedItem = activeMatch;
-                    return;
-                }
-            }
-            if (ListCheatFiles.SelectedItem == null)
+                Tag = plat,
+                Content = $"{plat} ({cnt:N0})"
+            };
+            CmbCheatsPlatformFilter.Items.Add(item);
+            if (string.Equals(plat, prevTag, StringComparison.OrdinalIgnoreCase))
             {
-                ListCheatFiles.SelectedIndex = 0;
+                toSelect = item;
             }
         }
+
+        CmbCheatsPlatformFilter.SelectedItem = toSelect;
+        _selectedCheatsPlatformFilter = toSelect?.Tag?.ToString() ?? "ALL";
+        CmbCheatsPlatformFilter.SelectionChanged += CmbCheatsPlatformFilter_SelectionChanged;
+    }
+
+    private void CmbCheatsPlatformFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (CmbCheatsPlatformFilter?.SelectedItem is ComboBoxItem cbi && cbi.Tag is string tag)
+        {
+            _selectedCheatsPlatformFilter = tag;
+        }
+        else
+        {
+            _selectedCheatsPlatformFilter = "ALL";
+        }
+        ApplyCheatsFilter();
     }
 
     private void BtnCheatsFilter_Click(object sender, RoutedEventArgs e)
@@ -4041,6 +4419,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         btn.Tag = "Active";
 
         _cheatsFilterLibraryOnly = (btn == BtnCheatsFilterLibrary);
+        PopulateCheatsPlatformFilter();
         ApplyCheatsFilter();
     }
 
@@ -4083,15 +4462,47 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void ApplyCheatsFilter()
     {
         string query = TxtSearchCheats?.Text?.Trim().ToLowerInvariant() ?? "";
-        _filteredCheatFiles.Clear();
+        string selectedPlatform = _selectedCheatsPlatformFilter;
 
-        foreach (var f in _allCheatFiles)
+        var matched = new List<CheatFileItem>(_allCheatFilesMaster.Count);
+        for (int i = 0; i < _allCheatFilesMaster.Count; i++)
         {
+            var f = _allCheatFilesMaster[i];
             if (_cheatsFilterLibraryOnly && !f.IsLibraryGame) continue;
-            if (string.IsNullOrEmpty(query) || f.GameName.ToLowerInvariant().Contains(query) || f.Platform.ToLowerInvariant().Contains(query))
+            if (!string.IsNullOrEmpty(selectedPlatform) && !selectedPlatform.Equals("ALL", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(f.Platform, selectedPlatform, StringComparison.OrdinalIgnoreCase))
             {
-                _filteredCheatFiles.Add(f);
+                continue;
             }
+            if (string.IsNullOrEmpty(query) || f.GameName.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0 || f.Platform.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                matched.Add(f);
+            }
+        }
+
+        ListCheatFiles.ItemsSource = matched;
+
+        if (matched.Count > 0)
+        {
+            if (NativeLibretroHost.Current.IsRunning && !string.IsNullOrWhiteSpace(NativeLibretroHost.Current.CurrentGameTitle))
+            {
+                var activeMatch = matched.FirstOrDefault(f =>
+                    f.GameName.Contains(NativeLibretroHost.Current.CurrentGameTitle, StringComparison.OrdinalIgnoreCase) ||
+                    NativeLibretroHost.Current.CurrentGameTitle.Contains(f.GameName, StringComparison.OrdinalIgnoreCase));
+                if (activeMatch != null)
+                {
+                    ListCheatFiles.SelectedItem = activeMatch;
+                    return;
+                }
+            }
+            if (ListCheatFiles.SelectedItem == null || !matched.Contains(ListCheatFiles.SelectedItem))
+            {
+                ListCheatFiles.SelectedIndex = 0;
+            }
+        }
+        else
+        {
+            ListCheatFiles.SelectedItem = null;
         }
     }
 
@@ -4108,9 +4519,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        item.EnsureLoaded();
         _selectedCheatFile = item;
         TxtSelectedCheatGame.Text = item.GameName;
-        TxtSelectedCheatPath.Text = item.FilePath;
+        TxtSelectedCheatPath.Text = item.IsDynamicTrainerProfile && !File.Exists(item.FilePath)
+            ? $"Профиль тренера ОЗУ ({item.Platform}) - сохранится в {Path.GetFileName(item.FilePath)}"
+            : item.FilePath;
 
         _selectedCheats.Clear();
         foreach (var c in item.Cheats) _selectedCheats.Add(c);
@@ -5542,7 +5956,7 @@ private void LoadBezels()
             Directory.GetFiles(ssDir, "*.png"));
 
         RefreshScreenshotsList();
-        ShowNotification("STORM RETROARCH", $"Визуальный паспорт SHOWCASE.png (6–8 сцен) успешно сгенерирован!\n{outPath}");
+        ShowNotification("STORM RETROARCH", $"Визуальный паспорт SHOWCASE.png (6-8 сцен) успешно сгенерирован!\n{outPath}");
         Process.Start(new ProcessStartInfo { FileName = outPath, UseShellExecute = true });
     }
 
@@ -6648,7 +7062,7 @@ private void LoadBezels()
         ShowNotification("STORM RETROARCH", "Загрузка полного архива шейдеров Libretro Slang...");
         bool ok = await ShaderManager.DownloadAllShadersPackageAsync(new Progress<(double pct, string msg)>(p =>
         {
-            ShowNotification("Шейдеры Libretro", $"{p.pct:F0}% — {p.msg}");
+            ShowNotification("Шейдеры Libretro", $"{p.pct:F0}% - {p.msg}");
         }));
 
         if (ok)
@@ -7553,12 +7967,18 @@ private void LoadBezels()
             .Select(g => new { Platform = g.Key, Count = g.Count() })
             .ToList();
 
+        if (_selectedChipPlatform != "Все платформы" && !distinctPlats.Any(p => p.Platform.Equals(_selectedChipPlatform, StringComparison.OrdinalIgnoreCase)))
+        {
+            _selectedChipPlatform = "Все платформы";
+        }
+
         // 1. All Platforms Chip
         var allBtn = CreatePlatformChipButton("Все платформы", _allGames.Count, _selectedChipPlatform == "Все платформы");
         allBtn.Click += (s, e) =>
         {
             _selectedChipPlatform = "Все платформы";
-            if (CmbPlatformFilter != null) CmbPlatformFilter.SelectedItem = "Все платформы";
+            SetSelectedPlatform("Все платформы");
+            UpdateLibraryCoreFilterDropdown("Все платформы");
             UpdatePlatformFilterChips();
             ApplyGamesFilter();
         };
@@ -7573,17 +7993,9 @@ private void LoadBezels()
             chipBtn.Click += (s, e) =>
             {
                 _selectedChipPlatform = capturedPlat;
-                if (CmbPlatformFilter != null)
-                {
-                    for (int i = 0; i < CmbPlatformFilter.Items.Count; i++)
-                    {
-                        if (CmbPlatformFilter.Items[i]?.ToString() == capturedPlat)
-                        {
-                            CmbPlatformFilter.SelectedIndex = i;
-                            break;
-                        }
-                    }
-                }
+                SetSelectedPlatform(capturedPlat);
+                UpdateLibraryCoreFilterDropdown(capturedPlat);
+                SyncPlatformCoreTargetTo(capturedPlat);
                 UpdatePlatformFilterChips();
                 ApplyGamesFilter();
             };
@@ -7914,8 +8326,8 @@ private void LoadBezels()
         TxtGameHubPlatform.Text = item.Platform;
         TxtGameHubCore.Text = item.CoreDisplayName;
         TxtGameHubLanguage.Text = !string.IsNullOrEmpty(item.LanguageBadge) ? item.LanguageBadge : "RU [STORM]";
-        TxtGameHubYear.Text = !string.IsNullOrEmpty(item.Year) ? item.Year : "—";
-        TxtGameHubRegion.Text = !string.IsNullOrEmpty(item.Region) ? item.Region : "—";
+        TxtGameHubYear.Text = !string.IsNullOrEmpty(item.Year) ? item.Year : "-";
+        TxtGameHubRegion.Text = !string.IsNullOrEmpty(item.Region) ? item.Region : "-";
 
         TxtGameHubPlaytime.Text = $"Время: {item.PlaytimeText}";
         TxtGameHubLaunchCount.Text = $"Запусков: {item.LaunchCount}";
@@ -8327,7 +8739,7 @@ private void LoadBezels()
             TxtBigBoxStatus.Text = !string.IsNullOrEmpty(item.CompletionStatus) ? item.CompletionStatus : "Не начато";
             TxtBigBoxRating.Text = item.StarRatingDisplay;
             TxtBigBoxPlaytime.Text = item.PlaytimeText;
-            TxtBigBoxYear.Text = !string.IsNullOrEmpty(item.Year) ? item.Year : "—";
+            TxtBigBoxYear.Text = !string.IsNullOrEmpty(item.Year) ? item.Year : "-";
         }
     }
 
@@ -9195,33 +9607,72 @@ private void LoadBezels()
     // --- 4. SMART DYNAMIC COLLECTIONS (ViewLibrary) ---
 
     private string _selectedSmartCollection = "Все игры";
-    private static readonly string[] _smartCollections = new[]
+
+
+    private static bool IsClassic8Or16BitGame(RomItem g)
     {
-        "Все игры",
-        "Русские переводы",
-        "Недавние",
-        "Классика 8/16-бит",
-        "MS-DOS",
-        "3D и CD"
-    };
+        string k = CoreManager.NormalizePlatformKey(g.Platform, g.Extension);
+        return k is "nes" or "fds" or "snes" or "genesis" or "sega32x" or "sms_gg"
+            or "gb_gbc" or "gba" or "vb" or "pokemini" or "gw"
+            or "pce" or "neogeo" or "ngp" or "wonderswan"
+            or "atari2600" or "atari5200" or "atari7800" or "lynx"
+            or "coleco" or "intellivision" or "vectrex" or "odyssey2" or "channelf"
+            or "c64" or "zxspectrum" or "cpc" or "msx" or "amiga" or "arcade";
+    }
+
+    private static bool Is3dOrCdConsoleGame(RomItem g)
+    {
+        string k = CoreManager.NormalizePlatformKey(g.Platform, g.Extension);
+        return k is "ps1" or "ps2" or "ps3" or "psp" or "psvita"
+            or "n64" or "gamecube_wii" or "wiiu" or "switch" or "nds" or "3ds"
+            or "saturn" or "dreamcast" or "segacd" or "3do" or "cdi" or "pcfx" or "neogeocd" or "jaguar" or "xbox";
+    }
+
+    private static bool IsDosOrPcComputerGame(RomItem g)
+    {
+        string k = CoreManager.NormalizePlatformKey(g.Platform, g.Extension);
+        return k is "dos" or "scummvm" or "pc98" or "pc88" or "x68000" or "fmtowns" or "atarist" or "atari800";
+    }
 
     private void UpdateSmartCollectionPills()
     {
         if (PnlSmartCollectionPills == null) return;
         PnlSmartCollectionPills.Children.Clear();
 
-        foreach (var col in _smartCollections)
+        int allCount = _allGames.Count;
+        int favCount = _allGames.Count(g => g.IsFavorite);
+        int rusCount = _allGames.Count(g =>
+            (g.LanguageBadge?.Contains("RUS", StringComparison.OrdinalIgnoreCase) == true) ||
+            (g.Name?.Contains("RUS", StringComparison.OrdinalIgnoreCase) == true) ||
+            (g.Name?.Contains("Рус", StringComparison.OrdinalIgnoreCase) == true));
+        int classicCount = _allGames.Count(IsClassic8Or16BitGame);
+        int cd3dCount = _allGames.Count(Is3dOrCdConsoleGame);
+        int dosCount = _allGames.Count(IsDosOrPcComputerGame);
+        int recentCount = _allGames.Count(g => g.LaunchCount > 0 || g.TotalPlaySeconds > 0 || g.LastPlayed != null || _history.Any(h => h.FilePath == g.FilePath));
+
+        var items = new (string Name, int Count)[]
         {
-            bool isSelected = _selectedSmartCollection.Equals(col, StringComparison.OrdinalIgnoreCase);
+            ("Все игры", allCount),
+            ("Избранное", favCount),
+            ("Русские переводы", rusCount),
+            ("Классика 8/16-бит", classicCount),
+            ("3D и CD", cd3dCount),
+            ("MS-DOS", dosCount),
+            ("Недавние", recentCount)
+        };
+
+        foreach (var (col, count) in items)
+        {
+            bool isSelected = string.Equals(_selectedSmartCollection, col, StringComparison.OrdinalIgnoreCase);
             var btn = new Button
             {
                 Style = (Style)FindResource("CapsuleButton"),
                 Padding = new Thickness(12, 5, 12, 5),
                 Margin = new Thickness(0, 0, 8, 4),
-                Tag = isSelected ? "Active" : null,
+                Tag = col,
                 Cursor = Cursors.Hand,
-                Content = col,
-                ToolTip = $"Умная коллекция: {col}"
+                Content = $"{col} ({count})",
+                ToolTip = $"Умная коллекция: {col} ({count} игр)"
             };
 
             if (isSelected)

@@ -940,10 +940,511 @@ public static class CoreManager
         };
     }
 
+    public static string NormalizePlatformKey(string? platform, string ext = "")
+    {
+        string p = (platform ?? "").Trim().ToLowerInvariant();
+        string e = (ext ?? "").Trim().ToLowerInvariant();
+
+        if (!string.IsNullOrEmpty(p))
+        {
+            if (p is "все платформы" or "all" or "универсальная платформа") return "";
+
+            // Nintendo handhelds (specific before general)
+            if (p.Contains("game boy advance") || p == "gba" || p.Contains("- gba") || p.Contains("(gba)")) return "gba";
+            if (p.Contains("virtual boy") || p == "vb") return "vb";
+            if (p.Contains("pokemon mini") || p.Contains("pokémon mini") || p == "pokemini") return "pokemini";
+            if (p.Contains("game & watch") || p.Contains("game and watch") || p == "gw") return "gw";
+            if (p.Contains("game boy") || p == "gb" || p == "gbc" || p.Contains("gb/gbc") || p.Contains("gb / color")) return "gb_gbc";
+            if (p.Contains("3ds") || p.Contains("new 3ds")) return "3ds";
+            if (p.Contains("nintendo ds") || p == "nds" || p == "dsi" || p.Contains("ds / dsi") || p.Contains("ds/dsi")) return "nds";
+
+            // Nintendo home consoles (specific before general)
+            if (p.Contains("super nintendo") || p.Contains("snes") || p.Contains("super famicom") || p == "sfc") return "snes";
+            if (p.Contains("famicom disk") || p == "fds") return "fds";
+            if (p.Contains("nintendo 64") || p == "n64" || p.Contains("64dd")) return "n64";
+            if (p.Contains("wii u") || p == "wiiu") return "wiiu";
+            if (p.Contains("switch") || p == "nx") return "switch";
+            if (p.Contains("gamecube") || p.Contains("wii") || p == "gc" || p == "ngc") return "gamecube_wii";
+            if (p.Contains("nintendo entertainment system") || p == "nes" || p.Contains("famicom") || p.Contains("dendy")) return "nes";
+
+            // Sony (specific before general)
+            if (p.Contains("vita") || p == "psv" || p == "psvita") return "psvita";
+            if (p.Contains("portable") || p.Contains("psp")) return "psp";
+            if (p.Contains("playstation 3") || p == "ps3" || p.Contains("rpcs3")) return "ps3";
+            if (p.Contains("playstation 2") || p == "ps2" || p.Contains("pcsx2") || p.Contains("lrps2")) return "ps2";
+            if (p.Contains("pocketstation")) return "pocketstation";
+            if (p.Contains("playstation") || p == "ps1" || p == "psx") return "ps1";
+
+            // Sega (specific before general)
+            if (p.Contains("dreamcast") || p == "dc") return "dreamcast";
+            if (p.Contains("saturn")) return "saturn";
+            if (p.Contains("32x")) return "sega32x";
+            if (p.Contains("mega-cd") || p.Contains("sega cd") || p == "mcd" || p == "scd") return "segacd";
+            if (p.Contains("master system") || p.Contains("mark iii") || p == "sms" || p.Contains("game gear") || p == "gg" || p.Contains("sg-1000") || p == "sg1000") return "sms_gg";
+            if (p.Contains("pico") && p.Contains("sega")) return "segapico";
+            if (p.Contains("genesis") || p.Contains("mega drive") || p == "md" || p == "smd") return "genesis";
+
+            // NEC
+            if (p.Contains("pc-fx") || p == "pcfx") return "pcfx";
+            if (p.Contains("pc-98") || p == "pc98") return "pc98";
+            if (p.Contains("pc-88") || p == "pc88") return "pc88";
+            if (p.Contains("supergrafx") || p == "sgx") return "pce";
+            if (p.Contains("pc engine") || p.Contains("turbografx") || p == "pce" || p == "tg16") return "pce";
+
+            // SNK & Bandai
+            if (p.Contains("neo geo pocket") || p == "ngp" || p == "ngpc") return "ngp";
+            if (p.Contains("neo geo cd") || p == "neocd") return "neogeocd";
+            if (p.Contains("neo geo") || p == "neogeo" || p == "aes" || p == "mvs") return "neogeo";
+            if (p.Contains("wonderswan") || p == "ws" || p == "wsc") return "wonderswan";
+
+            // Atari
+            if (p.Contains("2600")) return "atari2600";
+            if (p.Contains("5200")) return "atari5200";
+            if (p.Contains("7800")) return "atari7800";
+            if (p.Contains("lynx")) return "lynx";
+            if (p.Contains("jaguar")) return "jaguar";
+            if (p.Contains("atari st") || p == "st" || p.Contains("falcon") || p.Contains("ste")) return "atarist";
+            if (p.Contains("atari 800") || p.Contains("8-bit") || p.Contains("atari xl") || p.Contains("xegs")) return "atari800";
+
+            // Computers & Home Systems
+            if (p.Contains("scummvm")) return "scummvm";
+            if (p.Contains("ms-dos") || p == "dos" || p.Contains("dosbox") || p.Contains("pc (dos)")) return "dos";
+            if (p.Contains("amiga") || p.Contains("cd32")) return "amiga";
+            if (p.Contains("commodore 64") || p == "c64" || p.Contains("c128")) return "c64";
+            if (p.Contains("vic-20") || p == "vic20") return "vic20";
+            if (p.Contains("plus/4") || p.Contains("plus4")) return "plus4";
+            if (p.Contains("zx spectrum") || p.Contains("spectrum") || p == "zx") return "zxspectrum";
+            if (p.Contains("amstrad") || p == "cpc" || p.Contains("gx4000")) return "cpc";
+            if (p.Contains("msx")) return "msx";
+            if (p.Contains("x68000")) return "x68000";
+            if (p.Contains("fm towns")) return "fmtowns";
+            if (p.Contains("macintosh")) return "mac68k";
+            if (p.Contains("apple ii") || p.Contains("apple 2")) return "apple2";
+            if (p.Contains("bk-0010") || p.Contains("бк-0010")) return "bk0010";
+
+            // Other Consoles & Arcade & Fantasy
+            if (p.Contains("3do")) return "3do";
+            if (p.Contains("cd-i") || p == "cdi") return "cdi";
+            if (p.Contains("coleco")) return "coleco";
+            if (p.Contains("intellivision")) return "intellivision";
+            if (p.Contains("vectrex")) return "vectrex";
+            if (p.Contains("odyssey")) return "odyssey2";
+            if (p.Contains("channel f") || p.Contains("channelf")) return "channelf";
+            if (p.Contains("pc-fx")) return "pcfx";
+            if (p.Contains("xbox")) return "xbox";
+            if (p.Contains("arcade") || p.Contains("mame") || p.Contains("fbneo") || p.Contains("finalburn") || p.Contains("cps") || p.Contains("аркад")) return "arcade";
+            if (p.Contains("pico-8") || p == "pico8") return "pico8";
+            if (p.Contains("tic-80") || p == "tic80") return "tic80";
+            if (p.Contains("wasm-4") || p == "wasm4") return "wasm4";
+            if (p.Contains("j2me") || p.Contains("java me")) return "j2me";
+            if (p.Contains("rpg maker") || p.Contains("easyrpg")) return "easyrpg";
+            if (p.Contains("doom")) return "doom";
+            if (p.Contains("quake")) return "quake";
+            if (p.Contains("wolfenstein")) return "wolf3d";
+            if (p.Contains("cave story")) return "nxengine";
+            if (p.Contains("openbor")) return "openbor";
+            if (p.Contains("solarus")) return "solarus";
+            if (p.Contains("lutro") || p.Contains("love2d")) return "lutro";
+        }
+
+        if (!string.IsNullOrEmpty(e))
+        {
+            return e switch
+            {
+                ".nes" or ".unf" or ".unif" => "nes",
+                ".fds" => "fds",
+                ".sfc" or ".smc" or ".fig" or ".swc" or ".bs" => "snes",
+                ".n64" or ".z64" or ".v64" or ".ndd" => "n64",
+                ".gba" or ".agb" => "gba",
+                ".gb" or ".gbc" or ".dmg" or ".sgb" => "gb_gbc",
+                ".vb" or ".vboy" => "vb",
+                ".min" => "pokemini",
+                ".nds" or ".dsi" or ".ids" => "nds",
+                ".3ds" or ".3dsx" or ".cci" or ".cxi" or ".cia" => "3ds",
+                ".rvz" or ".gcm" or ".gcz" or ".wbfs" or ".wad" or ".ciso" => "gamecube_wii",
+                ".wua" or ".wux" or ".rpx" => "wiiu",
+                ".md" or ".gen" or ".smd" => "genesis",
+                ".32x" => "sega32x",
+                ".sms" or ".gg" or ".sg" or ".sc" => "sms_gg",
+                ".cdi" or ".gdi" => "dreamcast",
+                ".sat" => "saturn",
+                ".pbp" => "ps1",
+                ".cso" or ".prx" => "psp",
+                ".vpk" => "psvita",
+                ".pce" or ".sgx" => "pce",
+                ".pcfx" => "pcfx",
+                ".ngp" or ".ngc" => "ngp",
+                ".ws" or ".wsc" => "wonderswan",
+                ".a26" => "atari2600",
+                ".a52" => "atari5200",
+                ".a78" => "atari7800",
+                ".xex" or ".atr" or ".xfd" => "atari800",
+                ".st" or ".stx" or ".msa" => "atarist",
+                ".lnx" or ".lyx" => "lynx",
+                ".jag" or ".j64" => "jaguar",
+                ".col" => "coleco",
+                ".int" => "intellivision",
+                ".vec" => "vectrex",
+                ".o2" => "odyssey2",
+                ".chf" => "channelf",
+                ".dosz" or ".exe" or ".com" or ".bat" => "dos",
+                ".adf" or ".adz" or ".dms" or ".hdf" or ".lha" => "amiga",
+                ".d64" or ".t64" or ".tap" or ".prg" or ".crt" => "c64",
+                ".tzx" or ".z80" or ".sna" or ".scl" or ".trd" => "zxspectrum",
+                ".mx1" or ".mx2" => "msx",
+                ".hdi" or ".fdi" or ".nhd" => "pc98",
+                ".dim" or ".xdf" => "x68000",
+                _ => ""
+            };
+        }
+
+        return p;
+    }
+
+    public static HashSet<string> GetSupportedPlatformKeysForCore(CoreInfo core)
+    {
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (core == null) return keys;
+
+        string dll = (core.DllName ?? "").ToLowerInvariant().Replace("_libretro.dll", "").Replace(".dll", "");
+
+        switch (dll)
+        {
+            // NES / FDS
+            case "fceumm":
+            case "mesen":
+            case "nestopia":
+            case "quicknes":
+            case "bnes":
+            case "emux_nes":
+                keys.Add("nes");
+                keys.Add("fds");
+                break;
+
+            // SNES
+            case "snes9x":
+            case "snes9x2010":
+            case "snes9x2005":
+            case "snes9x2005_plus":
+            case "snes9x2002":
+            case "bsnes":
+            case "bsnes_hd_beta":
+            case "bsnes_mercury_accuracy":
+            case "bsnes_mercury_balanced":
+            case "bsnes_mercury_performance":
+            case "bsnes2014_accuracy":
+            case "bsnes2014_balanced":
+            case "bsnes2014_performance":
+            case "bsnes_jg":
+            case "mesen-s":
+            case "mednafen_supafaust":
+            case "mednafen_snes":
+            case "chimerasnes":
+                keys.Add("snes");
+                break;
+
+            // N64
+            case "mupen64plus_next":
+            case "mupen64plus_next_gles3":
+            case "parallel_n64":
+                keys.Add("n64");
+                break;
+
+            // GameCube / Wii / Wii U
+            case "dolphin":
+            case "ishiiruka":
+                keys.Add("gamecube_wii");
+                break;
+            case "cemu":
+                keys.Add("wiiu");
+                break;
+
+            // Game Boy / Color / Advance
+            case "mgba":
+            case "vbam":
+            case "vba_next":
+                keys.Add("gba");
+                keys.Add("gb_gbc");
+                break;
+            case "gpsp":
+            case "meteor":
+            case "beetle_gba":
+            case "mednafen_gba":
+            case "TempGBA":
+                keys.Add("gba");
+                break;
+            case "gambatte":
+            case "sameboy":
+            case "gearboy":
+            case "tgbdual":
+            case "doublecherrygb":
+            case "fixgb":
+            case "emux_gb":
+                keys.Add("gb_gbc");
+                break;
+            case "mednafen_vb":
+                keys.Add("vb");
+                break;
+            case "pokemini":
+                keys.Add("pokemini");
+                break;
+            case "gw":
+                keys.Add("gw");
+                break;
+
+            // NDS / 3DS
+            case "melonds":
+            case "melondsds":
+            case "desmume":
+            case "desmume2015":
+            case "noindex_nds":
+                keys.Add("nds");
+                break;
+            case "citra":
+            case "citra2018":
+            case "citra_canary":
+            case "azahar":
+            case "panda3ds":
+                keys.Add("3ds");
+                break;
+
+            // Sega 8/16/32-bit & Saturn & Dreamcast
+            case "genesis_plus_gx":
+            case "genesis_plus_gx_wide":
+                keys.Add("genesis");
+                keys.Add("segacd");
+                keys.Add("sms_gg");
+                break;
+            case "picodrive":
+                keys.Add("genesis");
+                keys.Add("segacd");
+                keys.Add("sega32x");
+                keys.Add("sms_gg");
+                break;
+            case "blastem":
+            case "clownmdemu":
+                keys.Add("genesis");
+                break;
+            case "gearsystem":
+            case "smsplus":
+            case "emux_sms":
+                keys.Add("sms_gg");
+                break;
+            case "mednafen_saturn":
+            case "yabause":
+            case "yabasanshiro":
+            case "kronos":
+                keys.Add("saturn");
+                break;
+            case "flycast":
+            case "flycast_gles2":
+                keys.Add("dreamcast");
+                keys.Add("arcade");
+                break;
+
+            // Sony PS1 / PS2 / PS3 / PSP / Vita
+            case "swanstation":
+            case "duckstation":
+            case "mednafen_psx":
+            case "mednafen_psx_hw":
+            case "pcsx_rearmed":
+            case "pcsx1":
+                keys.Add("ps1");
+                break;
+            case "pcsx2":
+            case "lrps2":
+            case "play":
+                keys.Add("ps2");
+                break;
+            case "rpcs3":
+                keys.Add("ps3");
+                break;
+            case "ppsspp":
+                keys.Add("psp");
+                break;
+            case "vita3k":
+                keys.Add("psvita");
+                break;
+
+            // NEC
+            case "mednafen_pce":
+            case "mednafen_pce_fast":
+            case "mednafen_supergrafx":
+            case "geargrafx":
+                keys.Add("pce");
+                break;
+            case "mednafen_pcfx":
+                keys.Add("pcfx");
+                break;
+
+            // SNK & WonderSwan
+            case "neocd":
+                keys.Add("neogeocd");
+                keys.Add("neogeo");
+                break;
+            case "geolith":
+                keys.Add("neogeo");
+                break;
+            case "mednafen_ngp":
+            case "race":
+                keys.Add("ngp");
+                break;
+            case "mednafen_wswan":
+                keys.Add("wonderswan");
+                break;
+
+            // Arcade & MAME
+            case "fbneo":
+            case "fbalpha2012":
+            case "fbalpha2012_cps1":
+            case "fbalpha2012_cps2":
+            case "fbalpha2012_cps3":
+            case "fbalpha2012_neogeo":
+            case "mame":
+            case "mamecurrent":
+            case "mame2003_plus":
+            case "mame2003":
+            case "mame2010":
+            case "mame2015":
+            case "mame2016":
+            case "mame2000":
+            case "FinalBurn_Neo":
+            case "same_cdi":
+                keys.Add("arcade");
+                keys.Add("neogeo");
+                if (dll == "same_cdi") keys.Add("cdi");
+                break;
+
+            // DOS & Computers
+            case "dosbox_pure":
+            case "dosbox_core":
+            case "dosbox_svn":
+                keys.Add("dos");
+                break;
+            case "scummvm":
+                keys.Add("scummvm");
+                break;
+            case "puae":
+            case "puae2021":
+            case "uae4arm":
+                keys.Add("amiga");
+                break;
+            case "vice_x64":
+            case "vice_x64sc":
+            case "vice_xscpu64":
+            case "vice_x128":
+            case "frodo":
+                keys.Add("c64");
+                break;
+            case "vice_xvic":
+                keys.Add("vic20");
+                break;
+            case "vice_xplus4":
+                keys.Add("plus4");
+                break;
+            case "fuse":
+                keys.Add("zxspectrum");
+                break;
+            case "cap32":
+            case "crocods":
+                keys.Add("cpc");
+                break;
+            case "bluemsx":
+            case "fmsx":
+                keys.Add("msx");
+                keys.Add("coleco");
+                break;
+            case "np2kai":
+            case "nekop2":
+                keys.Add("pc98");
+                break;
+            case "quasi88":
+                keys.Add("pc88");
+                break;
+            case "px68k":
+                keys.Add("x68000");
+                break;
+
+            // Atari & Classic Consoles & Xbox
+            case "stella":
+            case "stella2014":
+                keys.Add("atari2600");
+                break;
+            case "a5200":
+                keys.Add("atari5200");
+                break;
+            case "prosystem":
+                keys.Add("atari7800");
+                break;
+            case "atari800":
+                keys.Add("atari800");
+                keys.Add("atari5200");
+                break;
+            case "hatari":
+            case "hatarib":
+                keys.Add("atarist");
+                break;
+            case "handy":
+            case "mednafen_lynx":
+            case "felix":
+                keys.Add("lynx");
+                break;
+            case "virtualjaguar":
+                keys.Add("jaguar");
+                break;
+            case "opera":
+                keys.Add("3do");
+                break;
+            case "cdi2015":
+                keys.Add("cdi");
+                break;
+            case "gearcoleco":
+                keys.Add("coleco");
+                break;
+            case "freeintv":
+                keys.Add("intellivision");
+                break;
+            case "vecx":
+                keys.Add("vectrex");
+                break;
+            case "o2em":
+                keys.Add("odyssey2");
+                break;
+            case "freechaf":
+                keys.Add("channelf");
+                break;
+            case "xemu":
+            case "directxbox":
+                keys.Add("xbox");
+                break;
+        }
+
+        if (keys.Count == 0 && !string.IsNullOrWhiteSpace(core.Platform))
+        {
+            var segments = core.Platform.Split(new[] { '/', ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var seg in segments)
+            {
+                string k = NormalizePlatformKey(seg);
+                if (!string.IsNullOrEmpty(k)) keys.Add(k);
+            }
+        }
+
+        return keys;
+    }
+
+    public static bool IsCoreForPlatform(CoreInfo core, string platform)
+    {
+        string targetKey = NormalizePlatformKey(platform);
+        if (string.IsNullOrEmpty(targetKey)) return true;
+        var coreKeys = GetSupportedPlatformKeysForCore(core);
+        return coreKeys.Contains(targetKey);
+    }
+
     public static List<CoreInfo> GetCompatibleCoresForPlatform(string platform, string ext = "")
     {
         var list = new List<CoreInfo>();
         string p = (platform ?? "").Trim();
+        string targetKey = NormalizePlatformKey(p, ext);
 
         void AddCandidate(string name, string dll, string desc)
         {
@@ -953,97 +1454,273 @@ public static class CoreManager
             }
         }
 
-        if (p.Contains("Nintendo Entertainment System", StringComparison.OrdinalIgnoreCase) || p.Equals("NES", StringComparison.OrdinalIgnoreCase) || ext is ".nes" or ".fds" or ".unf")
+        switch (targetKey)
         {
-            AddCandidate("FCEUmm", "fceumm_libretro.dll", "Стандартное быстрое и совместимое ядро NES / Famicom / Dendy (рекомендуется)");
-            AddCandidate("Mesen", "mesen_libretro.dll", "Сверхточное эталонное ядро NES с поддержкой HD-паков");
-            AddCandidate("Nestopia UE", "nestopia_libretro.dll", "Классическое точное ядро NES с гибкой настройкой палитр");
-            AddCandidate("QuickNES", "quicknes_libretro.dll", "Ультра-быстрое ядро NES с минимальной нагрузкой на процессор");
-        }
-        else if (p.Contains("MS-DOS", StringComparison.OrdinalIgnoreCase) || p.Contains("DOS", StringComparison.OrdinalIgnoreCase) || ext is ".dosz" or ".exe" or ".com" or ".bat")
-        {
-            AddCandidate("DOSBox-Pure", "dosbox_pure_libretro.dll", "Автозапуск игр из ZIP-архивов, образов CD/ISO и дискет без командной строки (рекомендуется)");
-            AddCandidate("DOSBox-Core", "dosbox_core_libretro.dll", "Продвинутое ядро DOSBox с поддержкой MT-32, Voodoo 3dfx и тонкой настройкой ЦП");
-            AddCandidate("DOSBox-SVN", "dosbox_svn_libretro.dll", "Классическая сборка DOSBox SVN для старых программ и демосцен");
-        }
-        else if (p.Contains("Super Nintendo", StringComparison.OrdinalIgnoreCase) || p.Contains("SNES", StringComparison.OrdinalIgnoreCase) || ext is ".sfc" or ".smc")
-        {
-            AddCandidate("Snes9x", "snes9x_libretro.dll", "Идеальный баланс скорости и совместимости для всех игр Super Nintendo (рекомендуется)");
-            AddCandidate("bsnes", "bsnes_libretro.dll", "Побитовая аппаратная точность Super Nintendo и чипов Super FX / SA-1");
-            AddCandidate("Mesen-S", "mesen-s_libretro.dll", "Высокоточный эмулятор SNES и Super Game Boy");
-        }
-        else if (p.Contains("Genesis", StringComparison.OrdinalIgnoreCase) || p.Contains("Mega Drive", StringComparison.OrdinalIgnoreCase) || p.Contains("Master System", StringComparison.OrdinalIgnoreCase) || ext is ".md" or ".gen" or ".smd" or ".sms" or ".gg")
-        {
-            AddCandidate("Genesis Plus GX", "genesis_plus_gx_libretro.dll", "Эталонная точность Sega Mega Drive, Sega CD, Master System и Game Gear (рекомендуется)");
-            AddCandidate("PicoDrive", "picodrive_libretro.dll", "Высокоскоростное ядро с полной поддержкой Sega 32X и Mega Drive");
-            AddCandidate("BlastEm", "blastem_libretro.dll", "Цикло-точный низкоуровневый эмулятор Sega Mega Drive / Genesis");
-        }
-        else if (p.Contains("PlayStation 1", StringComparison.OrdinalIgnoreCase) || p.Equals("Sony PlayStation", StringComparison.OrdinalIgnoreCase) || ext is ".cue" or ".pbp")
-        {
-            AddCandidate("SwanStation", "swanstation_libretro.dll", "Аппаратный рендеринг Vulkan/D3D11, PGXP-коррекция геометрии и 4K-апскейл PS1 (рекомендуется)");
-            AddCandidate("Beetle PSX HW", "mednafen_psx_hw_libretro.dll", "Высокоточное ядро Mednafen PSX с аппаратным ускорением GPU");
-            AddCandidate("PCSX-ReARMed", "pcsx_rearmed_libretro.dll", "Быстрое классическое ядро PlayStation 1 с высокой совместимостью");
-        }
-        else if (p.Contains("Game Boy Advance", StringComparison.OrdinalIgnoreCase) || p.Equals("GBA", StringComparison.OrdinalIgnoreCase) || ext == ".gba")
-        {
-            AddCandidate("mGBA", "mgba_libretro.dll", "Лучшее современное ядро Game Boy Advance с высокой точностью и скоростью (рекомендуется)");
-            AddCandidate("VBA-M", "vbam_libretro.dll", "Классический эмулятор VisualBoyAdvance-M с фильтрами и читами");
-            AddCandidate("gpSP", "gpsp_libretro.dll", "Лёгкое и сверхбыстрое ядро Game Boy Advance");
-        }
-        else if (p.Contains("Game Boy", StringComparison.OrdinalIgnoreCase) || ext is ".gb" or ".gbc")
-        {
-            AddCandidate("Gambatte", "gambatte_libretro.dll", "Точный эмулятор оригинального Game Boy и Game Boy Color с палитрами (рекомендуется)");
-            AddCandidate("SameBoy", "sameboy_libretro.dll", "Эталонная точность звука и графики Game Boy / Color / Super Game Boy");
-            AddCandidate("mGBA", "mgba_libretro.dll", "Универсальное ядро с поддержкой картриджей GB / GBC / GBA");
-        }
-        else if (p.Contains("Nintendo 64", StringComparison.OrdinalIgnoreCase) || ext is ".n64" or ".z64" or ".v64")
-        {
-            AddCandidate("Mupen64Plus-Next", "mupen64plus_next_libretro.dll", "Современный эмулятор Nintendo 64 с плагинами GLideN64 и ParaLLEl-RDP (рекомендуется)");
-            AddCandidate("ParaLLEl N64", "parallel_n64_libretro.dll", "Высокоскоростное ядро Nintendo 64 с поддержкой Vulkan");
-        }
-        else if (p.Contains("Nintendo DS", StringComparison.OrdinalIgnoreCase) || ext is ".nds" or ".dsi")
-        {
-            AddCandidate("melonDS DS", "melondsds_libretro.dll", "Современное точное ядро Nintendo DS / DSi с поддержкой микрофона и сети (рекомендуется)");
-            AddCandidate("DeSmuME", "desmume_libretro.dll", "Классическое ядро Nintendo DS с повышением внутреннего 3D-разрешения");
-        }
-        else if (p.Contains("PlayStation Portable", StringComparison.OrdinalIgnoreCase) || p.Contains("PSP", StringComparison.OrdinalIgnoreCase) || ext == ".cso")
-        {
-            AddCandidate("PPSSPP", "ppsspp_libretro.dll", "Эталонный эмулятор Sony PSP с поддержкой 4K-рендеринга и 60 FPS (рекомендуется)");
-        }
-        else if (p.Contains("Dreamcast", StringComparison.OrdinalIgnoreCase) || ext is ".cdi" or ".gdi")
-        {
-            AddCandidate("Flycast", "flycast_libretro.dll", "Полноценная эмуляция Sega Dreamcast, NAOMI и Atomiswave (рекомендуется)");
-        }
-        else if (p.Contains("Saturn", StringComparison.OrdinalIgnoreCase) || ext == ".sat")
-        {
-            AddCandidate("Beetle Saturn", "mednafen_saturn_libretro.dll", "Наиболее точное ядро Sega Saturn (рекомендуется)");
-            AddCandidate("Yabause", "yabause_libretro.dll", "Альтернативное ядро Sega Saturn с аппаратным ускорением");
-        }
-        else if (p.Contains("Arcade", StringComparison.OrdinalIgnoreCase) || p.Contains("Neo Geo", StringComparison.OrdinalIgnoreCase))
-        {
-            AddCandidate("FinalBurn Neo", "fbneo_libretro.dll", "Лучшее ядро для аркадных автоматов CPS-1/2/3, Neo Geo и Konami (рекомендуется)");
-            AddCandidate("MAME 2003-Plus", "mame2003_plus_libretro.dll", "Классический универсальный эмулятор аркадных автоматов MAME");
+            case "nes":
+            case "fds":
+                AddCandidate("FCEUmm", "fceumm_libretro.dll", "Стандартное быстрое и совместимое ядро NES / Famicom / Dendy (рекомендуется)");
+                AddCandidate("Mesen", "mesen_libretro.dll", "Сверхточное эталонное ядро NES / FDS с поддержкой HD-паков");
+                AddCandidate("Nestopia UE", "nestopia_libretro.dll", "Классическое точное ядро NES с гибкой настройкой палитр");
+                AddCandidate("QuickNES", "quicknes_libretro.dll", "Ультра-быстрое ядро NES с минимальной нагрузкой на процессор");
+                break;
+
+            case "snes":
+                AddCandidate("Snes9x", "snes9x_libretro.dll", "Идеальный баланс скорости и совместимости для всех игр Super Nintendo (рекомендуется)");
+                AddCandidate("bsnes", "bsnes_libretro.dll", "Побитовая аппаратная точность Super Nintendo и чипов Super FX / SA-1");
+                AddCandidate("Mesen-S", "mesen-s_libretro.dll", "Высокоточный эмулятор SNES и Super Game Boy");
+                AddCandidate("Beetle Supafaust", "mednafen_supafaust_libretro.dll", "Быстрое многопоточное ядро Super Nintendo");
+                break;
+
+            case "n64":
+                AddCandidate("Mupen64Plus-Next", "mupen64plus_next_libretro.dll", "Современный эмулятор Nintendo 64 с плагинами GLideN64 и ParaLLEl-RDP (рекомендуется)");
+                AddCandidate("ParaLLEl N64", "parallel_n64_libretro.dll", "Высокоскоростное ядро Nintendo 64 с поддержкой Vulkan");
+                break;
+
+            case "gamecube_wii":
+                AddCandidate("Dolphin", "dolphin_libretro.dll", "Официальное ядро Nintendo GameCube и Wii с поддержкой Vulkan и D3D11 (рекомендуется)");
+                break;
+
+            case "wiiu":
+                AddCandidate("Cemu", "cemu_libretro.dll", "Высокопроизводительный эмулятор Nintendo Wii U с поддержкой Vulkan");
+                break;
+
+            case "gba":
+                AddCandidate("mGBA", "mgba_libretro.dll", "Лучшее современное ядро Game Boy Advance с высокой точностью и скоростью (рекомендуется)");
+                AddCandidate("VBA-M", "vbam_libretro.dll", "Классический эмулятор VisualBoyAdvance-M с фильтрами и читами");
+                AddCandidate("gpSP", "gpsp_libretro.dll", "Лёгкое и сверхбыстрое ядро Game Boy Advance");
+                break;
+
+            case "gb_gbc":
+                AddCandidate("Gambatte", "gambatte_libretro.dll", "Точный эмулятор оригинального Game Boy и Game Boy Color с палитрами (рекомендуется)");
+                AddCandidate("SameBoy", "sameboy_libretro.dll", "Эталонная точность звука и графики Game Boy / Color / Super Game Boy");
+                AddCandidate("mGBA", "mgba_libretro.dll", "Универсальное ядро с поддержкой картриджей GB / GBC / GBA");
+                AddCandidate("TGB Dual", "tgbdual_libretro.dll", "Эмуляция двух Game Boy с кабелем связи Link Cable");
+                break;
+
+            case "vb":
+                AddCandidate("Beetle VB", "mednafen_vb_libretro.dll", "Точный эмулятор Nintendo Virtual Boy с режимами 2D и 3D анаглифа");
+                break;
+
+            case "nds":
+                AddCandidate("melonDS DS", "melondsds_libretro.dll", "Современное точное ядро Nintendo DS / DSi с поддержкой микрофона и сети (рекомендуется)");
+                AddCandidate("DeSmuME", "desmume_libretro.dll", "Классическое ядро Nintendo DS с повышением внутреннего 3D-разрешения");
+                break;
+
+            case "3ds":
+                AddCandidate("Citra", "citra_libretro.dll", "Аппаратная эмуляция Nintendo 3DS с повышенным разрешением (рекомендуется)");
+                AddCandidate("Azahar", "azahar_libretro.dll", "Современный форк эмулятора Nintendo 3DS нового поколения");
+                AddCandidate("Panda3DS", "panda3ds_libretro.dll", "Экспериментальное высокоскоростное ядро Nintendo 3DS");
+                break;
+
+            case "genesis":
+            case "segacd":
+                AddCandidate("Genesis Plus GX", "genesis_plus_gx_libretro.dll", "Эталонная точность Sega Mega Drive, Sega CD, Master System и Game Gear (рекомендуется)");
+                AddCandidate("PicoDrive", "picodrive_libretro.dll", "Высокоскоростное ядро с полной поддержкой Sega 32X, Sega CD и Mega Drive");
+                if (targetKey == "genesis")
+                    AddCandidate("BlastEm", "blastem_libretro.dll", "Цикло-точный низкоуровневый эмулятор Sega Mega Drive / Genesis");
+                break;
+
+            case "sega32x":
+                AddCandidate("PicoDrive", "picodrive_libretro.dll", "Основное совместимое ядро для всех игр Sega 32X (рекомендуется)");
+                break;
+
+            case "sms_gg":
+                AddCandidate("Genesis Plus GX", "genesis_plus_gx_libretro.dll", "Эталонная точность Sega Master System, Game Gear и SG-1000 (рекомендуется)");
+                AddCandidate("Gearsystem", "gearsystem_libretro.dll", "Специализированный точный эмулятор SMS / Game Gear / SG-1000");
+                AddCandidate("PicoDrive", "picodrive_libretro.dll", "Быстрое ядро Sega Master System");
+                break;
+
+            case "saturn":
+                AddCandidate("Beetle Saturn", "mednafen_saturn_libretro.dll", "Наиболее точное ядро Sega Saturn (рекомендуется)");
+                AddCandidate("Kronos", "kronos_libretro.dll", "Аппаратный апскейл 3D-графики Sega Saturn и ST-V");
+                AddCandidate("YabaSanshiro", "yabasanshiro_libretro.dll", "Быстрое ядро Sega Saturn с аппаратным ускорением");
+                break;
+
+            case "dreamcast":
+                AddCandidate("Flycast", "flycast_libretro.dll", "Полноценная эмуляция Sega Dreamcast, NAOMI и Atomiswave на Vulkan/D3D11 (рекомендуется)");
+                break;
+
+            case "ps1":
+                AddCandidate("SwanStation", "swanstation_libretro.dll", "Аппаратный рендеринг Vulkan/D3D11, PGXP-коррекция геометрии и 4K-апскейл PS1 (рекомендуется)");
+                AddCandidate("Beetle PSX HW", "mednafen_psx_hw_libretro.dll", "Высокоточное ядро Mednafen PSX с аппаратным ускорением GPU");
+                AddCandidate("Beetle PSX", "mednafen_psx_libretro.dll", "Эталонное программное ядро Sony PlayStation 1");
+                AddCandidate("PCSX-ReARMed", "pcsx_rearmed_libretro.dll", "Быстрое классическое ядро PlayStation 1 с высокой совместимостью");
+                break;
+
+            case "ps2":
+                AddCandidate("LRPS2 (PCSX2)", "pcsx2_libretro.dll", "Официальное ядро Sony PlayStation 2 с рендерерами Vulkan и Direct3D 11/12 (рекомендуется)");
+                AddCandidate("Play!", "play_libretro.dll", "Альтернативный эмулятор Sony PlayStation 2 без требования BIOS");
+                break;
+
+            case "ps3":
+                AddCandidate("RPCS3", "rpcs3_libretro.dll", "Высокоуровневая эмуляция Sony PlayStation 3 на базе Vulkan");
+                break;
+
+            case "psp":
+                AddCandidate("PPSSPP", "ppsspp_libretro.dll", "Эталонный эмулятор Sony PSP с поддержкой 4K-рендеринга Vulkan/D3D11 и 60 FPS (рекомендуется)");
+                break;
+
+            case "psvita":
+                AddCandidate("Vita3K", "vita3k_libretro.dll", "Аппаратная эмуляция портативной консоли Sony PlayStation Vita (Vulkan)");
+                break;
+
+            case "pce":
+                AddCandidate("Beetle PCE Fast", "mednafen_pce_fast_libretro.dll", "Быстрое и совместимое ядро PC Engine / TurboGrafx-16 / CD (рекомендуется)");
+                AddCandidate("Beetle PCE", "mednafen_pce_libretro.dll", "Полноточное ядро PC Engine, SuperGrafx и Arcade Card CD");
+                break;
+
+            case "pcfx":
+                AddCandidate("Beetle PC-FX", "mednafen_pcfx_libretro.dll", "Точный эмулятор 32-битной консоли NEC PC-FX");
+                break;
+
+            case "neogeo":
+                AddCandidate("FinalBurn Neo", "fbneo_libretro.dll", "Эталонное ядро SNK Neo Geo AES / MVS с поддержкой UNIBIOS (рекомендуется)");
+                AddCandidate("Geolith", "geolith_libretro.dll", "Точный специализированный эмулятор консолей и автоматов Neo Geo");
+                AddCandidate("NeoCD", "neocd_libretro.dll", "Эмулятор дисков SNK Neo Geo CD");
+                break;
+
+            case "neogeocd":
+                AddCandidate("NeoCD", "neocd_libretro.dll", "Специализированный точный эмулятор SNK Neo Geo CD (рекомендуется)");
+                AddCandidate("FinalBurn Neo", "fbneo_libretro.dll", "Поддержка образов Neo Geo CD через подсистему FBNeo");
+                break;
+
+            case "ngp":
+                AddCandidate("Beetle NeoPop", "mednafen_ngp_libretro.dll", "Точный эмулятор SNK Neo Geo Pocket и Neo Geo Pocket Color (рекомендуется)");
+                AddCandidate("RACE", "race_libretro.dll", "Быстрое альтернативное ядро Neo Geo Pocket / Color");
+                break;
+
+            case "wonderswan":
+                AddCandidate("Beetle WonderSwan", "mednafen_wswan_libretro.dll", "Точный эмулятор Bandai WonderSwan и WonderSwan Color (рекомендуется)");
+                break;
+
+            case "arcade":
+                AddCandidate("FinalBurn Neo", "fbneo_libretro.dll", "Лучшее ядро для аркадных автоматов CPS-1/2/3, Neo Geo, Konami и Toaplan (рекомендуется)");
+                AddCandidate("MAME (Current)", "mame_libretro.dll", "Полный актуальный аркадный эмулятор MAME Current для всех ромсетов");
+                AddCandidate("MAME 2003-Plus", "mame2003_plus_libretro.dll", "Классический быстрый эмулятор аркадных автоматов MAME");
+                AddCandidate("MAME 2010", "mame2010_libretro.dll", "Расширенный набор аркадных плат MAME 0.139");
+                break;
+
+            case "dos":
+                AddCandidate("DOSBox-Pure", "dosbox_pure_libretro.dll", "Автозапуск игр из ZIP-архивов, образов CD/ISO и Windows 9x без командной строки (рекомендуется)");
+                AddCandidate("DOSBox-Core", "dosbox_core_libretro.dll", "Продвинутое ядро DOSBox с поддержкой MT-32, Voodoo 3dfx и тонкой настройкой ЦП");
+                AddCandidate("DOSBox-SVN", "dosbox_svn_libretro.dll", "Классическая сборка DOSBox SVN для старых программ и демосцен");
+                break;
+
+            case "scummvm":
+                AddCandidate("ScummVM", "scummvm_libretro.dll", "Классические квесты LucasArts, Sierra, Revolution и Humongous (рекомендуется)");
+                break;
+
+            case "amiga":
+                AddCandidate("PUAE", "puae_libretro.dll", "Полная эмуляция Commodore Amiga 500 / 1200 / 4000 и Amiga CD32 (рекомендуется)");
+                break;
+
+            case "c64":
+                AddCandidate("VICE x64sc", "vice_x64sc_libretro.dll", "Цикло-точный эмулятор Commodore 64 (рекомендуется)");
+                AddCandidate("VICE x64", "vice_x64_libretro.dll", "Быстрый классический эмулятор Commodore 64");
+                break;
+
+            case "zxspectrum":
+                AddCandidate("Fuse", "fuse_libretro.dll", "Эталонный эмулятор ZX Spectrum 48K / 128K / Pentagon (рекомендуется)");
+                break;
+
+            case "cpc":
+                AddCandidate("Caprice32", "cap32_libretro.dll", "Точный эмулятор компьютеров Amstrad CPC и консоли GX4000 (рекомендуется)");
+                break;
+
+            case "msx":
+                AddCandidate("blueMSX", "bluemsx_libretro.dll", "Эталонная эмуляция компьютеров MSX / MSX2 / MSX2+ / TurboR (рекомендуется)");
+                AddCandidate("fMSX", "fmsx_libretro.dll", "Быстрое альтернативное ядро MSX / MSX2");
+                break;
+
+            case "pc98":
+                AddCandidate("Neko Project II Kai", "np2kai_libretro.dll", "Полноценная эмуляция японских компьютеров NEC PC-9801 / PC-9821");
+                break;
+
+            case "x68000":
+                AddCandidate("PX68k", "px68k_libretro.dll", "Эмулятор рабочих станций Sharp X68000");
+                break;
+
+            case "atari2600":
+                AddCandidate("Stella", "stella_libretro.dll", "Точный современный эмулятор Atari 2600 VCS (рекомендуется)");
+                break;
+
+            case "atari5200":
+                AddCandidate("a5200", "a5200_libretro.dll", "Специализированный эмулятор консоли Atari 5200 (рекомендуется)");
+                AddCandidate("Atari800", "atari800_libretro.dll", "Универсальный эмулятор Atari 8-bit и Atari 5200");
+                break;
+
+            case "atari7800":
+                AddCandidate("ProSystem", "prosystem_libretro.dll", "Эмулятор консоли Atari 7800 ProSystem (рекомендуется)");
+                break;
+
+            case "atari800":
+                AddCandidate("Atari800", "atari800_libretro.dll", "Эмулятор домашних компьютеров Atari 400 / 800 / XL / XE");
+                break;
+
+            case "atarist":
+                AddCandidate("Hatari", "hatari_libretro.dll", "Точный эмулятор компьютеров Atari ST / STE / TT / Falcon");
+                break;
+
+            case "lynx":
+                AddCandidate("Beetle Lynx", "mednafen_lynx_libretro.dll", "Точный эмулятор портативной консоли Atari Lynx (рекомендуется)");
+                AddCandidate("Handy", "handy_libretro.dll", "Классический быстрый эмулятор Atari Lynx");
+                break;
+
+            case "jaguar":
+                AddCandidate("Virtual Jaguar", "virtualjaguar_libretro.dll", "Эмулятор 64-битной консоли Atari Jaguar");
+                break;
+
+            case "3do":
+                AddCandidate("Opera", "opera_libretro.dll", "Эмулятор мультимедийной консоли 3DO Interactive Multiplayer");
+                break;
+
+            case "cdi":
+                AddCandidate("SAME CDi", "same_cdi_libretro.dll", "Современный эмулятор систем Philips CD-i");
+                break;
+
+            case "coleco":
+                AddCandidate("Gearcoleco", "gearcoleco_libretro.dll", "Точный эмулятор консоли ColecoVision (рекомендуется)");
+                AddCandidate("blueMSX", "bluemsx_libretro.dll", "Поддержка игр ColecoVision и SVI");
+                break;
+
+            case "intellivision":
+                AddCandidate("FreeIntv", "freeintv_libretro.dll", "Эмулятор консоли Mattel Intellivision");
+                break;
+
+            case "vectrex":
+                AddCandidate("vecx", "vecx_libretro.dll", "Эмулятор векторной игровой системы GCE Vectrex");
+                break;
+
+            case "odyssey2":
+                AddCandidate("O2EM", "o2em_libretro.dll", "Эмулятор консоли Magnavox Odyssey 2 / Philips Videopac");
+                break;
+
+            case "channelf":
+                AddCandidate("FreeChaF", "freechaf_libretro.dll", "Эмулятор системы Fairchild Channel F");
+                break;
+
+            case "xbox":
+                AddCandidate("xemu", "xemu_libretro.dll", "Аппаратная эмуляция консоли Microsoft Xbox");
+                break;
         }
 
-        // Also match any installed or catalog cores matching platform keywords
-        foreach (var c in _allCoresCatalog)
+        // Strictly match catalog cores belonging ONLY to the exact canonical platform key
+        if (!string.IsNullOrEmpty(targetKey))
         {
-            if (!string.IsNullOrEmpty(p) && c.Platform.Contains(p.Split(' ')[0], StringComparison.OrdinalIgnoreCase))
+            foreach (var c in _allCoresCatalog)
+            {
+                if (GetSupportedPlatformKeysForCore(c).Contains(targetKey))
+                {
+                    AddCandidate(c.Name, c.DllName, c.Description);
+                }
+            }
+        }
+        else if (string.IsNullOrEmpty(p) || p.Equals("Все платформы", StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var c in GoldenCores)
             {
                 AddCandidate(c.Name, c.DllName, c.Description);
             }
-        }
-
-        // Fallback so list is never empty
-        if (list.Count == 0)
-        {
-            AddCandidate("FCEUmm", "fceumm_libretro.dll", "Nintendo Entertainment System (NES / Dendy)");
-            AddCandidate("DOSBox-Pure", "dosbox_pure_libretro.dll", "MS-DOS PC (Автозапуск архивов и образов)");
-            AddCandidate("Snes9x", "snes9x_libretro.dll", "Super Nintendo (SNES)");
-            AddCandidate("Genesis Plus GX", "genesis_plus_gx_libretro.dll", "Sega Mega Drive / Genesis");
-            AddCandidate("SwanStation", "swanstation_libretro.dll", "Sony PlayStation 1");
-            AddCandidate("mGBA", "mgba_libretro.dll", "Game Boy Advance");
-            AddCandidate("FinalBurn Neo", "fbneo_libretro.dll", "Аркадные автоматы (Arcade / Neo Geo)");
         }
 
         return list;
@@ -1052,19 +1729,163 @@ public static class CoreManager
     public static List<string> GetStandardPlatformsList() => new()
     {
         "Nintendo Entertainment System",
-        "MS-DOS PC",
         "Super Nintendo (SNES)",
-        "Sega Genesis / Mega Drive",
-        "Sony PlayStation 1",
-        "Game Boy Advance",
-        "Game Boy / Color",
         "Nintendo 64",
+        "Nintendo GameCube / Wii",
+        "Nintendo Wii U",
+        "Game Boy / Color",
+        "Game Boy Advance",
         "Nintendo DS / DSi",
-        "Sony PlayStation Portable",
-        "Sega Dreamcast",
+        "Nintendo 3DS",
+        "Nintendo Virtual Boy",
+        "Sega Master System / Game Gear",
+        "Sega Genesis / Mega Drive",
+        "Sega CD / Mega-CD",
+        "Sega 32X",
         "Sega Saturn",
-        "Arcade Classics"
+        "Sega Dreamcast",
+        "Sony PlayStation 1",
+        "Sony PlayStation 2",
+        "Sony PlayStation 3",
+        "Sony PlayStation Portable",
+        "Sony PlayStation Vita",
+        "PC Engine / TurboGrafx-16",
+        "NEC PC-FX",
+        "SNK Neo Geo",
+        "SNK Neo Geo CD",
+        "Neo Geo Pocket / Color",
+        "WonderSwan / Color",
+        "Arcade Classics",
+        "MS-DOS PC",
+        "ScummVM",
+        "Commodore Amiga",
+        "Commodore 64",
+        "ZX Spectrum",
+        "Amstrad CPC",
+        "MSX / MSX2",
+        "NEC PC-98",
+        "Sharp X68000",
+        "3DO Interactive Multiplayer",
+        "Atari 2600",
+        "Atari 5200",
+        "Atari 7800",
+        "Atari Lynx",
+        "Atari Jaguar",
+        "ColecoVision",
+        "Intellivision",
+        "Vectrex",
+        "Microsoft Xbox"
     };
+
+    private static readonly HashSet<string> _supportedScanExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".nes", ".fds", ".unf", ".unif",
+        ".sfc", ".smc", ".fig", ".swc", ".bs",
+        ".n64", ".z64", ".v64", ".ndd",
+        ".gba", ".agb", ".gb", ".gbc", ".dmg", ".sgb", ".vb", ".vboy", ".min",
+        ".nds", ".dsi", ".ids", ".3ds", ".3dsx", ".cci", ".cxi", ".cia",
+        ".rvz", ".gcm", ".gcz", ".wbfs", ".wad", ".ciso", ".wua", ".wux", ".rpx",
+        ".md", ".gen", ".smd", ".32x", ".sms", ".gg", ".sg", ".sc",
+        ".cue", ".chd", ".pbp", ".iso", ".cso", ".cdi", ".gdi", ".mds", ".ccd", ".m3u",
+        ".vpk", ".pce", ".sgx", ".pcfx",
+        ".ngp", ".ngc", ".ws", ".wsc",
+        ".a26", ".a52", ".a78", ".xex", ".atr", ".xfd", ".st", ".stx", ".msa",
+        ".lnx", ".lyx", ".jag", ".j64", ".col", ".int", ".vec", ".o2", ".chf",
+        ".dosz", ".adf", ".adz", ".dms", ".hdf", ".lha",
+        ".d64", ".t64", ".tap", ".prg", ".crt",
+        ".tzx", ".z80", ".sna", ".scl", ".trd", ".dsk",
+        ".mx1", ".mx2", ".hdi", ".fdi", ".nhd", ".dim", ".xdf",
+        ".zip", ".7z", ".bin", ".img"
+    };
+
+    public static List<string> ScanSupportedRomFilesInDirectory(string rootDir)
+    {
+        var results = new List<string>();
+        if (string.IsNullOrWhiteSpace(rootDir) || !Directory.Exists(rootDir))
+            return results;
+
+        string[] allFiles;
+        try
+        {
+            allFiles = Directory.GetFiles(rootDir, "*.*", SearchOption.AllDirectories);
+        }
+        catch
+        {
+            return results;
+        }
+
+        // Collect child track/disc files referenced by .cue, .gdi, and .m3u playlists so multi-track CDs don't create duplicates
+        var referencedChildFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var fileQuoteRegex = new System.Text.RegularExpressions.Regex(@"FILE\s+""([^""]+)""", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        foreach (var f in allFiles)
+        {
+            string ext = Path.GetExtension(f);
+            string dir = Path.GetDirectoryName(f) ?? "";
+            try
+            {
+                if (ext.Equals(".cue", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var line in File.ReadLines(f))
+                    {
+                        var m = fileQuoteRegex.Match(line);
+                        if (m.Success)
+                        {
+                            string child = Path.GetFullPath(Path.Combine(dir, m.Groups[1].Value.Trim()));
+                            referencedChildFiles.Add(child);
+                        }
+                    }
+                }
+                else if (ext.Equals(".gdi", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var line in File.ReadLines(f).Skip(1))
+                    {
+                        var mQuote = System.Text.RegularExpressions.Regex.Match(line, @"""([^""]+)""");
+                        if (mQuote.Success)
+                        {
+                            referencedChildFiles.Add(Path.GetFullPath(Path.Combine(dir, mQuote.Groups[1].Value.Trim())));
+                        }
+                        else
+                        {
+                            var parts = line.Trim().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                            if (parts.Length >= 5)
+                            {
+                                referencedChildFiles.Add(Path.GetFullPath(Path.Combine(dir, parts[4])));
+                            }
+                        }
+                    }
+                }
+                else if (ext.Equals(".m3u", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var line in File.ReadLines(f))
+                    {
+                        string trimmed = line.Trim();
+                        if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#")) continue;
+                        string child = Path.GetFullPath(Path.Combine(dir, trimmed));
+                        referencedChildFiles.Add(child);
+                    }
+                }
+            }
+            catch { }
+        }
+
+        foreach (var f in allFiles)
+        {
+            string ext = Path.GetExtension(f);
+            if (!_supportedScanExtensions.Contains(ext)) continue;
+
+            string full = Path.GetFullPath(f);
+            if (referencedChildFiles.Contains(full)) continue;
+
+            string fnLower = Path.GetFileName(f).ToLowerInvariant();
+            if (fnLower.StartsWith("scph") || fnLower.StartsWith("bios") || fnLower == "ip.bin" || fnLower == "syscard3.pce")
+                continue;
+
+            results.Add(f);
+        }
+
+        return results;
+    }
 
     public static (string Platform, string CoreDll, string CoreName) IdentifyRomByExtension(string ext)
     {

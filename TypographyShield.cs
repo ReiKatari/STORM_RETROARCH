@@ -14,7 +14,7 @@ public static class TypographyShield
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex EmDashRegex = new(
-        @"\s+—",
+        @"\s+-",
         RegexOptions.Compiled);
 
     /// <summary>
@@ -28,7 +28,7 @@ public static class TypographyShield
         string result = PrepositionRegex.Replace(text, "$2\u00A0");
 
         // Привязываем длинное тире к предыдущему слову неразрывным пробелом
-        result = EmDashRegex.Replace(result, "\u00A0—");
+        result = EmDashRegex.Replace(result, "\u00A0-");
 
         return result;
     }
