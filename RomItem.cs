@@ -1,4 +1,5 @@
-using System.Collections.Concurrent;
+using System.Collections.Concurrent;
+
 using System;
 using System.ComponentModel;
 using System.IO;
@@ -179,8 +180,33 @@ public class RomItem : INotifyPropertyChanged
             if (SetField(ref _filePath, value))
             {
                 ParseAndUpdateFromFileName(Path.GetFileName(value));
+                if (string.IsNullOrEmpty(Extension) && !string.IsNullOrEmpty(value))
+                {
+                    try { Extension = Path.GetExtension(value).ToLowerInvariant(); } catch { }
+                }
+                DetectPlatformAndCoreFromFile(value);
             }
         }
+    }
+
+    public void DetectPlatformAndCoreFromFile(string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath)) return;
+
+        try
+        {
+            var (plat, dll, name) = CoreManager.GetBestCoreForRom(filePath);
+            if (!string.IsNullOrEmpty(plat) && (string.IsNullOrEmpty(Platform) || Platform == "Неизвестная платформа" || Platform == "Sony PlayStation / DVD" || Platform == "Arcade / Neo Geo"))
+            {
+                Platform = plat;
+            }
+            if (!string.IsNullOrEmpty(dll) && (string.IsNullOrEmpty(CoreDll) || CoreDll == "swanstation_libretro.dll" || CoreDll == "fbneo_libretro.dll"))
+            {
+                CoreDll = dll;
+                CoreDisplayName = name;
+            }
+        }
+        catch { }
     }
 
     public string Extension

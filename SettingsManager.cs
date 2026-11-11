@@ -105,6 +105,12 @@ public class UserSettings
     public double DrcMaxDelta { get; set; } = 0.0025;
     public bool InstantReplayEnabled { get; set; } = true;
     public bool GamepadUiNavigation { get; set; } = true;
+
+    // 2.2.0 Hardware Engine, Universal Bezel and Mega Bezel Pipeline
+    public string GraphicsBackend { get; set; } = "Auto";
+    public bool AutoDownloadMissingCoreOnLaunch { get; set; } = true;
+    public bool UniversalBezelForAllCores { get; set; } = true;
+    public string ActiveMegaBezelSlangp { get; set; } = "";
 }
 
 public static class SettingsManager

@@ -326,7 +326,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }));
         };
 
-        // 2.1.0 Multi-Device Input Engine & Controller Hotkey Studio
+        // 2.2.0 Multi-Device Input Engine & Controller Hotkey Studio
         DeviceInputProfileEngine.Initialize();
         DeviceInputProfileEngine.OnDeviceProfileActivated += (dev, msg) =>
         {
@@ -640,7 +640,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SyncQuickSettingsCheckboxes();
 
         _isLoaded = true;
-        LogCheckpoint("Before InitStudio200"); InitStudio200(); InitStudio210(); LogCheckpoint("After InitStudio210");
+        LogCheckpoint("Before InitStudio200"); InitStudio200(); InitStudio210(); InitStudio220Subsystem(); LogCheckpoint("After InitStudio220");
 
         ForceForegroundWindow(hwnd);
 
@@ -658,7 +658,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         LogCheckpoint("Before Screenshot loop"); string[] cmdArgs = Environment.GetCommandLineArgs();
         for (int i = 0; i < cmdArgs.Length - 1; i++)
         {
-            if (cmdArgs[i].Equals("--screenshot-210-suite", StringComparison.OrdinalIgnoreCase) || cmdArgs[i].Equals("--screenshot-200-suite", StringComparison.OrdinalIgnoreCase) ||
+            if (cmdArgs[i].Equals("--screenshot-220-suite", StringComparison.OrdinalIgnoreCase) || cmdArgs[i].Equals("--screenshot-210-suite", StringComparison.OrdinalIgnoreCase) || cmdArgs[i].Equals("--screenshot-200-suite", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-settings", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-bios", StringComparison.OrdinalIgnoreCase) ||
@@ -962,7 +962,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                             if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
                             EnsureBattletoadsRunningPreview();
                         }
-                                                else if (cmdArgs[i].Equals("--screenshot-210-suite", StringComparison.OrdinalIgnoreCase)) { await RunScreenshot210SuiteAsync(shotPath); } else if (cmdArgs[i].Equals("--screenshot-200-suite", StringComparison.OrdinalIgnoreCase))
+                                                else if (cmdArgs[i].Equals("--screenshot-220-suite", StringComparison.OrdinalIgnoreCase)) { await RunScreenshot220SuiteAsync(shotPath); } else if (cmdArgs[i].Equals("--screenshot-210-suite", StringComparison.OrdinalIgnoreCase)) { await RunScreenshot210SuiteAsync(shotPath); } else if (cmdArgs[i].Equals("--screenshot-200-suite", StringComparison.OrdinalIgnoreCase))
                         {
                             await RunScreenshot200SuiteAsync(shotPath);
                         }
@@ -3517,6 +3517,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             baseList = CoreManager.GoldenCores;
         }
+        else if (filter == "3D: PS2 / PS3 / PSV / Xbox" || filter.Contains("3D", StringComparison.OrdinalIgnoreCase))
+        {
+            baseList = CoreManager.AllCoresCatalog.Where(c => c.CategoryGroup == "NextGen3D" || c.RequiresVulkanOrD3D || c.Platform.Contains("PlayStation 2") || c.Platform.Contains("PlayStation 3") || c.Platform.Contains("PS Vita") || c.Platform.Contains("Xbox") || c.Name.Contains("LRPS2") || c.Name.Contains("RPCS3") || c.Name.Contains("Vita3K") || c.Name.Contains("Dolphin") || c.Name.Contains("Cemu") || c.Name.Contains("xemu") || c.Name.Contains("Citra") || c.Name.Contains("Azahar"));
+        }
+        else if (filter == "MAME / Аркады" || filter.Contains("MAME", StringComparison.OrdinalIgnoreCase) || filter.Contains("Аркады", StringComparison.OrdinalIgnoreCase))
+        {
+            baseList = CoreManager.AllCoresCatalog.Where(c => c.CategoryGroup == "ArcadeMame" || c.Manufacturer.Equals("Arcade", StringComparison.OrdinalIgnoreCase) || c.Name.Contains("MAME", StringComparison.OrdinalIgnoreCase) || c.Name.Contains("FBNeo", StringComparison.OrdinalIgnoreCase));
+        }
+        else if (filter == "Экспериментальные" || filter.Contains("Экспериментальные", StringComparison.OrdinalIgnoreCase))
+        {
+            baseList = CoreManager.AllCoresCatalog.Where(c => c.IsExperimental || c.CategoryGroup == "Experimental");
+        }
         else if (filter == "Все ядра (350+)" || filter.StartsWith("Все ядра", StringComparison.OrdinalIgnoreCase))
         {
             baseList = CoreManager.AllCoresCatalog;
@@ -3916,6 +3928,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 "Установленные" => b.IsInstalled,
                 "Отсутствующие" => !b.IsInstalled,
                 "Все платформы" or "Все файлы" or "" => true,
+                "PS2 / PS3 / PS Vita" => b.Platform.Contains("PS2", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("PS3", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Vita", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("PlayStation 2", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("PlayStation 3", StringComparison.OrdinalIgnoreCase) || b.RelativePath.Contains("pcsx2", StringComparison.OrdinalIgnoreCase) || b.RelativePath.Contains("vita3k", StringComparison.OrdinalIgnoreCase) || b.RelativePath.Contains("rpcs3", StringComparison.OrdinalIgnoreCase),
+                "Xbox / 3DS / Wii U" => b.Platform.Contains("Xbox", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("3DS", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Wii", StringComparison.OrdinalIgnoreCase) || b.RelativePath.Contains("xemu", StringComparison.OrdinalIgnoreCase) || b.RelativePath.Contains("citra", StringComparison.OrdinalIgnoreCase) || b.RelativePath.Contains("cemu", StringComparison.OrdinalIgnoreCase),
                 _ => b.PlatformCategory.Equals(_selectedBiosFilter, StringComparison.OrdinalIgnoreCase) ||
                      b.Platform.IndexOf(_selectedBiosFilter, StringComparison.OrdinalIgnoreCase) >= 0
             };
@@ -4557,6 +4571,8 @@ private void LoadBezels()
         {
             bool matchPlatform = _selectedBezelPlatform switch
             {
+                "Mega Bezel / Duimon" => b.PackSource.Contains("Mega Bezel", StringComparison.OrdinalIgnoreCase) || b.PackSource.Contains("Duimon", StringComparison.OrdinalIgnoreCase) || b.SlangpPath.Contains("Mega_Bezel", StringComparison.OrdinalIgnoreCase) || b.Name.Contains("Mega Bezel", StringComparison.OrdinalIgnoreCase) || b.Name.Contains("Duimon", StringComparison.OrdinalIgnoreCase),
+                "PS2 / PS3 / PSV" => b.Platform.Contains("PS2", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("PS3", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Vita", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("PlayStation 2", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("PlayStation 3", StringComparison.OrdinalIgnoreCase),
                 "Sony" => b.Platform.Contains("Sony", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("PlayStation", StringComparison.OrdinalIgnoreCase),
                 "Nintendo" => b.Platform.Contains("Nintendo", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Game Boy", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("SNES", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("NES", StringComparison.OrdinalIgnoreCase),
                 "Sega" => b.Platform.Contains("Sega", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Genesis", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Saturn", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Dreamcast", StringComparison.OrdinalIgnoreCase),
@@ -5638,6 +5654,26 @@ private void LoadBezels()
             var badgesWrap = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 6) };
             badgesWrap.Children.Add(badgeVer);
             badgesWrap.Children.Add(badgeJit);
+
+            var badgeHw = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(32, 56, 189, 248)),
+                BorderBrush = (Brush)new BrushConverter().ConvertFromString(c.HwBadgeColor)!,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(6, 1, 6, 1),
+                Margin = new Thickness(0, 0, 6, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            badgeHw.Child = new TextBlock
+            {
+                Text = c.HwBadgeText,
+                Foreground = (Brush)new BrushConverter().ConvertFromString(c.HwBadgeColor)!,
+                FontSize = 9.5,
+                FontWeight = FontWeights.SemiBold
+            };
+            badgesWrap.Children.Add(badgeHw);
+
             sp.Children.Add(badgesWrap);
 
             sp.Children.Add(new TextBlock { Text = $"Платформа: {c.Platform}", Foreground = (Brush)FindResource("ThemeAccentGlow"), FontWeight = FontWeights.SemiBold, FontSize = 12, Margin = new Thickness(0, 0, 0, 4) });
@@ -5823,103 +5859,7 @@ private void LoadBezels()
 
     public async Task StartGameInViewportAsync(RomItem item)
     {
-        _activeRomItem = item;
-
-        // 2.0.0 Check per-game profile override
-        var profile = PerGameProfileManager.TryLoadProfileForGame(item.Name);
-        if (profile != null)
-        {
-            if (!string.IsNullOrEmpty(profile.ShaderPresetName))
-            {
-                var matchShader = _allShaders.FirstOrDefault(s => s.Name.Equals(profile.ShaderPresetName, StringComparison.OrdinalIgnoreCase));
-                if (matchShader != null)
-                {
-                    ShaderManager.ApplyShader(matchShader);
-                    foreach (var s in _allShaders) s.IsActive = (s == matchShader);
-                }
-            }
-            if (!string.IsNullOrEmpty(profile.BezelName))
-            {
-                var matchBezel = _allBezels.FirstOrDefault(b => b.Name.Equals(profile.BezelName, StringComparison.OrdinalIgnoreCase));
-                if (matchBezel != null)
-                {
-                    BezelManager.ApplyBezel(matchBezel);
-                    foreach (var b in _allBezels) b.IsActive = (b == matchBezel);
-                }
-            }
-            if (profile.RunAheadFrames >= 0)
-            {
-                NativeLibretroHost.Current.RunAheadFrames = profile.RunAheadFrames;
-            }
-            if (!string.IsNullOrEmpty(profile.AudioDspPreset))
-            {
-                AudioDspEngine.Shared.ApplyPreset(profile.AudioDspPreset);
-            }
-        }
-
-        // Record launch in History with timestamp and persist to content_history.lpl
-        RecordGameHistory(item);
-
-        // Switch to Game Viewport & Lock Keyboard Focus to Game Viewport
-        Keyboard.ClearFocus();
-        if (BtnNavGamePlayer != null) NavBtn_Click(BtnNavGamePlayer, new RoutedEventArgs());
-        if (ViewGamePlayer != null) ViewGamePlayer.Visibility = Visibility.Visible;
-        if (PnlInGameQuickMenu != null) PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
-        GameViewportContainer?.Focus();
-
-        if (TxtActiveGameTitle != null) TxtActiveGameTitle.Text = item.Name;
-        if (TxtActiveGamePlatform != null) TxtActiveGamePlatform.Text = item.Platform;
-        if (TxtActiveGameCore != null) TxtActiveGameCore.Text = item.CoreDisplayName;
-        if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Visible;
-        if (TxtGameViewportStatusTitle != null) TxtGameViewportStatusTitle.Text = $"Запуск «{item.Name}»...";
-        if (TxtGameViewportStatusDesc != null) TxtGameViewportStatusDesc.Text = $"Загрузка ядра {item.CoreDisplayName} и запуск во встроенном движке STORM RETROARCH...";
-
-        try
-        {
-            bool started = await NativeLibretroHost.Current.StartGameAsync(item, NativeGameImage, status =>
-            {
-                Dispatcher.Invoke(() =>
-                {
-                    if (TxtGameViewportStatusDesc != null) TxtGameViewportStatusDesc.Text = status;
-                });
-            });
-
-            if (started)
-            {
-                if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
-                UpdateInGameHudButtons();
-
-                string coreId = Path.GetFileNameWithoutExtension(item.CoreDll ?? "");
-                DeviceInputProfileEngine.NotifyCoreOrGameChanged(coreId, item.Name);
-                if (SettingsManager.Current.AutoBezelByPlatform)
-                {
-                    var bestBezel = BezelManager.FindBestBezelForPlatform(item.Platform);
-                    if (bestBezel != null)
-                    {
-                        BezelManager.ApplyBezel(bestBezel);
-                        foreach (var b in _allBezels) b.IsActive = (b == bestBezel);
-                        ApplyActiveBezelToViewport();
-                    }
-                    else
-                    {
-                        ApplyActiveBezelToViewport();
-                    }
-                }
-                else
-                {
-                    ApplyActiveBezelToViewport();
-                }
-                GameViewportContainer?.Focus();
-                ShowOsdToast($"Игра «{item.Name}» запущена • F1: Меню • F2/F4: Стейты • F11: Полный экран");
-            }
-        }
-        catch (Exception ex)
-        {
-            if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Visible;
-            if (TxtGameViewportStatusTitle != null) TxtGameViewportStatusTitle.Text = "Ошибка запуска игры";
-            if (TxtGameViewportStatusDesc != null) TxtGameViewportStatusDesc.Text = ex.Message;
-            ShowNotification("Ошибка запуска", ex.Message);
-        }
+        await LaunchGameUnified220Async(item);
     }
 
     private void UpdateInGameHudButtons()
@@ -5970,6 +5910,14 @@ private void LoadBezels()
 
     private void BtnGamePause_Click(object sender, RoutedEventArgs e)
     {
+        if (VulkanD3dEngineBridge.Current.IsRunning)
+        {
+            VulkanD3dEngineBridge.Current.TogglePause();
+            UpdateInGameHudButtons();
+            ShowOsdToast(VulkanD3dEngineBridge.Current.IsPaused ? "Пауза" : "Возобновлено");
+            return;
+        }
+
         if (!NativeLibretroHost.Current.IsRunning)
         {
             ShowOsdToast("Нет активной игры для паузы");
@@ -5982,6 +5930,13 @@ private void LoadBezels()
 
     private void BtnGameReset_Click(object sender, RoutedEventArgs e)
     {
+        if (VulkanD3dEngineBridge.Current.IsRunning)
+        {
+            VulkanD3dEngineBridge.Current.Reset();
+            ShowOsdToast("Игра перезапущена");
+            return;
+        }
+
         if (!NativeLibretroHost.Current.IsRunning)
         {
             ShowOsdToast("Нет активной игры для перезапуска");
@@ -6011,6 +5966,13 @@ private void LoadBezels()
 
     private void BtnGameSaveState_Click(object sender, RoutedEventArgs e)
     {
+        if (VulkanD3dEngineBridge.Current.IsRunning)
+        {
+            VulkanD3dEngineBridge.Current.SaveState();
+            ShowOsdToast("Состояние сохранено (GPU)");
+            return;
+        }
+
         if (!NativeLibretroHost.Current.IsRunning)
         {
             ShowOsdToast("Сначала запустите игру для сохранения стейта");
@@ -6038,6 +6000,13 @@ private void LoadBezels()
 
     private void BtnGameLoadState_Click(object sender, RoutedEventArgs e)
     {
+        if (VulkanD3dEngineBridge.Current.IsRunning)
+        {
+            VulkanD3dEngineBridge.Current.LoadState();
+            ShowOsdToast("Состояние загружено (GPU)");
+            return;
+        }
+
         if (!NativeLibretroHost.Current.IsRunning)
         {
             ShowOsdToast("Сначала запустите игру для загрузки стейта");
@@ -6132,6 +6101,14 @@ private void LoadBezels()
 
     private void BtnGameFastForward_Click(object sender, RoutedEventArgs e)
     {
+        if (VulkanD3dEngineBridge.Current.IsRunning)
+        {
+            VulkanD3dEngineBridge.Current.ToggleFastForward();
+            UpdateInGameHudButtons();
+            ShowOsdToast(VulkanD3dEngineBridge.Current.IsFastForward ? "Ускорение: ВКЛ" : "Ускорение: ВЫКЛ");
+            return;
+        }
+
         if (!NativeLibretroHost.Current.IsRunning)
         {
             ShowOsdToast("Нет запущенной игры");
@@ -6173,6 +6150,13 @@ private void LoadBezels()
 
     private void BtnGameMute_Click(object sender, RoutedEventArgs e)
     {
+        if (VulkanD3dEngineBridge.Current.IsRunning)
+        {
+            VulkanD3dEngineBridge.Current.ToggleMute();
+            UpdateInGameHudButtons();
+            return;
+        }
+
         NativeLibretroHost.Current.ToggleMute();
         UpdateInGameHudButtons();
         ShowOsdToast(NativeLibretroHost.Current.IsAudioMuted ? "Звук отключён" : "Звук включён");
@@ -6187,6 +6171,13 @@ private void LoadBezels()
 
     private void BtnGameScreenshot_Click(object sender, RoutedEventArgs e)
     {
+        if (VulkanD3dEngineBridge.Current.IsRunning)
+        {
+            VulkanD3dEngineBridge.Current.TakeScreenshot();
+            ShowOsdToast("Скриншот сохранён (GPU)");
+            return;
+        }
+
         string ssDir = Path.Combine(CoreManager.AppDir, "screenshots");
         string title = string.IsNullOrWhiteSpace(NativeLibretroHost.Current.CurrentGameTitle) ? "StormRetroArch" : NativeLibretroHost.Current.CurrentGameTitle;
         foreach (char c in Path.GetInvalidFileNameChars()) title = title.Replace(c, '_');
@@ -6307,6 +6298,13 @@ private void LoadBezels()
 
     private void BtnExitGame_Click(object sender, RoutedEventArgs e)
     {
+        if (VulkanD3dEngineBridge.Current.IsRunning)
+        {
+            VulkanD3dEngineBridge.Current.Stop();
+            if (HwEngineGameHost != null) HwEngineGameHost.Visibility = Visibility.Collapsed;
+            if (VbGameStage != null) VbGameStage.Visibility = Visibility.Visible;
+        }
+
         if (_isGameFullscreen) SetFullscreenMode(false);
         if (PnlInGameQuickMenu != null) PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
         NavBtn_Click(NavBtnLibrary, e);

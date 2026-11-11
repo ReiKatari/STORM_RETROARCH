@@ -23,13 +23,21 @@ public record CoreInfo(
     bool SupportsRunAhead = true
 )
 {
+    public string RequiredHwApi { get; set; } = "CPU / OpenGL";
+    public bool RequiresVulkanOrD3D { get; set; }
+    public bool IsExperimental { get; set; }
+    public bool IsAvailableOnBuildbot { get; set; } = true;
+    public string CategoryGroup { get; set; } = "Consoles2D"; // "Recommended", "NextGen3D", "ArcadeMame", "Consoles2D", "Computers", "Experimental"
+    public string HwBadgeText => RequiresVulkanOrD3D ? RequiredHwApi : (RequiredHwApi.Contains("OpenGL", StringComparison.OrdinalIgnoreCase) ? "OpenGL Core" : "CPU / AVX2");
+    public string HwBadgeColor => RequiredHwApi.Contains("Vulkan", StringComparison.OrdinalIgnoreCase) ? "#F43F5E" : (RequiredHwApi.Contains("Direct3D", StringComparison.OrdinalIgnoreCase) || RequiredHwApi.Contains("D3D", StringComparison.OrdinalIgnoreCase) ? "#38BDF8" : (RequiredHwApi.Contains("OpenGL", StringComparison.OrdinalIgnoreCase) ? "#10B981" : "#A78BFA"));
+
     public bool IsInstalled => CoreManager.IsCoreInstalled(DllName);
     public string Version => CoreManager.GetCoreVersion(DllName, CatalogVersion);
     public string VersionBadge => $"Версия {Version}";
     public string FileSizeText => CoreManager.GetCoreSizeFormatted(DllName);
     public string InstalledStatusBadge => IsInstalled ? $"Установлено ({FileSizeText})" : "Не установлено";
     public string ActionLabel => IsInstalled ? "Обновить" : "Установить";
-    public override string ToString() => IsInstalled ? $"{Name} • Установлено ({Version})" : $"{Name} • Доступно ({Version})";
+    public override string ToString() => IsInstalled ? $"{Name} - Установлено ({Version})" : $"{Name} - Доступно ({Version})";
 }
 
 public record CoreBenchmarkResult(
@@ -185,10 +193,108 @@ public static class CoreManager
         InitializeAllCoresFromInfoFiles();
     }
 
+    public static void EnsureCompleteInfoCatalog()
+    {
+        if (!Directory.Exists(InfoDir)) return;
+
+        var standardInfos = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["nicaiemu_libretro.info"] = "# Software Information\n" +
+                "display_name = \"Nintendo - Game Boy / Color (NicaiEmu)\"\n" +
+                "authors = \"Nicai\"\n" +
+                "supported_extensions = \"gb|gbc\"\n" +
+                "corename = \"NicaiEmu\"\n" +
+                "license = \"GPLv2\"\n" +
+                "permissions = \"\"\n" +
+                "display_version = \"v1.0\"\n" +
+                "categories = \"Emulator\"\n\n" +
+                "# Hardware Information\n" +
+                "manufacturer = \"Nintendo\"\n" +
+                "systemname = \"Game Boy / Color\"\n" +
+                "systemid = \"game_boy\"\n\n" +
+                "# Libretro Features\n" +
+                "database = \"Nintendo - Game Boy|Nintendo - Game Boy Color\"\n" +
+                "supports_no_game = \"false\"\n" +
+                "savestate = \"true\"\n" +
+                "cheats = \"false\"\n",
+
+            ["boom3_xp_libretro.info"] = "# Software Information\n" +
+                "display_name = \"Doom 3 (Boom3 XP)\"\n" +
+                "authors = \"id Software|Gabriel Ravier\"\n" +
+                "supported_extensions = \"pk4\"\n" +
+                "corename = \"Boom3 XP\"\n" +
+                "license = \"GPLv3\"\n" +
+                "permissions = \"\"\n" +
+                "display_version = \"v1.0\"\n" +
+                "categories = \"Game\"\n\n" +
+                "# Hardware Information\n" +
+                "manufacturer = \"id Software\"\n" +
+                "systemname = \"Doom 3 Game Engine\"\n" +
+                "systemid = \"doom_3\"\n" +
+                "required_hw_api = \"OpenGL Core >= 3.3\"\n" +
+                "hw_render = \"true\"\n\n" +
+                "# Libretro Features\n" +
+                "supports_no_game = \"false\"\n" +
+                "savestate = \"false\"\n" +
+                "cheats = \"false\"\n",
+
+            ["fbalpha_libretro.info"] = "# Software Information\n" +
+                "display_name = \"Arcade (FB Alpha)\"\n" +
+                "authors = \"Team FB Alpha\"\n" +
+                "supported_extensions = \"zip|7z\"\n" +
+                "corename = \"FinalBurn Alpha\"\n" +
+                "license = \"Non-commercial\"\n" +
+                "permissions = \"\"\n" +
+                "display_version = \"v0.2.97.44\"\n" +
+                "categories = \"Emulator\"\n\n" +
+                "# Hardware Information\n" +
+                "manufacturer = \"Various\"\n" +
+                "systemname = \"Arcade (various)\"\n" +
+                "systemid = \"fb_alpha\"\n\n" +
+                "# Libretro Features\n" +
+                "savestate = \"true\"\n" +
+                "cheats = \"true\"\n" +
+                "supports_no_game = \"false\"\n",
+
+            ["pokketstation_libretro.info"] = "# Software Information\n" +
+                "display_name = \"Sony - PocketStation (PokketStation)\"\n" +
+                "authors = \"Team PokketStation\"\n" +
+                "supported_extensions = \"gme|mcr|bin\"\n" +
+                "corename = \"PokketStation\"\n" +
+                "license = \"GPLv3\"\n" +
+                "permissions = \"\"\n" +
+                "display_version = \"v1.0\"\n" +
+                "categories = \"Emulator\"\n\n" +
+                "# Hardware Information\n" +
+                "manufacturer = \"Sony\"\n" +
+                "systemname = \"PocketStation\"\n" +
+                "systemid = \"pocketstation\"\n\n" +
+                "# Libretro Features\n" +
+                "supports_no_game = \"false\"\n" +
+                "savestate = \"true\"\n" +
+                "cheats = \"false\"\n"
+        };
+
+        foreach (var kvp in standardInfos)
+        {
+            try
+            {
+                string targetPath = Path.Combine(InfoDir, kvp.Key);
+                if (!File.Exists(targetPath))
+                {
+                    File.WriteAllText(targetPath, kvp.Value);
+                }
+            }
+            catch { }
+        }
+    }
+
     private static void InitializeAllCoresFromInfoFiles()
     {
         _allCoresCatalog.Clear();
         _extensionToCoreMap.Clear();
+
+        EnsureCompleteInfoCatalog();
 
         // 1. Add Golden Cores first so they have top priority
         foreach (var gc in GoldenCores)
@@ -218,11 +324,73 @@ public static class CoreManager
                     string manufacturer = ExtractField(content, "manufacturer") ?? "Universal";
                     string extensions = ExtractField(content, "supported_extensions") ?? "";
                     string displayVer = ExtractField(content, "display_version") ?? "";
+                    string reqHw = ExtractField(content, "required_hw_api") ?? "";
+                    string hwRender = ExtractField(content, "hw_render") ?? "";
+                    string expVal = ExtractField(content, "experimental") ?? "";
+
+                    bool isExp = expVal.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    string hwApi = "CPU / AVX2";
+                    bool reqVulkanD3D = false;
+
+                    if (!string.IsNullOrWhiteSpace(reqHw))
+                    {
+                        hwApi = reqHw;
+                        if (reqHw.Contains("Vulkan", StringComparison.OrdinalIgnoreCase) ||
+                            reqHw.Contains("Direct3D", StringComparison.OrdinalIgnoreCase) ||
+                            reqHw.Contains("D3D", StringComparison.OrdinalIgnoreCase))
+                        {
+                            reqVulkanD3D = true;
+                        }
+                    }
+                    else if (hwRender.Equals("true", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hwApi = "OpenGL Core";
+                    }
+
+                    string group = "Consoles2D";
+                    if (isExp)
+                    {
+                        group = "Experimental";
+                    }
+                    else if (reqVulkanD3D || hwApi.Contains("Vulkan", StringComparison.OrdinalIgnoreCase) ||
+                             systemName.Contains("PlayStation 2", StringComparison.OrdinalIgnoreCase) ||
+                             systemName.Contains("PlayStation 3", StringComparison.OrdinalIgnoreCase) ||
+                             systemName.Contains("PlayStation Vita", StringComparison.OrdinalIgnoreCase) ||
+                             systemName.Contains("GameCube", StringComparison.OrdinalIgnoreCase) ||
+                             systemName.Contains("Wii", StringComparison.OrdinalIgnoreCase) ||
+                             systemName.Contains("3DS", StringComparison.OrdinalIgnoreCase) ||
+                             systemName.Contains("Xbox", StringComparison.OrdinalIgnoreCase) ||
+                             systemName.Contains("Dreamcast", StringComparison.OrdinalIgnoreCase) ||
+                             systemName.Contains("Saturn", StringComparison.OrdinalIgnoreCase))
+                    {
+                        group = "NextGen3D";
+                    }
+                    else if (manufacturer.Equals("Arcade", StringComparison.OrdinalIgnoreCase) ||
+                             systemName.Contains("Arcade", StringComparison.OrdinalIgnoreCase) ||
+                             coreName.Contains("mame", StringComparison.OrdinalIgnoreCase) ||
+                             coreName.Contains("fbneo", StringComparison.OrdinalIgnoreCase))
+                    {
+                        group = "ArcadeMame";
+                    }
+                    else if (manufacturer.Contains("Commodore", StringComparison.OrdinalIgnoreCase) ||
+                             manufacturer.Contains("Atari", StringComparison.OrdinalIgnoreCase) ||
+                             systemName.Contains("PC", StringComparison.OrdinalIgnoreCase) ||
+                             systemName.Contains("DOS", StringComparison.OrdinalIgnoreCase) ||
+                             systemName.Contains("Amiga", StringComparison.OrdinalIgnoreCase))
+                    {
+                        group = "Computers";
+                    }
 
                     string desc = $"Официальное ядро Libretro: {displayName} ({systemName}).";
                     if (!string.IsNullOrEmpty(extensions)) desc += $" Форматы: {extensions}";
 
-                    var core = new CoreInfo(displayName, systemName, expectedDll, desc, manufacturer, extensions, displayVer);
+                    var core = new CoreInfo(displayName, systemName, expectedDll, desc, manufacturer, extensions, displayVer)
+                    {
+                        RequiredHwApi = hwApi,
+                        RequiresVulkanOrD3D = reqVulkanD3D,
+                        IsExperimental = isExp,
+                        CategoryGroup = group
+                    };
                     _allCoresCatalog.Add(core);
 
                     // Map extensions
@@ -252,31 +420,207 @@ public static class CoreManager
 
     public static readonly List<CoreInfo> GoldenCores = new()
     {
-        new("Snes9x", "Super Nintendo (SNES)", "snes9x_libretro.dll", "Высокоточный и быстрый эмулятор SNES / Super Famicom", "Nintendo", "smc|sfc|fig|swc", "", "Точный цикл", true),
-        new("Genesis Plus GX", "Sega Genesis / Mega Drive", "genesis_plus_gx_libretro.dll", "Идеальная эмуляция Mega Drive, Master System, Game Gear", "Sega", "md|gen|smd|sms|gg|sg", "", "Точный цикл", true),
-        new("SwanStation", "Sony PlayStation 1", "swanstation_libretro.dll", "Ультра-производительный PS1 эмулятор с поддержкой PGXP и апскейла", "Sony", "cue|chd|pbp|iso|bin|m3u", "", "JIT Dynarec", true),
-        new("FCEUmm", "Nintendo Entertainment System", "fceumm_libretro.dll", "Современный эмулятор NES / Famicom / Dendy с поддержкой мапперов", "Nintendo", "nes|fds|unf|unif", "", "Точный цикл", true),
-        new("mGBA", "Game Boy Advance", "mgba_libretro.dll", "Быстрый и точный эмулятор GBA, GBC и классического Game Boy", "Nintendo", "gba|gb|gbc", "", "JIT Dynarec", true),
-        new("melonDS DS", "Nintendo DS / DSi", "melondsds_libretro.dll", "Превосходная эмуляция Nintendo DS и DSi с сенсорным экраном", "Nintendo", "nds|dsi", "", "JIT Dynarec", true),
-        new("Mupen64Plus-Next", "Nintendo 64", "mupen64plus_next_libretro.dll", "Мощный эмулятор N64 с плагинами GLideN64 и ParaLLEl RDP", "Nintendo", "n64|v64|z64", "", "JIT Dynarec", true),
-        new("PPSSPP", "Sony PlayStation Portable", "ppsspp_libretro.dll", "Быстрая эмуляция PSP с HD текстурами и шейдерами", "Sony", "iso|cso|pbp", "", "JIT Dynarec", false),
-        new("Flycast", "Sega Dreamcast / NAOMI", "flycast_libretro.dll", "Современный мультиплатформенный эмулятор Dreamcast и NAOMI", "Sega", "cdi|gdi|chd|cue", "", "JIT Dynarec", false),
-        new("Beetle Saturn", "Sega Saturn", "mednafen_saturn_libretro.dll", "Точнейшая потактовая эмуляция архитектуры Sega Saturn", "Sega", "cue|ccd|chd|toc|m3u", "", "Точный цикл", true),
-        new("FBNeo", "Arcade / Neo Geo", "fbneo_libretro.dll", "Флагманский эмулятор аркадных автоматов, Neo Geo и CPS-1/2/3", "Arcade", "zip|7z", "", "Точный цикл", true),
-        new("DOSBox-Pure", "MS-DOS PC", "dosbox_pure_libretro.dll", "Запуск классических игр MS-DOS прямо из ZIP-архивов с геймпадом", "PC / DOS", "zip|dosz|exe|com|bat|iso", "", "JIT Dynarec", true),
-        new("Beetle PCE Fast", "PC Engine / TurboGrafx-16", "mednafen_pce_fast_libretro.dll", "Быстрый эмулятор PC Engine HuCard и CD-ROM", "NEC", "pce|sgx|cue|ccd|chd", "", "Точный цикл", true),
-        new("Stella", "Atari 2600", "stella_libretro.dll", "Эталонный эмулятор классической приставки Atari 2600 VCS", "Atari", "a26|bin", "", "Точный цикл", true),
-        new("Handy", "Atari Lynx", "handy_libretro.dll", "Эмулятор портативной консоли Atari Lynx", "Atari", "lnx", "", "Точный цикл", true),
-        new("Beetle NeoPop", "Neo Geo Pocket", "mednafen_ngp_libretro.dll", "Эмулятор Neo Geo Pocket и Pocket Color", "SNK", "ngp|ngc", "", "Точный цикл", true),
-        new("Beetle WonderSwan", "Bandai WonderSwan", "mednafen_wswan_libretro.dll", "Эмулятор портативной консоли WonderSwan / Color", "Bandai", "ws|wsc", "", "Точный цикл", true),
-        new("Citra", "Nintendo 3DS", "citra_libretro.dll", "Эмулятор Nintendo 3DS с апскейлом геометрии", "Nintendo", "3ds|3dsx|elf|cci|cxi", "", "JIT Dynarec", false),
-        new("Dolphin", "Nintendo GameCube / Wii", "dolphin_libretro.dll", "Флагманский эмулятор GameCube и Wii с высокой кадровой частотой", "Nintendo", "gcm|iso|wbfs|rvz|cso|wad", "", "JIT Dynarec", false),
-        new("Gambatte", "Game Boy / Color", "gambatte_libretro.dll", "Потактово точный эмулятор оригинального Game Boy", "Nintendo", "gb|gbc|dmg", "", "Точный цикл", true),
-        new("Picodrive", "Sega 32X / Sega CD", "picodrive_libretro.dll", "Оптимизированный эмулятор Sega 32X, Mega-CD и Genesis", "Sega", "bin|gen|smd|md|32x|cue|iso", "", "JIT Dynarec", true),
-        new("VBA-M", "Game Boy Advance", "vbam_libretro.dll", "Продвинутый эмулятор Game Boy Advance с отладкой", "Nintendo", "gba|gb|gbc", "", "Точный цикл", true),
-        new("PCSX-ReARMed", "Sony PlayStation 1", "pcsx_rearmed_libretro.dll", "Быстрый эмулятор PS1 для систем любого уровня", "Sony", "bin|cue|img|mdf|pbp|cbn|chd", "", "JIT Dynarec", true),
-        new("Beetle PSX HW", "Sony PlayStation 1 (Vulkan)", "mednafen_psx_hw_libretro.dll", "Аппаратно-ускоренный PS1 с Vulkan/OpenGL рендером", "Sony", "cue|ccd|chd|toc|m3u|pbp", "", "Vulkan HW", false),
+        // === SONY NEXT-GEN & CLASSICS ===
+        new("LRPS2", "Sony PlayStation 2", "pcsx2_libretro.dll", "Флагманский эмулятор PlayStation 2 на базе PCSX2", "Sony", "elf|iso|ciso|cue|bin|gz|chd|cso|zso|mdf|nrg|dump|img|m3u", "", "JIT Dynarec", false)
+        {
+            RequiredHwApi = "Direct3D 11 / OpenGL Core",
+            RequiresVulkanOrD3D = true,
+            CategoryGroup = "NextGen3D"
+        },
+        new("Play!", "Sony PlayStation 2", "play_libretro.dll", "Независимый открытый эмулятор PlayStation 2 без обязательного BIOS", "Sony", "iso|cso|elf|bin", "", "JIT Dynarec", false)
+        {
+            RequiredHwApi = "Vulkan / OpenGL Core",
+            RequiresVulkanOrD3D = true,
+            CategoryGroup = "NextGen3D"
+        },
+        new("PCEE2", "Sony PlayStation 2 (Exp)", "pcee2_libretro.dll", "Экспериментальное высокоскоростное ядро PlayStation 2", "Sony", "iso|cso|bin|elf", "", "JIT Dynarec", false)
+        {
+            RequiredHwApi = "Vulkan / OpenGL",
+            RequiresVulkanOrD3D = true,
+            IsExperimental = true,
+            CategoryGroup = "Experimental"
+        },
+        new("RPCS3", "Sony PlayStation 3", "rpcs3_libretro.dll", "Флагманский эмулятор PlayStation 3 с поддержкой Cell SPUs", "Sony", "pkg|elf|bin|iso", "", "LLVM / JIT", false)
+        {
+            RequiredHwApi = "Vulkan / OpenGL 4.5",
+            RequiresVulkanOrD3D = true,
+            CategoryGroup = "NextGen3D"
+        },
+        new("Vita3K", "Sony PlayStation Vita", "vita3k_libretro.dll", "Первый функциональный эмулятор PS Vita с поддержкой коммерческих игр", "Sony", "vpk|zip|pkg", "", "JIT Dynarec", false)
+        {
+            RequiredHwApi = "Vulkan 1.1+",
+            RequiresVulkanOrD3D = true,
+            CategoryGroup = "NextGen3D"
+        },
+        new("PPSSPP", "Sony PlayStation Portable", "ppsspp_libretro.dll", "Быстрая эмуляция PSP с HD текстурами и шейдерами", "Sony", "iso|cso|pbp", "", "JIT Dynarec", false)
+        {
+            RequiredHwApi = "Vulkan / D3D11 / OpenGL",
+            RequiresVulkanOrD3D = true,
+            CategoryGroup = "NextGen3D"
+        },
+        new("SwanStation", "Sony PlayStation 1", "swanstation_libretro.dll", "Ультра-производительный PS1 эмулятор с поддержкой PGXP и апскейла", "Sony", "cue|chd|pbp|iso|bin|m3u", "", "JIT Dynarec", true)
+        {
+            RequiredHwApi = "Vulkan / D3D11 / OpenGL",
+            RequiresVulkanOrD3D = true,
+            CategoryGroup = "NextGen3D"
+        },
+        new("PCSX-ReARMed", "Sony PlayStation 1", "pcsx_rearmed_libretro.dll", "Быстрый эмулятор PS1 для систем любого уровня", "Sony", "bin|cue|img|mdf|pbp|cbn|chd", "", "JIT Dynarec", true)
+        {
+            RequiredHwApi = "CPU / OpenGL",
+            CategoryGroup = "Recommended"
+        },
+        new("Beetle PSX HW", "Sony PlayStation 1 (Vulkan)", "mednafen_psx_hw_libretro.dll", "Аппаратно-ускоренный PS1 с Vulkan/OpenGL рендером", "Sony", "cue|ccd|chd|toc|m3u|pbp", "", "Vulkan HW", false)
+        {
+            RequiredHwApi = "Vulkan / OpenGL Core",
+            RequiresVulkanOrD3D = true,
+            CategoryGroup = "NextGen3D"
+        },
+
+        // === NINTENDO NEXT-GEN & CLASSICS ===
+        new("Dolphin", "Nintendo GameCube / Wii", "dolphin_libretro.dll", "Флагманский эмулятор GameCube и Wii с высокой кадровой частотой", "Nintendo", "gcm|iso|wbfs|rvz|cso|wad", "", "JIT Dynarec", false)
+        {
+            RequiredHwApi = "Vulkan / D3D11 / D3D12",
+            RequiresVulkanOrD3D = true,
+            CategoryGroup = "NextGen3D"
+        },
+        new("Cemu", "Nintendo Wii U", "cemu_libretro.dll", "Высокоточный эмулятор Nintendo Wii U с поддержкой графических паков", "Nintendo", "wua|wud|wux|rpx|elf", "", "JIT Dynarec", false)
+        {
+            RequiredHwApi = "Vulkan",
+            RequiresVulkanOrD3D = true,
+            CategoryGroup = "NextGen3D"
+        },
+        new("Azahar", "Nintendo 3DS", "azahar_libretro.dll", "Современное оптимизированное ядро Nintendo 3DS с поддержкой шейдеров", "Nintendo", "3ds|3dsx|cci|cxi", "", "JIT Dynarec", false)
+        {
+            RequiredHwApi = "Vulkan / OpenGL Core",
+            RequiresVulkanOrD3D = true,
+            CategoryGroup = "NextGen3D"
+        },
+        new("Citra", "Nintendo 3DS", "citra_libretro.dll", "Эмулятор Nintendo 3DS с апскейлом геометрии", "Nintendo", "3ds|3dsx|elf|cci|cxi", "", "JIT Dynarec", false)
+        {
+            RequiredHwApi = "OpenGL Core",
+            CategoryGroup = "NextGen3D"
+        },
+        new("Panda3DS", "Nintendo 3DS (Exp)", "panda3ds_libretro.dll", "Новый экспериментальный эмулятор Nintendo 3DS с чистой архитектурой", "Nintendo", "3ds|3dsx|cci|cxi|elf", "", "Интерпретатор / JIT", false)
+        {
+            RequiredHwApi = "Vulkan / OpenGL",
+            RequiresVulkanOrD3D = true,
+            IsExperimental = true,
+            CategoryGroup = "Experimental"
+        },
+        new("Snes9x", "Super Nintendo (SNES)", "snes9x_libretro.dll", "Высокоточный и быстрый эмулятор SNES / Super Famicom", "Nintendo", "smc|sfc|fig|swc", "", "Точный цикл", true)
+        {
+            CategoryGroup = "Recommended"
+        },
+        new("FCEUmm", "Nintendo Entertainment System", "fceumm_libretro.dll", "Современный эмулятор NES / Famicom / Dendy с поддержкой мапперов", "Nintendo", "nes|fds|unf|unif", "", "Точный цикл", true)
+        {
+            CategoryGroup = "Recommended"
+        },
+        new("mGBA", "Game Boy Advance", "mgba_libretro.dll", "Быстрый и точный эмулятор GBA, GBC и классического Game Boy", "Nintendo", "gba|gb|gbc", "", "JIT Dynarec", true)
+        {
+            CategoryGroup = "Recommended"
+        },
+        new("melonDS DS", "Nintendo DS / DSi", "melondsds_libretro.dll", "Превосходная эмуляция Nintendo DS и DSi с сенсорным экраном", "Nintendo", "nds|dsi", "", "JIT Dynarec", true)
+        {
+            CategoryGroup = "Recommended"
+        },
+        new("Mupen64Plus-Next", "Nintendo 64", "mupen64plus_next_libretro.dll", "Мощный эмулятор N64 с плагинами GLideN64 и ParaLLEl RDP", "Nintendo", "n64|v64|z64", "", "JIT Dynarec", true)
+        {
+            RequiredHwApi = "OpenGL Core / Vulkan",
+            RequiresVulkanOrD3D = true,
+            CategoryGroup = "NextGen3D"
+        },
+        new("Gambatte", "Game Boy / Color", "gambatte_libretro.dll", "Потактово точный эмулятор оригинального Game Boy", "Nintendo", "gb|gbc|dmg", "", "Точный цикл", true)
+        {
+            CategoryGroup = "Recommended"
+        },
+        new("VBA-M", "Game Boy Advance", "vbam_libretro.dll", "Продвинутый эмулятор Game Boy Advance с отладкой", "Nintendo", "gba|gb|gbc", "", "Точный цикл", true)
+        {
+            CategoryGroup = "Consoles2D"
+        },
+
+        // === MICROSOFT XBOX ===
+        new("xemu", "Original Xbox", "xemu_libretro.dll", "Низкоуровневый эмулятор оригинального Microsoft Xbox с поддержкой NV2A", "Microsoft", "iso|xiso", "", "JIT Dynarec", false)
+        {
+            RequiredHwApi = "OpenGL Core / Vulkan",
+            RequiresVulkanOrD3D = true,
+            CategoryGroup = "NextGen3D"
+        },
+        new("Xenia Edge", "Microsoft Xbox 360 (Exp)", "xenia_edge_libretro.dll", "Экспериментальный эмулятор Xbox 360 с поддержкой трансляции DirectX 12", "Microsoft", "iso|xex", "", "JIT Dynarec", false)
+        {
+            RequiredHwApi = "Vulkan / D3D12",
+            RequiresVulkanOrD3D = true,
+            IsExperimental = true,
+            CategoryGroup = "Experimental"
+        },
+
+        // === SEGA NEXT-GEN & CLASSICS ===
+        new("Flycast", "Sega Dreamcast / NAOMI / Atomiswave", "flycast_libretro.dll", "Современный мультиплатформенный эмулятор Dreamcast, NAOMI и Atomiswave", "Sega", "cdi|gdi|chd|cue|zip", "", "JIT Dynarec", false)
+        {
+            RequiredHwApi = "Vulkan / OpenGL Core",
+            RequiresVulkanOrD3D = true,
+            CategoryGroup = "NextGen3D"
+        },
+        new("Kronos", "Sega Saturn / ST-V", "kronos_libretro.dll", "Аппаратно-ускоренный эмулятор Sega Saturn и аркад ST-V через OpenGL", "Sega", "cue|iso|chd|zip", "", "JIT Dynarec", false)
+        {
+            RequiredHwApi = "OpenGL Core",
+            CategoryGroup = "NextGen3D"
+        },
+        new("Genesis Plus GX", "Sega Genesis / Mega Drive", "genesis_plus_gx_libretro.dll", "Идеальная эмуляция Mega Drive, Master System, Game Gear", "Sega", "md|gen|smd|sms|gg|sg", "", "Точный цикл", true)
+        {
+            CategoryGroup = "Recommended"
+        },
+        new("Beetle Saturn", "Sega Saturn", "mednafen_saturn_libretro.dll", "Точнейшая потактовая эмуляция архитектуры Sega Saturn", "Sega", "cue|ccd|chd|toc|m3u", "", "Точный цикл", true)
+        {
+            CategoryGroup = "Recommended"
+        },
+        new("Picodrive", "Sega 32X / Sega CD", "picodrive_libretro.dll", "Оптимизированный эмулятор Sega 32X, Mega-CD и Genesis", "Sega", "bin|gen|smd|md|32x|cue|iso", "", "JIT Dynarec", true)
+        {
+            CategoryGroup = "Consoles2D"
+        },
+
+        // === ARCADE & OTHERS ===
+        new("MAME Current", "Arcade Classics / MAME", "mame_libretro.dll", "Современный актуальный эмулятор аркадных автоматов MAME со всеми драйверами", "Arcade", "zip|7z|chd", "", "Точный цикл", false)
+        {
+            RequiredHwApi = "OpenGL Core",
+            CategoryGroup = "ArcadeMame"
+        },
+        new("FBNeo", "Arcade / Neo Geo", "fbneo_libretro.dll", "Флагманский эмулятор аркадных автоматов, Neo Geo и CPS-1/2/3", "Arcade", "zip|7z", "", "Точный цикл", true)
+        {
+            CategoryGroup = "ArcadeMame"
+        },
+        new("Supermodel", "Sega Model 3", "supermodel_libretro.dll", "Аппаратный эмулятор аркадной платформы Sega Model 3 (Step 1.0 - 2.1)", "Sega", "zip|7z", "", "JIT Dynarec", false)
+        {
+            RequiredHwApi = "OpenGL Core",
+            CategoryGroup = "ArcadeMame"
+        },
         new("MAME 2003-Plus", "Arcade Classics", "mame2003_plus_libretro.dll", "Классический аркадный движок с сотнями исправлений", "Arcade", "zip", "", "Точный цикл", true)
+        {
+            CategoryGroup = "ArcadeMame"
+        },
+        new("DOSBox-Pure", "MS-DOS PC", "dosbox_pure_libretro.dll", "Запуск классических игр MS-DOS прямо из ZIP-архивов с геймпадом", "PC / DOS", "zip|dosz|exe|com|bat|iso", "", "JIT Dynarec", true)
+        {
+            CategoryGroup = "Computers"
+        },
+        new("Beetle PCE Fast", "PC Engine / TurboGrafx-16", "mednafen_pce_fast_libretro.dll", "Быстрый эмулятор PC Engine HuCard и CD-ROM", "NEC", "pce|sgx|cue|ccd|chd", "", "Точный цикл", true)
+        {
+            CategoryGroup = "Recommended"
+        },
+        new("Stella", "Atari 2600", "stella_libretro.dll", "Эталонный эмулятор классической приставки Atari 2600 VCS", "Atari", "a26|bin", "", "Точный цикл", true)
+        {
+            CategoryGroup = "Consoles2D"
+        },
+        new("Handy", "Atari Lynx", "handy_libretro.dll", "Эмулятор портативной консоли Atari Lynx", "Atari", "lnx", "", "Точный цикл", true)
+        {
+            CategoryGroup = "Consoles2D"
+        },
+        new("Beetle NeoPop", "Neo Geo Pocket", "mednafen_ngp_libretro.dll", "Эмулятор Neo Geo Pocket и Pocket Color", "SNK", "ngp|ngc", "", "Точный цикл", true)
+        {
+            CategoryGroup = "Consoles2D"
+        },
+        new("Beetle WonderSwan", "Bandai WonderSwan", "mednafen_wswan_libretro.dll", "Эмулятор портативной консоли WonderSwan / Color", "Bandai", "ws|wsc", "", "Точный цикл", true)
+        {
+            CategoryGroup = "Consoles2D"
+        }
     };
 
     public static List<CoreInfo> AllCoresCatalog => _allCoresCatalog;
@@ -459,6 +803,21 @@ public static class CoreManager
 
     public static (string Platform, string CoreDll, string CoreName) IdentifyRom(string filePath)
     {
+        if (string.IsNullOrWhiteSpace(filePath))
+            return ("Неизвестная платформа", "fceumm_libretro.dll", "FCEUmm");
+
+        // 0. Binary header & container signature scanning for accurate disambiguation
+        try
+        {
+            var sig = RomSignatureDetector.Detect(filePath);
+            if (sig != null && !string.IsNullOrEmpty(sig.PreferredCoreDll))
+            {
+                string coreName = GetCoreDisplayNameByDll(sig.PreferredCoreDll);
+                return ApplyUserCoreOverrides(filePath, sig.PlatformName, sig.PreferredCoreDll, coreName);
+            }
+        }
+        catch { }
+
         string ext = Path.GetExtension(filePath).ToLowerInvariant();
 
         // 1. Smart ZIP inspection
@@ -749,6 +1108,164 @@ public static class CoreManager
         }
 
         return ("Неизвестная платформа", "fbneo_libretro.dll", "Libretro Core");
+    }
+
+    public static async Task<bool> EnsureCoreDownloadedWithProgressAsync(
+        string dllName,
+        Action<string, double>? onProgress = null,
+        System.Threading.CancellationToken ct = default)
+    {
+        string targetDllPath = Path.Combine(CoresDir, dllName);
+        if (File.Exists(targetDllPath))
+        {
+            onProgress?.Invoke("Ядро уже установлено", 100.0);
+            return true;
+        }
+
+        string zipName = dllName + ".zip";
+        string url = BuildbotBaseUrl + zipName;
+        string tempZip = Path.Combine(DownloadsDir, zipName);
+
+        try
+        {
+            if (!Directory.Exists(DownloadsDir)) Directory.CreateDirectory(DownloadsDir);
+            if (!Directory.Exists(CoresDir)) Directory.CreateDirectory(CoresDir);
+
+            using var http = new HttpClient();
+            http.Timeout = TimeSpan.FromMinutes(5);
+
+            onProgress?.Invoke($"Подключение к Libretro Buildbot ({zipName})...", 5.0);
+
+            using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                onProgress?.Invoke($"Ошибка загрузки: HTTP {response.StatusCode}", 0.0);
+                return false;
+            }
+
+            long totalBytes = response.Content.Headers.ContentLength ?? -1;
+            using var contentStream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+            using var fileStream = new FileStream(tempZip, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+
+            byte[] buffer = new byte[81920];
+            long totalRead = 0;
+            int bytesRead;
+
+            while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length, ct).ConfigureAwait(false)) > 0)
+            {
+                await fileStream.WriteAsync(buffer, 0, bytesRead, ct).ConfigureAwait(false);
+                totalRead += bytesRead;
+
+                if (totalBytes > 0)
+                {
+                    double pct = Math.Min(90.0, (double)totalRead / totalBytes * 90.0);
+                    onProgress?.Invoke($"Загрузка {totalRead / 1024} КБ / {totalBytes / 1024} КБ...", pct);
+                }
+                else
+                {
+                    onProgress?.Invoke($"Загрузка {totalRead / 1024} КБ...", 50.0);
+                }
+            }
+
+            fileStream.Close();
+            onProgress?.Invoke("Распаковка библиотеки ядра...", 92.0);
+
+            await Task.Run(() =>
+            {
+                var prevPriority = System.Threading.Thread.CurrentThread.Priority;
+                try
+                {
+                    System.Threading.Thread.CurrentThread.Priority = System.Threading.ThreadPriority.BelowNormal;
+                    using var archive = ZipFile.OpenRead(tempZip);
+                    foreach (var entry in archive.Entries)
+                    {
+                        if (entry.Name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                        {
+                            string outPath = Path.Combine(CoresDir, entry.Name);
+                            entry.ExtractToFile(outPath, overwrite: true);
+                        }
+                    }
+                }
+                finally
+                {
+                    System.Threading.Thread.CurrentThread.Priority = prevPriority;
+                }
+            }, ct).ConfigureAwait(false);
+
+            try { File.Delete(tempZip); } catch { }
+
+            RefreshCoresCache(force: true);
+            onProgress?.Invoke("Установка успешно завершена!", 100.0);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            try { if (File.Exists(tempZip)) File.Delete(tempZip); } catch { }
+            onProgress?.Invoke("Загрузка отменена", 0.0);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            try { if (File.Exists(tempZip)) File.Delete(tempZip); } catch { }
+            onProgress?.Invoke($"Сбой установки ядра: {ex.Message}", 0.0);
+            return false;
+        }
+    }
+
+    public static async Task<int> RefreshBuildbotAvailabilityAsync()
+    {
+        try
+        {
+            using var http = new HttpClient();
+            http.Timeout = TimeSpan.FromSeconds(30);
+
+            string html = await http.GetStringAsync(BuildbotBaseUrl).ConfigureAwait(false);
+            var matches = Regex.Matches(html, "href=\"([^\"]+?_libretro\\.dll\\.zip)\"", RegexOptions.IgnoreCase);
+
+            var availableSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (Match m in matches)
+            {
+                string fn = m.Groups[1].Value.Trim();
+                availableSet.Add(fn);
+                if (fn.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                {
+                    availableSet.Add(fn.Substring(0, fn.Length - 4));
+                }
+            }
+
+            int count = 0;
+            foreach (var core in _allCoresCatalog)
+            {
+                bool avail = availableSet.Contains(core.DllName + ".zip") || availableSet.Contains(core.DllName);
+                core.IsAvailableOnBuildbot = avail;
+                if (avail) count++;
+            }
+
+            return count;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    public static (string Platform, string CoreDll, string CoreName) GetBestCoreForRom(string romPath)
+    {
+        if (string.IsNullOrWhiteSpace(romPath))
+            return ("Неизвестная платформа", "fceumm_libretro.dll", "FCEUmm");
+
+        try
+        {
+            var sig = RomSignatureDetector.Detect(romPath);
+            if (sig != null && !string.IsNullOrEmpty(sig.PreferredCoreDll))
+            {
+                string coreName = GetCoreDisplayNameByDll(sig.PreferredCoreDll);
+                return ApplyUserCoreOverrides(romPath, sig.PlatformName, sig.PreferredCoreDll, coreName);
+            }
+        }
+        catch { }
+
+        return IdentifyRom(romPath);
     }
 
     public static async Task<bool> EnsureCoreDownloadedAsync(string dllName)

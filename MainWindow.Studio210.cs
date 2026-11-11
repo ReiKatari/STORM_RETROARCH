@@ -17,7 +17,7 @@ namespace StormRetroArch;
 
 /// <summary>
 /// Phase 2 Modular UI, Unified Multi-Device & Hotkey Studio, Ergonomic HUD,
-/// Controller Overlay, Frozen Brush Cache and Startup Optimizations for STORM RETROARCH 2.1.0.
+/// Controller Overlay, Frozen Brush Cache and Startup Optimizations for STORM RETROARCH 2.2.0.
 /// </summary>
 public partial class MainWindow
 {
@@ -55,7 +55,7 @@ public partial class MainWindow
         });
     }
 
-    // ==================== 2. PHASE 2.1.0 STATE & FIELDS ====================
+    // ==================== 2. PHASE 2.2.0 STATE & FIELDS ====================
     private readonly DispatcherTimer _hotplugToastTimer = new();
     private readonly DispatcherTimer _physicalCaptureTimer = new();
 

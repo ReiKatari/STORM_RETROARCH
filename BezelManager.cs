@@ -19,6 +19,9 @@ public class BezelPresetItem : INotifyPropertyChanged
     public string Description { get; set; } = "";
     public string CfgPath { get; set; } = "";
     public string ImagePath { get; set; } = "";
+    public string SlangpPath { get; set; } = "";
+    public string PackSource { get; set; } = "STORM Studio";
+    public string DeviceImagePath { get; set; } = "";
     public string IconPathData { get; set; } = "M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z";
     public string IconColor { get; set; } = "#38BDF8";
     public string AspectRatio { get; set; } = "4:3 ЭЛТ";
@@ -150,7 +153,17 @@ public static class BezelManager
         new("Commodore_1084S", "Commodore 1084S", "Commodore Amiga / C64", "", "Легендарный цветной монитор Commodore 1084S для Amiga и Commodore 64", "#202026", "#F59E0B"),
         new("PC_Engine_Core", "PC Engine", "PC Engine / TurboGrafx-16", "", "Компактный японский дизайн консоли PC Engine HuCard с неоново-розовым акцентом", "#181922", "#EC4899"),
         new("Neo_Geo_MVS_Cabinet", "Neo Geo MVS", "SNK Neo Geo", "", "Легендарный аркадный кабинет Neo Geo MVS 100 Mega Shock в тёмно-красных тонах", "#181014", "#DC2626"),
-        new("Atari_Woodgrain", "Atari Woodgrain", "Atari 2600 / 7800", "", "Аутентичная отделка под ореховое дерево классической консоли Atari 2600", "#261914", "#D97706")
+        new("Atari_Woodgrain", "Atari Woodgrain", "Atari 2600 / 7800", "", "Аутентичная отделка под ореховое дерево классической консоли Atari 2600", "#261914", "#D97706"),
+        new("STORM_Universal_Bezel", "Универсальная рамка STORM 4:3 / 16:9", "Универсальная STORM", "", "Универсальная адаптивная экранная рамка STORM для всех 358 ядер", "#0D0B18", "#38BDF8"),
+        new("Sony_PlayStation_2", "PlayStation 2", "Sony PlayStation 2", "", "Стильный глубокий синий монолит оригинальной консоли Sony PlayStation 2", "#0B1020", "#2563EB"),
+        new("Sony_PlayStation_3", "PlayStation 3", "Sony PlayStation 3", "", "Элегантный глянцевый чёрный корпус PlayStation 3 с хромированной окантовкой", "#0F0F14", "#94A3B8"),
+        new("Sony_PlayStation_Vita", "PS Vita", "Sony PlayStation Vita", "", "Глубокая тёмная рамка OLED-экрана PS Vita с бирюзовым индикатором PS", "#10141D", "#06B6D4"),
+        new("Sony_PSP_Street", "PSP", "Sony PlayStation Portable", "", "Широкоэкранная рамка PSP со стальным матовым обрамлением", "#16161C", "#64748B"),
+        new("Nintendo_GameCube_Wii", "GameCube / Wii", "Nintendo GameCube / Wii", "", "Кубический индиго-дизайн GameCube с бирюзово-белым акцентом Wii", "#181628", "#818CF8"),
+        new("Nintendo_3DS_Dual", "Nintendo 3DS", "Nintendo 3DS", "", "Глубокая космическая чёрная рамка портативной консоли Nintendo 3DS", "#14151C", "#EC4899"),
+        new("Microsoft_Xbox_Original", "Xbox", "Microsoft Xbox", "", "Мощная чёрная текстурированная рамка Xbox с ядовито-зелёным сиянием X-ядра", "#0E1810", "#22C55E"),
+        new("Arcade_MAME_Retro", "Arcade / MAME", "Аркадные автоматы MAME", "", "Профессиональный аркадный кабинет с неоновыми боковыми панелями", "#141118", "#F43F5E"),
+        new("MS_DOS_CRT_Amber", "MS-DOS CRT", "MS-DOS PC", "", "Аутентичный тёмный монитор MS-DOS с антибликовым стеклом и янтарной индикацией", "#121418", "#F59E0B")
     };
 
     static BezelManager()
@@ -320,13 +333,33 @@ public static class BezelManager
         }
         catch { }
 
-        // Put built-in studio templates first in exact order, followed by custom bezels
+        // Integrate installed Mega Bezel & Duimon packs
+            try
+            {
+                var megaPresets = MegaBezelPackManager.ScanInstalledPresets();
+                string activeSlangp = SettingsManager.Current.ActiveMegaBezelSlangp;
+                foreach (var mp in megaPresets)
+                {
+                    if (!string.IsNullOrEmpty(activeSlangp) &&
+                        string.Equals(mp.SlangpPath, activeSlangp, StringComparison.OrdinalIgnoreCase))
+                    {
+                        mp.IsActive = true;
+                    }
+                    list.Add(mp);
+                }
+            }
+            catch { }
+
+            // Put built-in studio templates first in exact order, followed by Mega Bezel presets and custom bezels
             var sorted = list
                 .OrderBy(b =>
                 {
                     int idx = BuiltinTemplates.FindIndex(t => t.Name.Equals(b.Name, StringComparison.OrdinalIgnoreCase));
-                    return idx >= 0 ? idx : 1000;
+                    if (idx >= 0) return idx;
+                    if (!string.IsNullOrEmpty(b.SlangpPath)) return 500;
+                    return 1000;
                 })
+                .ThenBy(b => b.Platform)
                 .ThenBy(b => b.Name)
                 .ToList();
 
@@ -346,10 +379,85 @@ public static class BezelManager
         }
     }
 
+    public static string EnsureRetroArchOverlayCfg(BezelPresetItem item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.CfgPath) && File.Exists(item.CfgPath))
+            return item.CfgPath;
+
+        if (string.IsNullOrWhiteSpace(item.ImagePath) || !File.Exists(item.ImagePath))
+            return "";
+
+        try
+        {
+            string dir = Path.GetDirectoryName(item.ImagePath) ?? BordersDir;
+            string cfgPath = Path.Combine(dir, Path.GetFileNameWithoutExtension(item.ImagePath) + ".cfg");
+            if (!File.Exists(cfgPath))
+            {
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine("overlays = 1");
+                sb.AppendLine($"overlay0_overlay = \"{Path.GetFileName(item.ImagePath)}\"");
+                sb.AppendLine("overlay0_full_screen = true");
+                sb.AppendLine("overlay0_descs = 0");
+                File.WriteAllText(cfgPath, sb.ToString());
+            }
+            item.CfgPath = cfgPath;
+            return cfgPath;
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
     public static BezelPresetItem? GetActiveBezel()
     {
         var list = ScanBezels();
         return list.FirstOrDefault(b => b.IsActive);
+    }
+
+    public static BezelPresetItem? FindBestBezelForPlatformOrCore(string? platform, string? coreDllName)
+    {
+        var bezels = ScanBezels();
+        if (bezels.Count == 0) return null;
+
+        if (!string.IsNullOrWhiteSpace(coreDllName))
+        {
+            string c = Path.GetFileName(coreDllName).ToLowerInvariant();
+            string? mappedSlug = null;
+            if (c.Contains("rpcs3")) mappedSlug = "Sony_PlayStation_3";
+            else if (c.Contains("pcsx2") || c.Contains("play")) mappedSlug = "Sony_PlayStation_2";
+            else if (c.Contains("vita3k")) mappedSlug = "Sony_PlayStation_Vita";
+            else if (c.Contains("ppsspp")) mappedSlug = "Sony_PSP_Street";
+            else if (c.Contains("dolphin")) mappedSlug = "Nintendo_GameCube_Wii";
+            else if (c.Contains("citra") || c.Contains("panda3ds") || c.Contains("azahar")) mappedSlug = "Nintendo_3DS_Dual";
+            else if (c.Contains("xemu") || c.Contains("xenia")) mappedSlug = "Microsoft_Xbox_Original";
+            else if (c.Contains("mame") || c.Contains("fbneo") || c.Contains("supermodel")) mappedSlug = "Arcade_MAME_Retro";
+            else if (c.Contains("dosbox")) mappedSlug = "MS_DOS_CRT_Amber";
+            else if (c.Contains("mednafen_psx") || c.Contains("duckstation") || c.Contains("swanstation") || c.Contains("beetle_psx")) mappedSlug = "Sony_PlayStation";
+            else if (c.Contains("snes9x") || c.Contains("bsnes") || c.Contains("mesen-s")) mappedSlug = "Super_Nintendo_SNES";
+            else if (c.Contains("fceumm") || c.Contains("nestopia") || c.Contains("mesen")) mappedSlug = "Nintendo_NES_Famicom";
+            else if (c.Contains("genesis_plus_gx") || c.Contains("picodrive")) mappedSlug = "Sega_Mega_Drive_Genesis";
+            else if (c.Contains("flycast")) mappedSlug = "Sega_Dreamcast_Spiral";
+            else if (c.Contains("beetle_saturn") || c.Contains("yabause") || c.Contains("kronos")) mappedSlug = "Sega_Saturn_Titanium";
+            else if (c.Contains("mupen64plus") || c.Contains("parallel_n64")) mappedSlug = "Nintendo_64_Ultra";
+            else if (c.Contains("mgba") || c.Contains("vba_next")) mappedSlug = "Game_Boy_Advance_Wide";
+
+            if (!string.IsNullOrEmpty(mappedSlug))
+            {
+                var matched = bezels.FirstOrDefault(b =>
+                    Path.GetFileNameWithoutExtension(b.ImagePath).Equals(mappedSlug, StringComparison.OrdinalIgnoreCase) ||
+                    b.Name.Contains(mappedSlug.Replace("_", " "), StringComparison.OrdinalIgnoreCase));
+                if (matched != null) return matched;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(platform))
+        {
+            var match = FindBestBezelForPlatform(platform);
+            if (match != null) return match;
+        }
+
+        return bezels.FirstOrDefault(b => b.Name.Contains("STORM", StringComparison.OrdinalIgnoreCase)) ?? bezels[0];
     }
 
     public static BezelPresetItem? FindBestBezelForPlatform(string? platformName)
@@ -362,7 +470,21 @@ public static class BezelManager
         string p = platformName.ToLowerInvariant();
         string targetSlug = "";
 
-        if (p.Contains("nes") || p.Contains("famicom") || p.Contains("dendy"))
+        if (p.Contains("ps3") || p.Contains("playstation 3"))
+            targetSlug = "Sony_PlayStation_3";
+        else if (p.Contains("ps2") || p.Contains("playstation 2"))
+            targetSlug = "Sony_PlayStation_2";
+        else if (p.Contains("vita") || p.Contains("psvita") || p.Contains("playstation vita"))
+            targetSlug = "Sony_PlayStation_Vita";
+        else if (p.Contains("psp") || p.Contains("playstation portable"))
+            targetSlug = "Sony_PSP_Street";
+        else if (p.Contains("gamecube") || p.Contains("wii") || p.Contains("ngc"))
+            targetSlug = "Nintendo_GameCube_Wii";
+        else if (p.Contains("3ds") || p.Contains("nintendo 3ds"))
+            targetSlug = "Nintendo_3DS_Dual";
+        else if (p.Contains("xbox"))
+            targetSlug = "Microsoft_Xbox_Original";
+        else if (p.Contains("nes") || p.Contains("famicom") || p.Contains("dendy"))
             targetSlug = "Nintendo_NES_Famicom";
         else if (p.Contains("snes") || p.Contains("super nintendo") || p.Contains("sfc"))
             targetSlug = "Super_Nintendo_SNES";
@@ -666,8 +788,8 @@ public static class BezelManager
         {
             if (!Directory.Exists(BordersDir)) Directory.CreateDirectory(BordersDir);
 
-            string v5Marker = Path.Combine(BordersDir, ".storm_bezels_v5_180.ok");
-            bool forceRegen = !File.Exists(v5Marker);
+            string v6Marker = Path.Combine(BordersDir, ".storm_bezels_v6_220.ok");
+            bool forceRegen = !File.Exists(v6Marker);
 
             foreach (var tmpl in BuiltinTemplates)
             {
@@ -696,7 +818,7 @@ public static class BezelManager
 
             if (forceRegen)
             {
-                try { File.WriteAllText(v5Marker, "v5_180"); } catch { }
+                try { File.WriteAllText(v6Marker, "v6_220"); } catch { }
             }
         }
         catch { }

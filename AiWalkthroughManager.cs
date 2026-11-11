@@ -98,7 +98,7 @@ public static class AiWalkthroughManager
         sb.AppendLine("Тактический анализ сцены:");
         sb.AppendLine("• Режим отображения: Рекомендуется соотношение сторон 4:3 (Core Provided) с шейдером CRT-Easymode или Royale для максимальной чёткости деталей.");
         sb.AppendLine("• Реакция на тайминги: Активируйте Run-Ahead на 1 кадр в разделе «Задержка», если испытываете сложности с уклонением от атак босса.");
-        sb.AppendLine("• Пространственная навигация: Обратите внимание на мерцающие плитки пола и трещины в стенах — используйте бомбы или спецатаки для поиска секретных комнат.");
+        sb.AppendLine("• Пространственная навигация: Обратите внимание на мерцающие плитки пола и трещины в стенах - используйте бомбы или спецатаки для поиска секретных комнат.");
         sb.AppendLine();
         sb.AppendLine("Секреты и загадки:");
         sb.AppendLine("• Взаимодействие с окружением: Если проход заблокирован, задействуйте переключатели в строгой последовательности (Слева направо: 2 → 4 → 1 → 3).");
@@ -212,10 +212,10 @@ public static class AiWalkthroughManager
 <body>
     <div class=""container"">
         <span class=""badge"">ЭТАЛОННОЕ РУКОВОДСТВО STORM</span>
-        <h1>{gameTitle} — Интерактивная Книга Подсказок</h1>
+        <h1>{gameTitle} - Интерактивная Книга Подсказок</h1>
         {imageHtml}
         <div class=""advice-box"">{aiAnalysisText}</div>
-        <div class=""footer"">Сгенерировано в STORM RETROARCH 2.1.0 • Дата: {DateTime.Now:yyyy-MM-dd HH:mm}</div>
+        <div class=""footer"">Сгенерировано в STORM RETROARCH 2.2.0 • Дата: {DateTime.Now:yyyy-MM-dd HH:mm}</div>
     </div>
 </body>
 </html>";

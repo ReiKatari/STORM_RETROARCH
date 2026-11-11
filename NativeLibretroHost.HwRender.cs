@@ -32,6 +32,9 @@ public partial class NativeLibretroHost
     private bool _isHwRenderActive = false;
     public bool IsHwRenderActive => _isHwRenderActive;
 
+    public bool RequestedExternalGpuBackend { get; private set; }
+    public string RequestedGpuBackendName { get; private set; } = "";
+
     private IntPtr _hwWnd = IntPtr.Zero;
     private IntPtr _hwHdc = IntPtr.Zero;
     private IntPtr _hwHglrc = IntPtr.Zero;
@@ -115,6 +118,15 @@ public partial class NativeLibretroHost
     [DllImport("opengl32.dll")]
     private static extern IntPtr wglGetProcAddress([MarshalAs(UnmanagedType.LPStr)] string name);
 
+    private const int WGL_CONTEXT_MAJOR_VERSION_ARB = 0x2091;
+    private const int WGL_CONTEXT_MINOR_VERSION_ARB = 0x2092;
+    private const int WGL_CONTEXT_PROFILE_MASK_ARB = 0x9126;
+    private const int WGL_CONTEXT_CORE_PROFILE_BIT_ARB = 0x00000001;
+    private const int WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB = 0x00000002;
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate IntPtr wglCreateContextAttribsARBProc(IntPtr hdc, IntPtr hShareContext, int[] attribList);
+
     // OpenGL Dynamic Function Delegates
     private delegate void glGenFramebuffersDelegate(int n, out uint framebuffers);
     private delegate void glBindFramebufferDelegate(uint target, uint framebuffer);
@@ -162,12 +174,31 @@ public partial class NativeLibretroHost
 
     private bool HandleSetHwRender(IntPtr data)
     {
+        RequestedExternalGpuBackend = false;
+        RequestedGpuBackendName = "";
+
         if (!SettingsManager.Current.HwRenderEnabled || data == IntPtr.Zero)
             return false;
 
         try
         {
             _hwRenderCallback = Marshal.PtrToStructure<retro_hw_render_callback>(data);
+
+            // If core requests modern external GPU backend (Vulkan=6, D3D11=7, D3D10=8, D3D12=9, D3D9=10)
+            if (_hwRenderCallback.context_type >= 6)
+            {
+                RequestedExternalGpuBackend = true;
+                RequestedGpuBackendName = _hwRenderCallback.context_type switch
+                {
+                    6 => "vulkan",
+                    7 => "d3d11",
+                    8 => "d3d10",
+                    9 => "d3d12",
+                    10 => "d3d9",
+                    _ => "vulkan"
+                };
+                return false;
+            }
 
             // 1 = OpenGL, 2 = OpenGLES2, 3 = OpenGL Core, 4 = OpenGLES3
             if (_hwRenderCallback.context_type != 1 && _hwRenderCallback.context_type != 3 &&
@@ -204,7 +235,54 @@ public partial class NativeLibretroHost
 
             if (!SetPixelFormat(_hwHdc, pixelFormat, ref pfd)) return false;
 
-            _hwHglrc = wglCreateContext(_hwHdc);
+            // Upgrade WGL context creation: if OpenGL Core (3) requested, query wglCreateContextAttribsARB
+            IntPtr tempContext = wglCreateContext(_hwHdc);
+            if (tempContext != IntPtr.Zero && wglMakeCurrent(_hwHdc, tempContext))
+            {
+                if (_hwRenderCallback.context_type == 3)
+                {
+                    IntPtr pCreateAttribs = wglGetProcAddress("wglCreateContextAttribsARB");
+                    if (pCreateAttribs != IntPtr.Zero)
+                    {
+                        try
+                        {
+                            var wglCreateContextAttribs = Marshal.GetDelegateForFunctionPointer<wglCreateContextAttribsARBProc>(pCreateAttribs);
+                            int reqMajor = (int)_hwRenderCallback.version_major;
+                            int reqMinor = (int)_hwRenderCallback.version_minor;
+                            (int major, int minor)[] candidates = reqMajor >= 3
+                                ? new[] { (reqMajor, reqMinor), (4, 6), (4, 5), (3, 3) }
+                                : new[] { (4, 6), (4, 5), (3, 3) };
+
+                            foreach (var (maj, min) in candidates)
+                            {
+                                int[] attribs = new int[]
+                                {
+                                    WGL_CONTEXT_MAJOR_VERSION_ARB, maj,
+                                    WGL_CONTEXT_MINOR_VERSION_ARB, min,
+                                    WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+                                    0
+                                };
+                                IntPtr coreCtx = wglCreateContextAttribs(_hwHdc, IntPtr.Zero, attribs);
+                                if (coreCtx != IntPtr.Zero)
+                                {
+                                    _hwHglrc = coreCtx;
+                                    break;
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                }
+
+                wglMakeCurrent(IntPtr.Zero, IntPtr.Zero);
+                wglDeleteContext(tempContext);
+            }
+
+            if (_hwHglrc == IntPtr.Zero)
+            {
+                _hwHglrc = wglCreateContext(_hwHdc);
+            }
+
             if (_hwHglrc == IntPtr.Zero) return false;
 
             if (!wglMakeCurrent(_hwHdc, _hwHglrc)) return false;

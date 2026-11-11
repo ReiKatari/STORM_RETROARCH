@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:StormRetroArch"
         x:Name="RootWindow"
-        Title="STORM RETROARCH 2.1.0"
+        Title="STORM RETROARCH 2.2.0"
         Width="1500" Height="890"
         MinWidth="960" MinHeight="620"
         WindowStartupLocation="CenterScreen"
@@ -848,7 +848,7 @@
                 <!-- Left: App Icon & Title with REQUIRED Margin="10,0,24,0" + Engine Status Pill -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Image Source="app_icon.png" Width="22" Height="22" Margin="0,0,8,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                    <TextBlock Text="STORM RETROARCH 2.1.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,24,0"/>
+                    <TextBlock Text="STORM RETROARCH 2.2.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,24,0"/>
 
                     <!-- Engine Status Pill -->
                     <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="12" Padding="8,3" VerticalAlignment="Center">
@@ -1076,7 +1076,7 @@
                     <!-- Sidebar Footer: Version -->
                     <Border DockPanel.Dock="Bottom" Background="#14FFFFFF" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,1,0,0" Padding="12,8">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                            <TextBlock Text="STORM RETROARCH 2.1.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" FontWeight="SemiBold"/>
+                            <TextBlock Text="STORM RETROARCH 2.2.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" FontWeight="SemiBold"/>
                         </StackPanel>
                     </Border>
 
@@ -1364,6 +1364,12 @@
                                     <Border x:Name="BdrHudActiveDeviceBadge" Background="#1A10B981" BorderBrush="#10B981" BorderThickness="1" CornerRadius="5" Padding="5,1" Margin="0,0,2,0" VerticalAlignment="Center">
                                         <TextBlock x:Name="TxtHudActiveDeviceBadge" Text="Xbox Wireless" Foreground="#34D399" FontSize="9" FontWeight="SemiBold"/>
                                     </Border>
+                                    <Button x:Name="BtnHudCycleGpuBackend" Style="{StaticResource StormSecondaryButton}" Padding="6,1" Margin="4,0,0,0" VerticalAlignment="Center" Click="BtnHudCycleGpuBackend_Click" ToolTip="Графический движок: Авто / Vulkan / Direct3D 12 / Direct3D 11 / OpenGL Core / AVX2">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Data="M15 9H9v6h6V9zm-2 4h-2v-2h2v2zm8-2V9h-2V7c0-1.1-.9-2-2-2h-2V3h-2v2h-2V3H9v2H7c-1.1 0-2 .9-2 2v2H3v2h2v2H3v2h2v2c0 1.1.9 2 2 2h2v2h2v-2h2v2h2v-2h2c1.1 0 2-.9 2-2v-2h2v-2h-2v-2h2zm-4 6H7V7h10v10z" Fill="#38BDF8" Stretch="Uniform" Width="9" Height="9" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                            <TextBlock x:Name="TxtHudGpuBackendBadge" Text="GPU: Авто" FontSize="9.5" FontWeight="Bold" Foreground="#38BDF8" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
                                 </StackPanel>
                             </Border>
 
@@ -1599,6 +1605,7 @@
                                 </DockPanel>
                             </Border>
                             <!-- Native In-Process Libretro Precision Lockstep Stage -->
+                            <local:EmbeddedGameHost x:Name="HwEngineGameHost" Visibility="Collapsed" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Panel.ZIndex="20"/>
                             <Viewbox x:Name="VbGameStage" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Grid x:Name="GrdGameStageCanvas" Width="1920" Height="1080" Background="#000000">
                                     <!-- Ambilux Ambient Glow Border (2.0.0) -->
@@ -1639,7 +1646,7 @@
                                         </Grid>
 
                                         <!-- Active Game & Live Core Switcher Bar -->
-                                        <!-- 2.1.0 Active Input Device Bar -->
+                                        <!-- 2.2.0 Active Input Device Bar -->
                                         <Border DockPanel.Dock="Top" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="0,0,0,10">
                                             <DockPanel LastChildFill="True">
                                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
@@ -2004,7 +2011,7 @@
                                             </Button>
                                         </StackPanel>
                                         <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Text="Командный центр STORM RETROARCH 2.1.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="21" FontWeight="Bold" Margin="0,0,0,3"/>
+                                            <TextBlock Text="Командный центр STORM RETROARCH 2.2.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="21" FontWeight="Bold" Margin="0,0,0,3"/>
                                             <TextBlock Text="Быстрые переходы, оперативная настройка движка Libretro, управление сохранениями и перестраиваемые панели" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5"/>
                                         </StackPanel>
                                     </DockPanel>
@@ -2192,8 +2199,8 @@
                                     <!-- 2.0.0 Hardware Strip (OpenGL HW Render, WASAPI 15 мс, DRC VRR, Gamepad UI Nav) -->
                                     <Border Background="{DynamicResource ThemeHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="12,7" Margin="0,8,0,0">
                                         <WrapPanel VerticalAlignment="Center">
-                                            <TextBlock Text="Аппаратный стек 2.0.0:" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,14,0"/>
-                                            <CheckBox x:Name="ChkMainHwRender" Content="Аппаратный 3D OpenGL (HW Render)" IsChecked="True" Margin="0,0,16,0" Checked="ChkMainHwRender_Changed" Unchecked="ChkMainHwRender_Changed"/>
+                                            <TextBlock Text="Аппаратный стек 2.2.0:" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                                            <CheckBox x:Name="ChkMainHwRender" Content="Аппаратный 3D Vulkan / D3D11-12 / GLCore" IsChecked="True" Margin="0,0,16,0" Checked="ChkMainHwRender_Changed" Unchecked="ChkMainHwRender_Changed"/>
                                             <CheckBox x:Name="ChkMainWasapi" Content="Звук WASAPI (15 мс)" IsChecked="True" Margin="0,0,16,0" Checked="ChkMainWasapi_Changed" Unchecked="ChkMainWasapi_Changed"/>
                                             <CheckBox x:Name="ChkMainDrc" Content="Синхронизация DRC (VRR / 120 Гц)" IsChecked="True" Margin="0,0,16,0" Checked="ChkMainDrc_Changed" Unchecked="ChkMainDrc_Changed"/>
                                             <CheckBox x:Name="ChkMainGamepadUi" Content="Навигация геймпадом по меню" IsChecked="True" Margin="0,0,16,0" Checked="ChkMainGamepadUi_Changed" Unchecked="ChkMainGamepadUi_Changed"/>
@@ -3505,7 +3512,7 @@
                                 </Grid.RowDefinitions>
                                 <StackPanel Grid.Row="0" VerticalAlignment="Center" Margin="0,0,0,9">
                                     <TextBlock Text="Менеджер и загрузчик ядер" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="Каталог официальных сборок Libretro Buildbot (350+ ядер) и Золотой набор эмуляторов STORM" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="Полный каталог Libretro и экспериментальных сборок (360 ядер), автозагрузка и аппаратный рендер Vulkan / Direct3D 11-12" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
                                 <WrapPanel Grid.Row="1" VerticalAlignment="Center">
                                     <Button x:Name="BtnUpdateAllInstalledCores" Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnUpdateAllInstalledCores_Click" ToolTip="Пакетная загрузка и обновление всех установленных ядер Libretro">
@@ -3526,6 +3533,18 @@
                                             <TextBlock Text="Обновить каталог" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Button>
+                                    <CheckBox x:Name="ChkAutoDownloadCoreOnLaunch" Content="Автозагрузка ядра при запуске игры" IsChecked="True" Margin="10,0,10,0" VerticalAlignment="Center" Click="ChkAutoDownloadCoreOnLaunch_Click"/>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,0,0">
+                                        <TextBlock Text="Графический API:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        <ComboBox x:Name="CmbGlobalGraphicsBackend" Width="195" Height="28" SelectionChanged="CmbGlobalGraphicsBackend_SelectionChanged">
+                                            <ComboBoxItem Content="Авто (Vulkan / D3D11 / AVX2)" Tag="Auto" IsSelected="True"/>
+                                            <ComboBoxItem Content="Vulkan 1.3 (Аппаратный)" Tag="Vulkan"/>
+                                            <ComboBoxItem Content="Direct3D 12 (Аппаратный)" Tag="Direct3D12"/>
+                                            <ComboBoxItem Content="Direct3D 11 (LRPS2 / 3D)" Tag="Direct3D11"/>
+                                            <ComboBoxItem Content="OpenGL Core 4.6" Tag="OpenGLCore"/>
+                                            <ComboBoxItem Content="Встроенный движок AVX2" Tag="NativeAVX2"/>
+                                        </ComboBox>
+                                    </StackPanel>
                                 </WrapPanel>
                             </Grid>
                         </Border>
@@ -3548,6 +3567,9 @@
 
                                 <!-- Manufacturer Chips -->
                                 <Button Content="Золотой набор (25)" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
+                                <Button Content="3D: PS2 / PS3 / PSV / Xbox" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
+                                <Button Content="MAME / Аркады" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
+                                <Button Content="Экспериментальные" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
                                 <Button Content="Nintendo" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
                                 <Button Content="Sega" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
                                 <Button Content="Sony" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,4" Click="BtnCoreFilter_Click"/>
@@ -4318,7 +4340,7 @@
                                 </Grid.RowDefinitions>
                                 <StackPanel Grid.Row="0" VerticalAlignment="Center" Margin="0,0,0,9">
                                     <TextBlock Text="Системные файлы и проверка BIOS" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="Проверка целостности прошивок, MD5-сумм и готовности ядер PlayStation, Saturn, Dreamcast, NDS к запуску" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="Проверка целостности прошивок, точной структуры подпапок system/ (PS2, PS3, PS Vita, Dreamcast, Xbox, 3DS, MAME) и MD5-сумм" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
                                 <WrapPanel Grid.Row="1" VerticalAlignment="Center">
                                     <Button Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnImportBios_Click">
@@ -4333,10 +4355,28 @@
                                             <TextBlock Text="Папка system" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Button>
-                                    <Button Style="{StaticResource StormSecondaryButton}" Click="BtnRefreshBios_Click">
+                                    <Button Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnRefreshBios_Click">
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Path Data="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" Fill="#34D399" Stretch="Uniform" Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
                                             <TextBlock Text="Пересканировать" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button x:Name="BtnImportBiosPack" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnImportBiosPack_Click">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Data="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z" Fill="#38BDF8" Stretch="Uniform" Width="12" Height="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Импорт папки / ZIP с BIOS" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button x:Name="BtnEnsureBiosSubfolders" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnEnsureBiosSubfolders_Click">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Data="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z" Fill="#34D399" Stretch="Uniform" Width="12" Height="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Создать подпапки system" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button x:Name="BtnDownloadOpenBiosDb" Style="{StaticResource StormSecondaryButton}" Margin="0,0,8,0" Click="BtnDownloadOpenBiosDb_Click">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Data="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z" Fill="#A78BFA" Stretch="Uniform" Width="12" Height="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Скачать GameIndex.yaml" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Button>
                                 </WrapPanel>
@@ -4356,6 +4396,8 @@
                                     <WrapPanel Orientation="Horizontal">
                                         <Button Content="Все платформы" Style="{StaticResource CategoryChipButton}" Tag="Active" Margin="0,0,6,6" Click="BtnBiosFilter_Click"/>
                                         <Button Content="Sony PlayStation" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,6" Click="BtnBiosFilter_Click"/>
+                                        <Button Content="PS2 / PS3 / PS Vita" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,6" Click="BtnBiosFilter_Click"/>
+                                        <Button Content="Xbox / 3DS / Wii U" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,6" Click="BtnBiosFilter_Click"/>
                                         <Button Content="Sega" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,6" Click="BtnBiosFilter_Click"/>
                                         <Button Content="Nintendo" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,6" Click="BtnBiosFilter_Click"/>
                                         <Button Content="NEC PC Engine" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,6" Click="BtnBiosFilter_Click"/>
@@ -4394,6 +4436,10 @@
                                                 </DockPanel>
                                                 <TextBlock Grid.Row="1" Text="{Binding Description}" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" TextWrapping="Wrap" Margin="0,0,0,8"/>
                                                 <StackPanel Grid.Row="2" Margin="0,0,0,10">
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                                                        <TextBlock Text="Подпапка: " Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5"/>
+                                                        <TextBlock Text="{Binding SubfolderDisplay}" Foreground="#38BDF8" FontSize="10.5" FontWeight="SemiBold" FontFamily="Consolas, monospace" TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
                                                     <StackPanel Orientation="Horizontal">
                                                         <TextBlock Text="MD5 эталон: " Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5"/>
                                                         <TextBlock Text="{Binding ExpectedMd5}" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="10.5" FontFamily="Consolas, monospace"/>
@@ -4686,7 +4732,7 @@
                                 </Grid.RowDefinitions>
                                 <StackPanel Grid.Row="0" VerticalAlignment="Center" Margin="0,0,0,9">
                                     <TextBlock Text="Экранные рамки и оверлеи" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="Оригинальные границы ТВ и аркадных кабинетов с автоматическим выравниванием пропорций 4:3 / 16:9" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="Онлайн-пакеты HSM Mega Bezel и Duimon Mega Bezel, шейдерные отражения ЭЛТ и полная поддержка рамок для всех 360 ядер" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
                                 <WrapPanel Grid.Row="1" VerticalAlignment="Center">
                                     <Button Style="{StaticResource StormAccentButton}" Margin="0,0,8,0" Click="BtnToggleManualBezelPanel_Click">
@@ -4808,6 +4854,112 @@
                                 </StackPanel>
                             </Border>
 
+<!-- BdrMegaBezelOnlineHub (2.2.0) -->
+                            <Border x:Name="BdrMegaBezelOnlineHub" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <!-- Top DockPanel -->
+                                    <DockPanel LastChildFill="True">
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button x:Name="BtnValidateMegaBezel" Style="{StaticResource StormSecondaryButton}" Padding="10,5" Margin="0,0,8,0" Click="BtnValidateMegaBezel_Click">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Path Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" Fill="#34D399" Stretch="Uniform" Width="11" Height="11" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Проверить структуру" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button x:Name="BtnImportMegaBezelZip" Style="{StaticResource StormSecondaryButton}" Padding="10,5" Click="BtnImportMegaBezelZip_Click">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Path Data="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" Fill="#38BDF8" Stretch="Uniform" Width="11" Height="11" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Из ZIP архива..." VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+                                        </StackPanel>
+
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Border Width="28" Height="28" CornerRadius="6" Background="#2038BDF8" BorderBrush="#6038BDF8" BorderThickness="1" Margin="0,0,10,0" VerticalAlignment="Center">
+                                                <Path Data="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z" Fill="#38BDF8" Width="14" Height="14" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="Онлайн-каталог пакетов HSM Mega Bezel и Duimon Mega Bezel" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource ThemeTextPrimary}"/>
+                                                <TextBlock x:Name="TxtMegaBezelValidationSummary" Text="Автоматическая распаковка в shaders/shaders_slang/bezel/Mega_Bezel и shaders/Mega_Bezel_Packs/" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" Margin="0,2,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </DockPanel>
+
+                                    <!-- Middle Grid (3 equal columns) -->
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Col 0: HSM Mega Bezel -->
+                                        <Border Grid.Column="0" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,8,0">
+                                            <StackPanel>
+                                                <DockPanel LastChildFill="True" Margin="0,0,0,4">
+                                                    <TextBlock Text="HSM Mega Bezel" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource ThemeTextPrimary}" VerticalAlignment="Center"/>
+                                                    <Border HorizontalAlignment="Right" Background="#1538BDF8" BorderBrush="#4038BDF8" BorderThickness="1" CornerRadius="4" Padding="5,1">
+                                                        <TextBlock x:Name="TxtHsmMegaBezelStatus" Text="Проверка..." Foreground="#38BDF8" FontSize="9.5" FontWeight="SemiBold"/>
+                                                    </Border>
+                                                </DockPanel>
+                                                <TextBlock Text="Базовый шейдер отражений ЭЛТ (HyperspaceMadness/Mega_Bezel)" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="10.5" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                                <TextBlock Text="shaders_slang/bezel/Mega_Bezel" Foreground="{DynamicResource ThemeTextMuted}" FontSize="9.5" FontFamily="Consolas, monospace" Margin="0,0,0,8"/>
+                                                <Button x:Name="BtnDownloadHsmMegaBezel" Style="{StaticResource StormAccentButton}" HorizontalAlignment="Stretch" Padding="0,6" Tag="hsm_mega_bezel" Click="BtnDownloadMegaBezelPack_Click">
+                                                    <TextBlock Text="Скачать базовый шейдер (~15 МБ)" FontSize="11" HorizontalAlignment="Center"/>
+                                                </Button>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Col 1: Duimon Complete 4K -->
+                                        <Border Grid.Column="1" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,8,0">
+                                            <StackPanel>
+                                                <DockPanel LastChildFill="True" Margin="0,0,0,4">
+                                                    <TextBlock Text="Duimon Mega Bezel 4K" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource ThemeTextPrimary}" VerticalAlignment="Center"/>
+                                                    <Border HorizontalAlignment="Right" Background="#158B5CF6" BorderBrush="#408B5CF6" BorderThickness="1" CornerRadius="4" Padding="5,1">
+                                                        <TextBlock x:Name="TxtDuimonMegaBezelStatus" Text="Проверка..." Foreground="#A78BFA" FontSize="9.5" FontWeight="SemiBold"/>
+                                                    </Border>
+                                                </DockPanel>
+                                                <TextBlock Text="Полный 4K артпак консолей и компьютеров (Duimon/Duimon-Mega-Bezel)" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="10.5" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                                <TextBlock Text="Mega_Bezel_Packs/Duimon-Mega-Bezel" Foreground="{DynamicResource ThemeTextMuted}" FontSize="9.5" FontFamily="Consolas, monospace" Margin="0,0,0,8"/>
+                                                <Button x:Name="BtnDownloadDuimonMegaBezel" Style="{StaticResource StormAccentButton}" HorizontalAlignment="Stretch" Padding="0,6" Tag="duimon_mega_bezel" Click="BtnDownloadMegaBezelPack_Click">
+                                                    <TextBlock Text="Скачать полный 4K пакет (~910 МБ)" FontSize="11" HorizontalAlignment="Center"/>
+                                                </Button>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Col 2: Duimon Potato 1080p -->
+                                        <Border Grid.Column="2" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="12,10">
+                                            <StackPanel>
+                                                <DockPanel LastChildFill="True" Margin="0,0,0,4">
+                                                    <TextBlock Text="Duimon Potato 1080p" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource ThemeTextPrimary}" VerticalAlignment="Center"/>
+                                                    <Border HorizontalAlignment="Right" Background="#1510B981" BorderBrush="#4010B981" BorderThickness="1" CornerRadius="4" Padding="5,1">
+                                                        <TextBlock x:Name="TxtDuimonPotatoStatus" Text="Проверка..." Foreground="#34D399" FontSize="9.5" FontWeight="SemiBold"/>
+                                                    </Border>
+                                                </DockPanel>
+                                                <TextBlock Text="Оптимизированный пакет для слабых GPU и 1080p (Duimon/Duimon-Mega-Bezel-Potato)" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="10.5" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                                <TextBlock Text="Mega_Bezel_Packs/Duimon-Mega-Bezel-Potato" Foreground="{DynamicResource ThemeTextMuted}" FontSize="9.5" FontFamily="Consolas, monospace" Margin="0,0,0,8"/>
+                                                <Button x:Name="BtnDownloadDuimonPotato" Style="{StaticResource StormSecondaryButton}" HorizontalAlignment="Stretch" Padding="0,6" Tag="duimon_potato" Click="BtnDownloadMegaBezelPack_Click">
+                                                    <TextBlock Text="Скачать быстрый 1080p пакет" FontSize="11" HorizontalAlignment="Center"/>
+                                                </Button>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+
+                                    <!-- Bottom Progress Strip -->
+                                    <Border x:Name="PnlMegaBezelDownloadBar" Visibility="Collapsed" Margin="0,10,0,0" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="6" Padding="10,8">
+                                        <DockPanel LastChildFill="True">
+                                            <Button x:Name="BtnCancelMegaBezelInstall" DockPanel.Dock="Right" Style="{StaticResource StormSecondaryButton}" Padding="10,3" Margin="10,0,0,0" VerticalAlignment="Center" Click="BtnCancelMegaBezelInstall_Click">
+                                                <TextBlock Text="Отмена" FontSize="11"/>
+                                            </Button>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <ProgressBar x:Name="PbMegaBezelInstall" Height="8" Minimum="0" Maximum="100" Value="0" Margin="0,0,0,4"/>
+                                                <TextBlock x:Name="TxtMegaBezelInstallProgress" Text="Загрузка архива..." Foreground="{DynamicResource ThemeTextSecondary}" FontSize="10.5"/>
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
 <!-- Quick Controls & Filters Bar -->
                             <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="12,10">
                                 <StackPanel>
@@ -4815,7 +4967,9 @@
                                         <TextBox x:Name="TxtSearchBezels" DockPanel.Dock="Right" Width="260" Margin="10,0,0,0" Tag="Поиск рамки по названию..." TextChanged="TxtSearchBezels_TextChanged"/>
                                         <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <Button Content="Все рамки" Style="{StaticResource CategoryChipButton}" Tag="Active" Margin="0,0,6,0" Click="BtnBezelPlatform_Click"/>
+                                            <Button Content="Mega Bezel / Duimon" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnBezelPlatform_Click"/>
                                             <Button Content="Sony" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnBezelPlatform_Click"/>
+                                            <Button Content="PS2 / PS3 / PSV" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnBezelPlatform_Click"/>
                                             <Button Content="Nintendo" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnBezelPlatform_Click"/>
                                             <Button Content="Sega" Style="{StaticResource CategoryChipButton}" Margin="0,0,6,0" Click="BtnBezelPlatform_Click"/>
                                             <Button Content="Аркады и другие" Style="{StaticResource CategoryChipButton}" Click="BtnBezelPlatform_Click"/>
@@ -4826,6 +4980,7 @@
                                     <Border Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="6" Padding="10,6">
                                         <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <TextBlock Text="Быстрые настройки экрана:" Foreground="{DynamicResource ThemeAccentGlow}" FontWeight="Bold" FontSize="11.5" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                                            <CheckBox x:Name="ChkUniversalCoreBezel" Content="Поддержка всех 360 ядер (универсальный режим)" IsChecked="True" VerticalAlignment="Center" Margin="0,0,14,0" Click="ChkUniversalCoreBezel_Click"/>
 
                                             <TextBlock Text="Прозрачность:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
                                             <ComboBox x:Name="CmbBezelOpacity" Width="100" Height="26" Margin="0,0,14,0" SelectionChanged="CmbBezelOpacity_SelectionChanged">
@@ -4907,6 +5062,9 @@
                                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                         <Border Background="{DynamicResource ThemeSurfaceHover}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,6,0">
                                                             <TextBlock Text="{Binding AspectRatio}" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5"/>
+                                                        </Border>
+                                                        <Border Background="#1A38BDF8" BorderBrush="#38BDF8" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,6,0" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding PackSource}" Foreground="#7DD3FC" FontSize="10.5" FontWeight="SemiBold"/>
                                                         </Border>
                                                         <Button Visibility="{Binding DeleteButtonVisibility}" Style="{StaticResource StormSecondaryButton}" Padding="6,4" Tag="{Binding}" Click="BtnDeleteBezel_Click" ToolTip="Удалить рамку">
                                                             <Path Data="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" Fill="#FB7185" Width="11" Height="11" Stretch="Uniform"/>
@@ -5773,7 +5931,7 @@
         <Border x:Name="BottomFooterBorder" Grid.Row="4" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,1,0,0" Padding="12,0">
             <DockPanel LastChildFill="True">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                    <TextBlock Text="STORM RETROARCH 2.1.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                    <TextBlock Text="STORM RETROARCH 2.2.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,14,0"/>
                     <TextBlock Text="100% LIBRETRO COMPATIBLE" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center"/>
                 </StackPanel>
                 <TextBlock x:Name="TxtFooterStatus" Text="Готово к работе" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center"/>
@@ -5871,7 +6029,7 @@
                     <DockPanel Margin="0,0,0,14">
                         <Image Source="app_icon.png" Width="44" Height="44" Margin="0,0,14,0" RenderOptions.BitmapScalingMode="HighQuality"/>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="STORM RETROARCH 2.1.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="18" FontWeight="Bold"/>
+                            <TextBlock Text="STORM RETROARCH 2.2.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="18" FontWeight="Bold"/>
                             <TextBlock Text="STORM AURORA FLUID UNIFIED DESIGN SYSTEM" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="11" FontWeight="SemiBold"/>
                         </StackPanel>
                     </DockPanel>

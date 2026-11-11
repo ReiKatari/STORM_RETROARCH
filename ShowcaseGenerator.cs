@@ -10,7 +10,7 @@ using System.Windows.Media.Imaging;
 namespace StormRetroArch;
 
 /// <summary>
-/// Генератор эталонных визуальных паспортов игр SHOWCASE.png (6–8 сцен)
+/// Генератор эталонных визуальных паспортов игр SHOWCASE.png (6-8 сцен)
 /// и экспортер видеоклипов/анимаций.
 /// </summary>
 public static class ShowcaseGenerator
@@ -28,7 +28,7 @@ public static class ShowcaseGenerator
     };
 
     /// <summary>
-    /// Создает 1920x1080 визуальный паспорт SHOWCASE.png для игры с 6–8 сценами.
+    /// Создает 1920x1080 визуальный паспорт SHOWCASE.png для игры с 6-8 сценами.
     /// </summary>
     public static string GenerateShowcase(
         string gameTitle,
@@ -71,7 +71,7 @@ public static class ShowcaseGenerator
             dc.DrawRoundedRectangle(headerBg, headerPen, new Rect(40, 40, width - 80, 100), 8, 8);
 
             // Logo & Title
-            DrawText(dc, "STORM RETROARCH 2.1.0", 60, 52, 15, true, Color.FromRgb(167, 139, 250));
+            DrawText(dc, "STORM RETROARCH 2.2.0", 60, 52, 15, true, Color.FromRgb(167, 139, 250));
             DrawText(dc, "ЭТАЛОННЫЙ ВИЗУАЛЬНЫЙ ПАСПОРТ ЛОКАЛИЗАЦИИ И ЭМУЛЯЦИИ", 240, 53, 11, false, Color.FromRgb(156, 163, 175));
 
             string displayTitle = string.IsNullOrWhiteSpace(gameTitle) ? "CHRONO TRIGGER [MOD - M. RUS]" : gameTitle.ToUpperInvariant();
