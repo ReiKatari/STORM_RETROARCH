@@ -389,26 +389,44 @@ public partial class NativeLibretroHost
         }
     }
 
-    private static void FlipRowsBgra(byte[] buf, int width, int height)
+    private static unsafe void FlipRowsBgra(byte[] buf, int width, int height)
     {
+        if (buf == null || buf.Length == 0 || height <= 1 || width <= 0) return;
         int rowStride = width * 4;
-        byte[] tempRow = ArrayPool<byte>.Shared.Rent(rowStride);
-        try
-        {
-            int halfH = height / 2;
-            for (int y = 0; y < halfH; y++)
-            {
-                int topOffset = y * rowStride;
-                int bottomOffset = (height - 1 - y) * rowStride;
+        int halfH = height / 2;
 
-                Buffer.BlockCopy(buf, topOffset, tempRow, 0, rowStride);
-                Buffer.BlockCopy(buf, bottomOffset, buf, topOffset, rowStride);
-                Buffer.BlockCopy(tempRow, 0, buf, bottomOffset, rowStride);
-            }
-        }
-        finally
+        fixed (byte* pBuf = buf)
         {
-            ArrayPool<byte>.Shared.Return(tempRow);
+            const int StackLimit = 4096;
+            byte[]? pooled = null;
+            byte* stackBuf = stackalloc byte[rowStride <= StackLimit ? rowStride : 1];
+            byte* tempPtr = stackBuf;
+
+            if (rowStride > StackLimit)
+            {
+                pooled = ArrayPool<byte>.Shared.Rent(rowStride);
+            }
+
+            try
+            {
+                fixed (byte* pPooled = pooled)
+                {
+                    byte* temp = rowStride <= StackLimit ? tempPtr : pPooled;
+                    for (int y = 0; y < halfH; y++)
+                    {
+                        byte* pTop = pBuf + (y * rowStride);
+                        byte* pBottom = pBuf + ((height - 1 - y) * rowStride);
+
+                        Buffer.MemoryCopy(pTop, temp, rowStride, rowStride);
+                        Buffer.MemoryCopy(pBottom, pTop, rowStride, rowStride);
+                        Buffer.MemoryCopy(temp, pBottom, rowStride, rowStride);
+                    }
+                }
+            }
+            finally
+            {
+                if (pooled != null) ArrayPool<byte>.Shared.Return(pooled);
+            }
         }
     }
 

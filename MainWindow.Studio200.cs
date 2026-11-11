@@ -14,8 +14,8 @@ using System.Windows.Threading;
 namespace StormRetroArch;
 
 /// <summary>
-/// Phase 2 Modular UI, Virtualization, OSK &amp; Localization Integrator for STORM RETROARCH 2.0.0.
-/// Содержит всю новую логику версии 2.0.0: двуязычную экранную клавиатуру, live achievement toast,
+/// Phase 2 Modular UI, Virtualization, OSK &amp; Localization Integrator for STORM RETROARCH 2.1.0.
+/// Содержит всю новую логику версии 2.1.0: двуязычную экранную клавиатуру, live achievement toast,
 /// 10-футовую XInput-навигацию по UI, аппаратный стек (OpenGL HW, WASAPI 15мс, DRC), Rollback Netplay
 /// и динамическую 11-языковую локализацию всех меню.
 /// </summary>
@@ -342,10 +342,10 @@ public partial class MainWindow
         var navButtons = new Button[]
         {
             NavBtnMainMenu, NavBtnLibrary, NavBtnFavorites, NavBtnHistory,
-            NavBtnCores, NavBtnCoreOptions, NavBtnInputRemap, NavBtnCheats,
+            NavBtnCores, NavBtnCoreOptions, NavBtnBios, NavBtnInputRemap, NavBtnCheats,
             NavBtnShaders, NavBtnBezels, NavBtnImport, NavBtnScreenshots,
             NavBtnSaves, NavBtnSaveSync, NavBtnAchievements, NavBtnNetplay,
-            NavBtnBios, NavBtnAiWalkthrough, NavBtnStreamAi, NavBtnSettings
+            NavBtnAiWalkthrough, NavBtnStreamAi, NavBtnSettings
         };
 
         int activeIdx = 0;

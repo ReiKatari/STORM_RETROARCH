@@ -1847,6 +1847,8 @@ public partial class NativeLibretroHost
 
         _inputStateCallback = OnInputState;
 
+        RebuildCompiledInputMaps();
+
     }
 
 
@@ -4563,610 +4565,560 @@ public partial class NativeLibretroHost
 
 
 
-    private void OnInputPoll()
-
+    public struct CompiledButtonBinding
     {
+        public PhysicalInputType Type;
+        public int Code;
+        public int Parameter;
+        public int VkCode;
+    }
+
+    public class CompiledPortMap
+    {
+        public int PortIndex;
+        public bool IsXInput;
+        public uint XInputIndex;
+        public uint WinMmIndex;
+        public bool HasDevice;
+        public readonly CompiledButtonBinding[] Buttons = new CompiledButtonBinding[16];
+        public short Deadzone = 4915;
+        public byte TriggerThreshold = 30;
+        public double Sensitivity = 1.0;
+        public uint TurboMask = 0;
+        public bool HasHotkeyEnable = false;
+        public PhysicalInputBinding? HotkeyEnable = null;
+        public readonly Dictionary<string, PhysicalInputBinding> Hotkeys = new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private readonly CompiledPortMap[] _compiledPorts = new CompiledPortMap[8];
+    private readonly uint[] _portJoypadBitmask = new uint[8];
+    private readonly short[,] _portAnalogAxes = new short[8, 6];
+    private volatile bool _isFocusedThisFrame = false;
+    private uint _prevHotkeyChordMask = 0;
+    private static readonly uint _currentProcessId = (uint)Environment.ProcessId;
+    private readonly DeviceInputProfileEngine.JOYINFOEX[] _winMmStates = new DeviceInputProfileEngine.JOYINFOEX[8];
+
+    public event Action<string>? OnControllerHotkeyTriggered;
+
+    public void RebuildCompiledInputMaps()
+    {
+        for (int p = 0; p < 8; p++)
+        {
+            var map = _compiledPorts[p] ??= new CompiledPortMap { PortIndex = p };
+            var dev = DeviceInputProfileEngine.GetPort(p);
+
+            map.HasDevice = dev != null && dev.IsConnected;
+            map.IsXInput = dev?.IsXInput ?? (p < 4);
+            map.XInputIndex = dev?.XInputIndex ?? (uint)p;
+            map.WinMmIndex = dev?.WinMmIndex ?? (uint)p;
+
+            var layer = dev?.EffectiveLayer;
+
+            int deadzonePct = layer?.AnalogDeadzonePercent ?? (SettingsManager.Current != null ? SettingsManager.Current.AnalogDeadzonePercent : 15);
+            map.Deadzone = (short)(32767 * Math.Clamp(deadzonePct, 5, 40) / 100);
+
+            int triggerPct = layer?.TriggerThresholdPercent ?? (SettingsManager.Current != null ? SettingsManager.Current.TriggerThresholdPercent : 12);
+            map.TriggerThreshold = (byte)(255 * Math.Clamp(triggerPct, 5, 50) / 100);
+
+            map.Sensitivity = layer?.AnalogSensitivity ?? 1.0;
+            map.TurboMask = layer?.TurboButtonMask ?? 0;
+
+            map.HotkeyEnable = layer?.HotkeyEnableBinding;
+            map.HasHotkeyEnable = map.HotkeyEnable != null && map.HotkeyEnable.Type != PhysicalInputType.None;
+
+            map.Hotkeys.Clear();
+            if (layer != null)
+            {
+                foreach (var (k, v) in layer.DeviceHotkeys)
+                {
+                    map.Hotkeys[k] = v;
+                }
+            }
+
+            for (int id = 0; id < 16; id++)
+            {
+                if (layer != null && layer.JoypadBindings.TryGetValue(id, out var b))
+                {
+                    map.Buttons[id] = new CompiledButtonBinding
+                    {
+                        Type = b.Type,
+                        Code = b.Code,
+                        Parameter = b.Parameter,
+                        VkCode = b.Type == PhysicalInputType.KeyboardKey ? b.Code : 0
+                    };
+                }
+                else
+                {
+                    map.Buttons[id] = GetDefaultCompiledBinding(id, map.IsXInput, p);
+                }
+            }
+        }
+    }
+
+    private static CompiledButtonBinding GetDefaultCompiledBinding(int id, bool isXInput, int port)
+    {
+        if (isXInput)
+        {
+            return id switch
+            {
+                0 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x2000 },
+                1 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x4000 },
+                2 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x0020 },
+                3 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x0010 },
+                4 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x0001 },
+                5 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x0002 },
+                6 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x0004 },
+                7 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x0008 },
+                8 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x1000 },
+                9 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x8000 },
+                10 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x0100 },
+                11 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x0200 },
+                12 => new CompiledButtonBinding { Type = PhysicalInputType.XInputTrigger, Code = 0, Parameter = 12 },
+                13 => new CompiledButtonBinding { Type = PhysicalInputType.XInputTrigger, Code = 1, Parameter = 12 },
+                14 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x0040 },
+                15 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x0080 },
+                _ => default
+            };
+        }
+        else
+        {
+            return id switch
+            {
+                0 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 0 },
+                1 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 2 },
+                2 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 6 },
+                3 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 7 },
+                4 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmPovHat, Code = 0, Parameter = 0 },
+                5 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmPovHat, Code = 0, Parameter = 18000 },
+                6 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmPovHat, Code = 0, Parameter = 27000 },
+                7 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmPovHat, Code = 0, Parameter = 9000 },
+                8 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 1 },
+                9 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 3 },
+                10 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 4 },
+                11 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 5 },
+                14 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 8 },
+                15 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 9 },
+                _ => default
+            };
+        }
+    }
+
+    private static bool IsProcessWindowFocusedOncePerFrame()
+    {
+        IntPtr fg = GetForegroundWindow();
+        if (fg == IntPtr.Zero) return false;
+        GetWindowThreadProcessId(fg, out uint pid);
+        return pid == _currentProcessId;
+    }
+
+    private void OnInputPoll()
+    {
+        _isFocusedThisFrame = IsProcessWindowFocusedOncePerFrame();
 
         EnsureXInputInitialized();
-
         if (_xinputGetState != null)
-
         {
-
             for (uint i = 0; i < 4; i++)
-
             {
-
                 _xinputConnected[i] = (_xinputGetState(i, out _xinputStates[i]) == 0);
-
             }
-
         }
 
-
-
-        if (GetCursorPos(out var pt))
-
+        // Poll connected WinMM devices
+        for (int p = 0; p < 8; p++)
         {
-
-            _mouseDeltaX = Math.Clamp(pt.X - _lastMousePt.X, -120, 120);
-
-            _mouseDeltaY = Math.Clamp(pt.Y - _lastMousePt.Y, -120, 120);
-
-            _lastMousePt = pt;
-
-        }
-
-
-
-        if (_keyboardCallback != null)
-
-        {
-
-            IntPtr fg = GetForegroundWindow();
-
-            GetWindowThreadProcessId(fg, out uint pid);
-
-            bool isFg = (pid == (uint)Environment.ProcessId);
-
-
-
-            ushort mods = 0;
-
-            if (isFg)
-
+            var map = _compiledPorts[p];
+            if (map != null && map.HasDevice && !map.IsXInput)
             {
-
-                if ((GetAsyncKeyState(0xA0) & 0x8000) != 0 || (GetAsyncKeyState(0xA1) & 0x8000) != 0) mods |= 1; // RETROKMOD_SHIFT
-
-                if ((GetAsyncKeyState(0xA2) & 0x8000) != 0 || (GetAsyncKeyState(0xA3) & 0x8000) != 0) mods |= 2; // RETROKMOD_CTRL
-
-                if ((GetAsyncKeyState(0xA4) & 0x8000) != 0 || (GetAsyncKeyState(0xA5) & 0x8000) != 0) mods |= 4; // RETROKMOD_ALT
-
+                var joyInfo = new DeviceInputProfileEngine.JOYINFOEX
+                {
+                    dwSize = (uint)Marshal.SizeOf<DeviceInputProfileEngine.JOYINFOEX>(),
+                    dwFlags = DeviceInputProfileEngine.JOY_RETURNALL
+                };
+                if (DeviceInputProfileEngine.joyGetPosEx(map.WinMmIndex, ref joyInfo) == DeviceInputProfileEngine.JOYERR_NOERROR)
+                {
+                    _winMmStates[p] = joyInfo;
+                }
             }
+        }
 
+        // Mouse Delta
+        if (GetCursorPos(out var pt))
+        {
+            _mouseDeltaX = Math.Clamp(pt.X - _lastMousePt.X, -120, 120);
+            _mouseDeltaY = Math.Clamp(pt.Y - _lastMousePt.Y, -120, 120);
+            _lastMousePt = pt;
+        }
 
+        // Keyboard callback
+        if (_keyboardCallback != null)
+        {
+            ushort mods = 0;
+            if (_isFocusedThisFrame)
+            {
+                if ((GetAsyncKeyState(0xA0) & 0x8000) != 0 || (GetAsyncKeyState(0xA1) & 0x8000) != 0) mods |= 1;
+                if ((GetAsyncKeyState(0xA2) & 0x8000) != 0 || (GetAsyncKeyState(0xA3) & 0x8000) != 0) mods |= 2;
+                if ((GetAsyncKeyState(0xA4) & 0x8000) != 0 || (GetAsyncKeyState(0xA5) & 0x8000) != 0) mods |= 4;
+            }
 
             foreach (uint rk in MonitoredRetroKeys)
-
             {
-
                 int vk = RetroKeyToVirtualKey(rk);
-
-                bool down = isFg && vk > 0 && (GetAsyncKeyState(vk) & 0x8000) != 0;
-
+                bool down = _isFocusedThisFrame && vk > 0 && (GetAsyncKeyState(vk) & 0x8000) != 0;
                 if (rk < (uint)_prevRetroKeyDown.Length && down != _prevRetroKeyDown[rk])
-
                 {
-
                     _prevRetroKeyDown[rk] = down;
-
                     uint ch = (rk >= 32 && rk <= 126) ? rk : 0;
-
                     if (ch >= 97 && ch <= 122 && (mods & 1) != 0) ch -= 32;
-
                     try { _keyboardCallback(down, rk, ch, mods); } catch { }
-
                 }
+            }
+        }
 
+        // Fast poll each port 0..7 and evaluate flat bitmask and analog axes
+        for (int p = 0; p < 8; p++)
+        {
+            var map = _compiledPorts[p];
+            if (map == null) continue;
+
+            uint mask = 0;
+            for (uint btn = 0; btn < 16; btn++)
+            {
+                if (IsPortButtonDown(p, map, btn))
+                {
+                    mask |= (1u << (int)btn);
+                }
             }
 
-        }
+            // Turbo Auto-Fire Modulation
+            if (SettingsManager.Current != null && SettingsManager.Current.TurboButtonsEnabled && (map.TurboMask & mask) != 0)
+            {
+                int hz = Math.Clamp(SettingsManager.Current.TurboFireHz, 5, 30);
+                int cycleFrames = Math.Max(2, (int)Math.Round(60.0 / hz));
+                int halfCycle = Math.Max(1, cycleFrames / 2);
+                bool turboPulse = (_frameCount % (ulong)cycleFrames) < (ulong)halfCycle;
+                if (!turboPulse)
+                {
+                    mask &= ~map.TurboMask;
+                }
+            }
 
+            // Controller Hotkey Chords Detection
+            if (map.HasHotkeyEnable && IsPhysicalBindingDown(map.HotkeyEnable, map))
+            {
+                foreach (var (actionId, chordBinding) in map.Hotkeys)
+                {
+                    if (IsPhysicalBindingDown(chordBinding, map))
+                    {
+                        // Suppress action button from in-game bitmask
+                        if (chordBinding.Type == PhysicalInputType.XInputButton)
+                        {
+                            for (int bid = 0; bid < 16; bid++)
+                            {
+                                if (map.Buttons[bid].Type == PhysicalInputType.XInputButton && map.Buttons[bid].Code == chordBinding.Code)
+                                {
+                                    mask &= ~(1u << bid);
+                                }
+                            }
+                        }
+
+                        int hash = actionId.GetHashCode();
+                        if ((_prevHotkeyChordMask & (uint)hash) == 0)
+                        {
+                            _prevHotkeyChordMask |= (uint)hash;
+                            string act = actionId;
+                            Application.Current?.Dispatcher?.BeginInvoke(() =>
+                            {
+                                OnControllerHotkeyTriggered?.Invoke(act);
+                            });
+                        }
+                    }
+                    else
+                    {
+                        _prevHotkeyChordMask &= ~(uint)actionId.GetHashCode();
+                    }
+                }
+            }
+
+            // Active Controller Auto-Handoff: if a controller on port > 0 is pressed, notify
+            if (p != 0 && mask != 0)
+            {
+                DeviceInputProfileEngine.NotifyDeviceActivityOnPort(p);
+            }
+
+            _portJoypadBitmask[p] = mask;
+
+            // Compute Analog Axes
+            if (map.IsXInput && map.XInputIndex < 4 && _xinputConnected[map.XInputIndex])
+            {
+                var gp = _xinputStates[map.XInputIndex].Gamepad;
+                _portAnalogAxes[p, 0] = Math.Abs(gp.sThumbLX) > map.Deadzone ? (short)(gp.sThumbLX * map.Sensitivity) : (short)0;
+                _portAnalogAxes[p, 1] = Math.Abs(gp.sThumbLY) > map.Deadzone ? (short)(-gp.sThumbLY * map.Sensitivity) : (short)0;
+                _portAnalogAxes[p, 2] = Math.Abs(gp.sThumbRX) > map.Deadzone ? (short)(gp.sThumbRX * map.Sensitivity) : (short)0;
+                _portAnalogAxes[p, 3] = Math.Abs(gp.sThumbRY) > map.Deadzone ? (short)(-gp.sThumbRY * map.Sensitivity) : (short)0;
+                _portAnalogAxes[p, 4] = gp.bLeftTrigger > map.TriggerThreshold ? (short)(gp.bLeftTrigger * 128) : (short)0;
+                _portAnalogAxes[p, 5] = gp.bRightTrigger > map.TriggerThreshold ? (short)(gp.bRightTrigger * 128) : (short)0;
+            }
+            else
+            {
+                _portAnalogAxes[p, 0] = 0;
+                _portAnalogAxes[p, 1] = 0;
+                _portAnalogAxes[p, 2] = 0;
+                _portAnalogAxes[p, 3] = 0;
+                _portAnalogAxes[p, 4] = 0;
+                _portAnalogAxes[p, 5] = 0;
+            }
+        }
     }
 
-
-
-    private bool QueryPort0JoypadButton(uint id)
-
+    private bool IsPortButtonDown(int portIndex, CompiledPortMap map, uint btnId)
     {
+        var b = map.Buttons[btnId];
+        bool pressed = false;
 
-        // 1. Hardware XInput Gamepad for port 0
-
-        if (_xinputConnected[0])
-
+        switch (b.Type)
         {
-
-            var gp = _xinputStates[0].Gamepad;
-
-            const ushort XINPUT_GAMEPAD_DPAD_UP = 0x0001;
-
-            const ushort XINPUT_GAMEPAD_DPAD_DOWN = 0x0002;
-
-            const ushort XINPUT_GAMEPAD_DPAD_LEFT = 0x0004;
-
-            const ushort XINPUT_GAMEPAD_DPAD_RIGHT = 0x0008;
-
-            const ushort XINPUT_GAMEPAD_START = 0x0010;
-
-            const ushort XINPUT_GAMEPAD_BACK = 0x0020;
-
-            const ushort XINPUT_GAMEPAD_LEFT_THUMB = 0x0040;
-
-            const ushort XINPUT_GAMEPAD_RIGHT_THUMB = 0x0080;
-
-            const ushort XINPUT_GAMEPAD_LEFT_SHOULDER = 0x0100;
-
-            const ushort XINPUT_GAMEPAD_RIGHT_SHOULDER = 0x0200;
-
-            const ushort XINPUT_GAMEPAD_A = 0x1000;
-
-            const ushort XINPUT_GAMEPAD_B = 0x2000;
-
-            const ushort XINPUT_GAMEPAD_X = 0x4000;
-
-            const ushort XINPUT_GAMEPAD_Y = 0x8000;
-
-
-
-            int deadzonePct = SettingsManager.Current != null ? SettingsManager.Current.AnalogDeadzonePercent : 15;
-
-            short deadzone = (short)(32767 * Math.Clamp(deadzonePct, 5, 40) / 100);
-
-
-
-            int triggerPct = SettingsManager.Current != null ? SettingsManager.Current.TriggerThresholdPercent : 12;
-
-            byte triggerThreshold = (byte)(255 * Math.Clamp(triggerPct, 5, 50) / 100);
-
-
-
-            bool gpPressed = id switch
-
-            {
-
-                0 => (gp.wButtons & (XINPUT_GAMEPAD_A | XINPUT_GAMEPAD_B)) != 0,
-
-                1 => (gp.wButtons & (XINPUT_GAMEPAD_X | XINPUT_GAMEPAD_Y)) != 0,
-
-                2 => (gp.wButtons & XINPUT_GAMEPAD_BACK) != 0,
-
-                3 => (gp.wButtons & XINPUT_GAMEPAD_START) != 0,
-
-                4 => (gp.wButtons & XINPUT_GAMEPAD_DPAD_UP) != 0 || gp.sThumbLY > deadzone,
-
-                5 => (gp.wButtons & XINPUT_GAMEPAD_DPAD_DOWN) != 0 || gp.sThumbLY < -deadzone,
-
-                6 => (gp.wButtons & XINPUT_GAMEPAD_DPAD_LEFT) != 0 || gp.sThumbLX < -deadzone,
-
-                7 => (gp.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT) != 0 || gp.sThumbLX > deadzone,
-
-                8 => (gp.wButtons & (XINPUT_GAMEPAD_A | XINPUT_GAMEPAD_B)) != 0,
-
-                9 => (gp.wButtons & (XINPUT_GAMEPAD_X | XINPUT_GAMEPAD_Y)) != 0,
-
-                10 => (gp.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) != 0 || gp.bLeftTrigger > triggerThreshold,
-
-                11 => (gp.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0 || gp.bRightTrigger > triggerThreshold,
-
-                12 => gp.bLeftTrigger > triggerThreshold,
-
-                13 => gp.bRightTrigger > triggerThreshold,
-
-                14 => (gp.wButtons & XINPUT_GAMEPAD_LEFT_THUMB) != 0,
-
-                15 => (gp.wButtons & XINPUT_GAMEPAD_RIGHT_THUMB) != 0,
-
-                _ => false
-
-            };
-
-
-
-            if (gpPressed) return true;
-
+            case PhysicalInputType.XInputButton:
+                if (map.XInputIndex < 4 && _xinputConnected[map.XInputIndex])
+                    pressed = (_xinputStates[map.XInputIndex].Gamepad.wButtons & (ushort)b.Code) != 0;
+                break;
+            case PhysicalInputType.XInputTrigger:
+                if (map.XInputIndex < 4 && _xinputConnected[map.XInputIndex])
+                {
+                    var gp = _xinputStates[map.XInputIndex].Gamepad;
+                    byte val = b.Code == 0 ? gp.bLeftTrigger : gp.bRightTrigger;
+                    pressed = val > map.TriggerThreshold;
+                }
+                break;
+            case PhysicalInputType.XInputAxis:
+                if (map.XInputIndex < 4 && _xinputConnected[map.XInputIndex])
+                {
+                    var gp = _xinputStates[map.XInputIndex].Gamepad;
+                    short axisVal = b.Code switch
+                    {
+                        0 => gp.sThumbLX,
+                        1 => gp.sThumbLY,
+                        2 => gp.sThumbRX,
+                        3 => gp.sThumbRY,
+                        _ => 0
+                    };
+                    pressed = b.Parameter > 0 ? (axisVal > map.Deadzone) : (axisVal < -map.Deadzone);
+                }
+                break;
+            case PhysicalInputType.WinMmButton:
+                if (b.Code >= 0 && b.Code < 32)
+                    pressed = (_winMmStates[portIndex].dwButtons & (1u << b.Code)) != 0;
+                break;
+            case PhysicalInputType.WinMmPovHat:
+                uint pov = _winMmStates[portIndex].dwPOV;
+                if (pov != 0xFFFF && pov <= 35900)
+                {
+                    pressed = b.Parameter switch
+                    {
+                        0 => pov >= 31500 || pov <= 4500,
+                        9000 => pov >= 4500 && pov <= 13500,
+                        18000 => pov >= 13500 && pov <= 22500,
+                        27000 => pov >= 22500 && pov <= 31500,
+                        _ => false
+                    };
+                }
+                break;
+            case PhysicalInputType.KeyboardKey:
+                if (_isFocusedThisFrame && b.VkCode > 0 && b.VkCode < 256)
+                    pressed = (GetAsyncKeyState(b.VkCode) & 0x8000) != 0;
+                break;
         }
 
+        if (!pressed && portIndex == 0 && _isFocusedThisFrame)
+        {
+            if (b.VkCode > 0 && (GetAsyncKeyState(b.VkCode) & 0x8000) != 0)
+                pressed = true;
+            else
+                pressed = QueryKeyboardFallback(btnId);
+        }
 
+        return pressed;
+    }
 
-        // 2. Keyboard for Port 0 (if foreground window)
+    private bool IsPhysicalBindingDown(PhysicalInputBinding? binding, CompiledPortMap map)
+    {
+        if (binding == null || binding.Type == PhysicalInputType.None) return false;
 
-        IntPtr fg = GetForegroundWindow();
+        switch (binding.Type)
+        {
+            case PhysicalInputType.XInputButton:
+                if (map.XInputIndex < 4 && _xinputConnected[map.XInputIndex])
+                    return (_xinputStates[map.XInputIndex].Gamepad.wButtons & (ushort)binding.Code) != 0;
+                break;
+            case PhysicalInputType.XInputTrigger:
+                if (map.XInputIndex < 4 && _xinputConnected[map.XInputIndex])
+                {
+                    var gp = _xinputStates[map.XInputIndex].Gamepad;
+                    byte val = binding.Code == 0 ? gp.bLeftTrigger : gp.bRightTrigger;
+                    return val > map.TriggerThreshold;
+                }
+                break;
+            case PhysicalInputType.XInputAxis:
+                if (map.XInputIndex < 4 && _xinputConnected[map.XInputIndex])
+                {
+                    var gp = _xinputStates[map.XInputIndex].Gamepad;
+                    short axisVal = binding.Code switch
+                    {
+                        0 => gp.sThumbLX,
+                        1 => gp.sThumbLY,
+                        2 => gp.sThumbRX,
+                        3 => gp.sThumbRY,
+                        _ => 0
+                    };
+                    return binding.Parameter > 0 ? (axisVal > map.Deadzone) : (axisVal < -map.Deadzone);
+                }
+                break;
+            case PhysicalInputType.WinMmButton:
+                if (binding.Code >= 0 && binding.Code < 32)
+                    return (_winMmStates[map.PortIndex].dwButtons & (1u << binding.Code)) != 0;
+                break;
+            case PhysicalInputType.WinMmPovHat:
+                uint pov = _winMmStates[map.PortIndex].dwPOV;
+                if (pov != 0xFFFF && pov <= 35900)
+                {
+                    return binding.Parameter switch
+                    {
+                        0 => pov >= 31500 || pov <= 4500,
+                        9000 => pov >= 4500 && pov <= 13500,
+                        18000 => pov >= 13500 && pov <= 22500,
+                        27000 => pov >= 22500 && pov <= 31500,
+                        _ => false
+                    };
+                }
+                break;
+            case PhysicalInputType.KeyboardKey:
+                if (_isFocusedThisFrame && binding.Code > 0 && binding.Code < 256)
+                    return (GetAsyncKeyState(binding.Code) & 0x8000) != 0;
+                break;
+        }
 
-        GetWindowThreadProcessId(fg, out uint pid);
+        return false;
+    }
 
-        if (pid != (uint)Environment.ProcessId) return false;
-
-
-
+    private bool QueryKeyboardFallback(uint id)
+    {
         bool isDown(int vk) => vk > 0 && (GetAsyncKeyState(vk) & 0x8000) != 0;
 
-
-
         string configKey = id switch
-
         {
-
             0 => "input_player1_b",
-
             1 => "input_player1_y",
-
             2 => "input_player1_select",
-
             3 => "input_player1_start",
-
             4 => "input_player1_up",
-
             5 => "input_player1_down",
-
             6 => "input_player1_left",
-
             7 => "input_player1_right",
-
             8 => "input_player1_a",
-
             9 => "input_player1_x",
-
             10 => "input_player1_l",
-
             11 => "input_player1_r",
-
             12 => "input_player1_l2",
-
             13 => "input_player1_r2",
-
             14 => "input_player1_l3",
-
             15 => "input_player1_r3",
-
             _ => ""
-
         };
-
-
 
         if (!string.IsNullOrEmpty(configKey))
-
         {
-
             string configuredKey = RetroArchConfigManager.GetString(configKey, "");
-
             int customVk = KeyNameToVirtualKey(configuredKey);
-
             if (customVk > 0 && isDown(customVk)) return true;
-
         }
-
-
 
         if (_isDosCore)
-
         {
-
             return id switch
-
             {
-
                 0 => isDown(0x0D) || isDown(0x5A),
-
                 2 => isDown(0x08),
-
                 3 => isDown(0x0D),
-
                 4 => isDown(0x26),
-
                 5 => isDown(0x28),
-
                 6 => isDown(0x25),
-
                 7 => isDown(0x27),
-
                 8 => isDown(0x58),
-
                 _ => false
-
             };
-
         }
-
-
 
         return id switch
-
         {
-
             0 => isDown(0x5A) || isDown(0x4A) || isDown(0x20) || isDown(0x61),
-
             1 => isDown(0x41) || isDown(0x55) || isDown(0x63),
-
             2 => isDown(0xA1) || isDown(0xA0) || isDown(0x08),
-
             3 => isDown(0x0D),
-
             4 => isDown(0x26) || isDown(0x57),
-
             5 => isDown(0x28) || isDown(0x53),
-
             6 => isDown(0x25),
-
             7 => isDown(0x27) || isDown(0x44),
-
             8 => isDown(0x58) || isDown(0x4B) || isDown(0x62),
-
             9 => isDown(0x49) || isDown(0x64),
-
             10 => isDown(0x51),
-
             11 => isDown(0x45),
-
             _ => false
-
         };
-
     }
 
-
+    public bool QueryPort0JoypadButton(uint id)
+    {
+        if (id >= 16) return false;
+        return ((_portJoypadBitmask[0] >> (int)id) & 1) != 0;
+    }
 
     private short OnInputState(uint port, uint device, uint index, uint id)
-
     {
-
-        // Handle PC Keyboard (RETRO_DEVICE_KEYBOARD = 3)
-
-        if (device == 3)
-
+        // 1. RETRO_DEVICE_JOYPAD = 1
+        if (device == 1)
         {
-
-            IntPtr fg = GetForegroundWindow();
-
-            GetWindowThreadProcessId(fg, out uint pid);
-
-            if (pid != (uint)Environment.ProcessId) return 0;
-
-
-
-            int vk = RetroKeyToVirtualKey(id);
-
-            if (vk > 0 && (GetAsyncKeyState(vk) & 0x8000) != 0)
-
+            if (port >= 8 || id >= 16) return 0;
+            if (port == 0 && IsPlayingInput)
             {
-
-                return 1;
-
+                return (short)((_currentReplayPlaybackMask >> (int)id) & 1);
             }
-
-            return 0;
-
+            return (short)((_portJoypadBitmask[port] >> (int)id) & 1);
         }
 
-
-
-        // Handle PC Mouse (RETRO_DEVICE_MOUSE = 2)
-
-        if (device == 2)
-
-        {
-
-            IntPtr fg = GetForegroundWindow();
-
-            GetWindowThreadProcessId(fg, out uint pid);
-
-            if (pid != (uint)Environment.ProcessId) return 0;
-
-
-
-            return id switch
-
-            {
-
-                0 => (short)_mouseDeltaX,                                     // Mouse X delta
-
-                1 => (short)_mouseDeltaY,                                     // Mouse Y delta
-
-                2 => (short)((GetAsyncKeyState(0x01) & 0x8000) != 0 ? 1 : 0), // Left button
-
-                3 => (short)((GetAsyncKeyState(0x02) & 0x8000) != 0 ? 1 : 0), // Right button
-
-                6 => (short)((GetAsyncKeyState(0x04) & 0x8000) != 0 ? 1 : 0), // Middle button
-
-                _ => 0
-
-            };
-
-        }
-
-
-
-        // Handle RETRO_DEVICE_ANALOG = 4
-
+        // 2. RETRO_DEVICE_ANALOG = 4
         if (device == 4)
-
         {
+            if (port >= 8 || index >= 2 || id >= 2) return 0;
+            return _portAnalogAxes[port, index * 2 + id];
+        }
 
-            if (port >= 4 || !_xinputConnected[port]) return 0;
-
-            var gp = _xinputStates[port].Gamepad;
-
-            int deadzonePct = SettingsManager.Current != null ? SettingsManager.Current.AnalogDeadzonePercent : 15;
-
-            short deadzone = (short)(32767 * Math.Clamp(deadzonePct, 5, 40) / 100);
-
-
-
-            if (index == 0) // Left Analog Stick
-
-            {
-
-                if (id == 0) return Math.Abs(gp.sThumbLX) > deadzone ? gp.sThumbLX : (short)0;
-
-                if (id == 1) return Math.Abs(gp.sThumbLY) > deadzone ? (short)-gp.sThumbLY : (short)0;
-
-            }
-
-            else if (index == 1) // Right Analog Stick
-
-            {
-
-                if (id == 0) return Math.Abs(gp.sThumbRX) > deadzone ? gp.sThumbRX : (short)0;
-
-                if (id == 1) return Math.Abs(gp.sThumbRY) > deadzone ? (short)-gp.sThumbRY : (short)0;
-
-            }
-
+        // 3. RETRO_DEVICE_KEYBOARD = 3
+        if (device == 3)
+        {
+            if (!_isFocusedThisFrame) return 0;
+            int vk = RetroKeyToVirtualKey(id);
+            if (vk > 0 && vk < 256 && (GetAsyncKeyState(vk) & 0x8000) != 0) return 1;
+            if (id < (uint)_virtualKeysDown.Length && _virtualKeysDown[id]) return 1;
             return 0;
-
         }
 
-
-
-        if (device != 1) return 0; // RETRO_DEVICE_JOYPAD
-
-        if (port >= 4) return 0;
-
-
-
-        // Deterministic Input Replay Playback (Port 0)
-
-        if (port == 0 && IsPlayingInput)
-
+        // 4. RETRO_DEVICE_MOUSE = 2
+        if (device == 2)
         {
-
-            short bit = (short)((_currentReplayPlaybackMask >> (int)id) & 1);
-
-            return bit;
-
-        }
-
-
-
-        if (port == 0)
-
-        {
-
-            bool pressed = QueryPort0JoypadButton(id);
-
-
-
-            // Turbo auto-fire pulse modulation on fire buttons (A, B, X, Y)
-
-            if (pressed && SettingsManager.Current != null && SettingsManager.Current.TurboButtonsEnabled &&
-
-                (id == 0 || id == 1 || id == 8 || id == 9))
-
+            if (!_isFocusedThisFrame) return 0;
+            return id switch
             {
-
-                int hz = Math.Clamp(SettingsManager.Current.TurboFireHz, 5, 30);
-
-                int cycleFrames = Math.Max(2, (int)Math.Round(60.0 / hz));
-
-                int halfCycle = Math.Max(1, cycleFrames / 2);
-
-                bool turboPulse = (_frameCount % (ulong)cycleFrames) < (ulong)halfCycle;
-
-                pressed = pressed && turboPulse;
-
-            }
-
-
-
-            return pressed ? (short)1 : (short)0;
-
-        }
-
-
-
-        // Ports 1..3: Multi-Controller Hardware XInput
-
-        if (_xinputConnected[port])
-
-        {
-
-            var gp = _xinputStates[port].Gamepad;
-
-            const ushort XINPUT_GAMEPAD_DPAD_UP = 0x0001;
-
-            const ushort XINPUT_GAMEPAD_DPAD_DOWN = 0x0002;
-
-            const ushort XINPUT_GAMEPAD_DPAD_LEFT = 0x0004;
-
-            const ushort XINPUT_GAMEPAD_DPAD_RIGHT = 0x0008;
-
-            const ushort XINPUT_GAMEPAD_START = 0x0010;
-
-            const ushort XINPUT_GAMEPAD_BACK = 0x0020;
-
-            const ushort XINPUT_GAMEPAD_LEFT_THUMB = 0x0040;
-
-            const ushort XINPUT_GAMEPAD_RIGHT_THUMB = 0x0080;
-
-            const ushort XINPUT_GAMEPAD_LEFT_SHOULDER = 0x0100;
-
-            const ushort XINPUT_GAMEPAD_RIGHT_SHOULDER = 0x0200;
-
-            const ushort XINPUT_GAMEPAD_A = 0x1000;
-
-            const ushort XINPUT_GAMEPAD_B = 0x2000;
-
-            const ushort XINPUT_GAMEPAD_X = 0x4000;
-
-            const ushort XINPUT_GAMEPAD_Y = 0x8000;
-
-
-
-            int deadzonePct = SettingsManager.Current != null ? SettingsManager.Current.AnalogDeadzonePercent : 15;
-
-            short deadzone = (short)(32767 * Math.Clamp(deadzonePct, 5, 40) / 100);
-
-
-
-            int triggerPct = SettingsManager.Current != null ? SettingsManager.Current.TriggerThresholdPercent : 12;
-
-            byte triggerThreshold = (byte)(255 * Math.Clamp(triggerPct, 5, 50) / 100);
-
-
-
-            bool pressed = id switch
-
-            {
-
-                0 => (gp.wButtons & (XINPUT_GAMEPAD_A | XINPUT_GAMEPAD_B)) != 0,
-
-                1 => (gp.wButtons & (XINPUT_GAMEPAD_X | XINPUT_GAMEPAD_Y)) != 0,
-
-                2 => (gp.wButtons & XINPUT_GAMEPAD_BACK) != 0,
-
-                3 => (gp.wButtons & XINPUT_GAMEPAD_START) != 0,
-
-                4 => (gp.wButtons & XINPUT_GAMEPAD_DPAD_UP) != 0 || gp.sThumbLY > deadzone,
-
-                5 => (gp.wButtons & XINPUT_GAMEPAD_DPAD_DOWN) != 0 || gp.sThumbLY < -deadzone,
-
-                6 => (gp.wButtons & XINPUT_GAMEPAD_DPAD_LEFT) != 0 || gp.sThumbLX < -deadzone,
-
-                7 => (gp.wButtons & XINPUT_GAMEPAD_DPAD_RIGHT) != 0 || gp.sThumbLX > deadzone,
-
-                8 => (gp.wButtons & (XINPUT_GAMEPAD_A | XINPUT_GAMEPAD_B)) != 0,
-
-                9 => (gp.wButtons & (XINPUT_GAMEPAD_X | XINPUT_GAMEPAD_Y)) != 0,
-
-                10 => (gp.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) != 0 || gp.bLeftTrigger > triggerThreshold,
-
-                11 => (gp.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0 || gp.bRightTrigger > triggerThreshold,
-
-                12 => gp.bLeftTrigger > triggerThreshold,
-
-                13 => gp.bRightTrigger > triggerThreshold,
-
-                14 => (gp.wButtons & XINPUT_GAMEPAD_LEFT_THUMB) != 0,
-
-                15 => (gp.wButtons & XINPUT_GAMEPAD_RIGHT_THUMB) != 0,
-
-                _ => false
-
+                0 => (short)_mouseDeltaX,
+                1 => (short)_mouseDeltaY,
+                2 => (short)((GetAsyncKeyState(0x01) & 0x8000) != 0 ? 1 : 0),
+                3 => (short)((GetAsyncKeyState(0x02) & 0x8000) != 0 ? 1 : 0),
+                6 => (short)((GetAsyncKeyState(0x04) & 0x8000) != 0 ? 1 : 0),
+                _ => 0
             };
-
-
-
-            return pressed ? (short)1 : (short)0;
-
         }
-
-
 
         return 0;
-
     }
-
 
 
     private void EmulationLoop()

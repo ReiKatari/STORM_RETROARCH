@@ -326,6 +326,24 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }));
         };
 
+        // 2.1.0 Multi-Device Input Engine & Controller Hotkey Studio
+        DeviceInputProfileEngine.Initialize();
+        DeviceInputProfileEngine.OnDeviceProfileActivated += (dev, msg) =>
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
+            {
+                ShowOsdToast(msg, "#38BDF8");
+            }));
+        };
+
+        NativeLibretroHost.Current.OnControllerHotkeyTriggered += (actionId) =>
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
+            {
+                HandleControllerHotkeyAction(actionId);
+            }));
+        };
+
         // 2.0.0 Live Gamepad Telemetry & Axis Tester Timer (65ms, active ONLY on ViewInputRemap)
         _livePadTesterTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
@@ -622,7 +640,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SyncQuickSettingsCheckboxes();
 
         _isLoaded = true;
-        LogCheckpoint("Before InitStudio200"); InitStudio200(); LogCheckpoint("After InitStudio200");
+        LogCheckpoint("Before InitStudio200"); InitStudio200(); InitStudio210(); LogCheckpoint("After InitStudio210");
 
         ForceForegroundWindow(hwnd);
 
@@ -640,7 +658,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         LogCheckpoint("Before Screenshot loop"); string[] cmdArgs = Environment.GetCommandLineArgs();
         for (int i = 0; i < cmdArgs.Length - 1; i++)
         {
-            if (cmdArgs[i].Equals("--screenshot-200-suite", StringComparison.OrdinalIgnoreCase) ||
+            if (cmdArgs[i].Equals("--screenshot-210-suite", StringComparison.OrdinalIgnoreCase) || cmdArgs[i].Equals("--screenshot-200-suite", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-settings", StringComparison.OrdinalIgnoreCase) ||
                 cmdArgs[i].Equals("--screenshot-bios", StringComparison.OrdinalIgnoreCase) ||
@@ -944,7 +962,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                             if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
                             EnsureBattletoadsRunningPreview();
                         }
-                                                else if (cmdArgs[i].Equals("--screenshot-200-suite", StringComparison.OrdinalIgnoreCase))
+                                                else if (cmdArgs[i].Equals("--screenshot-210-suite", StringComparison.OrdinalIgnoreCase)) { await RunScreenshot210SuiteAsync(shotPath); } else if (cmdArgs[i].Equals("--screenshot-200-suite", StringComparison.OrdinalIgnoreCase))
                         {
                             await RunScreenshot200SuiteAsync(shotPath);
                         }
@@ -1322,6 +1340,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         // Global ESC Modal Dismissal Rule (STORM Law 19) - Checked at the VERY TOP before anything else
         if (e.Key == Key.Escape)
         {
+            if (PnlInGamePadOverlay != null && PnlInGamePadOverlay.Visibility == Visibility.Visible)
+            {
+                PnlInGamePadOverlay.Visibility = Visibility.Collapsed;
+                e.Handled = true;
+                return;
+            }
             if (PnlOnScreenKeyboard != null && PnlOnScreenKeyboard.Visibility == Visibility.Visible)
             {
                 PnlOnScreenKeyboard.Visibility = Visibility.Collapsed;
@@ -1441,6 +1465,42 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 e.Handled = true;
                 return;
             }
+            if (HotkeyManager.Matches("pause_toggle", actualKey))
+            {
+                if (NativeLibretroHost.Current.IsRunning)
+                {
+                    NativeLibretroHost.Current.TogglePause();
+                    ShowOsdToast(NativeLibretroHost.Current.IsPaused ? "Эмуляция приостановлена" : "Эмуляция возобновлена", "#38BDF8");
+                }
+                e.Handled = true;
+                return;
+            }
+            if (HotkeyManager.Matches("reset_game", actualKey))
+            {
+                BtnGameReset_Click(sender, e);
+                e.Handled = true;
+                return;
+            }
+            if (HotkeyManager.Matches("state_slot_next", actualKey))
+            {
+                int nextSlot = Math.Min(9, NativeLibretroHost.Current.ActiveStateSlot + 1);
+                NativeLibretroHost.Current.ActiveStateSlot = nextSlot;
+                if (CmbInGameStateSlot != null && nextSlot < CmbInGameStateSlot.Items.Count) CmbInGameStateSlot.SelectedIndex = nextSlot;
+                if (CmbStateSlot != null && nextSlot < CmbStateSlot.Items.Count) CmbStateSlot.SelectedIndex = nextSlot;
+                ShowOsdToast($"Слот сохранения: {nextSlot}");
+                e.Handled = true;
+                return;
+            }
+            if (HotkeyManager.Matches("state_slot_prev", actualKey))
+            {
+                int nextSlot = Math.Max(0, NativeLibretroHost.Current.ActiveStateSlot - 1);
+                NativeLibretroHost.Current.ActiveStateSlot = nextSlot;
+                if (CmbInGameStateSlot != null && nextSlot < CmbInGameStateSlot.Items.Count) CmbInGameStateSlot.SelectedIndex = nextSlot;
+                if (CmbStateSlot != null && nextSlot < CmbStateSlot.Items.Count) CmbStateSlot.SelectedIndex = nextSlot;
+                ShowOsdToast($"Слот сохранения: {nextSlot}");
+                e.Handled = true;
+                return;
+            }
             if (HotkeyManager.Matches("save_state", actualKey))
             {
                 BtnGameSaveState_Click(sender, e);
@@ -1471,9 +1531,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("shader_cycle", actualKey))
+            if (HotkeyManager.Matches("shader_next", actualKey) || HotkeyManager.Matches("shader_cycle", actualKey))
             {
                 BtnGameShader_Click(sender, e);
+                e.Handled = true;
+                return;
+            }
+            if (HotkeyManager.Matches("bezel_toggle", actualKey))
+            {
+                BtnGameBezel_Click(sender, e);
                 e.Handled = true;
                 return;
             }
@@ -1483,7 +1549,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("fullscreen", actualKey))
+            if (HotkeyManager.Matches("fullscreen_toggle", actualKey) || HotkeyManager.Matches("fullscreen", actualKey))
             {
                 BtnGameFullscreen_Click(sender, e);
                 e.Handled = true;
@@ -1505,15 +1571,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("fast_forward", actualKey))
+            if (HotkeyManager.Matches("fast_forward_hold", actualKey) || HotkeyManager.Matches("fast_forward_toggle", actualKey) || HotkeyManager.Matches("fast_forward", actualKey))
             {
                 BtnGameFastForward_Click(sender, e);
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("mute_audio", actualKey))
+            if (HotkeyManager.Matches("audio_mute", actualKey) || HotkeyManager.Matches("mute_audio", actualKey))
             {
                 BtnGameMute_Click(sender, e);
+                e.Handled = true;
+                return;
+            }
+            if (HotkeyManager.Matches("osk_toggle", actualKey))
+            {
+                BtnHudToggleOsk_Click(sender, e);
                 e.Handled = true;
                 return;
             }
@@ -1712,6 +1784,86 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
         // Handled in Window_PreviewKeyDown
+    }
+
+    private void HandleControllerHotkeyAction(string actionId)
+    {
+        string normId = HotkeyManager.NormalizeActionId(actionId);
+        switch (normId)
+        {
+            case "quick_menu":
+                ToggleInGameQuickMenu();
+                break;
+            case "pause_toggle":
+                if (NativeLibretroHost.Current.IsRunning)
+                {
+                    NativeLibretroHost.Current.TogglePause();
+                    ShowOsdToast(NativeLibretroHost.Current.IsPaused ? "Эмуляция приостановлена" : "Эмуляция возобновлена", "#38BDF8");
+                }
+                break;
+            case "reset_game":
+                BtnGameReset_Click(this, new RoutedEventArgs());
+                break;
+            case "state_slot_next":
+                {
+                    int nextSlot = Math.Min(9, NativeLibretroHost.Current.ActiveStateSlot + 1);
+                    NativeLibretroHost.Current.ActiveStateSlot = nextSlot;
+                    if (CmbInGameStateSlot != null && nextSlot < CmbInGameStateSlot.Items.Count) CmbInGameStateSlot.SelectedIndex = nextSlot;
+                    if (CmbStateSlot != null && nextSlot < CmbStateSlot.Items.Count) CmbStateSlot.SelectedIndex = nextSlot;
+                    ShowOsdToast($"Слот сохранения: {nextSlot}");
+                }
+                break;
+            case "state_slot_prev":
+                {
+                    int nextSlot = Math.Max(0, NativeLibretroHost.Current.ActiveStateSlot - 1);
+                    NativeLibretroHost.Current.ActiveStateSlot = nextSlot;
+                    if (CmbInGameStateSlot != null && nextSlot < CmbInGameStateSlot.Items.Count) CmbInGameStateSlot.SelectedIndex = nextSlot;
+                    if (CmbStateSlot != null && nextSlot < CmbStateSlot.Items.Count) CmbStateSlot.SelectedIndex = nextSlot;
+                    ShowOsdToast($"Слот сохранения: {nextSlot}");
+                }
+                break;
+            case "save_state":
+                BtnGameSaveState_Click(this, new RoutedEventArgs());
+                break;
+            case "load_state":
+                BtnGameLoadState_Click(this, new RoutedEventArgs());
+                break;
+            case "instant_replay":
+                TriggerInstantReplaySave();
+                break;
+            case "screenshot":
+                BtnGameScreenshot_Click(this, new RoutedEventArgs());
+                break;
+            case "shader_next":
+                BtnGameShader_Click(this, new RoutedEventArgs());
+                break;
+            case "bezel_toggle":
+                BtnGameBezel_Click(this, new RoutedEventArgs());
+                break;
+            case "fullscreen_toggle":
+                BtnGameFullscreen_Click(this, new RoutedEventArgs());
+                break;
+            case "frame_advance":
+                if (ViewGamePlayer != null && ViewGamePlayer.Visibility == Visibility.Visible)
+                {
+                    NativeLibretroHost.Current.StepSingleFrame();
+                    ShowOsdToast("Кадр +1", "#38BDF8");
+                }
+                break;
+            case "rewind_hold":
+                BtnGameRewind_Click(this, new RoutedEventArgs());
+                break;
+            case "fast_forward_hold":
+            case "fast_forward_toggle":
+                BtnGameFastForward_Click(this, new RoutedEventArgs());
+                break;
+            case "audio_mute":
+                BtnGameMute_Click(this, new RoutedEventArgs());
+                break;
+            case "osk_toggle":
+                BtnHudToggleOsk_Click(this, new RoutedEventArgs());
+                break;
+        }
     }
 
     private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
@@ -5736,6 +5888,9 @@ private void LoadBezels()
             {
                 if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Collapsed;
                 UpdateInGameHudButtons();
+
+                string coreId = Path.GetFileNameWithoutExtension(item.CoreDll ?? "");
+                DeviceInputProfileEngine.NotifyCoreOrGameChanged(coreId, item.Name);
                 if (SettingsManager.Current.AutoBezelByPlatform)
                 {
                     var bestBezel = BezelManager.FindBestBezelForPlatform(item.Platform);
@@ -6142,6 +6297,7 @@ private void LoadBezels()
         if (_isGameFullscreen) SetFullscreenMode(false);
         if (PnlInGameQuickMenu != null) PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
         NativeLibretroHost.Current.StopGame();
+        DeviceInputProfileEngine.NotifyCoreOrGameChanged(null, null);
         LoadSaves();
         RefreshSaveSyncUi();
         if (PnlGameLoadingOverlay != null) PnlGameLoadingOverlay.Visibility = Visibility.Visible;
@@ -6438,14 +6594,14 @@ private void LoadBezels()
 
         if (TxtGamepadCaptureStatus != null)
         {
-            TxtGamepadCaptureStatus.Text = $"Нажмите любую клавишу клавиатуры для назначения [{btnName.ToUpper()}]... (ESC — отмена)";
+            TxtGamepadCaptureStatus.Text = $"Нажмите кнопку геймпада/стика или клавишу для [{btnName.ToUpper()}]... (ESC - отмена)"; _physicalCaptureTimer?.Start();
             TxtGamepadCaptureStatus.Foreground = (Brush)new BrushConverter().ConvertFrom("#38BDF8")!;
         }
     }
 
     private void CancelGamepadButtonCapture()
     {
-        _isCapturingGamepadButton = false;
+        _isCapturingGamepadButton = false; _physicalCaptureTimer?.Stop();
         _capturingButtonName = "";
 
         if (_activePadButtonBorder != null)
@@ -8394,10 +8550,7 @@ private void LoadBezels()
 
     public void RefreshHotkeyBindings()
     {
-        if (ItemsHotkeyMatrix != null)
-        {
-            ItemsHotkeyMatrix.ItemsSource = HotkeyManager.GetAllBindings();
-        }
+        RebuildHotkeyStudioList();
     }
 
     private void BtnAssignHotkey_Click(object sender, RoutedEventArgs e)
@@ -8413,7 +8566,7 @@ private void LoadBezels()
 
     public void CancelHotkeyCapture()
     {
-        _capturingHotkeyActionId = null;
+        _capturingHotkeyActionId = null; _isCapturingGamepadChord = false; _physicalCaptureTimer?.Stop();
         if (BadgeHotkeyCapture != null) BadgeHotkeyCapture.Visibility = Visibility.Collapsed;
     }
 
