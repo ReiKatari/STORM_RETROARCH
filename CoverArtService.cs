@@ -686,7 +686,7 @@ public static class CoverArtService
             {
                 string url = $"https://en.wikipedia.org/api/rest_v1/page/summary/{Uri.EscapeDataString(q)}";
                 using var req = new HttpRequestMessage(HttpMethod.Get, url);
-                req.Headers.UserAgent.ParseAdd("STORM-RETROARCH/2.4.0 (Game Media Engine; contact@stormgamesworld.ru)");
+                req.Headers.UserAgent.ParseAdd("STORM-RETROARCH/2.5.0 (Game Media Engine; contact@stormgamesworld.ru)");
                 using var resp = await _httpClient.SendAsync(req).ConfigureAwait(false);
                 if (!resp.IsSuccessStatusCode) continue;
 
@@ -716,7 +716,7 @@ public static class CoverArtService
                 if (!string.IsNullOrEmpty(imgUrl))
                 {
                     using var imgReq = new HttpRequestMessage(HttpMethod.Get, imgUrl);
-                    imgReq.Headers.UserAgent.ParseAdd("STORM-RETROARCH/2.4.0 (Game Media Engine)");
+                    imgReq.Headers.UserAgent.ParseAdd("STORM-RETROARCH/2.5.0 (Game Media Engine)");
                     using var imgResp = await _httpClient.SendAsync(imgReq).ConfigureAwait(false);
                     if (imgResp.IsSuccessStatusCode)
                     {

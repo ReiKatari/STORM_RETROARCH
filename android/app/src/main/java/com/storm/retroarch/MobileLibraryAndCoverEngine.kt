@@ -2,8 +2,13 @@ package com.storm.retroarch
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.provider.DocumentsContract
+import android.provider.OpenableColumns
+import androidx.documentfile.provider.DocumentFile
+import org.json.JSONArray
 import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -13,6 +18,7 @@ import java.net.HttpURLConnection
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -32,7 +38,8 @@ data class MobileRomItem(
     val sizeBytes: Long,
     var isFavorite: Boolean = false,
     var lastPlayedMs: Long = 0L,
-    var coverPath: String? = null
+    var coverPath: String? = null,
+    val id: String = MobileLibraryAndCoverEngine.computeRomId(filePath)
 ) {
     val sizeFormatted: String
         get() {
@@ -48,6 +55,14 @@ data class MobileRomItem(
 
     val regionDisplayBadge: String
         get() = if (isRussianMod) "$regionCode + RUS" else regionCode
+
+    val coverUrl: String
+        get() {
+            val cp = coverPath
+            return if (!cp.isNullOrBlank() && File(cp).exists()) {
+                MobileLibraryAndCoverEngine.toStormLocalUrl(cp)
+            } else ""
+        }
 }
 
 data class LibraryFilterCounts(
@@ -69,11 +84,12 @@ object MobileLibraryAndCoverEngine {
 
     private const val THUMBNAILS_SERVER = "https://thumbnails.libretro.com"
     private const val PREFS_ROM_META = "storm_mobile_rom_metadata"
+    private const val KEY_CUSTOM_DIRS = "custom_scan_dirs_json"
+    private const val KEY_SINGLE_ROMS = "single_picked_roms_json"
 
     private val coverExecutor = Executors.newFixedThreadPool(3)
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    // In-memory cache of Libretro Named_Boxarts filenames per Libretro system folder
     private val boxartListingCache = ConcurrentHashMap<String, List<String>>()
     private val listingLocks = ConcurrentHashMap<String, Any>()
 
@@ -82,7 +98,7 @@ object MobileLibraryAndCoverEngine {
         "genesis", "sega32x", "sms_gg", "sg1000", "segapico",
         "pce", "ngp", "neogeo", "cps", "arcade", "wonderswan",
         "vectrex", "coleco", "intellivision", "odyssey2",
-        "atari2600", "atari5200", "atari7800", "lynx", "pico8", "tic80"
+        "atari2600", "atari5200", "atari7800", "lynx", "pico8", "tic80", "fantasy"
     )
 
     private val CD_3D_KEYS = setOf(
@@ -93,13 +109,25 @@ object MobileLibraryAndCoverEngine {
     )
 
     private val DOS_PC_KEYS = setOf(
-        "dos", "scummvm", "amiga", "zxspectrum", "c64", "msx",
-        "x68000", "pc98", "pc88", "amstrad", "atarist", "atari800", "bk0010", "doom"
+        "dos", "scummvm", "amiga", "zxspectrum", "zx81", "c64", "msx",
+        "x68000", "x1", "pc98", "pc88", "amstrad", "atarist", "atari800", "bk0010", "doom", "ports"
     )
 
     private val IGNORED_DIR_NAMES = setOf(
-        "cores", "system", "bios", "cheats", "thumbnails", "bezels",
-        "shaders", "saves", "states", "autoconfig", "updates", "patches", ".git", "android"
+        "cores", "system", "bios", "cheats", "thumbnails", "bezels", "config",
+        "shaders", "saves", "states", "screenshots", "autoconfig", "updates",
+        "patches", "backups", ".git", "android", "android_data"
+    )
+
+    // Unambiguous console/handheld/disc ROM extensions safe to pick up directly in /storage/emulated/0/Download
+    private val UNAMBIGUOUS_ROM_EXTENSIONS = setOf(
+        "nes", "fds", "unf", "unif", "sfc", "smc", "fig", "swc", "z64", "n64", "v64",
+        "gb", "gbc", "dmg", "gba", "agb", "nds", "dsi", "3ds", "cci", "cxi", "vb", "min",
+        "md", "gen", "smd", "32x", "sms", "gg", "sg", "cdi", "gdi",
+        "chd", "pbp", "cso", "cue", "m3u", "pce", "sgx", "pcfx", "ngp", "ngc", "ngpc",
+        "ws", "wsc", "vec", "col", "a26", "a52", "a78", "lnx", "j64", "jag",
+        "adf", "adz", "dms", "d64", "t64", "tap", "tzx", "z80", "scl", "trd",
+        "dim", "hdi", "nhd", "dosz", "wad"
     )
 
     private val LIBRETRO_THUMBNAIL_SYSTEM_MAP: Map<String, String> = mapOf(
@@ -148,6 +176,7 @@ object MobileLibraryAndCoverEngine {
         "coleco" to "Coleco - ColecoVision",
         "intellivision" to "Mattel - Intellivision",
         "odyssey2" to "Magnavox - Odyssey2",
+        "channelf" to "Fairchild - Channel F",
         "atari2600" to "Atari - 2600",
         "atari5200" to "Atari - 5200",
         "atari7800" to "Atari - 7800",
@@ -158,152 +187,443 @@ object MobileLibraryAndCoverEngine {
         "dos" to "DOS",
         "scummvm" to "ScummVM",
         "amiga" to "Commodore - Amiga",
-        "zxspectrum" to "Sinclair - ZX Spectrum",
         "c64" to "Commodore - 64",
+        "zxspectrum" to "Sinclair - ZX Spectrum",
         "msx" to "Microsoft - MSX",
-        "x68000" to "Sharp - X68000",
-        "pc98" to "NEC - PC-98",
-        "pc88" to "NEC - PC-88",
         "amstrad" to "Amstrad - CPC",
+        "pc98" to "NEC - PC-98",
+        "x68000" to "Sharp - X68000",
         "doom" to "DOOM"
     )
 
-    fun getDefaultRomDirectories(): List<File> {
-        val root = File(MobileCoreRegistry.STORM_PUBLIC_ROOT)
-        val romsDir = File(root, "roms")
+    fun computeRomId(filePath: String): String {
+        return try {
+            val md = MessageDigest.getInstance("MD5")
+            val digest = md.digest(filePath.toByteArray(StandardCharsets.UTF_8))
+            digest.take(8).joinToString("") { "%02x".format(it) }
+        } catch (_: Throwable) {
+            filePath.hashCode().toUInt().toString(16)
+        }
+    }
+
+    fun toStormLocalUrl(absFilePath: String): String {
+        if (absFilePath.isBlank()) return ""
+        val encoded = URLEncoder.encode(absFilePath, "UTF-8")
+        return "https://stormlocal.app/file?path=$encoded"
+    }
+
+    fun getMetaPrefs(context: Context): SharedPreferences {
+        return context.applicationContext.getSharedPreferences(PREFS_ROM_META, Context.MODE_PRIVATE)
+    }
+
+    fun getThumbnailsRootDir(context: Context? = null): File {
+        val pub = File(MobileCoreRegistry.STORM_PUBLIC_ROOT, "thumbnails")
         try {
-            if (!romsDir.exists()) romsDir.mkdirs()
+            if (!pub.exists()) pub.mkdirs()
         } catch (_: Throwable) {
         }
-        return listOf(romsDir)
+        if (pub.exists() && pub.canWrite()) return pub
+        if (context != null) {
+            val internalDir = File(context.applicationContext.filesDir, "thumbnails")
+            if (!internalDir.exists()) internalDir.mkdirs()
+            return internalDir
+        }
+        return pub
     }
 
-    fun getRomMetadataPrefs(context: Context): SharedPreferences {
-        return context.getSharedPreferences(PREFS_ROM_META, Context.MODE_PRIVATE)
+    fun getRomsStagingDir(context: Context): File {
+        val pub = File(MobileCoreRegistry.STORM_PUBLIC_ROOT, "roms/imported")
+        try {
+            if (!pub.exists()) pub.mkdirs()
+            if (pub.exists() && pub.canWrite()) return pub
+        } catch (_: Throwable) {
+        }
+        val fallback = File(context.applicationContext.filesDir, "roms/imported")
+        fallback.mkdirs()
+        return fallback
     }
 
-    fun saveRomItemState(prefs: SharedPreferences, item: MobileRomItem) {
-        val keyHash = item.filePath.hashCode().toUInt().toString(16)
-        prefs.edit()
-            .putBoolean("fav_$keyHash", item.isFavorite)
-            .putLong("last_$keyHash", item.lastPlayedMs)
-            .putString("core_$keyHash", item.assignedCoreId)
-            .putString("cover_$keyHash", item.coverPath)
+    // === Persisted Custom Directories & Single Picked ROMs ===
+
+    fun getPersistedScanFolders(context: Context): List<String> {
+        val raw = getMetaPrefs(context).getString(KEY_CUSTOM_DIRS, "[]") ?: "[]"
+        val out = ArrayList<String>()
+        try {
+            val arr = JSONArray(raw)
+            for (i in 0 until arr.length()) {
+                val s = arr.optString(i, "").trim()
+                if (s.isNotEmpty() && !out.contains(s)) out.add(s)
+            }
+        } catch (_: Throwable) {
+        }
+        return out
+    }
+
+    fun addPersistedScanFolder(context: Context, pathOrUri: String) {
+        val clean = pathOrUri.trim()
+        if (clean.isEmpty()) return
+        val current = getPersistedScanFolders(context).toMutableList()
+        if (!current.contains(clean)) {
+            current.add(clean)
+            val arr = JSONArray()
+            current.forEach { arr.put(it) }
+            getMetaPrefs(context).edit().putString(KEY_CUSTOM_DIRS, arr.toString()).apply()
+        }
+    }
+
+    fun removePersistedScanFolder(context: Context, pathOrUri: String): Boolean {
+        val current = getPersistedScanFolders(context).toMutableList()
+        val removed = current.remove(pathOrUri.trim())
+        if (removed) {
+            val arr = JSONArray()
+            current.forEach { arr.put(it) }
+            getMetaPrefs(context).edit().putString(KEY_CUSTOM_DIRS, arr.toString()).apply()
+        }
+        return removed
+    }
+
+    fun getPersistedSingleRoms(context: Context): List<String> {
+        val raw = getMetaPrefs(context).getString(KEY_SINGLE_ROMS, "[]") ?: "[]"
+        val out = ArrayList<String>()
+        try {
+            val arr = JSONArray(raw)
+            for (i in 0 until arr.length()) {
+                val p = arr.optString(i, "").trim()
+                if (p.isNotEmpty() && File(p).exists() && !out.contains(p)) out.add(p)
+            }
+        } catch (_: Throwable) {
+        }
+        return out
+    }
+
+    private fun addPersistedSingleRom(context: Context, filePath: String) {
+        val current = getPersistedSingleRoms(context).toMutableList()
+        if (!current.contains(filePath)) {
+            current.add(filePath)
+            val arr = JSONArray()
+            current.forEach { arr.put(it) }
+            getMetaPrefs(context).edit().putString(KEY_SINGLE_ROMS, arr.toString()).apply()
+        }
+    }
+
+    // === SAF Tree & Document URI Real Path Resolver + Importer ===
+
+    fun resolveTreeOrDocumentUriToRealFile(uri: Uri): File? {
+        return try {
+            val docId = when {
+                DocumentsContract.isDocumentUri(null, uri) -> DocumentsContract.getDocumentId(uri)
+                uri.path?.contains("/tree/") == true -> DocumentsContract.getTreeDocumentId(uri)
+                else -> null
+            } ?: return null
+
+            if (docId.startsWith("raw:")) {
+                val f = File(docId.removePrefix("raw:"))
+                if (f.exists()) return f
+            }
+
+            val parts = docId.split(":", limit = 2)
+            if (parts.isNotEmpty()) {
+                val vol = parts[0]
+                val rel = parts.getOrNull(1)?.trimStart('/') ?: ""
+                val rootPath = if (vol.equals("primary", ignoreCase = true) || vol.equals("home", ignoreCase = true)) {
+                    "/storage/emulated/0"
+                } else {
+                    "/storage/$vol"
+                }
+                val candidate = if (rel.isEmpty()) File(rootPath) else File(rootPath, rel)
+                if (candidate.exists()) return candidate
+            }
+            null
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    fun importSingleRomUri(context: Context, uri: Uri): MobileRomItem? {
+        val appCtx = context.applicationContext
+        MobileCoreRegistry.init(appCtx)
+
+        val directFile = resolveDirectDocumentUri(uri)
+        val finalFile = if (directFile != null && directFile.exists() && directFile.canRead()) {
+            directFile
+        } else {
+            val name = queryUriDisplayName(appCtx, uri) ?: uri.lastPathSegment?.substringAfterLast('/') ?: "game.rom"
+            val safeName = name.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+            val dest = File(getRomsStagingDir(appCtx), safeName)
+            try {
+                appCtx.contentResolver.openInputStream(uri)?.use { inp ->
+                    FileOutputStream(dest).use { out ->
+                        inp.copyTo(out, 32 * 1024)
+                        out.flush()
+                    }
+                } ?: return null
+                dest
+            } catch (_: Throwable) {
+                return null
+            }
+        }
+
+        if (!finalFile.exists() || !finalFile.isFile || finalFile.length() <= 0L) return null
+        addPersistedSingleRom(appCtx, finalFile.absolutePath)
+        return buildRomItemForFile(appCtx, finalFile, getMetaPrefs(appCtx))
+    }
+
+    private fun resolveDirectDocumentUri(uri: Uri): File? {
+        return try {
+            val docId = DocumentsContract.getDocumentId(uri)
+            if (docId.startsWith("raw:")) {
+                val f = File(docId.removePrefix("raw:"))
+                if (f.exists()) return f
+            }
+            val split = docId.split(":", limit = 2)
+            if (split.size == 2) {
+                val vol = split[0]
+                val rel = split[1].trimStart('/')
+                val base = if (vol.equals("primary", ignoreCase = true)) "/storage/emulated/0" else "/storage/$vol"
+                val f = File(base, rel)
+                if (f.exists()) return f
+            }
+            null
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun queryUriDisplayName(context: Context, uri: Uri): String? {
+        return try {
+            context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) c.getString(0) else null
+            }
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    // === Fast Multi-Folder + Download + SAF Scanner ===
+
+    fun saveRomPreferenceState(context: Context, rom: MobileRomItem) {
+        val p = getMetaPrefs(context)
+        val keyBase = rom.filePath.hashCode().toString()
+        p.edit()
+            .putBoolean("fav_$keyBase", rom.isFavorite)
+            .putLong("last_$keyBase", rom.lastPlayedMs)
+            .putString("core_$keyBase", rom.assignedCoreId)
             .apply()
     }
 
-    /**
-     * Walks directories, deduplicating `.cue`/`.gdi`/`.m3u` child `.bin`/`.raw`/`.iso`/`.chd` tracks,
-     * inspecting binary disc/cartridge headers, preserving base region on Russian mods,
-     * and restoring user favorites, play history, core bindings, and cached covers.
-     */
-    fun scanDirectories(dirs: List<File>, savedPrefs: SharedPreferences? = null): List<MobileRomItem> {
-        val supportedExts = MobileCoreRegistry.getAllUniqueExtensions()
-        val candidateFiles = ArrayList<File>(256)
+    fun scanLibraryDirectories(
+        context: Context,
+        customRootDirs: List<File>? = null
+    ): List<MobileRomItem> {
+        val appCtx = context.applicationContext
+        MobileCoreRegistry.init(appCtx)
+        val prefs = getMetaPrefs(appCtx)
+        val supportedExts = MobileCoreRegistry.getAllUniqueExtensions(appCtx)
+
+        val scanRoots = LinkedHashSet<File>()
+        if (customRootDirs != null && customRootDirs.isNotEmpty()) {
+            scanRoots.addAll(customRootDirs)
+        } else {
+            val pubRoot = File(MobileCoreRegistry.STORM_PUBLIC_ROOT)
+            scanRoots.add(File(pubRoot, "roms"))
+            scanRoots.add(File(pubRoot, "games"))
+            scanRoots.add(File(appCtx.filesDir, "roms"))
+            scanRoots.add(File("/storage/emulated/0/Download"))
+        }
+
+        val safTreesToStage = ArrayList<Uri>()
+        for (savedEntry in getPersistedScanFolders(appCtx)) {
+            if (savedEntry.startsWith("content://")) {
+                val uri = Uri.parse(savedEntry)
+                val resolved = resolveTreeOrDocumentUriToRealFile(uri)
+                if (resolved != null && resolved.exists() && resolved.canRead()) {
+                    scanRoots.add(resolved)
+                } else {
+                    safTreesToStage.add(uri)
+                }
+            } else {
+                val f = File(savedEntry)
+                if (f.exists()) scanRoots.add(f)
+            }
+        }
+
+        // Stage ROMs from non-primary SAF trees (e.g. external SD card / restricted DocumentFile trees)
+        for (treeUri in safTreesToStage) {
+            stageRomsFromSafTree(appCtx, treeUri, supportedExts)
+        }
+
+        val candidateFiles = ArrayList<File>()
         val hiddenChildPaths = HashSet<String>()
 
-        fun collectRecursive(dir: File, depth: Int) {
-            if (depth > 8 || !dir.exists() || !dir.canRead()) return
+        fun collectRecursive(dir: File, depth: Int, isDownloadFolder: Boolean) {
+            if (depth > 5 || !dir.exists() || !dir.isDirectory || !dir.canRead()) return
             if (depth > 0 && IGNORED_DIR_NAMES.contains(dir.name.lowercase(Locale.ROOT))) return
 
             val entries = dir.listFiles() ?: return
-            // Pass 1 in directory: register child tracks referenced by .m3u / .cue / .gdi
-            for (f in entries) {
-                if (!f.isFile) continue
-                val ext = f.extension.lowercase(Locale.ROOT)
-                if (ext == "m3u" || ext == "cue" || ext == "gdi") {
-                    for (child in parseDescriptorChildFiles(f)) {
-                        hiddenChildPaths.add(normalizePathKey(child))
+            for (entry in entries) {
+                if (entry.name.startsWith(".")) continue
+                if (entry.isDirectory) {
+                    val maxSubDepth = if (isDownloadFolder) 2 else 5
+                    if (depth + 1 <= maxSubDepth) {
+                        collectRecursive(entry, depth + 1, isDownloadFolder)
                     }
-                }
-            }
+                } else if (entry.isFile && entry.length() > 128L) {
+                    val ext = entry.extension.lowercase(Locale.ROOT)
+                    if (!supportedExts.contains(ext)) continue
 
-            // Pass 2 in directory: collect candidate ROMs & recurse
-            for (f in entries) {
-                if (f.name.startsWith(".")) continue
-                if (f.isDirectory) {
-                    collectRecursive(f, depth + 1)
-                } else if (f.isFile && f.length() > 0L) {
-                    val ext = f.extension.lowercase(Locale.ROOT)
-                    if (supportedExts.contains(ext)) {
-                        candidateFiles.add(f)
+                    if (isDownloadFolder && depth == 0) {
+                        if (!isLikelyRomInDownloadFolder(entry, ext)) continue
+                    }
+
+                    candidateFiles.add(entry)
+                    if (ext == "m3u" || ext == "cue" || ext == "gdi") {
+                        for (child in parseDescriptorChildFiles(entry)) {
+                            hiddenChildPaths.add(normalizePathKey(child))
+                        }
                     }
                 }
             }
         }
 
-        for (root in dirs) {
-            collectRecursive(root, 0)
+        for (root in scanRoots) {
+            val isDl = root.name.equals("Download", ignoreCase = true)
+            collectRecursive(root, 0, isDl)
+        }
+
+        for (singlePath in getPersistedSingleRoms(appCtx)) {
+            val sf = File(singlePath)
+            if (sf.exists() && sf.isFile) candidateFiles.add(sf)
         }
 
         val results = ArrayList<MobileRomItem>(candidateFiles.size)
         val seenPaths = HashSet<String>()
 
         for (file in candidateFiles) {
-            val normKey = normalizePathKey(file)
-            if (hiddenChildPaths.contains(normKey) || !seenPaths.add(normKey)) continue
+            val normPath = normalizePathKey(file)
+            if (hiddenChildPaths.contains(normPath)) continue
+            if (!seenPaths.add(normPath)) continue
 
-            val ext = file.extension.lowercase(Locale.ROOT)
-            // Skip plain .png unless it is a .p8.png PICO-8 cartridge
-            if (ext == "png" && !file.name.lowercase(Locale.ROOT).endsWith(".p8.png")) continue
-
-            val rawStem = if (file.name.lowercase(Locale.ROOT).endsWith(".p8.png")) {
-                file.name.substring(0, file.name.length - 7)
-            } else {
-                file.nameWithoutExtension
-            }
-
-            val detectedPlatformKey = detectPlatformKeyForFile(file, ext)
-            if (detectedPlatformKey.isEmpty()) continue
-
-            val platformDisplay = MobileCoreRegistry.getPlatformDisplayName(detectedPlatformKey)
-            val (regionCode, isRusMod) = parseRegionAndRusMod(rawStem)
-            val cleanTitle = cleanDisplayTitle(rawStem)
-
-            val defaultCore = MobileCoreRegistry.getDefaultCoreForPlatform(detectedPlatformKey, ext)
-            val keyHash = file.absolutePath.hashCode().toUInt().toString(16)
-
-            val savedFav = savedPrefs?.getBoolean("fav_$keyHash", false) ?: false
-            val savedLast = savedPrefs?.getLong("last_$keyHash", 0L) ?: 0L
-            val savedCore = savedPrefs?.getString("core_$keyHash", null)
-            val savedCover = savedPrefs?.getString("cover_$keyHash", null)
-
-            // Validate saved core strictly belongs to compatible cores for this platform
-            val compatIds = MobileCoreRegistry.getCompatibleCoresForPlatform(detectedPlatformKey, ext).map { it.id }.toSet()
-            val resolvedCoreId = if (!savedCore.isNullOrBlank() && compatIds.contains(savedCore)) {
-                savedCore
-            } else {
-                defaultCore?.id ?: ""
-            }
-
-            val expectedCover = getExpectedCoverCacheFile(detectedPlatformKey, cleanTitle, regionCode)
-            val validCoverPath = when {
-                !savedCover.isNullOrBlank() && File(savedCover).exists() -> savedCover
-                expectedCover.exists() && expectedCover.length() > 64L -> expectedCover.absolutePath
-                else -> null
-            }
-
-            results.add(
-                MobileRomItem(
-                    name = cleanTitle,
-                    rawNoIntroName = rawStem,
-                    filePath = file.absolutePath,
-                    extension = ext,
-                    platform = platformDisplay,
-                    platformKey = detectedPlatformKey,
-                    regionCode = regionCode,
-                    isRussianMod = isRusMod,
-                    assignedCoreId = resolvedCoreId,
-                    sizeBytes = file.length(),
-                    isFavorite = savedFav,
-                    lastPlayedMs = savedLast,
-                    coverPath = validCoverPath
-                )
-            )
+            buildRomItemForFile(appCtx, file, prefs)?.let { results.add(it) }
         }
 
-        results.sortWith(compareBy<MobileRomItem> { it.platform }.thenBy { it.name.lowercase(Locale.ROOT) })
+        results.sortWith(
+            compareByDescending<MobileRomItem> { it.isFavorite }
+                .thenByDescending { it.lastPlayedMs }
+                .thenBy { it.name.lowercase(Locale.ROOT) }
+        )
         return results
+    }
+
+    private fun stageRomsFromSafTree(context: Context, treeUri: Uri, supportedExts: Set<String>) {
+        val docRoot = DocumentFile.fromTreeUri(context, treeUri) ?: return
+        val stagingRoot = getRomsStagingDir(context)
+
+        fun walkDoc(doc: DocumentFile, depth: Int, parentHint: String) {
+            if (depth > 4) return
+            for (child in doc.listFiles()) {
+                val cName = child.name ?: continue
+                if (cName.startsWith(".")) continue
+                if (child.isDirectory) {
+                    if (!IGNORED_DIR_NAMES.contains(cName.lowercase(Locale.ROOT))) {
+                        walkDoc(child, depth + 1, cName)
+                    }
+                } else if (child.isFile) {
+                    val ext = cName.substringAfterLast('.', "").lowercase(Locale.ROOT)
+                    if (ext.isEmpty() || !supportedExts.contains(ext)) continue
+                    val len = child.length()
+                    if (len <= 128L || len > 1024L * 1024L * 1024L) continue
+                    val subDir = if (parentHint.isNotBlank()) File(stagingRoot, parentHint).apply { mkdirs() } else stagingRoot
+                    val target = File(subDir, cName.replace(Regex("[\\\\/:*?\"<>|]"), "_"))
+                    if (!target.exists() || target.length() != len) {
+                        try {
+                            context.contentResolver.openInputStream(child.uri)?.use { inp ->
+                                FileOutputStream(target).use { out -> inp.copyTo(out, 32 * 1024) }
+                            }
+                        } catch (_: Throwable) {
+                        }
+                    }
+                }
+            }
+        }
+        try {
+            walkDoc(docRoot, 0, docRoot.name ?: "")
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun isLikelyRomInDownloadFolder(file: File, ext: String): Boolean {
+        val lowerName = file.name.lowercase(Locale.ROOT)
+        if (lowerName.startsWith("storm_retroarch")) return false
+        if (UNAMBIGUOUS_ROM_EXTENSIONS.contains(ext)) return true
+        if (ext == "iso") return file.length() in (2L * 1024L * 1024L)..(8500L * 1024L * 1024L)
+        if (ext == "zip") {
+            return try {
+                ZipFile(file).use { zf ->
+                    val entries = zf.entries()
+                    var count = 0
+                    var hasRomInner = false
+                    while (entries.hasMoreElements() && count < 24) {
+                        val e = entries.nextElement()
+                        if (!e.isDirectory) {
+                            count++
+                            val innerExt = e.name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+                            if (UNAMBIGUOUS_ROM_EXTENSIONS.contains(innerExt) || innerExt == "bin" || innerExt == "rom") {
+                                hasRomInner = true
+                                break
+                            }
+                        }
+                    }
+                    hasRomInner
+                }
+            } catch (_: Throwable) {
+                false
+            }
+        }
+        return false
+    }
+
+    fun buildRomItemForFile(
+        context: Context,
+        file: File,
+        prefs: SharedPreferences = getMetaPrefs(context)
+    ): MobileRomItem? {
+        val ext = file.extension.lowercase(Locale.ROOT)
+        val rawStem = file.nameWithoutExtension
+        val cleanName = cleanDisplayTitle(rawStem)
+        val (region, isRus) = parseRegionAndRusMod(rawStem)
+        val platformKey = detectPlatformKeyForFile(file, ext)
+        val platformDisplay = MobileCoreRegistry.getPlatformDisplayName(platformKey)
+
+        val keyBase = file.absolutePath.hashCode().toString()
+        val savedFav = prefs.getBoolean("fav_$keyBase", false)
+        val savedLast = prefs.getLong("last_$keyBase", 0L)
+        val savedCore = prefs.getString("core_$keyBase", null)
+
+        val defaultCore = MobileCoreRegistry.getDefaultCoreForPlatform(platformKey, ext, context)
+        val resolvedCoreId = if (!savedCore.isNullOrBlank() && MobileCoreRegistry.findCoreById(savedCore, context) != null) {
+            savedCore
+        } else {
+            defaultCore?.id ?: "snes9x"
+        }
+
+        val existingCover = findCachedCoverFile(context, platformKey, cleanName, region)
+
+        return MobileRomItem(
+            name = cleanName,
+            rawNoIntroName = rawStem,
+            filePath = file.absolutePath,
+            extension = ext,
+            platform = platformDisplay,
+            platformKey = platformKey,
+            regionCode = region,
+            isRussianMod = isRus,
+            assignedCoreId = resolvedCoreId,
+            sizeBytes = file.length(),
+            isFavorite = savedFav,
+            lastPlayedMs = savedLast,
+            coverPath = existingCover?.absolutePath,
+            id = computeRomId(file.absolutePath)
+        )
     }
 
     private fun normalizePathKey(file: File): String {
@@ -314,15 +634,14 @@ object MobileLibraryAndCoverEngine {
         }
     }
 
-    internal fun parseDescriptorChildFiles(descriptor: File): List<File> {
+    private fun parseDescriptorChildFiles(descriptor: File): List<File> {
         val out = ArrayList<File>()
         val parent = descriptor.parentFile ?: return out
         val ext = descriptor.extension.lowercase(Locale.ROOT)
         try {
-            val text = descriptor.readText(StandardCharsets.UTF_8)
-            for (rawLine in text.lineSequence()) {
-                val line = rawLine.trim()
-                if (line.isEmpty() || line.startsWith("#") || line.startsWith(";")) continue
+            descriptor.forEachLine { raw ->
+                val line = raw.trim()
+                if (line.isEmpty() || line.startsWith("#")) return@forEachLine
                 when (ext) {
                     "m3u" -> {
                         val ref = File(parent, line)
@@ -344,16 +663,13 @@ object MobileLibraryAndCoverEngine {
                         }
                     }
                     "gdi" -> {
-                        // Dreamcast GDI track line: <trackNum> <lba> <type> <sectorSize> <filename> <offset>
                         val q1 = line.indexOf('"')
                         val q2 = line.lastIndexOf('"')
                         if (q1 >= 0 && q2 > q1) {
                             out.add(File(parent, line.substring(q1 + 1, q2)))
                         } else {
                             val parts = line.split(Regex("\\s+"))
-                            if (parts.size >= 5) {
-                                out.add(File(parent, parts[4]))
-                            }
+                            if (parts.size >= 5) out.add(File(parent, parts[4]))
                         }
                     }
                 }
@@ -363,10 +679,6 @@ object MobileLibraryAndCoverEngine {
         return out
     }
 
-    /**
-     * Preserves original country region (`JP`, `US`, `EU`, `WORLD`, `KR`, etc.) even when
-     * `[MOD - M. RUS]`, `[RUS]`, or `[T+Rus]` tags are present.
-     */
     fun parseRegionAndRusMod(rawFileName: String): Pair<String, Boolean> {
         val upper = rawFileName.uppercase(Locale.ROOT)
         val isRus = upper.contains("MOD - M. RUS") ||
@@ -379,10 +691,10 @@ object MobileLibraryAndCoverEngine {
             Regex("[А-ЯЁа-яё]").containsMatchIn(rawFileName)
 
         val region = when {
-            upper.contains("(JAPAN") || upper.contains("(JP)") || upper.contains("(J)") || upper.contains(", JAPAN)") -> "JP"
             upper.contains("(USA") || upper.contains("(US)") || upper.contains("(U)") -> "US"
             upper.contains("(EUROPE") || upper.contains("(EU)") || upper.contains("(E)") ||
                 upper.contains("(UK)") || upper.contains("(GERMANY)") || upper.contains("(FRANCE)") -> "EU"
+            upper.contains("(JAPAN") || upper.contains("(JP)") || upper.contains("(J)") || upper.contains(", JAPAN)") -> "JP"
             upper.contains("(WORLD") || upper.contains("(W)") -> "WORLD"
             upper.contains("(KOREA") || upper.contains("(KR)") || upper.contains("(K)") -> "KR"
             upper.contains("(CHINA") || upper.contains("(TAIWAN") || upper.contains("(ASIA") -> "ASIA"
@@ -395,30 +707,33 @@ object MobileLibraryAndCoverEngine {
     fun cleanDisplayTitle(rawStem: String): String {
         var s = rawStem
             .replace(Regex("\\[MOD\\s*-\\s*M\\.\\s*RUS\\]", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\[RUS\\]", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\[!\\]"), "")
             .replace(Regex("\\[[^\\]]*\\]"), "")
-            .replace(Regex("\\((USA|Japan|Europe|World|Korea|Russia|En,Fr,De[^)]*|Rev\\s*[A-Z0-9]+|v\\d[^)]*|Proto|Beta|Sample|Unl)\\)", RegexOption.IGNORE_CASE), "")
+            .replace(
+                Regex(
+                    "\\((USA|Japan|Europe|World|Korea|Russia|Brazil|Asia|Australia|En,Fr[^)]*|En,Ja[^)]*|Rev\\s*[A-Z0-9.]+|v\\d[^)]*|Track\\s*\\d+|Disc\\s*\\d+|Disk\\s*\\d+|Proto|Beta|Sample|Unl|SGB\\s*Enhanced|NP)\\)",
+                    RegexOption.IGNORE_CASE
+                ),
+                ""
+            )
             .replace(Regex("\\s{2,}"), " ")
             .trim()
         if (s.isEmpty()) s = rawStem.trim()
         return s
     }
 
-    /**
-     * Resolves platform key via parent folder hints, archive peek, and binary disc/ROM header inspection.
-     */
     fun detectPlatformKeyForFile(file: File, ext: String): String {
-        // 1. Check parent folder names first (up to 2 levels, e.g., roms/ps1/game.chd)
         val parent1 = file.parentFile?.name ?: ""
         val parent2 = file.parentFile?.parentFile?.name ?: ""
         for (folderHint in listOf(parent1, parent2)) {
             val lower = folderHint.lowercase(Locale.ROOT)
-            if (lower.isNotEmpty() && lower != "roms" && lower != "games" && lower != "storm retroarch") {
-                val mapped = MobileCoreRegistry.normalizePlatformKey(lower, "")
+            if (lower.isNotEmpty() && lower !in setOf("roms", "games", "imported", "download", "storm retroarch")) {
+                val mapped = MobileCoreRegistry.normalizePlatformKey(folderHint, "")
                 if (mapped.isNotEmpty()) return mapped
             }
         }
 
-        // 2. Inspect .zip contents to distinguish zipped console ROMs vs MS-DOS vs Arcade MAME/FBNeo
         if (ext == "zip") {
             try {
                 ZipFile(file).use { zf ->
@@ -427,12 +742,14 @@ object MobileLibraryAndCoverEngine {
                     while (entries.hasMoreElements()) {
                         val entry = entries.nextElement()
                         if (entry.isDirectory) continue
-                        val innerExt = entry.name.substringAfterLast('.', "").lowercase(Locale.ROOT)
-                        if (innerExt in setOf("exe", "com", "bat", "dosz")) {
+                        val innerExt = File(entry.name).extension.lowercase(Locale.ROOT)
+                        if (innerExt in setOf("exe", "com", "bat", "conf")) {
                             hasDosExe = true
-                        } else if (innerExt != "zip" && innerExt != "txt" && innerExt != "nfo" && innerExt != "rom" && innerExt != "bin") {
+                        } else if (innerExt.isNotEmpty() && innerExt != "txt" && innerExt != "nfo" && innerExt != "rom" && innerExt != "bin") {
                             val innerKey = MobileCoreRegistry.normalizePlatformKey("", innerExt)
-                            if (innerKey.isNotEmpty()) return innerKey
+                            if (innerKey.isNotEmpty() && innerKey != "arcade" && innerKey != "ps1") {
+                                return innerKey
+                            }
                         }
                     }
                     if (hasDosExe) return "dos"
@@ -442,94 +759,62 @@ object MobileLibraryAndCoverEngine {
             return "arcade"
         }
 
-        // 3. Disc & ambiguous binary formats (.cue, .gdi, .m3u, .iso, .bin, .img, .mdf, .chd)
-        if (ext in setOf("cue", "gdi", "m3u", "iso", "bin", "img", "mdf", "chd")) {
-            if (ext == "gdi") return "dreamcast"
-            val targetBinary = if (ext == "cue" || ext == "m3u") {
-                parseDescriptorChildFiles(file).firstOrNull { it.exists() && it.length() > 65536L } ?: file
-            } else {
-                file
-            }
-            val discKey = inspectBinaryDiscHeader(targetBinary)
-            if (discKey.isNotEmpty()) return discKey
-            if (ext == "cue" || ext == "chd" || ext == "m3u" || ext == "iso") return "ps1"
-            if (ext == "bin") {
-                return if (file.length() <= 16L * 1024L * 1024L) "genesis" else "ps1"
-            }
+        if (ext in setOf("iso", "bin", "img", "cue", "chd", "m3u")) {
+            val targetBin = resolvePrimaryTrackForInspection(file, ext)
+            val detectedDisc = inspectBinaryDiscHeader(targetBin)
+            if (detectedDisc.isNotEmpty()) return detectedDisc
         }
 
-        return MobileCoreRegistry.normalizePlatformKey("", ext)
+        val fallback = MobileCoreRegistry.normalizePlatformKey("", ext)
+        return fallback.ifEmpty { "arcade" }
     }
 
-    /**
-     * Binary header signature detector distinguishing:
-     * Sony PlayStation 1 vs PlayStation 2 vs PSP vs Sega Saturn vs Sega Dreamcast vs Sega Mega-CD vs GameCube/Wii vs 3DO vs Genesis.
-     */
+    private fun resolvePrimaryTrackForInspection(file: File, ext: String): File {
+        if (ext == "cue" || ext == "m3u") {
+            val children = parseDescriptorChildFiles(file)
+            val firstExisting = children.firstOrNull { it.exists() && it.length() > 65536L }
+            if (firstExisting != null) return firstExisting
+        }
+        return file
+    }
+
     fun inspectBinaryDiscHeader(file: File): String {
-        if (!file.exists() || file.length() < 512L) return ""
-        try {
+        if (!file.exists() || file.length() < 1024L) return ""
+        return try {
             RandomAccessFile(file, "r").use { raf ->
-                val head = ByteArray(minOf(65536L, raf.length()).toInt())
+                val head = ByteArray(minOf(65536L, file.length()).toInt())
                 raf.readFully(head)
-
-                // GameCube (0xC2339F3D at 0x1C) & Wii (0x5D1C9EA3 at 0x18)
-                if (head.size >= 0x20) {
-                    if (head[0x1C] == 0xC2.toByte() && head[0x1D] == 0x33.toByte() &&
-                        head[0x1E] == 0x9F.toByte() && head[0x1F] == 0x3D.toByte()
-                    ) return "gamecube"
-                    if (head[0x18] == 0x5D.toByte() && head[0x19] == 0x1C.toByte() &&
-                        head[0x1A] == 0x9E.toByte() && head[0x1B] == 0xA3.toByte()
-                    ) return "wii"
-                }
-
-                // 3DO Opera filesystem signature: 0x01 'Z' 'Z' 'Z' 'Z' 'Z' 0x01
-                for (off in listOf(0, 0x10)) {
-                    if (head.size > off + 7 &&
-                        head[off] == 0x01.toByte() &&
-                        head[off + 1] == 0x5A.toByte() &&
-                        head[off + 2] == 0x5A.toByte() &&
-                        head[off + 3] == 0x5A.toByte() &&
-                        head[off + 4] == 0x5A.toByte() &&
-                        head[off + 5] == 0x5A.toByte()
-                    ) return "3do"
-                }
-
-                val headAscii = String(head, StandardCharsets.ISO_8859_1)
+                val ascii = String(head, StandardCharsets.ISO_8859_1)
                 when {
-                    headAscii.contains("SEGA SEGASATURN") -> return "saturn"
-                    headAscii.contains("SEGA SEGAKATANA") -> return "dreamcast"
-                    headAscii.contains("SEGADISCSYSTEM") || headAscii.contains("SEGA DISCSYSTEM") -> return "segacd"
-                    headAscii.contains("SEGA MEGA DRIVE") || headAscii.contains("SEGA GENESIS") -> return "genesis"
-                    headAscii.contains("SEGA 32X") -> return "sega32x"
-                    headAscii.contains("PSP GAME") -> return "psp"
-                    headAscii.contains("BOOT2 =") || headAscii.contains("BOOT2=") -> return "ps2"
-                }
-
-                // Check ISO9660 Primary Volume Descriptor at 0x8000 (2048-byte sector) or 0x9310 (2352-byte raw sector)
-                if (headAscii.contains("PLAYSTATION")) {
-                    // Scan further for SYSTEM.CNF BOOT2 (PS2) vs BOOT (PS1), or size > 850 MB DVD
-                    if (raf.length() > 850L * 1024L * 1024L) return "ps2"
-                    if (raf.length() > 0x12000L) {
-                        val scanBuf = ByteArray(minOf(131072L, raf.length() - 0x8000L).toInt())
-                        raf.seek(0x8000L)
-                        raf.readFully(scanBuf)
-                        val dirAscii = String(scanBuf, StandardCharsets.ISO_8859_1)
-                        if (dirAscii.contains("BOOT2")) return "ps2"
-                        if (dirAscii.contains("PSP_GAME")) return "psp"
+                    ascii.contains("SEGA SEGASATURN") -> "saturn"
+                    ascii.contains("SEGA SEGAKATANA") -> "dreamcast"
+                    ascii.contains("SEGA DISCSYSTEM") || ascii.contains("SEGADISCSYSTEM") -> "segacd"
+                    ascii.contains("SEGA 32X") -> "sega32x"
+                    ascii.contains("SEGA MEGA DRIVE") || ascii.contains("SEGA GENESIS") -> "genesis"
+                    ascii.contains("PlayStation") || ascii.contains("SONY COMPUTER ENTERTAINMENT") -> {
+                        if (file.length() > 850L * 1024L * 1024L) "ps2" else "ps1"
                     }
-                    return "ps1"
+                    ascii.contains("PSP GAME") -> "psp"
+                    ascii.contains("PC Engine") || ascii.contains("HUDSON") -> "pcecd"
+                    head.size >= 0x20 &&
+                        head[0x1C] == 0xC2.toByte() && head[0x1D] == 0x33.toByte() &&
+                        head[0x1E] == 0x9F.toByte() && head[0x1F] == 0x3D.toByte() -> "gamecube"
+                    head.size >= 0x1C &&
+                        head[0x18] == 0x5D.toByte() && head[0x19] == 0x1C.toByte() &&
+                        head[0x1A] == 0x9E.toByte() && head[0x1B] == 0xA3.toByte() -> "wii"
+                    else -> ""
                 }
             }
         } catch (_: Throwable) {
+            ""
         }
-        return ""
     }
 
-    // === Dynamic Filter Counters & Collection Filtering ===
+    // === Filtering & Smart Collections ===
 
     fun matchesCollection(item: MobileRomItem, collection: String): Boolean {
-        return when (collection.uppercase(Locale.ROOT)) {
-            COLLECTION_ALL, "" -> true
+        return when (collection) {
+            COLLECTION_ALL -> true
             COLLECTION_FAVORITES -> item.isFavorite
             COLLECTION_RUS_MODS -> item.isRussianMod
             COLLECTION_CLASSIC_8_16 -> CLASSIC_8_16_KEYS.contains(item.platformKey)
@@ -542,8 +827,8 @@ object MobileLibraryAndCoverEngine {
 
     fun computeFilterCounts(
         allRoms: List<MobileRomItem>,
-        activeCollection: String = COLLECTION_ALL,
-        activePlatform: String? = null
+        activeCollection: String,
+        activePlatform: String
     ): LibraryFilterCounts {
         val smartMap = LinkedHashMap<String, Int>()
         smartMap[COLLECTION_ALL] = allRoms.size
@@ -555,7 +840,6 @@ object MobileLibraryAndCoverEngine {
         smartMap[COLLECTION_RECENT] = allRoms.count { it.lastPlayedMs > 0L }
 
         val collectionFiltered = allRoms.filter { matchesCollection(it, activeCollection) }
-
         val platformCounts = LinkedHashMap<String, Int>()
         val platformKeyCounts = LinkedHashMap<String, Int>()
         for (rom in collectionFiltered) {
@@ -571,19 +855,8 @@ object MobileLibraryAndCoverEngine {
         }
 
         val coreCounts = LinkedHashMap<String, Int>()
-        if (normActivePlat.isNotEmpty()) {
-            val strictCores = MobileCoreRegistry.getCompatibleCoresForPlatform(normActivePlat, "")
-            for (core in strictCores) {
-                coreCounts[core.id] = platformFiltered.count {
-                    it.assignedCoreId == core.id || core.platformKeys.contains(it.platformKey)
-                }
-            }
-        } else {
-            for (rom in platformFiltered) {
-                if (rom.assignedCoreId.isNotEmpty()) {
-                    coreCounts[rom.assignedCoreId] = (coreCounts[rom.assignedCoreId] ?: 0) + 1
-                }
-            }
+        for (rom in platformFiltered) {
+            coreCounts[rom.assignedCoreId] = (coreCounts[rom.assignedCoreId] ?: 0) + 1
         }
 
         return LibraryFilterCounts(
@@ -596,10 +869,10 @@ object MobileLibraryAndCoverEngine {
 
     fun filterRoms(
         allRoms: List<MobileRomItem>,
-        collection: String = COLLECTION_ALL,
-        platform: String? = null,
-        coreId: String? = null,
-        searchQuery: String = ""
+        collection: String,
+        platform: String,
+        coreIdFilter: String,
+        searchQuery: String
     ): List<MobileRomItem> {
         val normPlat = MobileCoreRegistry.normalizePlatformKey(platform, "")
         val q = searchQuery.trim().lowercase(Locale.ROOT)
@@ -607,33 +880,52 @@ object MobileLibraryAndCoverEngine {
         val filtered = allRoms.filter { rom ->
             if (!matchesCollection(rom, collection)) return@filter false
             if (normPlat.isNotEmpty() && rom.platformKey != normPlat) return@filter false
-            if (!coreId.isNullOrBlank() && !coreId.equals("ALL", true)) {
-                val core = MobileCoreRegistry.findCoreById(coreId)
-                val matchAssigned = rom.assignedCoreId.equals(coreId, true)
-                val matchCompat = core?.platformKeys?.contains(rom.platformKey) == true
-                if (!matchAssigned && !matchCompat) return@filter false
+            if (coreIdFilter.isNotEmpty() && !coreIdFilter.equals("ALL", ignoreCase = true) && rom.assignedCoreId != coreIdFilter) {
+                return@filter false
             }
             if (q.isNotEmpty()) {
-                val hay = "${rom.name} ${rom.rawNoIntroName} ${rom.platform} ${rom.regionCode}".lowercase(Locale.ROOT)
-                if (!hay.contains(q)) return@filter false
+                val matchTitle = rom.name.lowercase(Locale.ROOT).contains(q)
+                val matchRaw = rom.rawNoIntroName.lowercase(Locale.ROOT).contains(q)
+                val matchPlat = rom.platform.lowercase(Locale.ROOT).contains(q)
+                val matchReg = rom.regionDisplayBadge.lowercase(Locale.ROOT).contains(q)
+                if (!matchTitle && !matchRaw && !matchPlat && !matchReg) return@filter false
             }
             true
         }
 
-        return if (collection.equals(COLLECTION_RECENT, ignoreCase = true)) {
+        return if (collection == COLLECTION_RECENT) {
             filtered.sortedByDescending { it.lastPlayedMs }
         } else {
             filtered
         }
     }
 
-    // === Exact Regional Cover Art Resolver (Zero 404 Storms) ===
+    // === Regional Boxart Matcher & Downloader ===
 
-    fun getExpectedCoverCacheFile(platformKey: String, cleanName: String, regionCode: String): File {
+    fun getExpectedCoverCacheFile(
+        platformKey: String,
+        cleanName: String,
+        regionCode: String,
+        context: Context? = null
+    ): File {
         val safePlat = sanitizeFileComponent(platformKey.ifEmpty { "misc" })
         val safeName = sanitizeFileComponent(cleanName.ifEmpty { "rom" })
         val safeReg = sanitizeFileComponent(regionCode.ifEmpty { "WORLD" })
-        return File(MobileCoreRegistry.STORM_PUBLIC_ROOT, "thumbnails/$safePlat/${safeName}__${safeReg}.png")
+        val dir = File(getThumbnailsRootDir(context), safePlat)
+        return File(dir, "${safeName}_${safeReg}.png")
+    }
+
+    private fun findCachedCoverFile(
+        context: Context,
+        platformKey: String,
+        cleanName: String,
+        regionCode: String
+    ): File? {
+        val primary = getExpectedCoverCacheFile(platformKey, cleanName, regionCode, context)
+        if (primary.exists() && primary.length() > 256L) return primary
+        val pubAlt = File(File(MobileCoreRegistry.STORM_PUBLIC_ROOT, "thumbnails/${sanitizeFileComponent(platformKey)}"), primary.name)
+        if (pubAlt.exists() && pubAlt.length() > 256L) return pubAlt
+        return null
     }
 
     private fun sanitizeFileComponent(raw: String): String {
@@ -646,8 +938,8 @@ object MobileLibraryAndCoverEngine {
         prefs: SharedPreferences? = null,
         onResolved: (MobileRomItem, File?) -> Unit
     ) {
-        val primaryCache = getExpectedCoverCacheFile(rom.platformKey, rom.name, rom.regionCode)
-        if (primaryCache.exists() && primaryCache.length() > 64L) {
+        val primaryCache = getExpectedCoverCacheFile(rom.platformKey, rom.name, rom.regionCode, context)
+        if (primaryCache.exists() && primaryCache.length() > 256L) {
             rom.coverPath = primaryCache.absolutePath
             mainHandler.post { onResolved(rom, primaryCache) }
             return
@@ -655,215 +947,167 @@ object MobileLibraryAndCoverEngine {
 
         val appCtx = context.applicationContext
         coverExecutor.execute {
-            try {
-                // Check sibling local artwork next to ROM first
-                val romFile = File(rom.filePath)
-                val parent = romFile.parentFile
-                if (parent != null && parent.exists()) {
-                    for (suffix in listOf(".png", ".jpg", "-thumb.png", "_cover.png")) {
-                        val sibling = File(parent, "${rom.rawNoIntroName}$suffix")
-                        if (sibling.exists() && sibling.length() > 128L) {
-                            rom.coverPath = sibling.absolutePath
-                            if (prefs != null) saveRomItemState(prefs, rom)
-                            mainHandler.post { onResolved(rom, sibling) }
-                            return@execute
-                        }
-                    }
-                }
-
-                val libretroSys = LIBRETRO_THUMBNAIL_SYSTEM_MAP[rom.platformKey]
-                if (libretroSys == null) {
-                    mainHandler.post { onResolved(rom, null) }
-                    return@execute
-                }
-
-                val entries = getOrFetchBoxartDirectoryListing(appCtx, libretroSys)
-                if (entries.isEmpty()) {
-                    mainHandler.post { onResolved(rom, null) }
-                    return@execute
-                }
-
-                val bestEntryName = selectBestRegionalBoxartEntry(rom, entries)
-                if (bestEntryName == null) {
-                    mainHandler.post { onResolved(rom, null) }
-                    return@execute
-                }
-
-                val encSys = encodeUrlPathSegment(libretroSys)
-                val encFile = encodeUrlPathSegment(bestEntryName)
-                val imageUrl = "$THUMBNAILS_SERVER/$encSys/Named_Boxarts/$encFile"
-
-                val bytes = downloadBytes(imageUrl, maxBytes = 8 * 1024 * 1024)
-                if (bytes != null && isValidImageHeader(bytes)) {
-                    val outFile = try {
-                        primaryCache.parentFile?.mkdirs()
-                        FileOutputStream(primaryCache).use { it.write(bytes) }
-                        primaryCache
-                    } catch (_: Throwable) {
-                        val internalFallback = File(
-                            appCtx.filesDir,
-                            "thumbnails/${sanitizeFileComponent(rom.platformKey)}/${sanitizeFileComponent(rom.name)}__${rom.regionCode}.png"
-                        )
-                        internalFallback.parentFile?.mkdirs()
-                        FileOutputStream(internalFallback).use { it.write(bytes) }
-                        internalFallback
-                    }
-                    rom.coverPath = outFile.absolutePath
-                    if (prefs != null) saveRomItemState(prefs, rom)
-                    mainHandler.post { onResolved(rom, outFile) }
-                    return@execute
-                }
-            } catch (_: Throwable) {
+            val libretroSys = LIBRETRO_THUMBNAIL_SYSTEM_MAP[rom.platformKey]
+            if (libretroSys == null) {
+                mainHandler.post { onResolved(rom, null) }
+                return@execute
             }
+
+            val encodedSys = encodeUrlPathSegment(libretroSys)
+            val candidates = buildOrderedRegionalCoverCandidates(rom)
+
+            var downloadedBytes: ByteArray? = null
+            for (cand in candidates) {
+                val encodedFile = encodeUrlPathSegment(cand)
+                val boxUrl = "$THUMBNAILS_SERVER/$encodedSys/Named_Boxarts/$encodedFile.png"
+                downloadedBytes = downloadBytes(boxUrl, 8 * 1024 * 1024)
+                if (downloadedBytes != null && isValidImageHeader(downloadedBytes)) break
+                downloadedBytes = null
+            }
+
+            // Fallback: fuzzy match against Libretro Named_Boxarts directory index
+            if (downloadedBytes == null) {
+                val indexList = getOrFetchBoxartDirectoryListing(libretroSys)
+                val bestMatch = findBestRegionalBoxartMatch(indexList, rom)
+                if (bestMatch != null) {
+                    val encodedFile = encodeUrlPathSegment(bestMatch)
+                    val boxUrl = "$THUMBNAILS_SERVER/$encodedSys/Named_Boxarts/$encodedFile.png"
+                    val b = downloadBytes(boxUrl, 8 * 1024 * 1024)
+                    if (b != null && isValidImageHeader(b)) {
+                        downloadedBytes = b
+                    }
+                }
+            }
+
+            if (downloadedBytes != null) {
+                try {
+                    val targetFile = getExpectedCoverCacheFile(rom.platformKey, rom.name, rom.regionCode, appCtx)
+                    targetFile.parentFile?.mkdirs()
+                    FileOutputStream(targetFile).use { fos ->
+                        fos.write(downloadedBytes)
+                        fos.flush()
+                    }
+                    rom.coverPath = targetFile.absolutePath
+                    mainHandler.post { onResolved(rom, targetFile) }
+                    return@execute
+                } catch (_: Throwable) {
+                }
+            }
+
             mainHandler.post { onResolved(rom, null) }
         }
     }
 
-    private fun getOrFetchBoxartDirectoryListing(context: Context, libretroSys: String): List<String> {
-        boxartListingCache[libretroSys]?.let { return it }
+    private fun buildOrderedRegionalCoverCandidates(rom: MobileRomItem): List<String> {
+        val list = LinkedHashSet<String>()
+        val clean = cleanDisplayTitle(rom.rawNoIntroName).replace(":", " -")
+        val altClean = rom.name.replace(":", " -")
 
+        // Strip [MOD - M. RUS], [RUS], [!], (Rev 1), (Track 1) while preserving original base stem if No-Intro
+        val strippedNoIntro = rom.rawNoIntroName
+            .replace(Regex("\\[MOD\\s*-\\s*M\\.\\s*RUS\\]", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\[RUS\\]", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\[!\\]"), "")
+            .replace(Regex("\\[[^\\]]*\\]"), "")
+            .replace(Regex("\\((Rev\\s*[A-Z0-9.]+|v\\d[^)]*|Track\\s*\\d+)\\)", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\s{2,}"), " ")
+            .trim()
+
+        if (strippedNoIntro.contains("(") && strippedNoIntro.contains(")")) {
+            list.add(strippedNoIntro)
+        }
+
+        val orderedRegionSuffixes = when (rom.regionCode) {
+            "US" -> listOf("(USA)", "(USA, Europe)", "(World)", "(Europe)", "(Japan)")
+            "EU" -> listOf("(Europe)", "(USA, Europe)", "(World)", "(USA)", "(Japan)")
+            "JP" -> listOf("(Japan)", "(World)", "(USA)", "(Europe)")
+            "KR" -> listOf("(Korea)", "(USA)", "(World)", "(Japan)")
+            else -> listOf("(USA)", "(Europe)", "(World)", "(Japan)", "(USA, Europe)")
+        }
+
+        for (base in listOf(clean, altClean).distinct()) {
+            if (base.isBlank()) continue
+            for (reg in orderedRegionSuffixes) {
+                list.add("$base $reg")
+            }
+            if (CD_3D_KEYS.contains(rom.platformKey)) {
+                val primaryReg = orderedRegionSuffixes.first()
+                list.add("$base $primaryReg (Disc 1)")
+            }
+            list.add(base)
+        }
+        return list.toList()
+    }
+
+    private fun getOrFetchBoxartDirectoryListing(libretroSys: String): List<String> {
+        boxartListingCache[libretroSys]?.let { return it }
         val lock = listingLocks.getOrPut(libretroSys) { Any() }
         synchronized(lock) {
             boxartListingCache[libretroSys]?.let { return it }
-
-            val safeSys = sanitizeFileComponent(libretroSys)
-            val diskCache = File(context.cacheDir, "libretro_boxart_index/$safeSys.txt")
-            if (diskCache.exists() && diskCache.length() > 32L) {
-                try {
-                    val cachedLines = diskCache.readLines(StandardCharsets.UTF_8).filter { it.isNotBlank() }
-                    if (cachedLines.isNotEmpty()) {
-                        boxartListingCache[libretroSys] = cachedLines
-                        return cachedLines
-                    }
-                } catch (_: Throwable) {
-                }
-            }
-
-            val encSys = encodeUrlPathSegment(libretroSys)
-            val listingUrl = "$THUMBNAILS_SERVER/$encSys/Named_Boxarts/"
-            val htmlBytes = downloadBytes(listingUrl, maxBytes = 12 * 1024 * 1024) ?: return emptyList()
+            val encodedSys = encodeUrlPathSegment(libretroSys)
+            val url = "$THUMBNAILS_SERVER/$encodedSys/Named_Boxarts/"
+            val htmlBytes = downloadBytes(url, 5 * 1024 * 1024) ?: return emptyList()
             val html = String(htmlBytes, StandardCharsets.UTF_8)
-
-            val parsed = ArrayList<String>(1024)
+            val parsed = ArrayList<String>(2048)
             val hrefRegex = Regex("href=\"([^\"]+\\.png)\"", RegexOption.IGNORE_CASE)
-            for (match in hrefRegex.findAll(html)) {
-                val rawHref = match.groupValues[1]
-                if (rawHref.contains("/") || rawHref.startsWith("?")) continue
-                val decoded = try {
-                    URLDecoder.decode(rawHref, "UTF-8")
-                } catch (_: Throwable) {
-                    rawHref
-                }
-                parsed.add(decoded)
-            }
-
-            if (parsed.isNotEmpty()) {
-                boxartListingCache[libretroSys] = parsed
+            for (m in hrefRegex.findAll(html)) {
+                val rawHref = m.groupValues[1]
+                if (rawHref.contains("/")) continue
                 try {
-                    diskCache.parentFile?.mkdirs()
-                    diskCache.writeText(parsed.joinToString("\n"), StandardCharsets.UTF_8)
+                    val decoded = URLDecoder.decode(rawHref, "UTF-8").removeSuffix(".png")
+                    if (decoded.isNotBlank()) parsed.add(decoded)
                 } catch (_: Throwable) {
                 }
             }
+            boxartListingCache[libretroSys] = parsed
             return parsed
         }
     }
 
-    /**
-     * Scores Libretro Named_Boxarts filenames against both `~` dual titles and strict region tags
-     * (`JP` vs `US` vs `EU` vs `KR`) so Japanese Famicom games never receive US/EU covers.
-     */
-    internal fun selectBestRegionalBoxartEntry(rom: MobileRomItem, candidates: List<String>): String? {
-        val queryTitles = extractTitleVariants(rom.rawNoIntroName) + extractTitleVariants(rom.name)
-        val normQueries = queryTitles.map { normalizeTitleForMatch(it) }.filter { it.isNotEmpty() }.distinct()
-        if (normQueries.isEmpty()) return null
+    private fun findBestRegionalBoxartMatch(entries: List<String>, rom: MobileRomItem): String? {
+        if (entries.isEmpty()) return null
+        val normQuery = normalizeTitleForMatch(rom.name)
+        if (normQuery.isEmpty()) return null
 
         var bestName: String? = null
         var bestScore = -1
+        for (entry in entries) {
+            val baseEntry = cleanDisplayTitle(entry)
+            val normEntry = normalizeTitleForMatch(baseEntry)
+            if (normEntry.isEmpty()) continue
 
-        for (entry in candidates) {
-            val stem = entry.removeSuffix(".png").removeSuffix(".PNG")
-            val entryBasePart = stem.substringBefore('(').trim()
-            val entryVariants = extractTitleVariants(entryBasePart).map { normalizeTitleForMatch(it) }
-
-            var titleScore = -1
-            for (q in normQueries) {
-                for (ev in entryVariants) {
-                    if (ev.isEmpty()) continue
-                    if (ev == q) {
-                        titleScore = max(titleScore, 1000)
-                    } else if (ev.startsWith(q) || q.startsWith(ev)) {
-                        val lenDiff = kotlin.math.abs(ev.length - q.length)
-                        if (lenDiff <= 6) {
-                            titleScore = max(titleScore, 820 - lenDiff * 15)
-                        }
-                    }
-                }
+            var score = when {
+                normEntry == normQuery -> 100
+                normEntry.startsWith(normQuery) || normQuery.startsWith(normEntry) -> 78
+                normQuery.length >= 5 && normEntry.contains(normQuery) -> 62
+                else -> -1
             }
-            if (titleScore < 0) continue
+            if (score < 0) continue
 
-            val upperStem = stem.uppercase(Locale.ROOT)
-            var regionScore = 0
+            val upper = entry.uppercase(Locale.ROOT)
             when (rom.regionCode) {
-                "JP" -> {
-                    if (upperStem.contains("(JAPAN")) regionScore += 500
-                    else if (upperStem.contains("JAPAN")) regionScore += 380
-                    else if (upperStem.contains("(WORLD")) regionScore += 180
-                    else if (upperStem.contains("(USA") || upperStem.contains("(EUROPE")) regionScore -= 120
-                }
-                "US" -> {
-                    if (upperStem.contains("(USA")) regionScore += 500
-                    else if (upperStem.contains("USA")) regionScore += 380
-                    else if (upperStem.contains("(WORLD")) regionScore += 320
-                    else if (upperStem.contains("(EUROPE")) regionScore += 140
-                }
-                "EU" -> {
-                    if (upperStem.contains("(EUROPE")) regionScore += 500
-                    else if (upperStem.contains("EUROPE")) regionScore += 380
-                    else if (upperStem.contains("(WORLD")) regionScore += 300
-                    else if (upperStem.contains("(USA")) regionScore += 160
-                }
-                "KR" -> {
-                    if (upperStem.contains("(KOREA")) regionScore += 500
-                    else if (upperStem.contains("(JAPAN") || upperStem.contains("(USA")) regionScore += 120
-                }
-                else -> {
-                    if (upperStem.contains("(WORLD") || upperStem.contains("(USA")) regionScore += 280
-                    else if (upperStem.contains("(EUROPE") || upperStem.contains("(JAPAN")) regionScore += 200
-                }
+                "JP" -> if (upper.contains("(JAPAN")) score += 25
+                "US" -> if (upper.contains("(USA")) score += 25
+                "EU" -> if (upper.contains("(EUROPE")) score += 25
+                "WORLD" -> if (upper.contains("(WORLD") || upper.contains("(USA")) score += 18
             }
+            if (upper.contains("BETA") || upper.contains("PROTO") || upper.contains("DEMO")) score -= 20
 
-            if (upperStem.contains("BETA") || upperStem.contains("PROTO") || upperStem.contains("DEMO")) {
-                regionScore -= 150
-            }
-
-            val total = titleScore + regionScore
-            if (total > bestScore) {
-                bestScore = total
+            if (score > bestScore) {
+                bestScore = score
                 bestName = entry
             }
         }
-
-        return bestName
+        return if (bestScore >= 60) bestName else null
     }
 
-    internal fun extractTitleVariants(rawTitle: String): List<String> {
-        val withoutBrackets = rawTitle
-            .replace(Regex("\\[[^\\]]*\\]"), " ")
-            .replace(Regex("\\([^)]*\\)"), " ")
-            .trim()
-        val parts = withoutBrackets.split('~').map { it.trim() }.filter { it.isNotEmpty() }
-        return if (parts.size > 1) listOf(withoutBrackets) + parts else listOf(withoutBrackets)
-    }
-
-    internal fun normalizeTitleForMatch(title: String): String {
-        return title.lowercase(Locale.ROOT)
+    private fun normalizeTitleForMatch(s: String): String {
+        return s.lowercase(Locale.ROOT)
             .replace("&", "and")
-            .replace(Regex("[^a-z0-9а-яё]+"), "")
+            .replace(Regex("[^a-z0-9а-яё]"), "")
     }
 
     private fun encodeUrlPathSegment(segment: String): String {
-        // Libretro thumbnail server sanitizes & * / : ` < > ? \ | as _
         val libretroSafe = segment.replace(Regex("[&*/:`<>?\\\\|]"), "_")
         return URLEncoder.encode(libretroSafe, "UTF-8").replace("+", "%20")
     }
@@ -871,10 +1115,10 @@ object MobileLibraryAndCoverEngine {
     private fun downloadBytes(url: String, maxBytes: Int): ByteArray? {
         var conn: HttpURLConnection? = null
         return try {
-            conn = MobileCoreRegistry.openFollowingRedirects(url)
+            conn = MobileCoreRegistry.openFollowingRedirects(url, connectTimeoutMs = 8000, readTimeoutMs = 15000)
             if (conn.responseCode !in 200..299) return null
             BufferedInputStream(conn.inputStream, 16 * 1024).use { input ->
-                val out = ByteArrayOutputStream()
+                val baos = ByteArrayOutputStream()
                 val buf = ByteArray(16 * 1024)
                 var total = 0
                 while (true) {
@@ -882,9 +1126,9 @@ object MobileLibraryAndCoverEngine {
                     if (n <= 0) break
                     total += n
                     if (total > maxBytes) return null
-                    out.write(buf, 0, n)
+                    baos.write(buf, 0, n)
                 }
-                out.toByteArray()
+                baos.toByteArray()
             }
         } catch (_: Throwable) {
             null
@@ -895,188 +1139,57 @@ object MobileLibraryAndCoverEngine {
 
     fun isValidImageHeader(bytes: ByteArray): Boolean {
         if (bytes.size < 16) return false
-        // PNG
-        if (bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() && bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte()) return true
-        // JPEG
-        if (bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte()) return true
-        // WebP
-        if (bytes[0] == 0x52.toByte() && bytes[1] == 0x49.toByte() && bytes[2] == 0x46.toByte() && bytes[3] == 0x46.toByte() &&
-            bytes[8] == 0x57.toByte() && bytes[9] == 0x45.toByte() && bytes[10] == 0x42.toByte() && bytes[11] == 0x50.toByte()
-        ) return true
-        return false
+        val isPng = bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() && bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte()
+        val isJpeg = bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte()
+        val isWebp = bytes[0] == 'R'.code.toByte() && bytes[1] == 'I'.code.toByte() && bytes[2] == 'F'.code.toByte() && bytes[3] == 'F'.code.toByte()
+        return isPng || isJpeg || isWebp
     }
 
-    // === Non-Destructive IPS / BPS Soft-Patcher & Multi-Disc .m3u Generator ===
+    // === Automatic On-the-Fly Soft-Patching (IPS / BPS / UPS) for EmulationActivity ===
 
-    /**
-     * Checks for a matching `.ips` or `.bps` patch alongside `romFile` or in
-     * `/storage/emulated/0/STORM RETROARCH/patches/` and returns a soft-patched temporary ROM
-     * in `context.cacheDir/soft_patched/` without altering the user's original ROM.
-     */
     fun applyIpsOrBpsIfPresent(context: Context, romFile: File): File {
-        if (!romFile.exists() || romFile.length() > 64L * 1024L * 1024L) return romFile
-
+        if (!romFile.exists() || !romFile.isFile || romFile.length() > 128L * 1024L * 1024L) return romFile
         val stem = romFile.nameWithoutExtension
         val parent = romFile.parentFile
         val globalPatchesDir = File(MobileCoreRegistry.STORM_PUBLIC_ROOT, "patches")
 
         val patchCandidates = listOfNotNull(
-            parent?.let { File(it, "$stem.bps") },
             parent?.let { File(it, "$stem.ips") },
+            parent?.let { File(it, "$stem.bps") },
+            parent?.let { File(it, "$stem.ups") },
+            File(globalPatchesDir, "$stem.ips"),
             File(globalPatchesDir, "$stem.bps"),
-            File(globalPatchesDir, "$stem.ips")
+            File(globalPatchesDir, "$stem.ups")
         )
-
         val foundPatch = patchCandidates.firstOrNull { it.exists() && it.length() > 8L } ?: return romFile
 
         return try {
-            val sourceBytes = romFile.readBytes()
-            val patchBytes = foundPatch.readBytes()
-            val patchedBytes = if (foundPatch.extension.equals("bps", ignoreCase = true)) {
-                applyBpsPatch(sourceBytes, patchBytes)
-            } else {
-                applyIpsPatch(sourceBytes, patchBytes)
-            } ?: return romFile
-
-            val outDir = File(context.cacheDir, "soft_patched")
-            outDir.mkdirs()
-            val outFile = File(outDir, romFile.name)
-            FileOutputStream(outFile).use { it.write(patchedBytes) }
-            outFile
+            val cacheDir = File(context.applicationContext.cacheDir, "patched_roms").apply { mkdirs() }
+            val outFile = File(cacheDir, "${stem}_patched.${romFile.extension}")
+            if (outFile.exists() && outFile.lastModified() >= maxOf(romFile.lastModified(), foundPatch.lastModified())) {
+                return outFile
+            }
+            val (patched, _) = MobileCheatAndBiosManager.applyRomPatch(
+                context,
+                romFile.absolutePath,
+                foundPatch.absolutePath,
+                outFile.absolutePath
+            )
+            patched ?: romFile
         } catch (_: Throwable) {
             romFile
         }
     }
 
-    internal fun applyIpsPatch(source: ByteArray, patch: ByteArray): ByteArray? {
-        if (patch.size < 8) return null
-        if (String(patch, 0, 5, StandardCharsets.US_ASCII) != "PATCH") return null
-
-        var out = source.copyOf()
-        var pos = 5
-
-        fun ensureCapacity(required: Int) {
-            if (required > out.size) {
-                out = out.copyOf(required)
-            }
-        }
-
-        while (pos + 3 <= patch.size) {
-            val offset = ((patch[pos].toInt() and 0xFF) shl 16) or
-                ((patch[pos + 1].toInt() and 0xFF) shl 8) or
-                (patch[pos + 2].toInt() and 0xFF)
-            pos += 3
-
-            if (offset == 0x454F46) { // "EOF"
-                return out
-            }
-            if (pos + 2 > patch.size) break
-            val size = ((patch[pos].toInt() and 0xFF) shl 8) or (patch[pos + 1].toInt() and 0xFF)
-            pos += 2
-
-            if (size == 0) {
-                if (pos + 3 > patch.size) break
-                val rleLen = ((patch[pos].toInt() and 0xFF) shl 8) or (patch[pos + 1].toInt() and 0xFF)
-                val value = patch[pos + 2]
-                pos += 3
-                ensureCapacity(offset + rleLen)
-                out.fill(value, offset, offset + rleLen)
-            } else {
-                if (pos + size > patch.size) break
-                ensureCapacity(offset + size)
-                System.arraycopy(patch, pos, out, offset, size)
-                pos += size
-            }
-        }
-        return out
-    }
-
-    internal fun applyBpsPatch(source: ByteArray, patch: ByteArray): ByteArray? {
-        if (patch.size < 16) return null
-        if (String(patch, 0, 4, StandardCharsets.US_ASCII) != "BPS1") return null
-
-        var pos = 4
-        fun readVarInt(): Long {
-            var data = 0L
-            var shift = 1L
-            while (pos < patch.size) {
-                val x = patch[pos++].toLong() and 0xFFL
-                data += (x and 0x7FL) * shift
-                if ((x and 0x80L) != 0L) break
-                shift = shift shl 7
-                data += shift
-            }
-            return data
-        }
-
-        val expectedSourceSize = readVarInt().toInt()
-        val targetSize = readVarInt().toInt()
-        val metadataSize = readVarInt().toInt()
-        if (expectedSourceSize < 0 || targetSize <= 0 || targetSize > 128 * 1024 * 1024) return null
-        pos += metadataSize
-        if (pos > patch.size - 12) return null
-
-        val target = ByteArray(targetSize)
-        var outputOffset = 0
-        var sourceRelOffset = 0
-        var targetRelOffset = 0
-        val endLimit = patch.size - 12
-
-        while (pos < endLimit && outputOffset < targetSize) {
-            val cmd = readVarInt()
-            val length = ((cmd ushr 2) + 1L).toInt()
-            when ((cmd and 3L).toInt()) {
-                0 -> { // SourceRead
-                    for (i in 0 until length) {
-                        target[outputOffset] = if (outputOffset < source.size) source[outputOffset] else 0
-                        outputOffset++
-                    }
-                }
-                1 -> { // TargetRead
-                    for (i in 0 until length) {
-                        target[outputOffset++] = patch[pos++]
-                    }
-                }
-                2 -> { // SourceCopy
-                    val d = readVarInt()
-                    val delta = (if ((d and 1L) != 0L) -1 else 1) * (d ushr 1).toInt()
-                    sourceRelOffset += delta
-                    for (i in 0 until length) {
-                        target[outputOffset++] = source[sourceRelOffset++]
-                    }
-                }
-                3 -> { // TargetCopy
-                    val d = readVarInt()
-                    val delta = (if ((d and 1L) != 0L) -1 else 1) * (d ushr 1).toInt()
-                    targetRelOffset += delta
-                    for (i in 0 until length) {
-                        target[outputOffset++] = target[targetRelOffset++]
-                    }
-                }
-            }
-        }
-        return target
-    }
-
-    /**
-     * Generates a multi-disc `.m3u` playlist referencing relative disc filenames in sorted order.
-     */
     fun createM3uPlaylist(discFiles: List<File>, customPlaylistName: String? = null): File? {
-        if (discFiles.size < 2) return null
+        if (discFiles.isEmpty()) return null
         val sorted = discFiles.sortedBy { it.name.lowercase(Locale.ROOT) }
-        val baseDir = sorted.first().parentFile ?: return null
         val cleanTitle = customPlaylistName?.takeIf { it.isNotBlank() }
-            ?: sorted.first().nameWithoutExtension
-                .replace(Regex("\\s*\\((Disc|Disk|CD)\\s*\\d+[^)]*\\)", RegexOption.IGNORE_CASE), "")
-                .trim()
-
-        val m3uFile = File(baseDir, "$cleanTitle.m3u")
-        return try {
-            val content = sorted.joinToString("\n") { it.name } + "\n"
-            m3uFile.writeText(content, StandardCharsets.UTF_8)
-            m3uFile
-        } catch (_: Throwable) {
-            null
-        }
+            ?: cleanDisplayTitle(sorted.first().nameWithoutExtension)
+        return MobileCheatAndBiosManager.createM3uPlaylist(
+            cleanTitle,
+            sorted.map { it.absolutePath },
+            sorted.first().parentFile
+        )
     }
 }

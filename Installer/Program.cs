@@ -77,7 +77,7 @@ namespace StormRetroArch.Installer
     public sealed class InstallerForm : Form
     {
         private const string AppDisplayName = "STORM RETROARCH";
-        private const string AppVersion = "2.4.0";
+        private const string AppVersion = "2.5.0";
         private const string AppFolderName = "STORM RETROARCH";
         private const string ExeName = "STORM RETROARCH.exe";
         private const string IcoName = "AppIcon.ico";
@@ -156,189 +156,189 @@ namespace StormRetroArch.Installer
             ["ru"] = new[] {
                 $"Мастер установки • Версия {AppVersion}",
                 "Режим установки:",
-                $"📦 Стандартная установка в C:\\Program Files\\{AppFolderName}",
-                "🚀 Портативная установка (Portable Mode - все данные внутри папки)",
+                $"Стандартная установка в C:\\Program Files\\{AppFolderName}",
+                "Портативная установка (Portable Mode - все данные внутри папки)",
                 "Папка установки (поддерживается Drag-and-Drop):",
-                "📂 Обзор...",
-                "✨ Перетащите любую папку из Проводника сюда для выбора пути",
+                "Обзор...",
+                "Перетащите любую папку из Проводника сюда для выбора пути",
                 "Параметры интеграции:",
-                "🖥️ Создать ярлык на Рабочем столе",
-                "📌 Добавить в меню «Пуск» и список приложений Windows",
-                "🛡️ Добавить в исключения Брандмауэра Windows (Inbound & Outbound)",
-                "🔐 Установить единый сертификат доверия STORM SERTIFICATE (SIGNATURE)",
-                $"⚡ Запустить {AppDisplayName} сразу после завершения установки",
-                "✖ Отмена",
-                "⚡ Установить"
+                "Создать ярлык на Рабочем столе",
+                "Добавить в меню «Пуск» и список приложений Windows",
+                "Добавить в исключения Брандмауэра Windows (Inbound & Outbound)",
+                "Установить единый сертификат доверия STORM SERTIFICATE (SIGNATURE)",
+                $"Запустить {AppDisplayName} сразу после завершения установки",
+                "Отмена",
+                "Установить"
             },
             ["en"] = new[] {
                 $"Setup Wizard • Version {AppVersion}",
                 "Installation Mode:",
-                $"📦 Standard installation to C:\\Program Files\\{AppFolderName}",
-                "🚀 Portable installation (Portable Mode - all data in folder)",
+                $"Standard installation to C:\\Program Files\\{AppFolderName}",
+                "Portable installation (Portable Mode - all data in folder)",
                 "Installation Folder (Drag-and-Drop supported):",
-                "📂 Browse...",
-                "✨ Drag and drop any folder from Explorer here to select path",
+                "Browse...",
+                "Drag and drop any folder from Explorer here to select path",
                 "Integration Options:",
-                "🖥️ Create shortcut on Desktop",
-                "📌 Add to Start Menu and Windows Applications",
-                "🛡️ Add Windows Firewall exceptions (Inbound & Outbound)",
-                "🔐 Install unified trust certificate STORM SERTIFICATE (SIGNATURE)",
-                $"⚡ Launch {AppDisplayName} immediately after installation",
-                "✖ Cancel",
-                "⚡ Install"
+                "Create shortcut on Desktop",
+                "Add to Start Menu and Windows Applications",
+                "Add Windows Firewall exceptions (Inbound & Outbound)",
+                "Install unified trust certificate STORM SERTIFICATE (SIGNATURE)",
+                $"Launch {AppDisplayName} immediately after installation",
+                "Cancel",
+                "Install"
             },
             ["de"] = new[] {
                 $"Installations-Assistent • Version {AppVersion}",
                 "Installationsmodus:",
-                $"📦 Standardinstallation unter C:\\Program Files\\{AppFolderName}",
-                "🚀 Portable Installation (Portable Mode - alle Daten im Ordner)",
+                $"Standardinstallation unter C:\\Program Files\\{AppFolderName}",
+                "Portable Installation (Portable Mode - alle Daten im Ordner)",
                 "Zielordner (Drag-and-Drop unterstützt):",
-                "📂 Durchsuchen...",
-                "✨ Ziehen Sie einen beliebigen Ordner hierher, um den Pfad zu wählen",
+                "Durchsuchen...",
+                "Ziehen Sie einen beliebigen Ordner hierher, um den Pfad zu wählen",
                 "Integrationsoptionen:",
-                "🖥️ Desktop-Verknüpfung erstellen",
-                "📌 Zum Startmenü und Windows-App-Verzeichnis hinzufügen",
-                "🛡️ Windows-Firewall-Ausnahmen hinzufügen (Inbound & Outbound)",
-                "🔐 Einheitliches Zertifikat STORM SERTIFICATE (SIGNATURE) installieren",
-                $"⚡ {AppDisplayName} nach Abschluss direkt starten",
-                "✖ Abbrechen",
-                "⚡ Installieren"
+                "Desktop-Verknüpfung erstellen",
+                "Zum Startmenü und Windows-App-Verzeichnis hinzufügen",
+                "Windows-Firewall-Ausnahmen hinzufügen (Inbound & Outbound)",
+                "Einheitliches Zertifikat STORM SERTIFICATE (SIGNATURE) installieren",
+                $"{AppDisplayName} nach Abschluss direkt starten",
+                "Abbrechen",
+                "Installieren"
             },
             ["fr"] = new[] {
                 $"Assistant d'installation • Version {AppVersion}",
                 "Mode d'installation :",
-                $"📦 Installation standard dans C:\\Program Files\\{AppFolderName}",
-                "🚀 Installation portable (Portable Mode - données dans le dossier)",
+                $"Installation standard dans C:\\Program Files\\{AppFolderName}",
+                "Installation portable (Portable Mode - données dans le dossier)",
                 "Dossier d'installation (Glisser-déposer supporté) :",
-                "📂 Parcourir...",
-                "✨ Glissez n'importe quel dossier ici pour sélectionner le chemin",
+                "Parcourir...",
+                "Glissez n'importe quel dossier ici pour sélectionner le chemin",
                 "Options d'intégration :",
-                "🖥️ Créer un raccourci sur le Bureau",
-                "📌 Ajouter au menu Démarrer et aux applications Windows",
-                "🛡️ Ajouter aux exceptions du Pare-feu Windows (Inbound & Outbound)",
-                "🔐 Installer le certificat de confiance STORM SERTIFICATE (SIGNATURE)",
-                $"⚡ Lancer {AppDisplayName} dès la fin de l'installation",
-                "✖ Annuler",
-                "⚡ Installer"
+                "Créer un raccourci sur le Bureau",
+                "Ajouter au menu Démarrer et aux applications Windows",
+                "Ajouter aux exceptions du Pare-feu Windows (Inbound & Outbound)",
+                "Installer le certificat de confiance STORM SERTIFICATE (SIGNATURE)",
+                $"Lancer {AppDisplayName} dès la fin de l'installation",
+                "Annuler",
+                "Installer"
             },
             ["zh"] = new[] {
                 $"安装向导 • 版本 {AppVersion}",
                 "安装模式：",
-                $"📦 标准安装至 C:\\Program Files\\{AppFolderName}",
-                "🚀 便携模式 (Portable Mode - 所有数据保存在该文件夹)",
+                $"标准安装至 C:\\Program Files\\{AppFolderName}",
+                "便携模式 (Portable Mode - 所有数据保存在该文件夹)",
                 "安装目录 (支持文件夹拖拽 Drag-and-Drop)：",
-                "📂 浏览...",
-                "✨ 直接将文件夹拖入此窗口即可设定目标路径",
+                "浏览...",
+                "直接将文件夹拖入此窗口即可设定目标路径",
                 "系统集成选项：",
-                "🖥️ 创建桌面快捷方式",
-                "📌 添加到开始菜单与 Windows 应用程序列表",
-                "🛡️ 添加 Windows 防火墙出入站规则 (Inbound & Outbound)",
-                "🔐 安装统一信任证书 STORM SERTIFICATE (SIGNATURE)",
-                $"⚡ 安装完成后立即运行 {AppDisplayName}",
-                "✖ 取消",
-                "⚡ 安装"
+                "创建桌面快捷方式",
+                "添加到开始菜单与 Windows 应用程序列表",
+                "添加 Windows 防火墙出入站规则 (Inbound & Outbound)",
+                "安装统一信任证书 STORM SERTIFICATE (SIGNATURE)",
+                $"安装完成后立即运行 {AppDisplayName}",
+                "取消",
+                "安装"
             },
             ["ko"] = new[] {
                 $"설치 마법사 • 버전 {AppVersion}",
                 "설치 모드:",
-                $"📦 표준 설치 (C:\\Program Files\\{AppFolderName})",
-                "🚀 포터블 설치 (Portable Mode - 모든 데이터 폴더 내 저장)",
+                $"표준 설치 (C:\\Program Files\\{AppFolderName})",
+                "포터블 설치 (Portable Mode - 모든 데이터 폴더 내 저장)",
                 "설치 경로 (폴더 드래그 앤 드롭 지원):",
-                "📂 찾아보기...",
-                "✨ 탐색기에서 원하는 폴더를 끌어다 놓으세요",
+                "찾아보기...",
+                "탐색기에서 원하는 폴더를 끌어다 놓으세요",
                 "통합 옵션:",
-                "🖥️ 바탕화면에 바로가기 생성",
-                "📌 시작 메뉴 및 Windows 앱 목록에 등록",
-                "🛡️ Windows 방화벽 인바운드/아웃바운드 허용 규칙 추가",
-                "🔐 통합 인증서 STORM SERTIFICATE (SIGNATURE) 등록",
-                $"⚡ 설치 완료 후 {AppDisplayName} 바로 실행",
-                "✖ 취소",
-                "⚡ 설치"
+                "바탕화면에 바로가기 생성",
+                "시작 메뉴 및 Windows 앱 목록에 등록",
+                "Windows 방화벽 인바운드/아웃바운드 허용 규칙 추가",
+                "통합 인증서 STORM SERTIFICATE (SIGNATURE) 등록",
+                $"설치 완료 후 {AppDisplayName} 바로 실행",
+                "취소",
+                "설치"
             },
             ["ja"] = new[] {
                 $"セットアップウィザード • バージョン {AppVersion}",
                 "インストールモード:",
-                $"📦 標準インストール (C:\\Program Files\\{AppFolderName})",
-                "🚀 ポータブルインストール (Portable Mode - 全データをフォルダ内保持)",
+                $"標準インストール (C:\\Program Files\\{AppFolderName})",
+                "ポータブルインストール (Portable Mode - 全データをフォルダ内保持)",
                 "インストール先 (ドラッグ＆ドロップ対応):",
-                "📂 参照...",
-                "✨ エクスプローラーからフォルダをドロップして選択できます",
+                "参照...",
+                "エクスプローラーからフォルダをドロップして選択できます",
                 "統合オプション:",
-                "🖥️ デスクトップにショートカットを作成",
-                "📌 スタートメニューと Windows アプリ一覧に登録",
-                "🛡️ Windows ファイアウォール例外を追加 (Inbound & Outbound)",
-                "🔐 統一証明書 STORM SERTIFICATE (SIGNATURE) を登録",
-                $"⚡ インストール完了後に {AppDisplayName} を起動",
-                "✖ キャンセル",
-                "⚡ インストール"
+                "デスクトップにショートカットを作成",
+                "スタートメニューと Windows アプリ一覧に登録",
+                "Windows ファイアウォール例外を追加 (Inbound & Outbound)",
+                "統一証明書 STORM SERTIFICATE (SIGNATURE) を登録",
+                $"インストール完了後に {AppDisplayName} を起動",
+                "キャンセル",
+                "インストール"
             },
             ["es"] = new[] {
                 $"Asistente de instalación • Versión {AppVersion}",
                 "Modo de instalación:",
-                $"📦 Instalación estándar en C:\\Program Files\\{AppFolderName}",
-                "🚀 Instalación portátil (Portable Mode - datos dentro de carpeta)",
+                $"Instalación estándar en C:\\Program Files\\{AppFolderName}",
+                "Instalación portátil (Portable Mode - datos dentro de carpeta)",
                 "Carpeta de instalación (Soporta Drag-and-Drop):",
-                "📂 Examinar...",
-                "✨ Arrastre cualquier carpeta del Explorador aquí para cambiar la ruta",
+                "Examinar...",
+                "Arrastre cualquier carpeta del Explorador aquí para cambiar la ruta",
                 "Opciones de integración:",
-                "🖥️ Crear acceso directo en el Escritorio",
-                "📌 Añadir al menú Inicio y lista de aplicaciones de Windows",
-                "🛡️ Añadir reglas en Firewall de Windows (Inbound & Outbound)",
-                "🔐 Instalar certificado de confianza STORM SERTIFICATE (SIGNATURE)",
-                $"⚡ Iniciar {AppDisplayName} al finalizar la instalación",
-                "✖ Cancelar",
-                "⚡ Instalar"
+                "Crear acceso directo en el Escritorio",
+                "Añadir al menú Inicio y lista de aplicaciones de Windows",
+                "Añadir reglas en Firewall de Windows (Inbound & Outbound)",
+                "Instalar certificado de confianza STORM SERTIFICATE (SIGNATURE)",
+                $"Iniciar {AppDisplayName} al finalizar la instalación",
+                "Cancelar",
+                "Instalar"
             },
             ["it"] = new[] {
                 $"Installazione guidata • Versione {AppVersion}",
                 "Modalità di installazione:",
-                $"📦 Installazione standard in C:\\Program Files\\{AppFolderName}",
-                "🚀 Installazione portatile (Portable Mode - dati nella cartella)",
+                $"Installazione standard in C:\\Program Files\\{AppFolderName}",
+                "Installazione portatile (Portable Mode - dati nella cartella)",
                 "Cartella di destinazione (Supporta Drag-and-Drop):",
-                "📂 Sfoglia...",
-                "✨ Trascina qui qualsiasi cartella da Esplora file",
+                "Sfoglia...",
+                "Trascina qui qualsiasi cartella da Esplora file",
                 "Opzioni di integrazione:",
-                "🖥️ Crea collegamento sul Desktop",
-                "📌 Aggiungi al menu Start e alle app di Windows",
-                "🛡️ Aggiungi regole a Windows Firewall (Inbound & Outbound)",
-                "🔐 Installa certificato di attendibilità STORM SERTIFICATE (SIGNATURE)",
-                $"⚡ Avvia {AppDisplayName} al termine dell'installazione",
-                "✖ Annulla",
-                "⚡ Installa"
+                "Crea collegamento sul Desktop",
+                "Aggiungi al menu Start e alle app di Windows",
+                "Aggiungi regole a Windows Firewall (Inbound & Outbound)",
+                "Installa certificato di attendibilità STORM SERTIFICATE (SIGNATURE)",
+                $"Avvia {AppDisplayName} al termine dell'installazione",
+                "Annulla",
+                "Installa"
             },
             ["pt"] = new[] {
                 $"Assistente de Instalação • Versão {AppVersion}",
                 "Modo de instalação:",
-                $"📦 Instalação padrão em C:\\Program Files\\{AppFolderName}",
-                "🚀 Instalação portátil (Portable Mode - todos os dados na pasta)",
+                $"Instalação padrão em C:\\Program Files\\{AppFolderName}",
+                "Instalação portátil (Portable Mode - todos os dados na pasta)",
                 "Pasta de destino (Suporta arrastar e soltar):",
-                "📂 Procurar...",
-                "✨ Arraste qualquer pasta do Explorador de Arquivos para cá",
+                "Procurar...",
+                "Arraste qualquer pasta do Explorador de Arquivos para cá",
                 "Opções de integração:",
-                "🖥️ Criar atalho na Área de Trabalho",
-                "📌 Adicionar ao menu Iniciar e aplicativos do Windows",
-                "🛡️ Adicionar exceções no Firewall do Windows (Inbound & Outbound)",
-                "🔐 Instalar certificado de confiança STORM SERTIFICATE (SIGNATURE)",
-                $"⚡ Iniciar {AppDisplayName} imediatamente após a instalação",
-                "✖ Cancelar",
-                "⚡ Instalar"
+                "Criar atalho na Área de Trabalho",
+                "Adicionar ao menu Iniciar e aplicativos do Windows",
+                "Adicionar exceções no Firewall do Windows (Inbound & Outbound)",
+                "Instalar certificado de confiança STORM SERTIFICATE (SIGNATURE)",
+                $"Iniciar {AppDisplayName} imediatamente após a instalação",
+                "Cancelar",
+                "Instalar"
             },
             ["hi"] = new[] {
                 $"इंस्टॉलेशन विज़ार्ड • संस्करण {AppVersion}",
                 "इंस्टॉलेशन मोड:",
-                $"📦 मानक इंस्टॉलेशन (C:\\Program Files\\{AppFolderName})",
-                "🚀 पोर्टेबल इंस्टॉलेशन (Portable Mode - सभी डेटा फ़ोल्डर में)",
+                $"मानक इंस्टॉलेशन (C:\\Program Files\\{AppFolderName})",
+                "पोर्टेबल इंस्टॉलेशन (Portable Mode - सभी डेटा फ़ोल्डर में)",
                 "स्थापना फ़ोल्डर (ड्रैग-एंड-ड्रॉप समर्थित):",
-                "📂 ब्राउज़ करें...",
-                "✨ एक्सप्लोरर से किसी भी फ़ोल्डर को यहाँ खींचें",
+                "ब्राउज़ करें...",
+                "एक्सप्लोरर से किसी भी फ़ोल्डर को यहाँ खींचें",
                 "सिस्टम एकीकरण विकल्प:",
-                "🖥️ डेस्कटॉप शॉर्टकट बनाएँ",
-                "📌 स्टार्ट मेनू और विंडोज एप्लिकेशन सूची में जोड़ें",
-                "🛡️ Windows फ़ायरवॉल अपवाद जोड़ें (Inbound & Outbound)",
-                "🔐 एकीकृत ट्रस्ट प्रमाणपत्र STORM SERTIFICATE (SIGNATURE) जोड़ें",
-                $"⚡ स्थापना के तुरंत बाद {AppDisplayName} चलाएँ",
-                "✖ रद्द करें",
-                "⚡ इंस्टॉल"
+                "डेस्कटॉप शॉर्टकट बनाएँ",
+                "स्टार्ट मेनू और विंडोज एप्लिकेशन सूची में जोड़ें",
+                "Windows फ़ायरवॉल अपवाद जोड़ें (Inbound & Outbound)",
+                "एकीकृत ट्रस्ट प्रमाणपत्र STORM SERTIFICATE (SIGNATURE) जोड़ें",
+                $"स्थापना के तुरंत बाद {AppDisplayName} चलाएँ",
+                "रद्द करें",
+                "इंस्टॉल"
             }
         };
 
@@ -606,7 +606,7 @@ namespace StormRetroArch.Installer
 
             rbStandard = new RadioButton
             {
-                Text = $"📦 Стандартная установка в C:\\Program Files\\{AppFolderName}",
+                Text = $"Стандартная установка в C:\\Program Files\\{AppFolderName}",
                 Checked = true,
                 Location = new Point(8, 24),
                 UseMnemonic = false,
@@ -618,7 +618,7 @@ namespace StormRetroArch.Installer
 
             rbPortable = new RadioButton
             {
-                Text = "🚀 Портативная установка (Portable Mode - все данные внутри папки)",
+                Text = "Портативная установка (Portable Mode - все данные внутри папки)",
                 Checked = false,
                 Location = new Point(8, 49),
                 UseMnemonic = false,
@@ -653,7 +653,7 @@ namespace StormRetroArch.Installer
 
             btnBrowse = new VolumetricButton
             {
-                Text = "📂 Обзор...",
+                Text = "Обзор...",
                 Location = new Point(668, 103),
                 Size = new Size(124, 32),
                 ForeColor = Color.White
@@ -663,7 +663,7 @@ namespace StormRetroArch.Installer
 
             lblDropHint = new Label
             {
-                Text = "✨ Перетащите любую папку из Проводника Windows прямо в это окно (UAC UIPI активен)",
+                Text = "Перетащите любую папку из Проводника Windows прямо в это окно (UAC UIPI активен)",
                 Font = new Font("Segoe UI", 8.6f, FontStyle.Italic),
                 ForeColor = Color.FromArgb(56, 189, 248),
                 Location = new Point(4, 136),
@@ -685,7 +685,7 @@ namespace StormRetroArch.Installer
 
             chkDesktop = new CheckBox
             {
-                Text = $"🖥️  Создать ярлык на Рабочем столе ({AppDisplayName}.lnk)",
+                Text = $"Создать ярлык на Рабочем столе ({AppDisplayName}.lnk)",
                 Checked = true,
                 Location = new Point(8, 190),
                 UseMnemonic = false,
@@ -696,7 +696,7 @@ namespace StormRetroArch.Installer
 
             chkStartMenu = new CheckBox
             {
-                Text = "📌  Добавить в меню «Пуск» и список приложений Windows",
+                Text = "Добавить в меню «Пуск» и список приложений Windows",
                 Checked = true,
                 Location = new Point(8, 217),
                 UseMnemonic = false,
@@ -707,7 +707,7 @@ namespace StormRetroArch.Installer
 
             chkFirewall = new CheckBox
             {
-                Text = "🛡️  Добавить в исключения Брандмауэра Windows (Inbound & Outbound)",
+                Text = "Добавить в исключения Брандмауэра Windows (Inbound & Outbound)",
                 Checked = true,
                 Location = new Point(8, 244),
                 UseMnemonic = false,
@@ -718,7 +718,7 @@ namespace StormRetroArch.Installer
 
             chkInstallCert = new CheckBox
             {
-                Text = "🔐  Установить единый сертификат доверия STORM SERTIFICATE (SIGNATURE)",
+                Text = "Установить единый сертификат доверия STORM SERTIFICATE (SIGNATURE)",
                 Checked = true,
                 Location = new Point(8, 271),
                 UseMnemonic = false,
@@ -729,7 +729,7 @@ namespace StormRetroArch.Installer
 
             chkRunAfter = new CheckBox
             {
-                Text = $"⚡  Запустить {AppDisplayName} сразу после завершения установки",
+                Text = $"Запустить {AppDisplayName} сразу после завершения установки",
                 Checked = true,
                 Location = new Point(8, 298),
                 UseMnemonic = false,
@@ -774,7 +774,7 @@ namespace StormRetroArch.Installer
 
             btnCancel = new VolumetricButton
             {
-                Text = "✖ Отмена",
+                Text = "Отмена",
                 Size = new Size(130, 38),
                 Location = new Point(516, 13),
                 ForeColor = Color.White
@@ -784,7 +784,7 @@ namespace StormRetroArch.Installer
 
             btnInstall = new VolumetricButton
             {
-                Text = "⚡ Установить",
+                Text = "Установить",
                 Size = new Size(160, 38),
                 Location = new Point(658, 13),
                 IsPrimary = true,
@@ -837,7 +837,7 @@ namespace StormRetroArch.Installer
             chkInstallCert.Text = texts[11];
             chkRunAfter.Text = texts[12];
             btnCancel.Text = texts[13];
-            btnInstall.Text = texts[14]; // Strictly "⚡ Установить" without version!
+            btnInstall.Text = texts[14]; // Strictly "Установить" without version!
 
             lblStatus.Text = isInstalling ? lblStatus.Text : (currentLang == "ru" ? "Готов к установке" : "Ready to install");
         }

@@ -1,15 +1,21 @@
 package com.storm.retroarch
 
 import android.content.Context
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.provider.OpenableColumns
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.charset.StandardCharsets
 import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.zip.ZipInputStream
@@ -23,841 +29,575 @@ data class MobileCoreInfo(
     val extensions: Set<String>,
     val descriptionRu: String,
     val descriptionEn: String,
-    val isExperimental: Boolean = false
+    val isExperimental: Boolean = false,
+    val platformId: String = "",
+    val zipArm64: String = "${soBaseName}_android.so.zip",
+    val zipArm32: String = "${soBaseName}_android.so.zip",
+    val soInsideZip: String = "${soBaseName}_android.so",
+    val jniLibName: String = "lib${soBaseName}_android.so",
+    val biosFiles: List<String> = emptyList(),
+    val recommended: Boolean = false,
+    val prebundledArm64: Boolean = false,
+    val prebundledArm32: Boolean = false
 ) {
     fun localizedDescription(lang: String = StormLocalization.currentLanguage): String {
         return if (lang.lowercase(Locale.ROOT) == "ru") descriptionRu else descriptionEn
     }
 }
 
+data class CoreOptionSpec(
+    val key: String,
+    val labelRu: String,
+    val labelEn: String,
+    val values: List<String>,
+    val defaultValue: String
+)
+
+data class CorePackDefinition(
+    val id: String,
+    val titleRu: String,
+    val titleEn: String,
+    val descriptionRu: String,
+    val descriptionEn: String,
+    val coreIds: List<String>
+)
+
 object MobileCoreRegistry {
 
     const val STORM_PUBLIC_ROOT = "/storage/emulated/0/STORM RETROARCH"
+    const val STORM_MIRROR_CORES_BASE = "https://stormgamesworld.ru/uploads/programs/STORM_RETROARCH/cores"
     const val BUILDBOT_ANDROID_BASE = "https://buildbot.libretro.com/nightly/android/latest"
-    private const val USER_AGENT = "STORM-RETROARCH/2.4.0 (Android; LibretroCoreDownloader)"
+    private const val USER_AGENT = "STORM-RETROARCH/2.5.0 (Android; LibretroCoreLoader)"
+    private const val MIN_VALID_SO_BYTES = 32768L
 
     private val downloadExecutor = Executors.newFixedThreadPool(2)
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val catalogLock = Any()
 
-    val ALL_CORES: List<MobileCoreInfo> = listOf(
-        // === Nintendo NES / Famicom / FDS ===
-        MobileCoreInfo(
-            id = "fceumm",
-            displayName = "FCEUmm",
-            soBaseName = "fceumm_libretro",
-            platformDisplay = "Nintendo NES / Famicom / FDS",
-            platformKeys = setOf("nes", "fds"),
-            extensions = setOf("nes", "fds", "unf", "unif"),
-            descriptionRu = "Эталонное быстрое ядро NES/Dendy/FDS с поддержкой всех мапперов и читов.",
-            descriptionEn = "Reference fast NES/Famicom/FDS core supporting virtually all mappers and cheats."
-        ),
-        MobileCoreInfo(
-            id = "mesen",
-            displayName = "Mesen",
-            soBaseName = "mesen_libretro",
-            platformDisplay = "Nintendo NES / Famicom / FDS",
-            platformKeys = setOf("nes", "fds"),
-            extensions = setOf("nes", "fds", "unf", "unif"),
-            descriptionRu = "Потактово точное ядро NES/FDS референсного уровня с HD-паками.",
-            descriptionEn = "Cycle-accurate reference NES/FDS core with HD pack support."
-        ),
-        MobileCoreInfo(
-            id = "nestopia",
-            displayName = "Nestopia UE",
-            soBaseName = "nestopia_libretro",
-            platformDisplay = "Nintendo NES / Famicom / FDS",
-            platformKeys = setOf("nes", "fds"),
-            extensions = setOf("nes", "fds", "unf", "unif"),
-            descriptionRu = "Классическое стабильное ядро NES/FDS с низким энергопотреблением.",
-            descriptionEn = "Classic low-overhead NES/FDS emulator with accurate timing."
-        ),
+    @Volatile
+    private var loadedCatalogCores: List<MobileCoreInfo>? = null
 
-        // === Super Nintendo (SNES / Super Famicom) ===
-        MobileCoreInfo(
-            id = "snes9x",
-            displayName = "Snes9x",
-            soBaseName = "snes9x_libretro",
-            platformDisplay = "Super Nintendo (SNES)",
-            platformKeys = setOf("snes"),
-            extensions = setOf("sfc", "smc", "swc", "fig", "bs"),
-            descriptionRu = "Основное высокоскоростное ядро Super Nintendo с поддержкой чипов SA-1 и Super FX.",
-            descriptionEn = "Primary high-speed Super Nintendo core with full SA-1, DSP, and Super FX support."
-        ),
-        MobileCoreInfo(
-            id = "snes9x2010",
-            displayName = "Snes9x 2010",
-            soBaseName = "snes9x2010_libretro",
-            platformDisplay = "Super Nintendo (SNES)",
-            platformKeys = setOf("snes"),
-            extensions = setOf("sfc", "smc", "swc", "fig"),
-            descriptionRu = "Облегчённое ядро SNES для максимальной частоты кадров на бюджетных ARM чипах.",
-            descriptionEn = "Lightweight SNES core tuned for maximum frame rates on mobile ARM devices."
-        ),
-        MobileCoreInfo(
-            id = "bsnes",
-            displayName = "bsnes",
-            soBaseName = "bsnes_libretro",
-            platformDisplay = "Super Nintendo (SNES)",
-            platformKeys = setOf("snes"),
-            extensions = setOf("sfc", "smc", "bs"),
-            descriptionRu = "Аппаратно точная эмуляция PPU/SPC700 консоли Super Nintendo и MSU-1.",
-            descriptionEn = "Hardware-accurate SNES PPU/SPC700 emulation with MSU-1 audio."
-        ),
-        MobileCoreInfo(
-            id = "mesen_s",
-            displayName = "Mesen-S",
-            soBaseName = "mesen-s_libretro",
-            platformDisplay = "Super Nintendo (SNES)",
-            platformKeys = setOf("snes"),
-            extensions = setOf("sfc", "smc", "bs"),
-            descriptionRu = "Высокоточное ядро SNES с поддержкой сопроцессоров и Super Game Boy.",
-            descriptionEn = "High-accuracy SNES core with enhancement chip and Super Game Boy accuracy."
-        ),
-
-        // === Nintendo 64 ===
-        MobileCoreInfo(
-            id = "mupen64plus_next",
-            displayName = "Mupen64Plus-Next",
-            soBaseName = "mupen64plus_next_gles3_libretro",
-            platformDisplay = "Nintendo 64",
-            platformKeys = setOf("n64"),
-            extensions = setOf("z64", "n64", "v64", "ndd"),
-            descriptionRu = "Современное ядро Nintendo 64 с рендерером GLideN64 GLES3 и широкоформатным режимом.",
-            descriptionEn = "Modern Nintendo 64 core powered by GLideN64 GLES3 and dynarec JIT."
-        ),
-        MobileCoreInfo(
-            id = "parallel_n64",
-            displayName = "ParaLLEl N64",
-            soBaseName = "parallel_n64_libretro",
-            platformDisplay = "Nintendo 64",
-            platformKeys = setOf("n64"),
-            extensions = setOf("z64", "n64", "v64"),
-            descriptionRu = "Высокопроизводительное ядро N64 с поддержкой Vulkan/GLES и ромхаков.",
-            descriptionEn = "High-performance N64 core with Vulkan/GLES rendering and ROM hack compatibility."
-        ),
-
-        // === Nintendo GameCube & Wii ===
-        MobileCoreInfo(
-            id = "dolphin",
-            displayName = "Dolphin",
-            soBaseName = "dolphin_libretro",
-            platformDisplay = "Nintendo GameCube / Wii",
-            platformKeys = setOf("gamecube", "wii", "gamecube_wii"),
-            extensions = setOf("rvz", "gcm", "gcz", "wbfs", "ciso", "iso", "dol", "elf"),
-            descriptionRu = "Официальное ядро GameCube и Wii с поддержкой Vulkan и OpenGL ES 3.2.",
-            descriptionEn = "Official GameCube and Wii emulator with Vulkan and OpenGL ES 3.2 backends."
-        ),
-
-        // === Nintendo Handhelds: GB / GBC / GBA / NDS / 3DS / VB / PokeMini / G&W ===
-        MobileCoreInfo(
-            id = "gambatte",
-            displayName = "Gambatte",
-            soBaseName = "gambatte_libretro",
-            platformDisplay = "Nintendo Game Boy / Color",
-            platformKeys = setOf("gb", "gbc", "gb_gbc"),
-            extensions = setOf("gb", "gbc", "dmg"),
-            descriptionRu = "Эталонное ядро Game Boy и Game Boy Color с оригинальными цветовыми палитрами.",
-            descriptionEn = "Cycle-accurate Game Boy and Game Boy Color core with authentic DMG palettes."
-        ),
-        MobileCoreInfo(
-            id = "sameboy",
-            displayName = "SameBoy",
-            soBaseName = "sameboy_libretro",
-            platformDisplay = "Nintendo Game Boy / Color",
-            platformKeys = setOf("gb", "gbc", "gb_gbc"),
-            extensions = setOf("gb", "gbc"),
-            descriptionRu = "Сверхточная эмуляция звука, таймингов и Super Game Boy рамок для GB/GBC.",
-            descriptionEn = "Ultra-accurate Game Boy, Game Boy Color, and Super Game Boy border core."
-        ),
-        MobileCoreInfo(
-            id = "mgba",
-            displayName = "mGBA",
-            soBaseName = "mgba_libretro",
-            platformDisplay = "Nintendo Game Boy Advance",
-            platformKeys = setOf("gba"),
-            extensions = setOf("gba", "agb"),
-            descriptionRu = "Лучшее ядро Game Boy Advance со 100% совместимостью, гироскопом и солнечным датчиком.",
-            descriptionEn = "Premier Game Boy Advance core with full compatibility, solar sensor, and rumble."
-        ),
-        MobileCoreInfo(
-            id = "vbam",
-            displayName = "VBA-M",
-            soBaseName = "vbam_libretro",
-            platformDisplay = "Nintendo Game Boy Advance",
-            platformKeys = setOf("gba"),
-            extensions = setOf("gba", "agb"),
-            descriptionRu = "Классический эмулятор VisualBoyAdvance-M с расширенной поддержкой читов.",
-            descriptionEn = "Classic VisualBoyAdvance-M core with extended cheat code support."
-        ),
-        MobileCoreInfo(
-            id = "melonds",
-            displayName = "melonDS",
-            soBaseName = "melonds_libretro",
-            platformDisplay = "Nintendo DS / DSi",
-            platformKeys = setOf("nds"),
-            extensions = setOf("nds", "dsi", "ids"),
-            descriptionRu = "Точное и быстрое ядро Nintendo DS / DSi с поддержкой микрофона и сенсорного экрана.",
-            descriptionEn = "Fast, accurate Nintendo DS / DSi core with touch stylus and DSiWare support."
-        ),
-        MobileCoreInfo(
-            id = "desmume",
-            displayName = "DeSmuME",
-            soBaseName = "desmume_libretro",
-            platformDisplay = "Nintendo DS",
-            platformKeys = setOf("nds"),
-            extensions = setOf("nds"),
-            descriptionRu = "Проверенное ядро Nintendo DS с масштабированием внутреннего 3D разрешения.",
-            descriptionEn = "Battle-tested Nintendo DS core featuring internal 3D resolution upscaling."
-        ),
-        MobileCoreInfo(
-            id = "citra",
-            displayName = "Citra",
-            soBaseName = "citra_libretro",
-            platformDisplay = "Nintendo 3DS",
-            platformKeys = setOf("3ds"),
-            extensions = setOf("3ds", "3dsx", "cci", "cxi"),
-            descriptionRu = "Основное 3D ядро Nintendo 3DS с аппаратным ускорением OpenGL ES / Vulkan.",
-            descriptionEn = "Primary Nintendo 3DS core with hardware-accelerated rendering."
-        ),
-        MobileCoreInfo(
-            id = "azahar",
-            displayName = "Azahar",
-            soBaseName = "azahar_libretro",
-            platformDisplay = "Nintendo 3DS",
-            platformKeys = setOf("3ds"),
-            extensions = setOf("3ds", "3dsx", "cci", "cxi"),
-            descriptionRu = "Современный форк эмулятора 3DS нового поколения с улучшенным Vulkan конвейером.",
-            descriptionEn = "Next-gen Nintendo 3DS core fork with optimized Vulkan shader caching.",
-            isExperimental = true
-        ),
-        MobileCoreInfo(
-            id = "panda3ds",
-            displayName = "Panda3DS",
-            soBaseName = "panda3ds_libretro",
-            platformDisplay = "Nintendo 3DS",
-            platformKeys = setOf("3ds"),
-            extensions = setOf("3ds", "3dsx", "cci", "cxi"),
-            descriptionRu = "Экспериментальный современный эмулятор Nintendo 3DS с низкими задержками.",
-            descriptionEn = "Experimental modern HLE Nintendo 3DS emulator core.",
-            isExperimental = true
-        ),
-        MobileCoreInfo(
-            id = "beetle_vb",
-            displayName = "Beetle VB",
-            soBaseName = "mednafen_vb_libretro",
-            platformDisplay = "Nintendo Virtual Boy",
-            platformKeys = setOf("vb"),
-            extensions = setOf("vb", "vboy"),
-            descriptionRu = "Точная эмуляция Nintendo Virtual Boy с настраиваемыми 2D/3D палитрами.",
-            descriptionEn = "Accurate Nintendo Virtual Boy emulator with customizable palette modes."
-        ),
-        MobileCoreInfo(
-            id = "pokemini",
-            displayName = "PokeMini",
-            soBaseName = "pokemini_libretro",
-            platformDisplay = "Nintendo Pokemon Mini",
-            platformKeys = setOf("pokemini"),
-            extensions = setOf("min"),
-            descriptionRu = "Специализированное ядро карманной консоли Nintendo Pokemon Mini.",
-            descriptionEn = "Dedicated emulator for the Nintendo Pokemon Mini handheld."
-        ),
-        MobileCoreInfo(
-            id = "gw",
-            displayName = "Game & Watch",
-            soBaseName = "gw_libretro",
-            platformDisplay = "Nintendo Game & Watch",
-            platformKeys = setOf("gw"),
-            extensions = setOf("mgw"),
-            descriptionRu = "Симулятор классических электронных игр Nintendo Game & Watch.",
-            descriptionEn = "Authentic simulator for classic Nintendo Game & Watch handhelds."
-        ),
-
-        // === Sony PlayStation 1 / PS2 / PSP / PS Vita ===
-        MobileCoreInfo(
-            id = "pcsx_rearmed",
-            displayName = "PCSX-ReARMed",
-            soBaseName = "pcsx_rearmed_libretro",
-            platformDisplay = "Sony PlayStation 1",
-            platformKeys = setOf("ps1"),
-            extensions = setOf("chd", "cue", "pbp", "bin", "img", "iso", "m3u"),
-            descriptionRu = "Сверхбыстрое ARM NEON ядро PlayStation 1 со встроенным удвоением разрешения.",
-            descriptionEn = "Blazing-fast ARM NEON optimized PlayStation 1 core with enhanced resolution."
-        ),
-        MobileCoreInfo(
-            id = "swanstation",
-            displayName = "SwanStation",
-            soBaseName = "swanstation_libretro",
-            platformDisplay = "Sony PlayStation 1",
-            platformKeys = setOf("ps1"),
-            extensions = setOf("chd", "cue", "pbp", "bin", "img", "iso", "m3u"),
-            descriptionRu = "Премиальное ядро PlayStation 1 с коррекцией геометрии PGXP и 4K апскейлингом.",
-            descriptionEn = "Studio-grade PlayStation 1 core with PGXP geometry correction and Vulkan/GLES upscaling."
-        ),
-        MobileCoreInfo(
-            id = "beetle_psx_hw",
-            displayName = "Beetle PSX HW",
-            soBaseName = "mednafen_psx_hw_libretro",
-            platformDisplay = "Sony PlayStation 1",
-            platformKeys = setOf("ps1"),
-            extensions = setOf("chd", "cue", "pbp", "toc", "ccd", "m3u"),
-            descriptionRu = "Эталонное аппаратное ядро Mednafen PSX с субпиксельной точностью текстур.",
-            descriptionEn = "Reference Mednafen PlayStation 1 hardware-accelerated core with PGXP."
-        ),
-        MobileCoreInfo(
-            id = "play_ps2",
-            displayName = "Play!",
-            soBaseName = "play_libretro",
-            platformDisplay = "Sony PlayStation 2",
-            platformKeys = setOf("ps2"),
-            extensions = setOf("chd", "iso", "cso", "isz", "elf"),
-            descriptionRu = "Автономное ядро PlayStation 2 без необходимости внешнего BIOS (HLE).",
-            descriptionEn = "BIOS-free HLE Sony PlayStation 2 emulator for Android ARM64."
-        ),
-        MobileCoreInfo(
-            id = "lrps2",
-            displayName = "LRPS2",
-            soBaseName = "pcsx2_libretro",
-            platformDisplay = "Sony PlayStation 2",
-            platformKeys = setOf("ps2"),
-            extensions = setOf("chd", "iso", "cso", "bin", "gz"),
-            descriptionRu = "Высокосовместимое ядро PlayStation 2 на базе PCSX2 (требует BIOS в pcsx2/bios/).",
-            descriptionEn = "High-compatibility PCSX2-based PlayStation 2 core (requires BIOS in pcsx2/bios/).",
-            isExperimental = true
-        ),
-        MobileCoreInfo(
-            id = "ppsspp",
-            displayName = "PPSSPP",
-            soBaseName = "ppsspp_libretro",
-            platformDisplay = "Sony PlayStation Portable (PSP)",
-            platformKeys = setOf("psp"),
-            extensions = setOf("iso", "cso", "pbp", "chd", "elf"),
-            descriptionRu = "Золотой стандарт эмуляции Sony PSP с поддержкой Vulkan, 60 FPS и HD текстур.",
-            descriptionEn = "Gold-standard Sony PSP core with Vulkan/GLES rendering and HD upscaling."
-        ),
-        MobileCoreInfo(
-            id = "vita3k",
-            displayName = "Vita3K",
-            soBaseName = "vita3k_libretro",
-            platformDisplay = "Sony PlayStation Vita",
-            platformKeys = setOf("psvita"),
-            extensions = setOf("vpk", "zip"),
-            descriptionRu = "Экспериментальное ядро Sony PS Vita с аппаратным ускорением Vulkan.",
-            descriptionEn = "Experimental Sony PlayStation Vita core with Vulkan acceleration.",
-            isExperimental = true
-        ),
-
-        // === Sega Consoles & Handhelds ===
-        MobileCoreInfo(
-            id = "genesis_plus_gx",
-            displayName = "Genesis Plus GX",
-            soBaseName = "genesis_plus_gx_libretro",
-            platformDisplay = "Sega Genesis / Mega-CD / Master System / Game Gear",
-            platformKeys = setOf("genesis", "segacd", "sms_gg", "sg1000"),
-            extensions = setOf("md", "gen", "smd", "bin", "chd", "cue", "iso", "sms", "gg", "sg", "m3u"),
-            descriptionRu = "Эталонная 100% точная эмуляция YM2612/VDP для Mega Drive, Mega-CD, SMS и Game Gear.",
-            descriptionEn = "Cycle-accurate Sega Genesis, Mega-CD, Master System, Game Gear, and SG-1000 core."
-        ),
-        MobileCoreInfo(
-            id = "picodrive",
-            displayName = "PicoDrive",
-            soBaseName = "picodrive_libretro",
-            platformDisplay = "Sega Genesis / 32X / Mega-CD / Pico",
-            platformKeys = setOf("genesis", "sega32x", "segacd", "segapico"),
-            extensions = setOf("md", "gen", "smd", "32x", "chd", "cue", "iso", "sms", "m3u"),
-            descriptionRu = "Единственное быстрое ARM JIT ядро с полной поддержкой Sega 32X, SVP (Virtua Racing) и Mega-CD.",
-            descriptionEn = "Fast ARM dynarec core supporting Sega 32X, Virtua Racing SVP, Genesis, and Mega-CD."
-        ),
-        MobileCoreInfo(
-            id = "smsplus",
-            displayName = "SMS Plus GX",
-            soBaseName = "smsplus_libretro",
-            platformDisplay = "Sega Master System / Game Gear",
-            platformKeys = setOf("sms_gg"),
-            extensions = setOf("sms", "gg", "col"),
-            descriptionRu = "Лёгкое специализированное ядро для Sega Master System и Game Gear с FM звуком.",
-            descriptionEn = "Dedicated lightweight Sega Master System and Game Gear core with YM2413 FM audio."
-        ),
-        MobileCoreInfo(
-            id = "yabasanshiro",
-            displayName = "YabaSanshiro",
-            soBaseName = "yabasanshiro_libretro",
-            platformDisplay = "Sega Saturn",
-            platformKeys = setOf("saturn"),
-            extensions = setOf("chd", "cue", "ccd", "mds", "iso", "m3u"),
-            descriptionRu = "Высокоскоростное ARM64 OpenGL ES 3.1 / Vulkan ядро Sega Saturn с HD рендерингом.",
-            descriptionEn = "High-speed ARM64 Sega Saturn core with OpenGL ES 3.1 / Vulkan HD polygon rendering."
-        ),
-        MobileCoreInfo(
-            id = "beetle_saturn",
-            displayName = "Beetle Saturn",
-            soBaseName = "mednafen_saturn_libretro",
-            platformDisplay = "Sega Saturn",
-            platformKeys = setOf("saturn"),
-            extensions = setOf("chd", "cue", "ccd", "toc", "m3u"),
-            descriptionRu = "Максимально точное ядро Sega Saturn для сложных двухпроцессорных игр SH-2.",
-            descriptionEn = "Reference accuracy Sega Saturn core for demanding dual SH-2/VDP2 titles."
-        ),
-        MobileCoreInfo(
-            id = "kronos",
-            displayName = "Kronos",
-            soBaseName = "kronos_libretro",
-            platformDisplay = "Sega Saturn / ST-V",
-            platformKeys = setOf("saturn"),
-            extensions = setOf("chd", "cue", "ccd", "mds", "iso", "m3u"),
-            descriptionRu = "Продвинутое ядро Sega Saturn и аркадной платы ST-V с тесселяцией полигонов.",
-            descriptionEn = "Advanced Sega Saturn and ST-V arcade core with polygon upscaling."
-        ),
-        MobileCoreInfo(
-            id = "flycast",
-            displayName = "Flycast",
-            soBaseName = "flycast_libretro",
-            platformDisplay = "Sega Dreamcast / NAOMI / Atomiswave",
-            platformKeys = setOf("dreamcast", "naomi"),
-            extensions = setOf("chd", "gdi", "cdi", "cue", "lst", "dat", "m3u"),
-            descriptionRu = "Безупречное ядро Sega Dreamcast, NAOMI и Atomiswave с попиксельной прозрачностью OIT.",
-            descriptionEn = "Premier Sega Dreamcast, NAOMI, and Atomiswave core with Vulkan/GLES per-pixel sorting."
-        ),
-
-        // === Arcade, Neo Geo & CPS ===
-        MobileCoreInfo(
-            id = "fbneo",
-            displayName = "FinalBurn Neo (FBNeo)",
-            soBaseName = "fbneo_libretro",
-            platformDisplay = "Arcade / Neo Geo MVS-AES / CPS-1-2-3",
-            platformKeys = setOf("arcade", "neogeo", "cps"),
-            extensions = setOf("zip", "7z"),
-            descriptionRu = "Лучшее аркадное ядро для Neo Geo, Capcom CPS-1/2/3, Konami, Cave и сетевой игры.",
-            descriptionEn = "Top-tier arcade core for Neo Geo, Capcom CPS-1/2/3, Konami, Cave, and Rollback Netplay."
-        ),
-        MobileCoreInfo(
-            id = "mame_current",
-            displayName = "MAME Current",
-            soBaseName = "mame_libretro",
-            platformDisplay = "Arcade (MAME)",
-            platformKeys = setOf("arcade"),
-            extensions = setOf("zip", "7z", "chd"),
-            descriptionRu = "Полный современный каталог тысяч аркадных автоматов MAME.",
-            descriptionEn = "Comprehensive modern MAME arcade preservation core."
-        ),
-        MobileCoreInfo(
-            id = "mame2003_plus",
-            displayName = "MAME 2003-Plus",
-            soBaseName = "mame2003_plus_libretro",
-            platformDisplay = "Arcade (MAME 2003-Plus)",
-            platformKeys = setOf("arcade"),
-            extensions = setOf("zip"),
-            descriptionRu = "Оптимизированное мобильное аркадное ядро со стабильными 60 FPS и саундтреками CD.",
-            descriptionEn = "Mobile-optimized arcade core delivering rock-solid 60 FPS and backdrop support."
-        ),
-        MobileCoreInfo(
-            id = "neocd",
-            displayName = "NeoCD",
-            soBaseName = "neocd_libretro",
-            platformDisplay = "SNK Neo Geo CD",
-            platformKeys = setOf("neogeocd"),
-            extensions = setOf("chd", "cue"),
-            descriptionRu = "Точный эмулятор SNK Neo Geo CD с мгновенным пропуском экранов чтения диска.",
-            descriptionEn = "Accurate SNK Neo Geo CD core featuring CD-speed skip for zero load waits."
-        ),
-
-        // === NEC, SNK Handhelds, Bandai, 3DO, Vectrex, Coleco, Intellivision ===
-        MobileCoreInfo(
-            id = "beetle_pce_fast",
-            displayName = "Beetle PCE Fast",
-            soBaseName = "mednafen_pce_fast_libretro",
-            platformDisplay = "NEC PC Engine / TurboGrafx-16 / CD",
-            platformKeys = setOf("pce", "pcecd"),
-            extensions = setOf("pce", "sgx", "cue", "ccd", "chd", "toc", "m3u"),
-            descriptionRu = "Быстрое и точное ядро PC Engine, TurboGrafx-16 и CD-ROM2 (требует syscard3.pce для CD).",
-            descriptionEn = "Fast, accurate PC Engine / TurboGrafx-16 and TurboGrafx-CD core."
-        ),
-        MobileCoreInfo(
-            id = "beetle_pcfx",
-            displayName = "Beetle PC-FX",
-            soBaseName = "mednafen_pcfx_libretro",
-            platformDisplay = "NEC PC-FX",
-            platformKeys = setOf("pcfx"),
-            extensions = setOf("chd", "cue", "ccd", "toc"),
-            descriptionRu = "Полная эмуляция 32-битной японской мультимедийной консоли NEC PC-FX.",
-            descriptionEn = "Full emulation of NEC's 32-bit PC-FX console."
-        ),
-        MobileCoreInfo(
-            id = "beetle_ngp",
-            displayName = "Beetle NeoPop",
-            soBaseName = "mednafen_ngp_libretro",
-            platformDisplay = "SNK Neo Geo Pocket / Color",
-            platformKeys = setOf("ngp"),
-            extensions = setOf("ngp", "ngc", "ngpc"),
-            descriptionRu = "Точное ядро портативных консолей SNK Neo Geo Pocket и Neo Geo Pocket Color.",
-            descriptionEn = "Accurate SNK Neo Geo Pocket and Neo Geo Pocket Color core."
-        ),
-        MobileCoreInfo(
-            id = "beetle_wswan",
-            displayName = "Beetle WonderSwan",
-            soBaseName = "mednafen_wswan_libretro",
-            platformDisplay = "Bandai WonderSwan / Color",
-            platformKeys = setOf("wonderswan"),
-            extensions = setOf("ws", "wsc", "pc2"),
-            descriptionRu = "Эмуляция Bandai WonderSwan и WonderSwan Color с поворотом экрана.",
-            descriptionEn = "Bandai WonderSwan and WonderSwan Color core with portrait/landscape rotation."
-        ),
-        MobileCoreInfo(
-            id = "opera_3do",
-            displayName = "Opera 3DO",
-            soBaseName = "opera_libretro",
-            platformDisplay = "Panasonic / GoldStar 3DO",
-            platformKeys = setOf("3do"),
-            extensions = setOf("iso", "chd", "cue", "bin"),
-            descriptionRu = "Оптимизированный эмулятор 32-битной консоли 3DO Interactive Multiplayer.",
-            descriptionEn = "Optimized emulator for the 32-bit 3DO Interactive Multiplayer."
-        ),
-        MobileCoreInfo(
-            id = "same_cdi",
-            displayName = "SAME CDi",
-            soBaseName = "same_cdi_libretro",
-            platformDisplay = "Philips CD-i",
-            platformKeys = setOf("cdi"),
-            extensions = setOf("chd", "cue", "iso"),
-            descriptionRu = "Специализированное ядро для мультимедийной системы Philips CD-i.",
-            descriptionEn = "Dedicated core for Philips CD-i interactive discs."
-        ),
-        MobileCoreInfo(
-            id = "vecx",
-            displayName = "Vecx",
-            soBaseName = "vecx_libretro",
-            platformDisplay = "GCE Vectrex",
-            platformKeys = setOf("vectrex"),
-            extensions = setOf("vec"),
-            descriptionRu = "Эмулятор векторной консоли GCE Vectrex с поддержкой цветных накладок.",
-            descriptionEn = "Vector display GCE Vectrex emulator with hardware GLES line rendering."
-        ),
-        MobileCoreInfo(
-            id = "gearcoleco",
-            displayName = "Gearcoleco",
-            soBaseName = "gearcoleco_libretro",
-            platformDisplay = "ColecoVision",
-            platformKeys = setOf("coleco"),
-            extensions = setOf("col", "cv", "rom"),
-            descriptionRu = "Высокоточный эмулятор классической консоли ColecoVision.",
-            descriptionEn = "Cycle-accurate ColecoVision console emulator."
-        ),
-        MobileCoreInfo(
-            id = "freeintv",
-            displayName = "FreeIntv",
-            soBaseName = "freeintv_libretro",
-            platformDisplay = "Mattel Intellivision",
-            platformKeys = setOf("intellivision"),
-            extensions = setOf("int", "itv"),
-            descriptionRu = "Эмулятор консоли Mattel Intellivision со встроенной виртуальной цифровой панелью.",
-            descriptionEn = "Mattel Intellivision emulator with virtual keypad overlay."
-        ),
-        MobileCoreInfo(
-            id = "o2em",
-            displayName = "O2EM",
-            soBaseName = "o2em_libretro",
-            platformDisplay = "Magnavox Odyssey 2 / Videopac",
-            platformKeys = setOf("odyssey2"),
-            extensions = setOf("bin"),
-            descriptionRu = "Эмулятор консоли Magnavox Odyssey 2 и Philips Videopac G7000.",
-            descriptionEn = "Magnavox Odyssey 2 / Philips Videopac G7000 emulator."
-        ),
-
-        // === Atari Consoles & Computers ===
-        MobileCoreInfo(
-            id = "stella",
-            displayName = "Stella",
-            soBaseName = "stella_libretro",
-            platformDisplay = "Atari 2600",
-            platformKeys = setOf("atari2600"),
-            extensions = setOf("a26", "bin"),
-            descriptionRu = "Эталонное ядро Atari 2600 со 100% поддержкой всех банков памяти и контроллеров.",
-            descriptionEn = "Reference Atari 2600 VCS emulator supporting all bank-switching schemes."
-        ),
-        MobileCoreInfo(
-            id = "atari800",
-            displayName = "Atari800",
-            soBaseName = "atari800_libretro",
-            platformDisplay = "Atari 5200 / Atari 8-Bit (400/800/XL/XE)",
-            platformKeys = setOf("atari5200", "atari800"),
-            extensions = setOf("a52", "atr", "xfd", "xex", "car"),
-            descriptionRu = "Универсальный эмулятор консоли Atari 5200 и домашних компьютеров Atari 800XL/XE.",
-            descriptionEn = "Authentic Atari 5200 console and Atari 400/800/XL/XE computer core."
-        ),
-        MobileCoreInfo(
-            id = "prosystem",
-            displayName = "ProSystem",
-            soBaseName = "prosystem_libretro",
-            platformDisplay = "Atari 7800",
-            platformKeys = setOf("atari7800"),
-            extensions = setOf("a78"),
-            descriptionRu = "Быстрое и точное ядро консоли Atari 7800 ProSystem с чипом звука POKEY.",
-            descriptionEn = "Fast, accurate Atari 7800 ProSystem core with POKEY audio."
-        ),
-        MobileCoreInfo(
-            id = "handy",
-            displayName = "Handy",
-            soBaseName = "handy_libretro",
-            platformDisplay = "Atari Lynx",
-            platformKeys = setOf("lynx"),
-            extensions = setOf("lnx", "lyx", "o"),
-            descriptionRu = "Классический быстрый эмулятор цветной портативной консоли Atari Lynx.",
-            descriptionEn = "Fast portable Atari Lynx handheld emulator."
-        ),
-        MobileCoreInfo(
-            id = "virtualjaguar",
-            displayName = "Virtual Jaguar",
-            soBaseName = "virtualjaguar_libretro",
-            platformDisplay = "Atari Jaguar",
-            platformKeys = setOf("jaguar"),
-            extensions = setOf("j64", "jag", "abs", "cof"),
-            descriptionRu = "Эмулятор 64-битной системы Atari Jaguar.",
-            descriptionEn = "64-bit Atari Jaguar console emulator."
-        ),
-        MobileCoreInfo(
-            id = "hatari",
-            displayName = "Hatari",
-            soBaseName = "hatari_libretro",
-            platformDisplay = "Atari ST / STE / Falcon",
-            platformKeys = setOf("atarist"),
-            extensions = setOf("st", "msa", "stx", "dim", "ipf"),
-            descriptionRu = "Точная эмуляция 16-битных компьютеров линейки Atari ST и STE.",
-            descriptionEn = "Accurate 16-bit Atari ST / STE computer emulator."
-        ),
-
-        // === MS-DOS, ScummVM & Classic Home Computers ===
-        MobileCoreInfo(
-            id = "dosbox_pure",
-            displayName = "DOSBox-Pure",
-            soBaseName = "dosbox_pure_libretro",
-            platformDisplay = "MS-DOS / PC Classic",
-            platformKeys = setOf("dos"),
-            extensions = setOf("dosz", "exe", "com", "bat", "conf", "ima", "img", "vhd", "zip"),
-            descriptionRu = "Идеальное ядро MS-DOS с прямым запуском из .ZIP, авто-маппингом геймпада, Roland MT-32 и 3dfx.",
-            descriptionEn = "Zero-config MS-DOS core running directly from .ZIP archives with gamepad mapping and Sound Blaster/MT-32."
-        ),
-        MobileCoreInfo(
-            id = "scummvm",
-            displayName = "ScummVM",
-            soBaseName = "scummvm_libretro",
-            platformDisplay = "ScummVM Classic Adventures",
-            platformKeys = setOf("scummvm"),
-            extensions = setOf("scummvm"),
-            descriptionRu = "Движок классических графических квестов LucasArts, Sierra, Revolution и Westwood.",
-            descriptionEn = "Engine collection for classic point-and-click adventures from LucasArts, Sierra, and Westwood."
-        ),
-        MobileCoreInfo(
-            id = "puae",
-            displayName = "PUAE (Amiga)",
-            soBaseName = "puae_libretro",
-            platformDisplay = "Commodore Amiga / CD32",
-            platformKeys = setOf("amiga"),
-            extensions = setOf("adf", "adz", "dms", "ipf", "lha", "hdf", "uae"),
-            descriptionRu = "Полноценная эмуляция Commodore Amiga 500/1200/4000, WHDLoad .lha и Amiga CD32.",
-            descriptionEn = "Full-featured Commodore Amiga 500/1200/CD32 emulator with direct WHDLoad .lha support."
-        ),
-        MobileCoreInfo(
-            id = "fuse",
-            displayName = "Fuse (ZX Spectrum)",
-            soBaseName = "fuse_libretro",
-            platformDisplay = "Sinclair ZX Spectrum",
-            platformKeys = setOf("zxspectrum"),
-            extensions = setOf("tzx", "tap", "z80", "sna", "trd", "scl", "dsk"),
-            descriptionRu = "Эталонный эмулятор ZX Spectrum 48K/128K/Pentagon с поддержкой TR-DOS .trd/.scl.",
-            descriptionEn = "Reference ZX Spectrum 48K/128K/+3/Pentagon emulator supporting TAP, TZX, and TR-DOS."
-        ),
-        MobileCoreInfo(
-            id = "vice_x64",
-            displayName = "VICE x64",
-            soBaseName = "vice_x64_libretro",
-            platformDisplay = "Commodore 64",
-            platformKeys = setOf("c64"),
-            extensions = setOf("d64", "t64", "prg", "crt", "tap", "g64"),
-            descriptionRu = "Классический точный эмулятор Commodore 64 с безупречным звучанием чипа SID.",
-            descriptionEn = "Accurate Commodore 64 emulator with authentic MOS 6581/8580 SID sound."
-        ),
-        MobileCoreInfo(
-            id = "bluemsx",
-            displayName = "blueMSX",
-            soBaseName = "bluemsx_libretro",
-            platformDisplay = "MSX / MSX2 / MSX2+ / Coleco / SVi",
-            platformKeys = setOf("msx"),
-            extensions = setOf("mx1", "mx2", "rom", "dsk", "cas"),
-            descriptionRu = "Полная эмуляция компьютеров стандарта MSX, MSX2, MSX2+ и звукового чипа SCC.",
-            descriptionEn = "Full MSX, MSX2, MSX2+, and TurboR emulator with Konami SCC audio."
-        ),
-        MobileCoreInfo(
-            id = "px68k",
-            displayName = "PX68k",
-            soBaseName = "px68k_libretro",
-            platformDisplay = "Sharp X68000",
-            platformKeys = setOf("x68000"),
-            extensions = setOf("dim", "xdf", "hdm", "2hd", "d88", "m3u"),
-            descriptionRu = "Эмулятор культовой японской аркадной рабочей станции Sharp X68000.",
-            descriptionEn = "Emulator for Japan's powerhouse Sharp X68000 home workstation."
-        ),
-        MobileCoreInfo(
-            id = "np2kai",
-            displayName = "NP2kai (PC-98)",
-            soBaseName = "np2kai_libretro",
-            platformDisplay = "NEC PC-9801 / PC-9821",
-            platformKeys = setOf("pc98"),
-            extensions = setOf("d98", "fdi", "hdi", "nhd", "fdd", "thd"),
-            descriptionRu = "Продвинутый эмулятор японских компьютеров NEC PC-9801 и PC-9821 (Neko Project II Kai).",
-            descriptionEn = "Neko Project II Kai emulator for NEC PC-9801 and PC-9821 computers."
-        ),
-        MobileCoreInfo(
-            id = "quasi88",
-            displayName = "QUASI88 (PC-88)",
-            soBaseName = "quasi88_libretro",
-            platformDisplay = "NEC PC-8801",
-            platformKeys = setOf("pc88"),
-            extensions = setOf("d88", "t88", "cmt"),
-            descriptionRu = "Точный эмулятор японских компьютеров серии NEC PC-8801.",
-            descriptionEn = "Accurate NEC PC-8801 series computer emulator."
-        ),
-        MobileCoreInfo(
-            id = "cap32",
-            displayName = "Caprice32",
-            soBaseName = "cap32_libretro",
-            platformDisplay = "Amstrad CPC",
-            platformKeys = setOf("amstrad"),
-            extensions = setOf("cpc", "dsk", "cdt", "sna"),
-            descriptionRu = "Быстрый эмулятор домашних компьютеров Amstrad CPC 464/664/6128.",
-            descriptionEn = "Fast Amstrad CPC 464/664/6128 home computer emulator."
-        ),
-        MobileCoreInfo(
-            id = "bk_elektronika",
-            displayName = "BK-0010 / 0011M",
-            soBaseName = "bk_libretro",
-            platformDisplay = "Электроника БК-0010 / БК-0011М",
-            platformKeys = setOf("bk0010"),
-            extensions = setOf("bkd", "img"),
-            descriptionRu = "Эмулятор отечественных 16-разрядных компьютеров Электроника БК-0010-01 и БК-0011М.",
-            descriptionEn = "Emulator for Soviet 16-bit Elektronika BK-0010 and BK-0011M computers."
-        ),
-        MobileCoreInfo(
-            id = "retro8",
-            displayName = "Retro8 (PICO-8)",
-            soBaseName = "retro8_libretro",
-            platformDisplay = "PICO-8 Fantasy Console",
-            platformKeys = setOf("pico8"),
-            extensions = setOf("p8", "png"),
-            descriptionRu = "Открытая реализация фэнтези-консоли PICO-8 для запуска картриджей .p8 и .p8.png.",
-            descriptionEn = "Open-source PICO-8 fantasy console interpreter."
-        ),
-        MobileCoreInfo(
-            id = "tic80",
-            displayName = "TIC-80",
-            soBaseName = "tic80_libretro",
-            platformDisplay = "TIC-80 Fantasy Computer",
-            platformKeys = setOf("tic80"),
-            extensions = setOf("tic"),
-            descriptionRu = "Фэнтези-компьютер TIC-80 для инди-игр и демосцены.",
-            descriptionEn = "TIC-80 tiny computer for retro games and demoscene."
-        ),
-        MobileCoreInfo(
-            id = "prboom",
-            displayName = "PrBoom (DOOM)",
-            soBaseName = "prboom_libretro",
-            platformDisplay = "DOOM Engine",
-            platformKeys = setOf("doom"),
-            extensions = setOf("wad", "iwad", "pwad"),
-            descriptionRu = "Классический порт движка DOOM / DOOM II / Final DOOM с плавной частотой кадров.",
-            descriptionEn = "Classic DOOM / DOOM II WAD engine port."
-        )
-    )
+    val ALL_CORES: List<MobileCoreInfo>
+        get() = loadedCatalogCores ?: FALLBACK_FLAGSHIP_CORES
 
     private val PLATFORM_DISPLAY_NAMES: Map<String, String> = mapOf(
         "nes" to "Nintendo NES / Famicom",
-        "fds" to "Nintendo Famicom Disk System",
+        "fds" to "Famicom Disk System",
         "snes" to "Super Nintendo (SNES)",
         "n64" to "Nintendo 64",
         "gamecube" to "Nintendo GameCube",
         "wii" to "Nintendo Wii",
-        "gamecube_wii" to "Nintendo GameCube / Wii",
-        "gb" to "Nintendo Game Boy",
-        "gbc" to "Nintendo Game Boy Color",
-        "gb_gbc" to "Nintendo Game Boy / Color",
-        "gba" to "Nintendo Game Boy Advance",
-        "nds" to "Nintendo DS / DSi",
+        "gamecube_wii" to "GameCube / Wii",
+        "gc_wii" to "GameCube / Wii",
+        "gb" to "Game Boy",
+        "gbc" to "Game Boy Color",
+        "gb_gbc" to "Game Boy / Game Boy Color",
+        "gba" to "Game Boy Advance",
+        "nds" to "Nintendo DS",
         "3ds" to "Nintendo 3DS",
-        "vb" to "Nintendo Virtual Boy",
-        "pokemini" to "Nintendo Pokemon Mini",
-        "gw" to "Nintendo Game & Watch",
-        "ps1" to "Sony PlayStation 1",
+        "vb" to "Virtual Boy",
+        "virtualboy" to "Virtual Boy",
+        "pokemini" to "Pokemon Mini",
+        "gw" to "Game & Watch",
+        "ps1" to "Sony PlayStation (PS1)",
+        "psx" to "Sony PlayStation (PS1)",
         "ps2" to "Sony PlayStation 2",
         "ps3" to "Sony PlayStation 3",
-        "psp" to "Sony PlayStation Portable",
-        "psvita" to "Sony PlayStation Vita",
-        "genesis" to "Sega Genesis / Mega Drive",
+        "psp" to "Sony PSP",
+        "psvita" to "Sony PS Vita",
+        "genesis" to "Sega Mega Drive / Genesis",
+        "megadrive" to "Sega Mega Drive / Genesis",
         "segacd" to "Sega Mega-CD / Sega CD",
         "sega32x" to "Sega 32X",
         "sms_gg" to "Sega Master System / Game Gear",
+        "mastersystem" to "Sega Master System / Game Gear",
         "sg1000" to "Sega SG-1000",
         "segapico" to "Sega Pico",
         "saturn" to "Sega Saturn",
-        "dreamcast" to "Sega Dreamcast",
+        "dreamcast" to "Sega Dreamcast / NAOMI",
         "naomi" to "Sega NAOMI / Atomiswave",
         "arcade" to "Arcade (FBNeo / MAME)",
-        "neogeo" to "SNK Neo Geo MVS / AES",
+        "neogeo" to "SNK Neo Geo AES / MVS",
         "neogeocd" to "SNK Neo Geo CD",
+        "neocd" to "SNK Neo Geo CD",
         "cps" to "Capcom CPS-1 / CPS-2 / CPS-3",
-        "pce" to "NEC PC Engine / TurboGrafx-16",
-        "pcecd" to "NEC PC Engine CD / TurboGrafx-CD",
+        "pce" to "PC Engine / TurboGrafx-16",
+        "pcecd" to "PC Engine CD",
         "pcfx" to "NEC PC-FX",
-        "ngp" to "SNK Neo Geo Pocket / Color",
+        "ngp" to "Neo Geo Pocket / Color",
         "wonderswan" to "Bandai WonderSwan / Color",
-        "3do" to "Panasonic 3DO",
+        "3do" to "3DO Interactive Multiplayer",
         "cdi" to "Philips CD-i",
         "vectrex" to "GCE Vectrex",
         "coleco" to "ColecoVision",
+        "colecovision" to "ColecoVision",
         "intellivision" to "Mattel Intellivision",
         "odyssey2" to "Magnavox Odyssey 2",
+        "channelf" to "Fairchild Channel F",
+        "atari" to "Atari Classics",
         "atari2600" to "Atari 2600",
         "atari5200" to "Atari 5200",
         "atari7800" to "Atari 7800",
-        "atari800" to "Atari 8-Bit (800/XL/XE)",
+        "atari800" to "Atari 8-bit / XEGS",
         "lynx" to "Atari Lynx",
         "jaguar" to "Atari Jaguar",
-        "atarist" to "Atari ST / STE",
-        "dos" to "MS-DOS",
-        "scummvm" to "ScummVM",
+        "atarist" to "Atari ST / STE / Falcon",
+        "dos" to "MS-DOS / Windows 9x",
+        "scummvm" to "ScummVM Adventure Engine",
         "amiga" to "Commodore Amiga",
-        "zxspectrum" to "Sinclair ZX Spectrum",
-        "c64" to "Commodore 64",
-        "msx" to "MSX / MSX2",
+        "c64" to "Commodore 64 / 128 / VIC-20",
+        "zxspectrum" to "ZX Spectrum",
+        "zx81" to "Sinclair ZX81",
+        "msx" to "MSX / MSX2 / TurboR",
+        "amstrad" to "Amstrad CPC / GX4000",
+        "amstradcpc" to "Amstrad CPC / GX4000",
+        "pc88" to "NEC PC-8801",
+        "pc98" to "NEC PC-9801",
         "x68000" to "Sharp X68000",
-        "pc98" to "NEC PC-98",
-        "pc88" to "NEC PC-88",
-        "amstrad" to "Amstrad CPC",
-        "bk0010" to "Электроника БК-0010",
+        "x1" to "Sharp X1",
+        "bk0010" to "Soviet BK-0010 / BK-0011M",
+        "bk" to "Soviet BK-0010 / BK-0011M",
+        "rpgmaker" to "RPG Maker 2000 / 2003 (EasyRPG)",
+        "fantasy" to "Fantasy Consoles (TIC-80 / PICO-8 / WASM-4)",
         "pico8" to "PICO-8",
         "tic80" to "TIC-80",
+        "ports" to "Classic Game Engines & Ports",
         "doom" to "DOOM Engine"
     )
 
-    fun getPlatformDisplayName(platformKey: String): String {
-        return PLATFORM_DISPLAY_NAMES[platformKey.lowercase(Locale.ROOT)] ?: platformKey.uppercase(Locale.ROOT)
+    private val PREFERRED_CORE_ORDER: Map<String, List<String>> = mapOf(
+        "nes" to listOf("fceumm", "nestopia", "mesen", "quicknes"),
+        "fds" to listOf("fceumm", "nestopia", "mesen"),
+        "snes" to listOf("snes9x", "snes9x2010", "bsnes", "mesen-s"),
+        "n64" to listOf("mupen64plus_next_gles3", "mupen64plus_next_gles2", "parallel_n64"),
+        "gb" to listOf("gambatte", "sameboy", "mgba", "gearboy", "tgbdual"),
+        "gbc" to listOf("gambatte", "sameboy", "mgba", "gearboy", "tgbdual"),
+        "gb_gbc" to listOf("gambatte", "sameboy", "mgba", "gearboy", "tgbdual"),
+        "gba" to listOf("mgba", "vbam", "vba_next", "gpsp"),
+        "nds" to listOf("melonds", "melondsds", "desmume", "desmume2015"),
+        "3ds" to listOf("citra", "citra2018"),
+        "gamecube" to listOf("dolphin"),
+        "wii" to listOf("dolphin"),
+        "gamecube_wii" to listOf("dolphin"),
+        "ps1" to listOf("pcsx_rearmed", "swanstation", "mednafen_psx_hw", "mednafen_psx"),
+        "ps2" to listOf("play", "pcsx2"),
+        "psp" to listOf("ppsspp"),
+        "genesis" to listOf("genesis_plus_gx", "picodrive", "blastem"),
+        "segacd" to listOf("genesis_plus_gx", "picodrive"),
+        "sega32x" to listOf("picodrive"),
+        "sms_gg" to listOf("genesis_plus_gx", "picodrive", "smsplus", "gearsystem"),
+        "sg1000" to listOf("genesis_plus_gx", "gearsystem"),
+        "saturn" to listOf("yabasanshiro", "yabause", "mednafen_saturn", "kronos"),
+        "dreamcast" to listOf("flycast"),
+        "naomi" to listOf("flycast"),
+        "arcade" to listOf("fbneo", "mame2003_plus", "mame2010", "mamearcade"),
+        "neogeo" to listOf("fbneo", "geolith", "mame2003_plus"),
+        "neogeocd" to listOf("neocd", "fbneo"),
+        "cps" to listOf("fbneo", "mame2003_plus"),
+        "pce" to listOf("mednafen_pce_fast", "mednafen_supergrafx", "mednafen_pce"),
+        "pcecd" to listOf("mednafen_pce_fast", "mednafen_pce"),
+        "pcfx" to listOf("mednafen_pcfx"),
+        "ngp" to listOf("mednafen_ngp", "race"),
+        "wonderswan" to listOf("mednafen_wswan"),
+        "3do" to listOf("opera"),
+        "atari2600" to listOf("stella2014", "stella"),
+        "atari5200" to listOf("a5200", "atari800"),
+        "atari7800" to listOf("prosystem"),
+        "lynx" to listOf("handy", "mednafen_lynx"),
+        "jaguar" to listOf("virtualjaguar"),
+        "dos" to listOf("dosbox_pure", "dosbox_core", "dosbox_svn"),
+        "scummvm" to listOf("scummvm"),
+        "amiga" to listOf("puae", "puae2021", "uae4arm"),
+        "c64" to listOf("vice_x64", "vice_x64sc", "frodo"),
+        "zxspectrum" to listOf("fuse", "81"),
+        "msx" to listOf("bluemsx", "fmsx"),
+        "pc98" to listOf("np2kai", "nekop2"),
+        "x68000" to listOf("px68k"),
+        "doom" to listOf("prboom", "vitaquake2"),
+        "ports" to listOf("prboom", "nxengine", "tyrquake", "ecwolf")
+    )
+
+    val CORE_PACKS: List<CorePackDefinition> = listOf(
+        CorePackDefinition(
+            id = "essential",
+            titleRu = "Базовый набор 8/16-бит + PS1 + GBA/NDS",
+            titleEn = "Essential 8/16-Bit + PS1 + GBA/NDS Pack",
+            descriptionRu = "Главные ядра для NES, SNES, Genesis/Mega-CD, GB/GBC, GBA, NDS и PlayStation 1.",
+            descriptionEn = "Flagship cores for NES, SNES, Genesis/Mega-CD, GB/GBC, GBA, NDS, and PlayStation 1.",
+            coreIds = listOf("fceumm", "snes9x", "genesis_plus_gx", "gambatte", "mgba", "melonds", "pcsx_rearmed")
+        ),
+        CorePackDefinition(
+            id = "sony_sega_3d",
+            titleRu = "3D Консоли Sony, Sega, Nintendo & 3DO",
+            titleEn = "Sony, Sega, Nintendo & 3DO 3D Consoles",
+            descriptionRu = "SwanStation HD, PPSSPP, Mupen64Plus-Next GLES3, Flycast Dreamcast, PicoDrive 32X, Opera 3DO, Play! PS2.",
+            descriptionEn = "SwanStation HD, PPSSPP, Mupen64Plus-Next GLES3, Flycast Dreamcast, PicoDrive 32X, Opera 3DO, Play! PS2.",
+            coreIds = listOf("swanstation", "ppsspp", "mupen64plus_next_gles3", "flycast", "picodrive", "opera", "yabasanshiro", "play")
+        ),
+        CorePackDefinition(
+            id = "arcade_pc",
+            titleRu = "Аркады, MS-DOS и Ретро-ПК",
+            titleEn = "Arcades, MS-DOS & Home Computers",
+            descriptionRu = "FinalBurn Neo, MAME 2003-Plus, DOSBox-Pure, ScummVM, PUAE Amiga, VICE C64, Fuse ZX, NP2kai PC-98, PX68k.",
+            descriptionEn = "FinalBurn Neo, MAME 2003-Plus, DOSBox-Pure, ScummVM, PUAE Amiga, VICE C64, Fuse ZX, NP2kai PC-98, PX68k.",
+            coreIds = listOf("fbneo", "mame2003_plus", "dosbox_pure", "scummvm", "puae", "vice_x64", "fuse", "prboom", "np2kai", "px68k")
+        ),
+        CorePackDefinition(
+            id = "all_recommended",
+            titleRu = "Все рекомендованные ядра (Полный комплект)",
+            titleEn = "All Recommended Flagship Cores",
+            descriptionRu = "Все 20+ эталонных ядер для мгновенного запуска игр всех основных консолей, аркад и ПК.",
+            descriptionEn = "All 20+ flagship cores for instant play across major consoles, handhelds, arcades, and PCs.",
+            coreIds = listOf(
+                "fceumm", "snes9x", "genesis_plus_gx", "picodrive", "gambatte", "mgba", "melonds",
+                "mupen64plus_next_gles3", "pcsx_rearmed", "swanstation", "ppsspp", "flycast",
+                "fbneo", "mame2003_plus", "dosbox_pure", "scummvm", "mednafen_pce_fast",
+                "mednafen_ngp", "mednafen_wswan", "opera", "stella2014", "prboom", "puae", "vice_x64", "fuse"
+            )
+        )
+    )
+
+    private val CORE_LIBRARY_OPT_DIRS: Map<String, List<String>> = mapOf(
+        "pcsx_rearmed" to listOf("PCSX-ReARMed", "pcsx_rearmed"),
+        "swanstation" to listOf("SwanStation", "swanstation"),
+        "mupen64plus_next_gles3" to listOf("Mupen64Plus-Next", "mupen64plus_next_gles3", "mupen64plus_next"),
+        "mupen64plus_next_gles2" to listOf("Mupen64Plus-Next", "mupen64plus_next_gles2", "mupen64plus_next"),
+        "ppsspp" to listOf("PPSSPP", "ppsspp"),
+        "mgba" to listOf("mGBA", "mgba"),
+        "snes9x" to listOf("Snes9x", "snes9x"),
+        "genesis_plus_gx" to listOf("Genesis Plus GX", "genesis_plus_gx"),
+        "dosbox_pure" to listOf("DOSBox-pure", "dosbox_pure"),
+        "flycast" to listOf("Flycast", "flycast"),
+        "melonds" to listOf("melonDS", "melonds"),
+        "fbneo" to listOf("FinalBurn Neo", "fbneo"),
+        "fceumm" to listOf("FCEUmm", "fceumm"),
+        "gambatte" to listOf("Gambatte", "gambatte"),
+        "picodrive" to listOf("PicoDrive", "picodrive"),
+        "opera" to listOf("Opera", "opera")
+    )
+
+    private val CORE_OPTION_SCHEMAS: Map<String, List<CoreOptionSpec>> = mapOf(
+        "pcsx_rearmed" to listOf(
+            CoreOptionSpec("pcsx_rearmed_neon_enhancement_enable", "Удвоение разрешения (2x Hi-Res)", "Enhanced Resolution (2x Hi-Res)", listOf("disabled", "enabled"), "enabled"),
+            CoreOptionSpec("pcsx_rearmed_neon_enhancement_no_main", "Быстрый буфер Hi-Res (Speed Hack)", "Enhanced Resolution Speed Hack", listOf("disabled", "enabled"), "enabled"),
+            CoreOptionSpec("pcsx_rearmed_frameskip_type", "Пропуск кадров (Frameskip)", "Frameskip Mode", listOf("disabled", "auto", "fixed"), "disabled"),
+            CoreOptionSpec("pcsx_rearmed_psxclock", "Частота CPU PS1 (%)", "PSX CPU Clock (%)", listOf("50", "57", "65", "75", "85", "100"), "57"),
+            CoreOptionSpec("pcsx_rearmed_cd_turbo", "Быстрая загрузка CD-ROM", "CD-ROM Async Fast Load", listOf("disabled", "enabled"), "enabled"),
+            CoreOptionSpec("pcsx_rearmed_dithering", "Дизеринг цвета PS1", "PSX Color Dithering", listOf("enabled", "disabled"), "enabled"),
+            CoreOptionSpec("pcsx_rearmed_pad1type", "Тип геймпада Порт 1", "Pad 1 Controller Type", listOf("standard", "analog", "dualshock"), "dualshock")
+        ),
+        "swanstation" to listOf(
+            CoreOptionSpec("swanstation_GPU_ResolutionScale", "Внутреннее разрешение (1x-8x)", "Internal Resolution Scale (1x-8x)", listOf("1", "2", "3", "4", "5", "6", "8"), "2"),
+            CoreOptionSpec("swanstation_GPU_PGXPEnable", "Коррекция геометрии PGXP", "PGXP Geometry Correction", listOf("false", "true"), "true"),
+            CoreOptionSpec("swanstation_GPU_PGXPTextureCorrection", "Перспективная коррекция текстур PGXP", "PGXP Perspective Texture Correction", listOf("false", "true"), "true"),
+            CoreOptionSpec("swanstation_GPU_WidescreenHack", "Широкоэкранный режим 16:9", "Widescreen 16:9 Hack", listOf("false", "true"), "false"),
+            CoreOptionSpec("swanstation_CDROM_LoadImagePatches", "Быстрое чтение CD (2x-10x)", "Fast CD-ROM Speedup", listOf("false", "true"), "true"),
+            CoreOptionSpec("swanstation_CPU_Overclock", "Разгон процессора PS1 (%)", "PSX CPU Overclock (%)", listOf("100", "125", "150", "200"), "100"),
+            CoreOptionSpec("swanstation_BIOS_PatchFastBoot", "Быстрый старт без заставки BIOS", "Fast Boot (Skip BIOS Intro)", listOf("false", "true"), "false")
+        ),
+        "mupen64plus_next_gles3" to listOf(
+            CoreOptionSpec("mupen64plus-43screensize", "Внутреннее разрешение 4:3", "4:3 Internal Resolution", listOf("320x240", "640x480", "960x720", "1280x960", "1600x1200", "1920x1440"), "960x720"),
+            CoreOptionSpec("mupen64plus-169screensize", "Внутреннее разрешение 16:9", "16:9 Internal Resolution", listOf("640x360", "960x540", "1280x720", "1920x1080", "2560x1440"), "1280x720"),
+            CoreOptionSpec("mupen64plus-aspect", "Соотношение сторон", "Aspect Ratio", listOf("4:3", "16:9", "16:9 adjusted"), "4:3"),
+            CoreOptionSpec("mupen64plus-FrameDuping", "Дублирование кадров (плавность)", "Frame Duping", listOf("False", "True"), "True"),
+            CoreOptionSpec("mupen64plus-CountPerOp", "Циклы CPU на операцию (Overclock)", "Count Per Op (1=Overclock, 2=Default)", listOf("0", "1", "2", "3"), "0"),
+            CoreOptionSpec("mupen64plus-BilinearMode", "Фильтрация текстур N64", "Texture Bilinear Mode", listOf("3point", "standard"), "3point")
+        ),
+        "ppsspp" to listOf(
+            CoreOptionSpec("ppsspp_internal_resolution", "Внутреннее разрешение PSP (1x-8x)", "Internal Resolution (1x-8x)", listOf("480x272", "960x544", "1440x816", "1920x1088", "2400x1360", "3840x2176"), "960x544"),
+            CoreOptionSpec("ppsspp_auto_frameskip", "Автоматический пропуск кадров", "Auto Frameskip", listOf("disabled", "enabled"), "disabled"),
+            CoreOptionSpec("ppsspp_frameskip", "Пропуск кадров (0-4)", "Frameskip Level", listOf("0", "1", "2", "3", "4"), "0"),
+            CoreOptionSpec("ppsspp_locked_cpu_speed", "Частота CPU PSP (МГц)", "Locked PSP CPU Speed", listOf("off", "222", "266", "333", "444", "666"), "off"),
+            CoreOptionSpec("ppsspp_texture_anisotropic_filtering", "Анизотропная фильтрация", "Anisotropic Filtering", listOf("off", "2x", "4x", "8x", "16x"), "8x"),
+            CoreOptionSpec("ppsspp_fast_memory", "Быстрая память (Fast Memory)", "Fast Memory (Unstable check off)", listOf("enabled", "disabled"), "enabled")
+        ),
+        "flycast" to listOf(
+            CoreOptionSpec("reicast_internal_resolution", "Внутреннее разрешение Dreamcast", "Internal Resolution", listOf("640x480", "960x720", "1280x960", "1440x1080", "1920x1440", "2560x1920"), "960x720"),
+            CoreOptionSpec("reicast_widescreen_hack", "Широкоэкранный хак 16:9", "Widescreen Hack", listOf("disabled", "enabled"), "disabled"),
+            CoreOptionSpec("reicast_anisotropic_filtering", "Анизотропная фильтрация", "Anisotropic Filtering", listOf("off", "2", "4", "8", "16"), "4"),
+            CoreOptionSpec("reicast_threaded_rendering", "Многопоточный рендеринг GPU", "Threaded Rendering", listOf("enabled", "disabled"), "enabled"),
+            CoreOptionSpec("reicast_alpha_sorting", "Сортировка прозрачности", "Alpha Sorting", listOf("per-strip (fast, least accurate)", "per-triangle (normal)", "per-pixel (accurate)"), "per-triangle (normal)")
+        ),
+        "mgba" to listOf(
+            CoreOptionSpec("mgba_color_correction", "Цветокоррекция экрана GBA", "GBA LCD Color Correction", listOf("OFF", "GBA", "GBC", "Auto"), "GBA"),
+            CoreOptionSpec("mgba_interframe_blending", "Смешивание полукадров (мерцание)", "Interframe Blending", listOf("OFF", "mix", "mix_smart", "lcd_ghosting"), "mix_smart"),
+            CoreOptionSpec("mgba_skip_bios", "Пропуск заставки BIOS", "Skip BIOS Intro", listOf("ON", "OFF"), "ON"),
+            CoreOptionSpec("mgba_frameskip", "Пропуск кадров", "Frameskip", listOf("disabled", "auto", "auto_threshold", "fixed_interval"), "disabled"),
+            CoreOptionSpec("mgba_idle_optimization", "Оптимизация холостых циклов CPU", "Idle Loop Removal", listOf("Remove Known", "Detect and Remove", "Don't Remove"), "Remove Known")
+        ),
+        "snes9x" to listOf(
+            CoreOptionSpec("snes9x_overclock_superfx", "Разгон чипа SuperFX (%)", "SuperFX Overclock (%)", listOf("100%", "150%", "200%", "300%", "400%"), "100%"),
+            CoreOptionSpec("snes9x_overclock_cycles", "Снижение замедлений CPU SNES", "Reduce Slowdown (CPU Overclock)", listOf("disabled", "light", "compatible", "max"), "disabled"),
+            CoreOptionSpec("snes9x_reduce_sprite_flicker", "Убрать мерцание спрайтов", "Reduce Sprite Flicker", listOf("disabled", "enabled"), "enabled"),
+            CoreOptionSpec("snes9x_aspect", "Пропорции экрана SNES", "Preferred Aspect Ratio", listOf("4:3", "uncorrected", "auto", "ntsc", "pal"), "4:3"),
+            CoreOptionSpec("snes9x_blargg", "NTSC видео-фильтр Blargg", "Blargg NTSC Filter", listOf("disabled", "monochrome", "rf", "composite", "s-video", "rgb"), "disabled")
+        ),
+        "genesis_plus_gx" to listOf(
+            CoreOptionSpec("genesis_plus_gx_joypad_1_type", "Тип геймпада Mega Drive", "Port 1 Controller Type", listOf("auto", "3 button", "6 button"), "auto"),
+            CoreOptionSpec("genesis_plus_gx_overclock", "Разгон CPU 68000 (%)", "CPU Speed (%)", listOf("100%", "125%", "150%", "200%"), "100%"),
+            CoreOptionSpec("genesis_plus_gx_no_sprite_limit", "Снять лимит спрайтов на строку", "Remove Per-Line Sprite Limit", listOf("disabled", "enabled"), "enabled"),
+            CoreOptionSpec("genesis_plus_gx_ym2612", "Точность синтезатора YM2612 FM", "YM2612 FM Core", listOf("mame (ym2612)", "mame (asic ym3438)", "nuked (ym2612)", "nuked (ym3438)"), "mame (ym2612)"),
+            CoreOptionSpec("genesis_plus_gx_blargg_ntsc_filter", "NTSC композитный фильтр", "Blargg NTSC Filter", listOf("disabled", "monochrome", "composite", "svideo", "rgb"), "disabled")
+        ),
+        "dosbox_pure" to listOf(
+            CoreOptionSpec("dosbox_pure_cycles", "Скорость процессора DOS", "Emulated CPU Performance", listOf("auto", "max", "8086", "286", "386", "486", "pentium", "pentium_ii"), "auto"),
+            CoreOptionSpec("dosbox_pure_machine", "Видеоадаптер ПК", "Graphics Machine Type", listOf("svga", "vga", "ega", "cga", "hercules", "tandy"), "svga"),
+            CoreOptionSpec("dosbox_pure_memory_size", "Объем оперативной памяти RAM", "DOS/Win9x RAM Size (MB)", listOf("16", "32", "64", "128", "256"), "64"),
+            CoreOptionSpec("dosbox_pure_sblaster_type", "Звуковая карта Sound Blaster", "Sound Blaster Type", listOf("sb16", "sbpro2", "sb2", "sb1", "gb", "none"), "sb16"),
+            CoreOptionSpec("dosbox_pure_aspect_correction", "Коррекция пропорций 4:3 CRT", "CRT 4:3 Aspect Correction", listOf("true", "false"), "true")
+        ),
+        "melonds" to listOf(
+            CoreOptionSpec("melonds_screen_layout", "Расположение экранов NDS", "NDS Dual Screen Layout", listOf("Top/Bottom", "Bottom/Top", "Left/Right", "Right/Left", "Top Only", "Bottom Only", "Hybrid Top"), "Top/Bottom"),
+            CoreOptionSpec("melonds_threaded_renderer", "Многопоточный 3D-рендеринг", "Threaded Software Renderer", listOf("enabled", "disabled"), "enabled"),
+            CoreOptionSpec("melonds_jit_enable", "JIT-компилятор ARM CPU", "Enable JIT Recompiler", listOf("enabled", "disabled"), "enabled"),
+            CoreOptionSpec("melonds_boot_directly", "Прямой запуск игры", "Boot Game Directly", listOf("enabled", "disabled"), "enabled")
+        )
+    )
+
+    private val FALLBACK_FLAGSHIP_CORES: List<MobileCoreInfo> = listOf(
+        buildCoreEntry("fceumm", "Nintendo NES / Famicom (FCEUmm)", "nes", listOf("nes", "fds", "unf", "unif", "zip"), listOf("disksys.rom"), true, true, true),
+        buildCoreEntry("snes9x", "Super Nintendo / Super Famicom (Snes9x)", "snes", listOf("sfc", "smc", "fig", "swc", "bs", "zip"), emptyList(), true, true, false),
+        buildCoreEntry("genesis_plus_gx", "Sega Genesis / Mega-CD / Master System (Genesis Plus GX)", "megadrive", listOf("md", "gen", "smd", "bin", "chd", "cue", "iso", "sms", "gg", "sg", "zip"), listOf("bios_CD_U.bin", "bios_CD_E.bin", "bios_CD_J.bin"), true, true, true),
+        buildCoreEntry("picodrive", "Sega 32X / Mega Drive / Mega-CD (PicoDrive)", "sega32x", listOf("32x", "md", "gen", "smd", "bin", "cue", "iso", "chd", "sms", "zip"), listOf("bios_CD_U.bin", "bios_CD_E.bin", "bios_CD_J.bin"), true, true, true),
+        buildCoreEntry("gambatte", "Nintendo Game Boy / Color (Gambatte)", "gbc", listOf("gb", "gbc", "dmg", "zip"), listOf("gb_bios.bin", "gbc_bios.bin"), true, true, true),
+        buildCoreEntry("mgba", "Nintendo Game Boy Advance (mGBA)", "gba", listOf("gba", "gb", "gbc", "agb", "zip"), listOf("gba_bios.bin"), true, true, true),
+        buildCoreEntry("melonds", "Nintendo DS (melonDS)", "nds", listOf("nds", "dsi", "ids", "zip"), listOf("bios7.bin", "bios9.bin", "firmware.bin"), true, true, false),
+        buildCoreEntry("mupen64plus_next_gles3", "Nintendo 64 (Mupen64Plus-Next GLES3)", "n64", listOf("z64", "n64", "v64", "ndd", "zip"), emptyList(), true, true, false),
+        buildCoreEntry("pcsx_rearmed", "Sony PlayStation (PCSX-ReARMed)", "psx", listOf("chd", "pbp", "cue", "bin", "img", "iso", "mdf", "m3u"), listOf("scph5501.bin", "scph5500.bin", "scph5502.bin", "scph1001.bin"), true, true, true),
+        buildCoreEntry("swanstation", "Sony PlayStation HD PGXP (SwanStation)", "psx", listOf("chd", "pbp", "cue", "bin", "img", "iso", "ecm", "mds", "m3u"), listOf("scph5501.bin", "scph5500.bin", "scph5502.bin", "scph1001.bin"), true, true, false),
+        buildCoreEntry("ppsspp", "Sony PlayStation Portable (PPSSPP)", "psp", listOf("iso", "cso", "pbp", "elf", "prx"), emptyList(), true, true, false),
+        buildCoreEntry("flycast", "Sega Dreamcast / NAOMI / Atomiswave (Flycast)", "dreamcast", listOf("chd", "cdi", "gdi", "cue", "zip", "lst", "dat", "m3u"), listOf("dc/dc_boot.bin", "dc/dc_flash.bin"), true, true, false),
+        buildCoreEntry("fbneo", "Arcade / Neo Geo / CPS-1/2/3 (FinalBurn Neo)", "arcade", listOf("zip", "7z"), listOf("neogeo.zip", "pgm.zip"), true, true, false),
+        buildCoreEntry("dosbox_pure", "MS-DOS / Windows 9x (DOSBox-Pure)", "dos", listOf("zip", "dosz", "exe", "com", "bat", "iso", "cue", "img", "ima", "vhd", "conf", "m3u"), emptyList(), true, true, false),
+        buildCoreEntry("mednafen_pce_fast", "NEC PC Engine / TurboGrafx-16 / CD (Beetle PCE Fast)", "pce", listOf("pce", "cue", "chd", "ccd", "toc", "sgx", "zip"), listOf("syscard3.pce"), true, true, true),
+        buildCoreEntry("mednafen_ngp", "SNK Neo Geo Pocket / Color (Beetle NeoPop)", "ngp", listOf("ngp", "ngc", "ngpc", "npc", "zip"), emptyList(), true, true, true),
+        buildCoreEntry("mednafen_wswan", "Bandai WonderSwan / Color (Beetle Cygne)", "wonderswan", listOf("ws", "wsc", "pc2", "zip"), emptyList(), true, true, true),
+        buildCoreEntry("opera", "3DO Interactive Multiplayer (Opera)", "3do", listOf("iso", "chd", "cue", "bin", "m3u"), listOf("panafz10.bin", "panafz1.bin", "goldstar.bin"), true, true, false),
+        buildCoreEntry("stella2014", "Atari 2600 (Stella 2014)", "atari2600", listOf("a26", "bin", "zip"), emptyList(), true, true, true),
+        buildCoreEntry("prboom", "DOOM / DOOM II / Final DOOM (PrBoom)", "ports", listOf("wad", "iwad", "pwad", "zip"), listOf("prboom.wad"), true, true, false)
+    )
+
+    private fun buildCoreEntry(
+        id: String,
+        displayName: String,
+        platformId: String,
+        exts: List<String>,
+        bios: List<String>,
+        recommended: Boolean,
+        pre64: Boolean,
+        pre32: Boolean,
+        zip64: String? = null,
+        zip32: String? = null,
+        soInside: String? = null,
+        jniLib: String? = null
+    ): MobileCoreInfo {
+        val baseSo = "${id}_libretro"
+        val resolvedSoInside = soInside?.takeIf { it.isNotBlank() } ?: "${baseSo}_android.so"
+        val resolvedJniLib = jniLib?.takeIf { it.isNotBlank() } ?: "lib${baseSo}_android.so"
+        val resolvedZip64 = zip64?.takeIf { it.isNotBlank() } ?: "${resolvedSoInside}.zip"
+        val resolvedZip32 = zip32?.takeIf { it.isNotBlank() } ?: resolvedZip64
+        val derivedBase = resolvedSoInside.removeSuffix("_android.so").removeSuffix(".so").removePrefix("lib")
+        val pKeys = expandPlatformKeysForCore(id, platformId)
+        val normPrimary = normalizePlatformKey(platformId, "")
+        val pDisplay = getPlatformDisplayName(normPrimary.ifBlank { platformId })
+        val biosHint = if (bios.isNotEmpty()) " BIOS: ${bios.take(2).joinToString(", ")}." else ""
+
+        return MobileCoreInfo(
+            id = id,
+            displayName = displayName,
+            soBaseName = derivedBase,
+            platformDisplay = pDisplay,
+            platformKeys = pKeys,
+            extensions = exts.map { it.lowercase(Locale.ROOT).trimStart('.') }.filter { it.isNotEmpty() }.toSet(),
+            descriptionRu = "Официальное ядро Libretro для $pDisplay.$biosHint",
+            descriptionEn = "Official Libretro core for $pDisplay.$biosHint",
+            isExperimental = id in setOf("play", "pcsx2", "citra", "citra2018", "dolphin"),
+            platformId = platformId,
+            zipArm64 = resolvedZip64,
+            zipArm32 = resolvedZip32,
+            soInsideZip = resolvedSoInside,
+            jniLibName = resolvedJniLib,
+            biosFiles = bios,
+            recommended = recommended,
+            prebundledArm64 = pre64,
+            prebundledArm32 = pre32
+        )
     }
 
-    fun findCoreById(idOrBaseName: String?): MobileCoreInfo? {
+    private fun expandPlatformKeysForCore(coreId: String, rawPlatformId: String): Set<String> {
+        val set = LinkedHashSet<String>()
+        val pid = rawPlatformId.trim().lowercase(Locale.ROOT)
+        if (pid.isNotEmpty()) {
+            set.add(pid)
+            val norm = normalizePlatformKey(pid, "")
+            if (norm.isNotEmpty()) set.add(norm)
+        }
+        val cid = coreId.lowercase(Locale.ROOT)
+        when {
+            cid == "pcsx2" || cid == "play" -> {
+                set.clear()
+                set.add("ps2")
+            }
+            cid.startsWith("genesis_plus_gx") -> {
+                set.addAll(listOf("genesis", "megadrive", "segacd", "sms_gg", "mastersystem", "sg1000"))
+            }
+            cid == "picodrive" -> {
+                set.addAll(listOf("genesis", "megadrive", "segacd", "sega32x", "sms_gg", "mastersystem"))
+            }
+            cid == "fceumm" || cid == "nestopia" || cid == "mesen" -> {
+                set.addAll(listOf("nes", "fds"))
+            }
+            cid in setOf("gambatte", "sameboy", "tgbdual", "gearboy") -> {
+                set.addAll(listOf("gb", "gbc", "gb_gbc"))
+            }
+            cid in setOf("mgba", "vbam", "vba_next") -> {
+                set.addAll(listOf("gba", "gb", "gbc", "gb_gbc"))
+            }
+            cid in setOf("pcsx_rearmed", "swanstation", "mednafen_psx", "mednafen_psx_hw") -> {
+                set.addAll(listOf("ps1", "psx"))
+            }
+            cid == "dolphin" -> {
+                set.addAll(listOf("gc_wii", "gamecube_wii", "gamecube", "wii"))
+            }
+            cid == "flycast" -> {
+                set.addAll(listOf("dreamcast", "naomi", "arcade"))
+            }
+            cid == "fbneo" || cid.startsWith("mame") || cid == "hbmame" -> {
+                set.addAll(listOf("arcade", "neogeo", "cps"))
+            }
+            cid.startsWith("mednafen_pce") -> {
+                set.addAll(listOf("pce", "pcecd"))
+            }
+            cid == "neocd" -> {
+                set.addAll(listOf("neocd", "neogeocd"))
+            }
+            cid == "prboom" -> {
+                set.addAll(listOf("doom", "ports"))
+            }
+            pid == "gbc" -> {
+                set.addAll(listOf("gb", "gbc", "gb_gbc"))
+            }
+            pid == "psx" -> {
+                set.add("ps1")
+            }
+            pid == "megadrive" -> {
+                set.add("genesis")
+            }
+            pid == "mastersystem" -> {
+                set.add("sms_gg")
+            }
+            pid == "colecovision" -> {
+                set.add("coleco")
+            }
+            pid == "virtualboy" -> {
+                set.add("vb")
+            }
+            pid == "amstradcpc" -> {
+                set.add("amstrad")
+            }
+            pid == "bk" -> {
+                set.add("bk0010")
+            }
+            pid == "fantasy" -> {
+                set.addAll(listOf("pico8", "tic80"))
+            }
+        }
+        return set
+    }
+
+    fun init(context: Context): List<MobileCoreInfo> {
+        loadedCatalogCores?.let { return it }
+        synchronized(catalogLock) {
+            loadedCatalogCores?.let { return it }
+            val parsed = ArrayList<MobileCoreInfo>(260)
+            try {
+                context.applicationContext.assets.open("cores_catalog_android.json").use { ins ->
+                    val jsonStr = ins.bufferedReader(StandardCharsets.UTF_8).readText()
+                    val root = JSONObject(jsonStr)
+                    val arr = root.optJSONArray("cores") ?: JSONArray()
+                    for (i in 0 until arr.length()) {
+                        val obj = arr.optJSONObject(i) ?: continue
+                        val id = obj.optString("id", "").trim()
+                        if (id.isEmpty()) continue
+                        val displayName = obj.optString("displayName", id).trim()
+                        val platformId = obj.optString("platformId", "ports").trim()
+                        val zip64 = obj.optString("zipArm64", "${id}_libretro_android.so.zip").trim()
+                        val zip32 = obj.optString("zipArm32", zip64).trim()
+                        val soInside = obj.optString("soInsideZip", "${id}_libretro_android.so").trim()
+                        val jniLib = obj.optString("jniLibName", "lib${id}_libretro_android.so").trim()
+
+                        val extList = ArrayList<String>()
+                        val extArr = obj.optJSONArray("extensions")
+                        if (extArr != null) {
+                            for (j in 0 until extArr.length()) {
+                                val e = extArr.optString(j, "").trim().trimStart('.').lowercase(Locale.ROOT)
+                                if (e.isNotEmpty()) extList.add(e)
+                            }
+                        }
+
+                        val biosList = ArrayList<String>()
+                        val biosArr = obj.optJSONArray("biosFiles")
+                        if (biosArr != null) {
+                            for (j in 0 until biosArr.length()) {
+                                val b = biosArr.optString(j, "").trim()
+                                if (b.isNotEmpty()) biosList.add(b)
+                            }
+                        }
+
+                        parsed.add(
+                            buildCoreEntry(
+                                id = id,
+                                displayName = displayName,
+                                platformId = platformId,
+                                exts = extList,
+                                bios = biosList,
+                                recommended = obj.optBoolean("recommended", false),
+                                pre64 = obj.optBoolean("prebundledArm64", false),
+                                pre32 = obj.optBoolean("prebundledArm32", false),
+                                zip64 = zip64,
+                                zip32 = zip32,
+                                soInside = soInside,
+                                jniLib = jniLib
+                            )
+                        )
+                    }
+                }
+            } catch (_: Throwable) {
+            }
+            val finalCatalog = if (parsed.isNotEmpty()) parsed else FALLBACK_FLAGSHIP_CORES
+            loadedCatalogCores = finalCatalog
+            return finalCatalog
+        }
+    }
+
+    fun getAllCores(context: Context? = null): List<MobileCoreInfo> {
+        if (context != null) return init(context)
+        return ALL_CORES
+    }
+
+    fun getPlatformDisplayName(platformKey: String): String {
+        val k = platformKey.lowercase(Locale.ROOT).trim()
+        return PLATFORM_DISPLAY_NAMES[k]
+            ?: PLATFORM_DISPLAY_NAMES[normalizePlatformKey(k, "")]
+            ?: platformKey.uppercase(Locale.ROOT)
+    }
+
+    fun findCoreById(idOrBaseName: String?, context: Context? = null): MobileCoreInfo? {
         if (idOrBaseName.isNullOrBlank()) return null
+        val catalog = getAllCores(context)
         val q = idOrBaseName.trim().lowercase(Locale.ROOT)
-        return ALL_CORES.firstOrNull {
+        if (q == "mupen64plus_next") {
+            catalog.firstOrNull { it.id == "mupen64plus_next_gles3" }?.let { return it }
+        }
+        return catalog.firstOrNull {
             it.id.lowercase(Locale.ROOT) == q ||
                 it.soBaseName.lowercase(Locale.ROOT) == q ||
-                "${it.soBaseName}_android.so".lowercase(Locale.ROOT) == q ||
+                it.soInsideZip.lowercase(Locale.ROOT) == q ||
+                it.jniLibName.lowercase(Locale.ROOT) == q ||
                 it.displayName.lowercase(Locale.ROOT) == q
         }
     }
 
-    /**
-     * Exact Desktop 2.3.0 / 2.4.0 platform key normalizer.
-     * Enforces strict hardware isolation:
-     * NES != SNES != N64 != GB/GBC != GBA != NDS != 3DS
-     * PS1 != PS2 != PS3 != PSP != PSVita
-     * Genesis != Mega-CD != 32X != SMS/GG != Saturn != Dreamcast
-     */
     fun normalizePlatformKey(platform: String?, ext: String = ""): String {
         val p = (platform ?: "").trim().lowercase(Locale.ROOT)
         val e = ext.trim().trimStart('.').lowercase(Locale.ROOT)
@@ -865,181 +605,210 @@ object MobileCoreRegistry {
         if (p.isNotEmpty()) {
             if (p == "all" || p == "все платформы" || p == "all platforms") return ""
 
-            // Exact normalized keys fast-path
+            when (p) {
+                "psx", "ps1", "playstation" -> return "ps1"
+                "megadrive", "genesis", "mega drive" -> return "genesis"
+                "mastersystem", "sms", "game gear", "gg", "sms_gg" -> return "sms_gg"
+                "gc_wii", "gamecube_wii" -> return "gamecube_wii"
+                "neocd", "neogeocd" -> return "neogeocd"
+                "colecovision", "coleco" -> return "coleco"
+                "virtualboy", "vb" -> return "vb"
+                "amstradcpc", "amstrad" -> return "amstrad"
+                "bk", "bk0010" -> return "bk0010"
+            }
+
             if (PLATFORM_DISPLAY_NAMES.containsKey(p)) return p
 
-            // Nintendo handhelds (specific before general)
             if (p.contains("game boy advance") || p == "gba" || p.contains("(gba)")) return "gba"
-            if (p.contains("virtual boy") || p == "vb") return "vb"
-            if (p.contains("pokemon mini") || p.contains("pokémon mini") || p == "pokemini") return "pokemini"
+            if (p.contains("virtual boy")) return "vb"
+            if (p.contains("pokemon mini")) return "pokemini"
             if (p.contains("game & watch") || p.contains("game and watch") || p == "gw") return "gw"
             if (p.contains("game boy color") || p == "gbc") return "gbc"
             if (p.contains("game boy") || p == "gb" || p.contains("gb/gbc") || p.contains("gb_gbc")) return "gb_gbc"
             if (p.contains("3ds")) return "3ds"
             if (p.contains("nintendo ds") || p == "nds" || p == "dsi" || p.contains("ds / dsi")) return "nds"
 
-            // Nintendo home consoles (specific before general)
-            if (p.contains("super nintendo") || p.contains("snes") || p.contains("super famicom") || p == "sfc") return "snes"
+            if (p.contains("super nintendo") || p.contains("super famicom") || p == "snes" || p == "sfc") return "snes"
             if (p.contains("famicom disk") || p == "fds") return "fds"
-            if (p.contains("nintendo 64") || p == "n64" || p.contains("64dd")) return "n64"
+            if (p.contains("nintendo 64") || p == "n64") return "n64"
             if (p.contains("gamecube") && p.contains("wii")) return "gamecube_wii"
             if (p.contains("gamecube") || p == "gc" || p == "ngc") return "gamecube"
-            if (p == "wii" || p.contains("nintendo wii")) return "wii"
-            if (p.contains("nintendo entertainment system") || p.contains("nes") || p.contains("famicom") || p.contains("dendy")) return "nes"
+            if (p.contains("wii")) return "wii"
+            if (p.contains("nintendo entertainment") || p.contains("nes") || p.contains("famicom") || p.contains("dendy")) return "nes"
 
-            // Sony (specific before general)
-            if (p.contains("vita") || p == "psv" || p == "psvita") return "psvita"
-            if (p.contains("portable") || p.contains("psp")) return "psp"
+            if (p.contains("playstation portable") || p == "psp") return "psp"
+            if (p.contains("vita") || p == "psvita") return "psvita"
             if (p.contains("playstation 3") || p == "ps3") return "ps3"
-            if (p.contains("playstation 2") || p == "ps2" || p.contains("pcsx2") || p.contains("lrps2")) return "ps2"
-            if (p.contains("playstation") || p == "ps1" || p == "psx") return "ps1"
+            if (p.contains("playstation 2") || p == "ps2") return "ps2"
+            if (p.contains("playstation") || p == "psone") return "ps1"
 
-            // Sega (specific before general)
-            if (p.contains("naomi") || p.contains("atomiswave")) return "naomi"
-            if (p.contains("dreamcast") || p == "dc") return "dreamcast"
-            if (p.contains("saturn")) return "saturn"
             if (p.contains("32x")) return "sega32x"
-            if (p.contains("mega-cd") || p.contains("sega cd") || p == "mcd" || p == "scd") return "segacd"
-            if (p.contains("master system") || p.contains("mark iii") || p == "sms" || p.contains("game gear") || p == "gg") return "sms_gg"
+            if (p.contains("mega-cd") || p.contains("mega cd") || p.contains("sega cd") || p == "segacd" || p == "mcd") return "segacd"
+            if (p.contains("saturn")) return "saturn"
+            if (p.contains("dreamcast") || p == "dc") return "dreamcast"
+            if (p.contains("naomi") || p.contains("atomiswave")) return "naomi"
+            if (p.contains("master system") || p.contains("mark iii")) return "sms_gg"
             if (p.contains("sg-1000") || p == "sg1000") return "sg1000"
-            if (p.contains("pico") && p.contains("sega")) return "segapico"
-            if (p.contains("genesis") || p.contains("mega drive") || p == "md" || p == "smd") return "genesis"
+            if (p.contains("mega drive") || p.contains("genesis") || p == "md") return "genesis"
 
-            // NEC, SNK, Bandai, 3DO, Philips, Atari, Computers
-            if (p.contains("pc-fx") || p == "pcfx") return "pcfx"
-            if (p.contains("pc-98") || p == "pc98") return "pc98"
-            if (p.contains("pc-88") || p == "pc88") return "pc88"
-            if (p.contains("pc engine cd") || p.contains("turbografx-cd")) return "pcecd"
-            if (p.contains("pc engine") || p.contains("turbografx") || p.contains("supergrafx") || p == "pce" || p == "tg16") return "pce"
             if (p.contains("neo geo pocket") || p == "ngp" || p == "ngpc") return "ngp"
-            if (p.contains("neo geo cd") || p == "neocd") return "neogeocd"
-            if (p.contains("neo geo") || p == "neogeo" || p.contains("mvs") || p.contains("aes")) return "neogeo"
-            if (p.contains("cps-1") || p.contains("cps-2") || p.contains("cps-3") || p == "cps") return "cps"
-            if (p.contains("arcade") || p.contains("mame") || p.contains("fbneo")) return "arcade"
+            if (p.contains("neo geo cd")) return "neogeocd"
+            if (p.contains("neo geo") || p == "neogeo" || p == "mvs" || p == "aes") return "neogeo"
+            if (p.contains("cps-1") || p.contains("cps-2") || p.contains("cps-3") || p.contains("cps1") || p.contains("cps2")) return "cps"
+            if (p.contains("arcade") || p.contains("fbneo") || p.contains("mame")) return "arcade"
+
+            if (p.contains("pc-fx") || p == "pcfx") return "pcfx"
+            if (p.contains("pc engine cd") || p.contains("turbografx-cd") || p == "pcecd") return "pcecd"
+            if (p.contains("pc engine") || p.contains("turbografx") || p == "pce" || p == "tg16") return "pce"
             if (p.contains("wonderswan") || p == "ws" || p == "wsc") return "wonderswan"
             if (p.contains("3do")) return "3do"
             if (p.contains("cd-i") || p == "cdi") return "cdi"
             if (p.contains("vectrex")) return "vectrex"
             if (p.contains("coleco")) return "coleco"
             if (p.contains("intellivision")) return "intellivision"
-            if (p.contains("odyssey") || p.contains("videopac")) return "odyssey2"
+            if (p.contains("odyssey")) return "odyssey2"
+            if (p.contains("channel f")) return "channelf"
+
             if (p.contains("2600")) return "atari2600"
             if (p.contains("5200")) return "atari5200"
             if (p.contains("7800")) return "atari7800"
-            if (p.contains("atari 8") || p.contains("800xl") || p.contains("atari800")) return "atari800"
             if (p.contains("lynx")) return "lynx"
             if (p.contains("jaguar")) return "jaguar"
-            if (p.contains("atari st") || p == "st") return "atarist"
+            if (p.contains("atari st") || p == "atarist") return "atarist"
+            if (p.contains("atari 8") || p.contains("atari800")) return "atari800"
+
             if (p.contains("dos") || p.contains("ms-dos")) return "dos"
             if (p.contains("scummvm")) return "scummvm"
-            if (p.contains("amiga") || p.contains("cd32")) return "amiga"
-            if (p.contains("spectrum") || p == "zx") return "zxspectrum"
+            if (p.contains("amiga")) return "amiga"
             if (p.contains("commodore 64") || p == "c64") return "c64"
+            if (p.contains("spectrum") || p == "zx") return "zxspectrum"
             if (p.contains("msx")) return "msx"
-            if (p.contains("x68000") || p == "x68k") return "x68000"
+            if (p.contains("x68000")) return "x68000"
+            if (p.contains("pc-98") || p == "pc98") return "pc98"
+            if (p.contains("pc-88") || p == "pc88") return "pc88"
             if (p.contains("amstrad") || p == "cpc") return "amstrad"
-            if (p.contains("бк-0010") || p.contains("bk-0010") || p == "bk") return "bk0010"
+            if (p.contains("бк-0010") || p.contains("bk-0010")) return "bk0010"
             if (p.contains("pico-8") || p == "pico8") return "pico8"
             if (p.contains("tic-80") || p == "tic80") return "tic80"
             if (p.contains("doom")) return "doom"
         }
 
-        // Extension-based fallback when platform label is absent
         return when (e) {
             "nes", "unf", "unif" -> "nes"
             "fds" -> "fds"
             "sfc", "smc", "swc", "fig", "bs" -> "snes"
-            "z64", "n64", "v64", "ndd" -> "n64"
-            "rvz", "gcm", "gcz", "dol" -> "gamecube"
-            "wbfs" -> "wii"
+            "z64", "n64", "v64" -> "n64"
+            "gcm", "gcz", "rvz", "wbfs" -> "gamecube_wii"
             "gb", "dmg" -> "gb"
             "gbc" -> "gbc"
             "gba", "agb" -> "gba"
             "nds", "dsi", "ids" -> "nds"
-            "3ds", "3dsx", "cci", "cxi" -> "3ds"
+            "3ds", "3dsx", "cci", "cia", "cxi" -> "3ds"
             "vb", "vboy" -> "vb"
             "min" -> "pokemini"
             "mgw" -> "gw"
-            "pbp" -> "ps1"
-            "cso", "isz" -> "psp"
-            "vpk" -> "psvita"
+            "pbp", "cso" -> "psp"
+            "ps2" -> "ps2"
             "md", "gen", "smd" -> "genesis"
             "32x" -> "sega32x"
-            "sms", "gg", "sg" -> "sms_gg"
-            "gdi", "cdi" -> "dreamcast"
+            "sms", "gg" -> "sms_gg"
+            "sg" -> "sg1000"
+            "cdi", "gdi" -> "dreamcast"
             "pce", "sgx" -> "pce"
-            "ngp", "ngc", "ngpc" -> "ngp"
+            "pcfx" -> "pcfx"
+            "ngp", "ngc", "ngpc", "npc" -> "ngp"
             "ws", "wsc", "pc2" -> "wonderswan"
             "vec" -> "vectrex"
             "col", "cv" -> "coleco"
-            "int", "itv" -> "intellivision"
+            "int" -> "intellivision"
             "a26" -> "atari2600"
             "a52" -> "atari5200"
             "a78" -> "atari7800"
-            "atr", "xex", "xfd", "car" -> "atari800"
             "lnx", "lyx" -> "lynx"
             "j64", "jag" -> "jaguar"
-            "st", "msa", "stx" -> "atarist"
+            "st", "stx", "msa" -> "atarist"
+            "atr", "xex" -> "atari800"
             "dosz", "exe", "com", "bat", "conf" -> "dos"
             "scummvm" -> "scummvm"
-            "adf", "adz", "dms", "lha", "hdf", "uae" -> "amiga"
-            "tzx", "tap", "z80", "sna", "trd", "scl" -> "zxspectrum"
-            "d64", "t64", "prg", "crt", "g64" -> "c64"
+            "adf", "adz", "dms", "ipf", "lha", "hdf" -> "amiga"
+            "d64", "d71", "d81", "t64", "prg", "crt" -> "c64"
+            "tzx", "tap", "z80", "sna", "scl", "trd" -> "zxspectrum"
             "mx1", "mx2" -> "msx"
-            "xdf", "hdm", "2hd" -> "x68000"
-            "d98", "fdi", "hdi", "nhd" -> "pc98"
-            "d88", "t88" -> "pc88"
-            "cpc", "cdt" -> "amstrad"
+            "dim", "xdf" -> "x68000"
+            "d88", "fdi", "hdi", "nhd", "t98" -> "pc98"
             "bkd" -> "bk0010"
             "p8" -> "pico8"
             "tic" -> "tic80"
             "wad", "iwad", "pwad" -> "doom"
+            "zip", "7z" -> "arcade"
+            "chd", "cue", "iso", "m3u", "bin", "img" -> "ps1"
             else -> ""
         }
     }
 
-    /**
-     * Strict platform-scoped core resolver.
-     * NEVER returns unrelated fallback cores: e.g., NES only returns NES cores, PS1 only returns PS1 cores.
-     */
-    fun getCompatibleCoresForPlatform(platform: String?, ext: String = ""): List<MobileCoreInfo> {
-        val key = normalizePlatformKey(platform, ext)
-        if (key.isEmpty()) {
-            val cleanExt = ext.trim().trimStart('.').lowercase(Locale.ROOT)
-            if (cleanExt.isEmpty()) return ALL_CORES
-            return ALL_CORES.filter { it.extensions.contains(cleanExt) }
+    fun getCompatibleCoresForPlatform(
+        platform: String?,
+        ext: String = "",
+        context: Context? = null
+    ): List<MobileCoreInfo> {
+        val catalog = getAllCores(context)
+        val pKey = normalizePlatformKey(platform, ext)
+        val rawLower = (platform ?: "").trim().lowercase(Locale.ROOT)
+        val cleanExt = ext.trim().trimStart('.').lowercase(Locale.ROOT)
+
+        val candidates = if (pKey.isNotEmpty() || rawLower.isNotEmpty()) {
+            val byPlat = catalog.filter { core ->
+                (pKey.isNotEmpty() && core.platformKeys.contains(pKey)) ||
+                    (rawLower.isNotEmpty() && (core.platformId.lowercase(Locale.ROOT) == rawLower || core.platformKeys.contains(rawLower)))
+            }
+            if (byPlat.isNotEmpty()) byPlat
+            else if (cleanExt.isNotEmpty()) catalog.filter { it.extensions.contains(cleanExt) }
+            else catalog
+        } else if (cleanExt.isNotEmpty()) {
+            catalog.filter { it.extensions.contains(cleanExt) }.ifEmpty { catalog }
+        } else {
+            catalog
         }
 
-        val expandedKeys = when (key) {
-            "gb", "gbc", "gb_gbc" -> setOf(key, "gb_gbc")
-            "gamecube", "wii", "gamecube_wii" -> setOf(key, "gamecube_wii")
-            else -> setOf(key)
-        }
-
-        return ALL_CORES.filter { core ->
-            core.platformKeys.any { expandedKeys.contains(it) }
-        }
+        val prefOrder = PREFERRED_CORE_ORDER[pKey] ?: emptyList()
+        return candidates.sortedWith(
+            compareBy<MobileCoreInfo> { core ->
+                val idx = prefOrder.indexOf(core.id)
+                if (idx >= 0) idx else 500
+            }
+                .thenByDescending { core -> if (context != null) isCoreInstalled(context, core) else core.prebundledArm64 }
+                .thenByDescending { it.recommended }
+                .thenBy { it.displayName }
+        )
     }
 
-    fun getDefaultCoreForPlatform(platform: String?, ext: String = ""): MobileCoreInfo? {
-        val compat = getCompatibleCoresForPlatform(platform, ext)
-        return compat.firstOrNull { !it.isExperimental } ?: compat.firstOrNull()
-    }
-
-    fun getAllUniqueExtensions(): Set<String> {
-        val set = LinkedHashSet<String>()
-        for (core in ALL_CORES) {
-            set.addAll(core.extensions)
+    fun getDefaultCoreForPlatform(
+        platform: String?,
+        ext: String = "",
+        context: Context? = null
+    ): MobileCoreInfo? {
+        val compat = getCompatibleCoresForPlatform(platform, ext, context)
+        if (compat.isEmpty()) return findCoreById("snes9x", context)
+        if (context != null) {
+            compat.firstOrNull { isCoreInstalled(context, it) && it.recommended }?.let { return it }
+            compat.firstOrNull { isCoreInstalled(context, it) }?.let { return it }
         }
-        // Standard multi-disc & archive containers
-        set.addAll(listOf("m3u", "cue", "gdi", "chd", "iso", "bin", "img", "mdf", "zip", "7z"))
-        return set
+        return compat.firstOrNull { it.recommended } ?: compat.first()
     }
 
-    // === SELinux-Safe Core Storage & Official Libretro Buildbot Downloader ===
+    fun getAllUniqueExtensions(context: Context? = null): Set<String> {
+        val out = LinkedHashSet<String>()
+        for (c in getAllCores(context)) {
+            out.addAll(c.extensions)
+        }
+        out.addAll(listOf("m3u", "cue", "gdi", "chd", "iso", "zip", "7z"))
+        return out
+    }
+
+    // === 3-Tier Core .so Resolution (Downloaded -> Pre-Bundled nativeLibraryDir -> Public Mirror) ===
 
     fun getExecutableCoresDir(context: Context): File {
-        val dir = File(context.filesDir, "cores")
+        val dir = File(context.applicationContext.filesDir, "cores")
         if (!dir.exists()) dir.mkdirs()
         return dir
     }
@@ -1054,98 +823,122 @@ object MobileCoreRegistry {
     }
 
     /**
-     * Imports any user-placed `.so` files from `/storage/emulated/0/STORM RETROARCH/cores/`
-     * into SELinux `app_data_file` `context.filesDir/cores/` and marks them readable + executable
-     * so Android 10-16 W^X permits `dlopen()`.
+     * Mandatory for Android 14/15/16 Dynamic Code Loading (DCL) security policy:
+     * any dynamically loaded .so inside context.filesDir/cores/ MUST be read-only (non-writable)
+     * and executable!
      */
-    fun syncPublicCoresToExecutableDir(context: Context): Int {
-        val execDir = getExecutableCoresDir(context)
-        val pubDir = getPublicCoresDir()
-        var importedCount = 0
-        try {
-            if (pubDir.exists() && pubDir.canRead()) {
-                val externalFiles = pubDir.listFiles { f -> f.isFile && f.name.endsWith(".so", ignoreCase = true) }
-                if (externalFiles != null) {
-                    for (src in externalFiles) {
-                        val dst = File(execDir, src.name)
-                        if (!dst.exists() || dst.length() != src.length()) {
-                            copyFileAtomic(src, dst)
-                            applyExecutablePermissions(dst)
-                            importedCount++
-                        } else {
-                            applyExecutablePermissions(dst)
-                        }
-                    }
-                }
-            }
-        } catch (_: Throwable) {
-        }
-        return importedCount
-    }
-
-    private fun applyExecutablePermissions(soFile: File) {
+    fun enforceReadOnlyExecutableDclPermissions(soFile: File) {
         try {
             soFile.setReadable(true, false)
             soFile.setExecutable(true, false)
+            soFile.setWritable(false, false)
         } catch (_: Throwable) {
             try {
                 soFile.setReadable(true)
                 soFile.setExecutable(true)
+                soFile.setWritable(false)
             } catch (_: Throwable) {
             }
         }
     }
 
-    private fun copyFileAtomic(src: File, dst: File) {
-        dst.parentFile?.mkdirs()
-        val tmp = File(dst.parentFile, "${dst.name}.tmp")
-        FileInputStream(src).use { input ->
-            FileOutputStream(tmp).use { output ->
-                val buf = ByteArray(32 * 1024)
-                while (true) {
-                    val read = input.read(buf)
-                    if (read <= 0) break
-                    output.write(buf, 0, read)
-                }
-                output.flush()
+    fun hasValidElfMagic(file: File): Boolean {
+        if (!file.exists() || !file.isFile || file.length() <= MIN_VALID_SO_BYTES) return false
+        return try {
+            FileInputStream(file).use { fis ->
+                val magic = ByteArray(4)
+                val read = fis.read(magic)
+                read == 4 &&
+                    magic[0] == 0x7F.toByte() &&
+                    magic[1] == 'E'.code.toByte() &&
+                    magic[2] == 'L'.code.toByte() &&
+                    magic[3] == 'F'.code.toByte()
             }
+        } catch (_: Throwable) {
+            false
         }
-        if (dst.exists()) dst.delete()
-        tmp.renameTo(dst)
     }
 
-    fun resolveInstalledCoreFile(context: Context, core: MobileCoreInfo): File? {
-        val execDir = getExecutableCoresDir(context)
+    fun resolveBundledCoreFile(context: Context, core: MobileCoreInfo): File? {
+        val nativeDirPath = context.applicationInfo?.nativeLibraryDir ?: return null
+        val nativeDir = File(nativeDirPath)
+        if (!nativeDir.exists()) return null
+
         val candidates = listOf(
-            "${core.soBaseName}_android.so",
-            "${core.soBaseName}.so",
+            core.jniLibName,
+            "lib${core.soInsideZip.removePrefix("lib")}",
             "lib${core.soBaseName}_android.so",
-            "lib${core.soBaseName}.so"
-        )
+            "lib${core.id}_libretro_android.so"
+        ).distinct()
+
         for (name in candidates) {
-            val f = File(execDir, name)
-            if (f.exists() && f.length() > 4096L) {
-                applyExecutablePermissions(f)
+            val f = File(nativeDir, name)
+            if (f.exists() && f.length() > MIN_VALID_SO_BYTES) {
                 return f
             }
         }
+        return null
+    }
 
-        // Check public mirror and import on demand if found
-        val pubDir = getPublicCoresDir()
+    fun resolveDownloadedCoreFile(context: Context, core: MobileCoreInfo): File? {
+        val execDir = getExecutableCoresDir(context)
+        val candidates = listOf(
+            core.jniLibName,
+            core.soInsideZip,
+            "${core.soBaseName}_android.so",
+            "lib${core.soBaseName}_android.so",
+            "${core.soBaseName}.so"
+        ).distinct()
+
         for (name in candidates) {
-            val extFile = File(pubDir, name)
-            if (extFile.exists() && extFile.length() > 4096L) {
-                return try {
-                    val dst = File(execDir, "${core.soBaseName}_android.so")
-                    copyFileAtomic(extFile, dst)
-                    applyExecutablePermissions(dst)
-                    dst
-                } catch (_: Throwable) {
-                    null
+            val f = File(execDir, name)
+            if (f.exists() && f.length() > MIN_VALID_SO_BYTES && hasValidElfMagic(f)) {
+                enforceReadOnlyExecutableDclPermissions(f)
+                return f
+            }
+        }
+        return null
+    }
+
+    fun resolveInstalledCoreFile(context: Context, core: MobileCoreInfo): File? {
+        // Tier 1: User-updated or newly downloaded .so in internal filesDir/cores/
+        resolveDownloadedCoreFile(context, core)?.let { return it }
+
+        // Tier 2: Pre-bundled APK jniLibs extracted to nativeLibraryDir (0.0s instant offline load!)
+        resolveBundledCoreFile(context, core)?.let { return it }
+
+        // Tier 3: Public /storage/emulated/0/STORM RETROARCH/cores/ drop-in folder
+        val pubDir = getPublicCoresDir()
+        if (pubDir.exists() && pubDir.canRead()) {
+            val execDir = getExecutableCoresDir(context)
+            val candidates = listOf(core.jniLibName, core.soInsideZip, "${core.soBaseName}_android.so").distinct()
+            for (name in candidates) {
+                val extFile = File(pubDir, name)
+                if (extFile.exists() && extFile.length() > MIN_VALID_SO_BYTES && hasValidElfMagic(extFile)) {
+                    return try {
+                        val dst = File(execDir, core.jniLibName)
+                        copyFileAtomicDcl(extFile, dst)
+                        dst
+                    } catch (_: Throwable) {
+                        null
+                    }
                 }
             }
         }
         return null
+    }
+
+    fun resolveCoreSoPath(context: Context, coreId: String): String? {
+        val core = findCoreById(coreId, context) ?: return null
+        return resolveInstalledCoreFile(context, core)?.absolutePath
+    }
+
+    fun isCoreBundled(context: Context, core: MobileCoreInfo): Boolean {
+        return resolveBundledCoreFile(context, core) != null
+    }
+
+    fun isCoreDownloaded(context: Context, core: MobileCoreInfo): Boolean {
+        return resolveDownloadedCoreFile(context, core) != null
     }
 
     fun isCoreInstalled(context: Context, core: MobileCoreInfo): Boolean {
@@ -1158,21 +951,243 @@ object MobileCoreRegistry {
         return String.format(Locale.US, "%.2f MB", mb)
     }
 
+    fun syncPublicCoresToExecutableDir(context: Context): Int {
+        val pubDir = getPublicCoresDir()
+        if (!pubDir.exists() || !pubDir.canRead()) return 0
+        val execDir = getExecutableCoresDir(context)
+        val files = pubDir.listFiles { f -> f.isFile && f.name.endsWith(".so", ignoreCase = true) } ?: return 0
+        var imported = 0
+        for (src in files) {
+            if (!hasValidElfMagic(src)) continue
+            val normalizedName = if (src.name.startsWith("lib")) src.name else "lib${src.name}"
+            val dst = File(execDir, normalizedName)
+            if (!dst.exists() || dst.length() != src.length()) {
+                try {
+                    copyFileAtomicDcl(src, dst)
+                    imported++
+                } catch (_: Throwable) {
+                }
+            } else {
+                enforceReadOnlyExecutableDclPermissions(dst)
+            }
+        }
+        return imported
+    }
+
+    private fun copyFileAtomicDcl(src: File, dst: File) {
+        dst.parentFile?.mkdirs()
+        val tmp = File(dst.parentFile, "${dst.name}.tmp")
+        if (tmp.exists()) {
+            try { tmp.setWritable(true, true); tmp.delete() } catch (_: Throwable) {}
+        }
+        FileInputStream(src).use { input ->
+            FileOutputStream(tmp).use { output ->
+                val buf = ByteArray(16 * 1024)
+                while (true) {
+                    val r = input.read(buf)
+                    if (r <= 0) break
+                    output.write(buf, 0, r)
+                }
+                output.flush()
+            }
+        }
+        replaceTargetWithReadOnlySo(tmp, dst)
+    }
+
+    private fun replaceTargetWithReadOnlySo(tempSo: File, targetSo: File) {
+        if (targetSo.exists()) {
+            try {
+                targetSo.setWritable(true, true)
+                targetSo.delete()
+            } catch (_: Throwable) {
+            }
+        }
+        if (!tempSo.renameTo(targetSo)) {
+            FileInputStream(tempSo).use { inp ->
+                FileOutputStream(targetSo).use { out ->
+                    inp.copyTo(out, 16 * 1024)
+                    out.flush()
+                }
+            }
+            tempSo.delete()
+        }
+        enforceReadOnlyExecutableDclPermissions(targetSo)
+    }
+
+    // === Multi-Mirror Resilient Downloader (Defeats Cloudflare TSPU 16KB Throttling) ===
+
     fun detectDeviceAbi(): String {
-        val supported = Build.SUPPORTED_ABIS ?: emptyArray()
-        for (abi in supported) {
-            when (abi) {
-                "arm64-v8a", "armeabi-v7a", "x86_64", "x86" -> return abi
+        val bit64 = Build.SUPPORTED_64_BIT_ABIS ?: emptyArray()
+        if (bit64.contains("arm64-v8a")) return "arm64-v8a"
+        val bit32 = Build.SUPPORTED_32_BIT_ABIS ?: emptyArray()
+        if (bit32.contains("armeabi-v7a")) return "armeabi-v7a"
+        val all = Build.SUPPORTED_ABIS ?: emptyArray()
+        for (abi in all) {
+            if (abi == "arm64-v8a" || abi == "armeabi-v7a" || abi == "x86_64" || abi == "x86") {
+                return abi
             }
         }
         return "arm64-v8a"
     }
 
-    /**
-     * Downloads the official Libretro Android `.so.zip` core from buildbot.libretro.com
-     * matching the device ABI, extracts it into `context.filesDir/cores` with `r-x` permissions,
-     * and mirrors a backup copy into `/storage/emulated/0/STORM RETROARCH/cores/`.
-     */
+    fun openFollowingRedirects(
+        urlStr: String,
+        connectTimeoutMs: Int = 15000,
+        readTimeoutMs: Int = 30000
+    ): HttpURLConnection {
+        var currentUrl = urlStr
+        var redirects = 0
+        while (redirects < 6) {
+            val conn = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
+                instanceFollowRedirects = false
+                connectTimeout = connectTimeoutMs
+                readTimeout = readTimeoutMs
+                useCaches = false
+                setRequestProperty("User-Agent", USER_AGENT)
+                setRequestProperty("Accept", "*/*")
+                setRequestProperty("Accept-Encoding", "identity")
+                setRequestProperty("Connection", "close")
+            }
+            conn.connect()
+            val code = conn.responseCode
+            if (code in listOf(301, 302, 303, 307, 308)) {
+                val loc = conn.getHeaderField("Location")
+                conn.disconnect()
+                if (loc.isNullOrBlank()) throw IllegalStateException("Redirect without Location")
+                currentUrl = URL(URL(currentUrl), loc).toString()
+                redirects++
+                continue
+            }
+            return conn
+        }
+        throw IllegalStateException("Too many redirects for $urlStr")
+    }
+
+    fun downloadCoreBlocking(
+        context: Context,
+        core: MobileCoreInfo,
+        onProgress: (Int, String) -> Unit
+    ): Pair<File?, String> {
+        val appCtx = context.applicationContext
+        val abi = detectDeviceAbi()
+        val zipName = if (abi == "arm64-v8a") {
+            core.zipArm64.ifBlank { "${core.soBaseName}_android.so.zip" }
+        } else {
+            core.zipArm32.ifBlank { core.zipArm64.ifBlank { "${core.soBaseName}_android.so.zip" } }
+        }
+
+        val encodedZip = Uri.encode(zipName)
+        data class MirrorTarget(
+            val label: String,
+            val url: String,
+            val connectMs: Int,
+            val readMs: Int,
+            val retries: Int
+        )
+
+        val mirrors = listOf(
+            MirrorTarget(
+                label = "STORM Direct Mirror",
+                url = "$STORM_MIRROR_CORES_BASE/$abi/$encodedZip",
+                connectMs = 6000,
+                readMs = 25000,
+                retries = 1
+            ),
+            MirrorTarget(
+                label = "Libretro Buildbot",
+                url = "$BUILDBOT_ANDROID_BASE/$abi/$encodedZip",
+                connectMs = 15000,
+                readMs = 30000,
+                retries = 2
+            )
+        )
+
+        val coresDir = getExecutableCoresDir(appCtx)
+        val tempDownload = File(coresDir, "${core.id}_${abi}.download.tmp")
+        val tempExtractedSo = File(coresDir, "${core.jniLibName}.extract.tmp")
+        val targetSo = File(coresDir, core.jniLibName)
+        var lastError = "Core archive unavailable"
+
+        for (mirror in mirrors) {
+            for (attempt in 1..mirror.retries) {
+                var conn: HttpURLConnection? = null
+                try {
+                    if (tempDownload.exists()) tempDownload.delete()
+                    if (tempExtractedSo.exists()) tempExtractedSo.delete()
+
+                    postProgress(onProgress, 3, mirror.label)
+                    conn = openFollowingRedirects(mirror.url, mirror.connectMs, mirror.readMs)
+                    val code = conn.responseCode
+                    if (code !in 200..299) {
+                        lastError = "${mirror.label}: HTTP $code"
+                        conn.disconnect()
+                        break
+                    }
+
+                    val totalBytes = conn.contentLengthLong
+                    BufferedInputStream(conn.inputStream, 16 * 1024).use { input ->
+                        FileOutputStream(tempDownload).use { output ->
+                            val buf = ByteArray(16 * 1024)
+                            var downloaded = 0L
+                            var lastPct = 3
+                            while (true) {
+                                val r = input.read(buf)
+                                if (r <= 0) break
+                                output.write(buf, 0, r)
+                                downloaded += r
+                                if (totalBytes > 0L) {
+                                    val pct = (5 + ((downloaded * 83L) / totalBytes).toInt()).coerceIn(5, 88)
+                                    if (pct >= lastPct + 3) {
+                                        lastPct = pct
+                                        postProgress(onProgress, pct, mirror.label)
+                                    }
+                                }
+                            }
+                            output.flush()
+                        }
+                    }
+
+                    if (!tempDownload.exists() || tempDownload.length() < 16384L) {
+                        lastError = "${mirror.label}: truncated stream (${tempDownload.length()} B)"
+                        continue
+                    }
+
+                    postProgress(onProgress, 92, mirror.label)
+                    val extractedOk = extractOrCopySoPayload(tempDownload, tempExtractedSo)
+                    tempDownload.delete()
+
+                    if (!extractedOk || !hasValidElfMagic(tempExtractedSo)) {
+                        tempExtractedSo.delete()
+                        lastError = "${mirror.label}: invalid ELF binary"
+                        continue
+                    }
+
+                    replaceTargetWithReadOnlySo(tempExtractedSo, targetSo)
+
+                    // Mirror optional backup copy into public folder if accessible
+                    try {
+                        val pubCopy = File(getPublicCoresDir(), core.jniLibName)
+                        FileInputStream(targetSo).use { inp ->
+                            FileOutputStream(pubCopy).use { out -> inp.copyTo(out, 16 * 1024) }
+                        }
+                    } catch (_: Throwable) {
+                    }
+
+                    postProgress(onProgress, 100, mirror.label)
+                    return targetSo to mirror.label
+                } catch (e: Throwable) {
+                    lastError = "${mirror.label}: ${e.message ?: e.javaClass.simpleName}"
+                } finally {
+                    try { conn?.disconnect() } catch (_: Throwable) {}
+                }
+            }
+        }
+
+        tempDownload.delete()
+        tempExtractedSo.delete()
+        return null to lastError
+    }
+
     fun downloadCoreAsync(
         context: Context,
         core: MobileCoreInfo,
@@ -1181,150 +1196,403 @@ object MobileCoreRegistry {
     ) {
         val appCtx = context.applicationContext
         downloadExecutor.execute {
-            val abi = detectDeviceAbi()
-            val urlsToTry = listOf(
-                "$BUILDBOT_ANDROID_BASE/$abi/${core.soBaseName}_android.so.zip",
-                "$BUILDBOT_ANDROID_BASE/$abi/${core.soBaseName}.so.zip"
-            )
-
-            val execDir = getExecutableCoresDir(appCtx)
-            val tempZip = File(appCtx.cacheDir, "${core.soBaseName}_${abi}.zip.tmp")
-            var downloadedOk = false
-            var lastError = "HTTP 404"
-
-            postProgress(onProgress, 2, "${StormLocalization.tr("core_downloading")} ($abi)")
-
-            for (candidateUrl in urlsToTry) {
-                var conn: HttpURLConnection? = null
-                try {
-                    conn = openFollowingRedirects(candidateUrl)
-                    val code = conn.responseCode
-                    if (code in 200..299) {
-                        val totalBytes = conn.contentLengthLong
-                        BufferedInputStream(conn.inputStream, 32 * 1024).use { input ->
-                            FileOutputStream(tempZip).use { output ->
-                                val buf = ByteArray(32 * 1024)
-                                var received = 0L
-                                var lastPct = 2
-                                while (true) {
-                                    val n = input.read(buf)
-                                    if (n <= 0) break
-                                    output.write(buf, 0, n)
-                                    received += n
-                                    if (totalBytes > 0L) {
-                                        val pct = (5 + ((received * 75L) / totalBytes).toInt()).coerceIn(5, 80)
-                                        if (pct >= lastPct + 4) {
-                                            lastPct = pct
-                                            postProgress(onProgress, pct, "${core.displayName}: $pct%")
-                                        }
-                                    }
-                                }
-                                output.flush()
-                            }
-                        }
-                        if (tempZip.exists() && tempZip.length() > 1024L) {
-                            downloadedOk = true
-                            break
-                        }
-                    } else {
-                        lastError = "HTTP $code ($abi)"
-                    }
-                } catch (e: Throwable) {
-                    lastError = e.message ?: "Network error"
-                } finally {
-                    try {
-                        conn?.disconnect()
-                    } catch (_: Throwable) {
-                    }
-                }
-            }
-
-            if (!downloadedOk) {
-                try { tempZip.delete() } catch (_: Throwable) {}
-                postDone(onDone, false, null, "${StormLocalization.tr("core_failed")}: $lastError")
-                return@execute
-            }
-
-            postProgress(onProgress, 85, StormLocalization.tr("core_extracting"))
-
-            try {
-                val targetExecSo = File(execDir, "${core.soBaseName}_android.so")
-                val tempSo = File(execDir, "${core.soBaseName}_android.so.extracting")
-                var extractedEntryFound = false
-
-                ZipInputStream(BufferedInputStream(FileInputStream(tempZip), 32 * 1024)).use { zis ->
-                    while (true) {
-                        val entry = zis.nextEntry ?: break
-                        if (!entry.isDirectory && entry.name.endsWith(".so", ignoreCase = true)) {
-                            FileOutputStream(tempSo).use { out ->
-                                val buf = ByteArray(32 * 1024)
-                                while (true) {
-                                    val r = zis.read(buf)
-                                    if (r <= 0) break
-                                    out.write(buf, 0, r)
-                                }
-                                out.flush()
-                            }
-                            extractedEntryFound = true
-                            zis.closeEntry()
-                            break
-                        }
-                        zis.closeEntry()
-                    }
-                }
-
-                try { tempZip.delete() } catch (_: Throwable) {}
-
-                if (!extractedEntryFound || !tempSo.exists() || tempSo.length() < 4096L) {
-                    try { tempSo.delete() } catch (_: Throwable) {}
-                    postDone(onDone, false, null, "${StormLocalization.tr("core_failed")}: Invalid .so archive")
-                    return@execute
-                }
-
-                if (targetExecSo.exists()) targetExecSo.delete()
-                tempSo.renameTo(targetExecSo)
-                applyExecutablePermissions(targetExecSo)
-
-                // Mirror copy to /storage/emulated/0/STORM RETROARCH/cores/
-                try {
-                    val pubDir = getPublicCoresDir()
-                    val mirrorSo = File(pubDir, targetExecSo.name)
-                    copyFileAtomic(targetExecSo, mirrorSo)
-                } catch (_: Throwable) {
-                }
-
-                postProgress(onProgress, 100, StormLocalization.tr("core_ready"))
-                postDone(onDone, true, targetExecSo, "${core.displayName} (${getInstalledCoreSizeFormatted(appCtx, core)})")
-            } catch (e: Throwable) {
-                try { tempZip.delete() } catch (_: Throwable) {}
-                postDone(onDone, false, null, "${StormLocalization.tr("core_failed")}: ${e.message ?: "Extract error"}")
+            val (soFile, msg) = downloadCoreBlocking(appCtx, core, onProgress)
+            if (soFile != null && soFile.exists()) {
+                postDone(onDone, true, soFile, msg)
+            } else {
+                postDone(onDone, false, null, msg)
             }
         }
     }
 
-    internal fun openFollowingRedirects(initialUrl: String, maxRedirects: Int = 5): HttpURLConnection {
-        var currentUrl = initialUrl
-        var redirects = 0
-        while (true) {
-            val conn = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
-                instanceFollowRedirects = true
-                connectTimeout = 15_000
-                readTimeout = 45_000
-                requestMethod = "GET"
-                setRequestProperty("User-Agent", USER_AGENT)
-                setRequestProperty("Accept", "*/*")
-            }
-            val status = conn.responseCode
-            if (status in 301..308 && redirects < maxRedirects) {
-                val loc = conn.getHeaderField("Location")
-                conn.disconnect()
-                if (!loc.isNullOrBlank()) {
-                    currentUrl = URL(URL(currentUrl), loc).toString()
-                    redirects++
-                    continue
+    private fun extractOrCopySoPayload(archiveOrSo: File, outSoFile: File): Boolean {
+        if (hasValidElfMagic(archiveOrSo)) {
+            FileInputStream(archiveOrSo).use { inp ->
+                FileOutputStream(outSoFile).use { out ->
+                    inp.copyTo(out, 16 * 1024)
+                    out.flush()
                 }
             }
-            return conn
+            return outSoFile.exists() && outSoFile.length() > MIN_VALID_SO_BYTES
+        }
+
+        ZipInputStream(BufferedInputStream(FileInputStream(archiveOrSo), 16 * 1024)).use { zis ->
+            var entry = zis.nextEntry
+            while (entry != null) {
+                if (!entry.isDirectory && entry.name.endsWith(".so", ignoreCase = true)) {
+                    outSoFile.parentFile?.mkdirs()
+                    FileOutputStream(outSoFile).use { out ->
+                        val buf = ByteArray(16 * 1024)
+                        while (true) {
+                            val n = zis.read(buf)
+                            if (n <= 0) break
+                            out.write(buf, 0, n)
+                        }
+                        out.flush()
+                    }
+                    zis.closeEntry()
+                    return outSoFile.exists() && outSoFile.length() > MIN_VALID_SO_BYTES
+                }
+                zis.closeEntry()
+                entry = zis.nextEntry
+            }
+        }
+        return false
+    }
+
+    // === Local Storage .so / .so.zip Core Importer ===
+
+    fun importCoreFromUri(context: Context, uri: Uri): Pair<MobileCoreInfo?, String> {
+        val appCtx = context.applicationContext
+        val catalog = init(appCtx)
+        val coresDir = getExecutableCoresDir(appCtx)
+        val rawDisplayName = queryUriDisplayName(appCtx, uri) ?: uri.lastPathSegment ?: "imported_core.so"
+        val tempInput = File(coresDir, "uri_import_${System.currentTimeMillis()}.tmp")
+        val tempExtracted = File(coresDir, "uri_extracted_${System.currentTimeMillis()}.so.tmp")
+
+        return try {
+            val stream: InputStream = appCtx.contentResolver.openInputStream(uri)
+                ?: return null to "Unable to open selected file URI"
+            stream.use { inp ->
+                FileOutputStream(tempInput).use { out ->
+                    inp.copyTo(out, 16 * 1024)
+                    out.flush()
+                }
+            }
+
+            var insideEntryName = rawDisplayName
+            if (!hasValidElfMagic(tempInput)) {
+                var foundInside = false
+                ZipInputStream(BufferedInputStream(FileInputStream(tempInput), 16 * 1024)).use { zis ->
+                    var entry = zis.nextEntry
+                    while (entry != null) {
+                        if (!entry.isDirectory && entry.name.endsWith(".so", ignoreCase = true)) {
+                            insideEntryName = File(entry.name).name
+                            FileOutputStream(tempExtracted).use { out ->
+                                zis.copyTo(out, 16 * 1024)
+                                out.flush()
+                            }
+                            foundInside = true
+                            zis.closeEntry()
+                            break
+                        }
+                        zis.closeEntry()
+                        entry = zis.nextEntry
+                    }
+                }
+                tempInput.delete()
+                if (!foundInside) {
+                    tempExtracted.delete()
+                    return null to "No valid Android .so Libretro core found in archive"
+                }
+            } else {
+                tempInput.renameTo(tempExtracted)
+            }
+
+            if (!hasValidElfMagic(tempExtracted)) {
+                tempExtracted.delete()
+                return null to "Selected file is not a valid ELF .so binary"
+            }
+
+            val cleanStem = insideEntryName
+                .lowercase(Locale.ROOT)
+                .removePrefix("lib")
+                .removeSuffix(".zip")
+                .removeSuffix("_android.so")
+                .removeSuffix(".so")
+                .removeSuffix("_libretro")
+
+            val matchedCore = catalog.firstOrNull {
+                it.id.lowercase(Locale.ROOT) == cleanStem ||
+                    it.jniLibName.equals(insideEntryName, ignoreCase = true) ||
+                    it.soInsideZip.equals(insideEntryName, ignoreCase = true)
+            }
+
+            val targetFileName = matchedCore?.jniLibName
+                ?: if (insideEntryName.startsWith("lib")) insideEntryName else "lib$insideEntryName"
+            val targetSo = File(coresDir, targetFileName)
+            replaceTargetWithReadOnlySo(tempExtracted, targetSo)
+
+            val resolvedCore = matchedCore ?: buildCoreEntry(
+                id = cleanStem.ifBlank { "custom_core" },
+                displayName = "Custom Core ($insideEntryName)",
+                platformId = "ports",
+                exts = emptyList(),
+                bios = emptyList(),
+                recommended = false,
+                pre64 = false,
+                pre32 = false,
+                jniLib = targetFileName
+            )
+            resolvedCore to targetSo.absolutePath
+        } catch (e: Throwable) {
+            tempInput.delete()
+            tempExtracted.delete()
+            null to (e.message ?: "Core import failed")
+        }
+    }
+
+    private fun queryUriDisplayName(context: Context, uri: Uri): String? {
+        return try {
+            context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) c.getString(0) else null
+            }
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    // === Batch Core Pack Downloader ===
+
+    fun downloadCorePack(
+        context: Context,
+        packId: String,
+        onProgress: (Int, String, String, Int, Int) -> Unit,
+        onDone: (Boolean, Int, Int, String) -> Unit
+    ) {
+        val appCtx = context.applicationContext
+        downloadExecutor.execute {
+            val catalog = init(appCtx)
+            val pack = CORE_PACKS.firstOrNull { it.id.equals(packId, ignoreCase = true) }
+            val targetCores = if (pack != null) {
+                pack.coreIds.mapNotNull { id -> findCoreById(id, appCtx) }
+            } else if (packId.equals("all_recommended", ignoreCase = true)) {
+                catalog.filter { it.recommended }
+            } else {
+                emptyList()
+            }
+
+            if (targetCores.isEmpty()) {
+                mainHandler.post { onDone(false, 0, 0, "Unknown core pack: $packId") }
+                return@execute
+            }
+
+            val total = targetCores.size
+            var completed = 0
+            var failed = 0
+            var lastMirror = "Bundled"
+
+            for ((idx, core) in targetCores.withIndex()) {
+                if (isCoreInstalled(appCtx, core)) {
+                    completed++
+                    val pct = ((idx + 1) * 100) / total
+                    mainHandler.post {
+                        onProgress(pct, core.id, "Installed", completed, total)
+                    }
+                    continue
+                }
+
+                val (file, mirrorOrErr) = downloadCoreBlocking(appCtx, core) { subPct, mirrorName ->
+                    lastMirror = mirrorName
+                    val overall = (((idx * 100) + subPct) / total).coerceIn(1, 99)
+                    mainHandler.post {
+                        onProgress(overall, core.id, mirrorName, completed, total)
+                    }
+                }
+                if (file != null && file.exists()) {
+                    completed++
+                } else {
+                    failed++
+                    lastMirror = mirrorOrErr
+                }
+            }
+
+            mainHandler.post {
+                onProgress(100, "", lastMirror, completed, total)
+                onDone(failed == 0 && completed > 0, completed, total, lastMirror)
+            }
+        }
+    }
+
+    // === Core Options & Per-Game Overrides Store (JSON + Standard Libretro .opt) ===
+
+    fun getCoreOptionDefinitions(coreId: String): List<CoreOptionSpec> {
+        val norm = coreId.trim().lowercase(Locale.ROOT)
+        CORE_OPTION_SCHEMAS[norm]?.let { return it }
+        if (norm == "mupen64plus_next") {
+            CORE_OPTION_SCHEMAS["mupen64plus_next_gles3"]?.let { return it }
+        }
+        return listOf(
+            CoreOptionSpec("${norm}_frameskip", "Пропуск кадров (Frameskip)", "Frameskip", listOf("disabled", "auto", "1", "2"), "disabled"),
+            CoreOptionSpec("${norm}_aspect", "Соотношение сторон", "Aspect Ratio", listOf("auto", "4:3", "16:9"), "auto")
+        )
+    }
+
+    private fun getCoreOptionsStoreDir(context: Context): File {
+        val dir = File(context.applicationContext.filesDir, "core_options")
+        if (!dir.exists()) dir.mkdirs()
+        return dir
+    }
+
+    private fun sanitizeFileToken(raw: String): String {
+        return raw.replace(Regex("[^a-zA-Z0-9._-]"), "_").take(96).ifBlank { "default" }
+    }
+
+    fun getCoreOptions(context: Context, coreId: String, gameId: String? = null): JSONObject {
+        val cleanCore = coreId.trim().lowercase(Locale.ROOT)
+        val defs = getCoreOptionDefinitions(cleanCore)
+        val valuesObj = JSONObject()
+        for (d in defs) {
+            valuesObj.put(d.key, d.defaultValue)
+        }
+
+        val storeDir = getCoreOptionsStoreDir(context)
+        val globalFile = File(storeDir, "${sanitizeFileToken(cleanCore)}.json")
+        if (globalFile.exists()) {
+            try {
+                val saved = JSONObject(globalFile.readText(StandardCharsets.UTF_8))
+                val keys = saved.keys()
+                while (keys.hasNext()) {
+                    val k = keys.next()
+                    valuesObj.put(k, saved.optString(k, ""))
+                }
+            } catch (_: Throwable) {
+            }
+        }
+
+        var hasGameOverride = false
+        if (!gameId.isNullOrBlank()) {
+            val gameFile = File(File(storeDir, "games"), "${sanitizeFileToken(cleanCore)}__${sanitizeFileToken(gameId)}.json")
+            if (gameFile.exists()) {
+                try {
+                    val savedGame = JSONObject(gameFile.readText(StandardCharsets.UTF_8))
+                    val keys = savedGame.keys()
+                    while (keys.hasNext()) {
+                        val k = keys.next()
+                        valuesObj.put(k, savedGame.optString(k, ""))
+                        hasGameOverride = true
+                    }
+                } catch (_: Throwable) {
+                }
+            }
+        }
+
+        val schemaArr = JSONArray()
+        val lang = StormLocalization.currentLanguage
+        for (d in defs) {
+            val specObj = JSONObject()
+            specObj.put("key", d.key)
+            specObj.put("label", if (lang == "ru") d.labelRu else d.labelEn)
+            specObj.put("labelRu", d.labelRu)
+            specObj.put("labelEn", d.labelEn)
+            specObj.put("defaultValue", d.defaultValue)
+            specObj.put("currentValue", valuesObj.optString(d.key, d.defaultValue))
+            val valsArr = JSONArray()
+            d.values.forEach { valsArr.put(it) }
+            specObj.put("values", valsArr)
+            schemaArr.put(specObj)
+        }
+
+        return JSONObject().apply {
+            put("coreId", cleanCore)
+            put("gameId", gameId ?: "")
+            put("hasGameOverride", hasGameOverride)
+            put("schema", schemaArr)
+            put("values", valuesObj)
+        }
+    }
+
+    fun saveCoreOptions(
+        context: Context,
+        coreId: String,
+        options: Map<String, String>,
+        gameId: String? = null,
+        romStem: String? = null
+    ): Boolean {
+        val cleanCore = coreId.trim().lowercase(Locale.ROOT)
+        if (cleanCore.isEmpty()) return false
+
+        val storeDir = getCoreOptionsStoreDir(context)
+        val jsonToSave = JSONObject()
+        for ((k, v) in options) {
+            if (k.isNotBlank()) jsonToSave.put(k.trim(), v)
+        }
+
+        return try {
+            val targetJsonFile = if (!gameId.isNullOrBlank()) {
+                val gamesDir = File(storeDir, "games").apply { mkdirs() }
+                File(gamesDir, "${sanitizeFileToken(cleanCore)}__${sanitizeFileToken(gameId)}.json")
+            } else {
+                File(storeDir, "${sanitizeFileToken(cleanCore)}.json")
+            }
+            targetJsonFile.writeText(jsonToSave.toString(2), StandardCharsets.UTF_8)
+
+            // Materialize effective merged options to standard Libretro .opt files
+            syncCoreOptionsToLibretroOptFiles(context, cleanCore, gameId, romStem)
+            true
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    fun resetCoreOptions(context: Context, coreId: String, gameId: String? = null): Boolean {
+        val cleanCore = coreId.trim().lowercase(Locale.ROOT)
+        val storeDir = getCoreOptionsStoreDir(context)
+        return try {
+            if (!gameId.isNullOrBlank()) {
+                val gf = File(File(storeDir, "games"), "${sanitizeFileToken(cleanCore)}__${sanitizeFileToken(gameId)}.json")
+                if (gf.exists()) gf.delete()
+            } else {
+                val cf = File(storeDir, "${sanitizeFileToken(cleanCore)}.json")
+                if (cf.exists()) cf.delete()
+            }
+            syncCoreOptionsToLibretroOptFiles(context, cleanCore, null, null)
+            true
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    fun resolveEffectiveCoreVariables(context: Context, coreId: String, gameId: String? = null): Map<String, String> {
+        val obj = getCoreOptions(context, coreId, gameId)
+        val values = obj.optJSONObject("values") ?: return emptyMap()
+        val out = LinkedHashMap<String, String>()
+        val keys = values.keys()
+        while (keys.hasNext()) {
+            val k = keys.next()
+            out[k] = values.optString(k, "")
+        }
+        return out
+    }
+
+    fun syncCoreOptionsToLibretroOptFiles(
+        context: Context,
+        coreId: String,
+        gameId: String? = null,
+        romStem: String? = null
+    ) {
+        val cleanCore = coreId.trim().lowercase(Locale.ROOT)
+        val merged = resolveEffectiveCoreVariables(context, cleanCore, gameId)
+        if (merged.isEmpty()) return
+
+        val optContent = buildString {
+            for ((k, v) in merged) {
+                val safeV = v.replace("\"", "")
+                append(k).append(" = \"").append(safeV).append("\"\n")
+            }
+        }
+
+        val folderNames = (CORE_LIBRARY_OPT_DIRS[cleanCore] ?: listOf(cleanCore)).distinct()
+        val roots = listOf(
+            File(STORM_PUBLIC_ROOT, "config"),
+            File(context.applicationContext.filesDir, "config")
+        )
+
+        for (cfgRoot in roots) {
+            for (folder in folderNames) {
+                try {
+                    val dir = File(cfgRoot, folder)
+                    dir.mkdirs()
+                    File(dir, "$folder.opt").writeText(optContent, StandardCharsets.UTF_8)
+                    if (folder != cleanCore) {
+                        File(dir, "$cleanCore.opt").writeText(optContent, StandardCharsets.UTF_8)
+                    }
+                    if (!romStem.isNullOrBlank()) {
+                        File(dir, "$romStem.opt").writeText(optContent, StandardCharsets.UTF_8)
+                    }
+                } catch (_: Throwable) {
+                }
+            }
         }
     }
 

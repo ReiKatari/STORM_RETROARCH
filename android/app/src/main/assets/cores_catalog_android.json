@@ -1,0 +1,4736 @@
+{
+  "version": "2.5.0",
+  "totalCores": 252,
+  "cores": [
+    {
+      "id": "opera",
+      "displayName": "3DO Interactive Multiplayer (Opera)",
+      "platformId": "3do",
+      "zipArm64": "opera_libretro_android.so.zip",
+      "zipArm32": "opera_libretro_android.so.zip",
+      "soInsideZip": "opera_libretro_android.so",
+      "jniLibName": "libopera_libretro_android.so",
+      "extensions": [
+        "iso",
+        "chd",
+        "cue",
+        "bin"
+      ],
+      "biosFiles": [
+        "panafz10.bin",
+        "panafz1.bin",
+        "goldstar.bin"
+      ],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": false
+    },
+    {
+      "id": "fbneo",
+      "displayName": "Arcade / Neo Geo / CPS-1/2/3 (FinalBurn Neo)",
+      "platformId": "arcade",
+      "zipArm64": "fbneo_libretro_android.so.zip",
+      "zipArm32": "fbneo_libretro_android.so.zip",
+      "soInsideZip": "fbneo_libretro_android.so",
+      "jniLibName": "libfbneo_libretro_android.so",
+      "extensions": [
+        "zip",
+        "7z"
+      ],
+      "biosFiles": [
+        "neogeo.zip",
+        "pgm.zip"
+      ],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": false
+    },
+    {
+      "id": "stella2014",
+      "displayName": "Atari 2600 (Stella 2014 Fast)",
+      "platformId": "atari2600",
+      "zipArm64": "stella2014_libretro_android.so.zip",
+      "zipArm32": "stella2014_libretro_android.so.zip",
+      "soInsideZip": "stella2014_libretro_android.so",
+      "jniLibName": "libstella2014_libretro_android.so",
+      "extensions": [
+        "a26",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": true
+    },
+    {
+      "id": "dosbox_pure",
+      "displayName": "MS-DOS / Windows 9x (DOSBox Pure ZIP/ISO)",
+      "platformId": "dos",
+      "zipArm64": "dosbox_pure_libretro_android.so.zip",
+      "zipArm32": "dosbox_pure_libretro_android.so.zip",
+      "soInsideZip": "dosbox_pure_libretro_android.so",
+      "jniLibName": "libdosbox_pure_libretro_android.so",
+      "extensions": [
+        "zip",
+        "dosz",
+        "exe",
+        "com",
+        "bat",
+        "iso",
+        "cue",
+        "img",
+        "ima",
+        "vhd",
+        "conf"
+      ],
+      "biosFiles": [],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": false
+    },
+    {
+      "id": "flycast",
+      "displayName": "Sega Dreamcast / NAOMI / Atomiswave",
+      "platformId": "dreamcast",
+      "zipArm64": "flycast_libretro_android.so.zip",
+      "zipArm32": "flycast_libretro_android.so.zip",
+      "soInsideZip": "flycast_libretro_android.so",
+      "jniLibName": "libflycast_libretro_android.so",
+      "extensions": [
+        "cdi",
+        "gdi",
+        "chd",
+        "cue",
+        "zip",
+        "7z"
+      ],
+      "biosFiles": [
+        "dc/dc_boot.bin",
+        "dc/naomi.zip",
+        "dc/awbios.zip"
+      ],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mgba",
+      "displayName": "Game Boy Advance (mGBA)",
+      "platformId": "gba",
+      "zipArm64": "mgba_libretro_android.so.zip",
+      "zipArm32": "mgba_libretro_android.so.zip",
+      "soInsideZip": "mgba_libretro_android.so",
+      "jniLibName": "libmgba_libretro_android.so",
+      "extensions": [
+        "gba",
+        "gb",
+        "gbc",
+        "agb"
+      ],
+      "biosFiles": [
+        "gba_bios.bin"
+      ],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": true
+    },
+    {
+      "id": "gambatte",
+      "displayName": "Game Boy / Game Boy Color",
+      "platformId": "gbc",
+      "zipArm64": "gambatte_libretro_android.so.zip",
+      "zipArm32": "gambatte_libretro_android.so.zip",
+      "soInsideZip": "gambatte_libretro_android.so",
+      "jniLibName": "libgambatte_libretro_android.so",
+      "extensions": [
+        "gb",
+        "gbc",
+        "dmg"
+      ],
+      "biosFiles": [
+        "gb_bios.bin",
+        "gbc_bios.bin"
+      ],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": true
+    },
+    {
+      "id": "genesis_plus_gx",
+      "displayName": "Sega Mega Drive / Genesis / CD / MS / GG",
+      "platformId": "megadrive",
+      "zipArm64": "genesis_plus_gx_libretro_android.so.zip",
+      "zipArm32": "genesis_plus_gx_libretro_android.so.zip",
+      "soInsideZip": "genesis_plus_gx_libretro_android.so",
+      "jniLibName": "libgenesis_plus_gx_libretro_android.so",
+      "extensions": [
+        "md",
+        "gen",
+        "smd",
+        "bin",
+        "cue",
+        "chd",
+        "iso",
+        "sms",
+        "gg",
+        "sg"
+      ],
+      "biosFiles": [
+        "bios_CD_U.bin",
+        "bios_CD_E.bin",
+        "bios_CD_J.bin"
+      ],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": true
+    },
+    {
+      "id": "mupen64plus_next_gles3",
+      "displayName": "Nintendo 64 (Mupen64Plus-Next GLES3)",
+      "platformId": "n64",
+      "zipArm64": "mupen64plus_next_gles3_libretro_android.so.zip",
+      "zipArm32": "mupen64plus_next_gles3_libretro_android.so.zip",
+      "soInsideZip": "mupen64plus_next_gles3_libretro_android.so",
+      "jniLibName": "libmupen64plus_next_gles3_libretro_android.so",
+      "extensions": [
+        "z64",
+        "n64",
+        "v64",
+        "ndd"
+      ],
+      "biosFiles": [],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": false
+    },
+    {
+      "id": "melonds",
+      "displayName": "Nintendo DS / DSi (melonDS)",
+      "platformId": "nds",
+      "zipArm64": "melonds_libretro_android.so.zip",
+      "zipArm32": "melonds_libretro_android.so.zip",
+      "soInsideZip": "melonds_libretro_android.so",
+      "jniLibName": "libmelonds_libretro_android.so",
+      "extensions": [
+        "nds",
+        "dsi",
+        "ids"
+      ],
+      "biosFiles": [
+        "bios7.bin",
+        "bios9.bin",
+        "firmware.bin"
+      ],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": false
+    },
+    {
+      "id": "fceumm",
+      "displayName": "NES / Famicom / Dendy",
+      "platformId": "nes",
+      "zipArm64": "fceumm_libretro_android.so.zip",
+      "zipArm32": "fceumm_libretro_android.so.zip",
+      "soInsideZip": "fceumm_libretro_android.so",
+      "jniLibName": "libfceumm_libretro_android.so",
+      "extensions": [
+        "nes",
+        "fds",
+        "unf",
+        "unif"
+      ],
+      "biosFiles": [
+        "disksys.rom"
+      ],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": true
+    },
+    {
+      "id": "mednafen_ngp",
+      "displayName": "SNK Neo Geo Pocket / Color",
+      "platformId": "ngp",
+      "zipArm64": "mednafen_ngp_libretro_android.so.zip",
+      "zipArm32": "mednafen_ngp_libretro_android.so.zip",
+      "soInsideZip": "mednafen_ngp_libretro_android.so",
+      "jniLibName": "libmednafen_ngp_libretro_android.so",
+      "extensions": [
+        "ngp",
+        "ngc",
+        "ngpc"
+      ],
+      "biosFiles": [],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": true
+    },
+    {
+      "id": "mednafen_pce_fast",
+      "displayName": "PC Engine / TurboGrafx-16 / CD",
+      "platformId": "pce",
+      "zipArm64": "mednafen_pce_fast_libretro_android.so.zip",
+      "zipArm32": "mednafen_pce_fast_libretro_android.so.zip",
+      "soInsideZip": "mednafen_pce_fast_libretro_android.so",
+      "jniLibName": "libmednafen_pce_fast_libretro_android.so",
+      "extensions": [
+        "pce",
+        "cue",
+        "chd",
+        "ccd",
+        "sgx"
+      ],
+      "biosFiles": [
+        "syscard3.pce"
+      ],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": true
+    },
+    {
+      "id": "prboom",
+      "displayName": "DOOM / DOOM II / Final DOOM (PrBoom)",
+      "platformId": "ports",
+      "zipArm64": "prboom_libretro_android.so.zip",
+      "zipArm32": "prboom_libretro_android.so.zip",
+      "soInsideZip": "prboom_libretro_android.so",
+      "jniLibName": "libprboom_libretro_android.so",
+      "extensions": [
+        "wad",
+        "iwad",
+        "pwad"
+      ],
+      "biosFiles": [
+        "prboom.wad"
+      ],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": false
+    },
+    {
+      "id": "ppsspp",
+      "displayName": "Sony PSP (PPSSPP HW Upscaling)",
+      "platformId": "psp",
+      "zipArm64": "ppsspp_libretro_android.so.zip",
+      "zipArm32": "ppsspp_libretro_android.so.zip",
+      "soInsideZip": "ppsspp_libretro_android.so",
+      "jniLibName": "libppsspp_libretro_android.so",
+      "extensions": [
+        "iso",
+        "cso",
+        "pbp",
+        "chd",
+        "elf"
+      ],
+      "biosFiles": [
+        "PPSSPP/flash0"
+      ],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": false
+    },
+    {
+      "id": "pcsx_rearmed",
+      "displayName": "Sony PlayStation (PCSX-ReARMed ARM Neon)",
+      "platformId": "psx",
+      "zipArm64": "pcsx_rearmed_libretro_android.so.zip",
+      "zipArm32": "pcsx_rearmed_libretro_android.so.zip",
+      "soInsideZip": "pcsx_rearmed_libretro_android.so",
+      "jniLibName": "libpcsx_rearmed_libretro_android.so",
+      "extensions": [
+        "cue",
+        "chd",
+        "pbp",
+        "bin",
+        "iso",
+        "img",
+        "mdf",
+        "m3u"
+      ],
+      "biosFiles": [
+        "scph5501.bin",
+        "scph1001.bin"
+      ],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": true
+    },
+    {
+      "id": "swanstation",
+      "displayName": "Sony PlayStation (SwanStation PGXP HD)",
+      "platformId": "psx",
+      "zipArm64": "swanstation_libretro_android.so.zip",
+      "zipArm32": "swanstation_libretro_android.so.zip",
+      "soInsideZip": "swanstation_libretro_android.so",
+      "jniLibName": "libswanstation_libretro_android.so",
+      "extensions": [
+        "cue",
+        "chd",
+        "pbp",
+        "bin",
+        "iso",
+        "img",
+        "mds",
+        "m3u"
+      ],
+      "biosFiles": [
+        "scph5501.bin",
+        "scph5500.bin",
+        "scph5502.bin"
+      ],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": false
+    },
+    {
+      "id": "picodrive",
+      "displayName": "Sega Mega Drive / 32X / Sega CD (PicoDrive)",
+      "platformId": "sega32x",
+      "zipArm64": "picodrive_libretro_android.so.zip",
+      "zipArm32": "picodrive_libretro_android.so.zip",
+      "soInsideZip": "picodrive_libretro_android.so",
+      "jniLibName": "libpicodrive_libretro_android.so",
+      "extensions": [
+        "32x",
+        "md",
+        "gen",
+        "smd",
+        "bin",
+        "cue",
+        "chd",
+        "iso",
+        "sms"
+      ],
+      "biosFiles": [
+        "bios_CD_U.bin"
+      ],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": true
+    },
+    {
+      "id": "snes9x",
+      "displayName": "Super Nintendo / Super Famicom",
+      "platformId": "snes",
+      "zipArm64": "snes9x_libretro_android.so.zip",
+      "zipArm32": "snes9x_libretro_android.so.zip",
+      "soInsideZip": "snes9x_libretro_android.so",
+      "jniLibName": "libsnes9x_libretro_android.so",
+      "extensions": [
+        "sfc",
+        "smc",
+        "bs",
+        "fig",
+        "swc"
+      ],
+      "biosFiles": [],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mednafen_wswan",
+      "displayName": "Bandai WonderSwan / Color",
+      "platformId": "wonderswan",
+      "zipArm64": "mednafen_wswan_libretro_android.so.zip",
+      "zipArm32": "mednafen_wswan_libretro_android.so.zip",
+      "soInsideZip": "mednafen_wswan_libretro_android.so",
+      "jniLibName": "libmednafen_wswan_libretro_android.so",
+      "extensions": [
+        "ws",
+        "wsc",
+        "pc2"
+      ],
+      "biosFiles": [],
+      "recommended": true,
+      "prebundledArm64": true,
+      "prebundledArm32": true
+    },
+    {
+      "id": "azahar",
+      "displayName": "Nintendo 3DS (Azahar / Citra Modern)",
+      "platformId": "3ds",
+      "zipArm64": "azahar_libretro.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "azahar_libretro.so",
+      "jniLibName": "libazahar_libretro.so",
+      "extensions": [
+        "3ds",
+        "3dsx",
+        "cci",
+        "cxi",
+        "app"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "citra2018",
+      "displayName": "Nintendo 3DS (Citra 2018)",
+      "platformId": "3ds",
+      "zipArm64": "citra2018_libretro_android.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "citra2018_libretro_android.so",
+      "jniLibName": "libcitra2018_libretro_android.so",
+      "extensions": [
+        "3ds",
+        "cci",
+        "cxi"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "citra",
+      "displayName": "Nintendo 3DS (Citra)",
+      "platformId": "3ds",
+      "zipArm64": "citra_libretro_android.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "citra_libretro_android.so",
+      "jniLibName": "libcitra_libretro_android.so",
+      "extensions": [
+        "3ds",
+        "3dsx",
+        "cci",
+        "cxi"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "panda3ds",
+      "displayName": "Nintendo 3DS (panda3ds)",
+      "platformId": "3ds",
+      "zipArm64": "panda3ds_libretro_android.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "panda3ds_libretro_android.so",
+      "jniLibName": "libpanda3ds_libretro_android.so",
+      "extensions": [
+        "3ds",
+        "cci",
+        "cxi"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "puae2021",
+      "displayName": "Commodore Amiga (puae2021)",
+      "platformId": "amiga",
+      "zipArm64": "puae2021_libretro_android.so.zip",
+      "zipArm32": "puae2021_libretro_android.so.zip",
+      "soInsideZip": "puae2021_libretro_android.so",
+      "jniLibName": "libpuae2021_libretro_android.so",
+      "extensions": [
+        "adf",
+        "hdf",
+        "lha",
+        "cue"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "puae",
+      "displayName": "Commodore Amiga 500/1200/CD32 (PUAE)",
+      "platformId": "amiga",
+      "zipArm64": "puae_libretro_android.so.zip",
+      "zipArm32": "puae_libretro_android.so.zip",
+      "soInsideZip": "puae_libretro_android.so",
+      "jniLibName": "libpuae_libretro_android.so",
+      "extensions": [
+        "adf",
+        "adz",
+        "dms",
+        "ipf",
+        "lha",
+        "hdf",
+        "cue",
+        "chd",
+        "uae"
+      ],
+      "biosFiles": [
+        "kick34005.A500",
+        "kick40068.A1200"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "cap32",
+      "displayName": "Amstrad CPC (Caprice32)",
+      "platformId": "amstradcpc",
+      "zipArm64": "cap32_libretro_android.so.zip",
+      "zipArm32": "cap32_libretro_android.so.zip",
+      "soInsideZip": "cap32_libretro_android.so",
+      "jniLibName": "libcap32_libretro_android.so",
+      "extensions": [
+        "dsk",
+        "sna",
+        "cdt",
+        "voc",
+        "cpr"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "crocods",
+      "displayName": "Amstrad CPC (CrocoDS)",
+      "platformId": "amstradcpc",
+      "zipArm64": "crocods_libretro_android.so.zip",
+      "zipArm32": "crocods_libretro_android.so.zip",
+      "soInsideZip": "crocods_libretro_android.so",
+      "jniLibName": "libcrocods_libretro_android.so",
+      "extensions": [
+        "dsk",
+        "sna",
+        "kcr"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "fbalpha2012",
+      "displayName": "Arcade (FinalBurn Alpha 2012)",
+      "platformId": "arcade",
+      "zipArm64": "fbalpha2012_libretro_android.so.zip",
+      "zipArm32": "fbalpha2012_libretro_android.so.zip",
+      "soInsideZip": "fbalpha2012_libretro_android.so",
+      "jniLibName": "libfbalpha2012_libretro_android.so",
+      "extensions": [
+        "zip"
+      ],
+      "biosFiles": [
+        "neogeo.zip"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "daphne",
+      "displayName": "Arcade (daphne)",
+      "platformId": "arcade",
+      "zipArm64": "daphne_libretro_android.so.zip",
+      "zipArm32": "daphne_libretro_android.so.zip",
+      "soInsideZip": "daphne_libretro_android.so",
+      "jniLibName": "libdaphne_libretro_android.so",
+      "extensions": [
+        "zip",
+        "7z"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "dirksimple",
+      "displayName": "Arcade (dirksimple)",
+      "platformId": "arcade",
+      "zipArm64": "dirksimple_libretro_android.so.zip",
+      "zipArm32": "dirksimple_libretro_android.so.zip",
+      "soInsideZip": "dirksimple_libretro_android.so",
+      "jniLibName": "libdirksimple_libretro_android.so",
+      "extensions": [
+        "zip",
+        "7z"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "fbalpha",
+      "displayName": "Arcade (fbalpha)",
+      "platformId": "arcade",
+      "zipArm64": "fbalpha_libretro_android.so.zip",
+      "zipArm32": "fbalpha_libretro_android.so.zip",
+      "soInsideZip": "fbalpha_libretro_android.so",
+      "jniLibName": "libfbalpha_libretro_android.so",
+      "extensions": [
+        "zip",
+        "7z"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "fbalpha2012_cps1",
+      "displayName": "Arcade (fbalpha2012_cps1)",
+      "platformId": "arcade",
+      "zipArm64": "fbalpha2012_cps1_libretro_android.so.zip",
+      "zipArm32": "fbalpha2012_cps1_libretro_android.so.zip",
+      "soInsideZip": "fbalpha2012_cps1_libretro_android.so",
+      "jniLibName": "libfbalpha2012_cps1_libretro_android.so",
+      "extensions": [
+        "zip",
+        "7z"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "fbalpha2012_cps2",
+      "displayName": "Arcade (fbalpha2012_cps2)",
+      "platformId": "arcade",
+      "zipArm64": "fbalpha2012_cps2_libretro_android.so.zip",
+      "zipArm32": "fbalpha2012_cps2_libretro_android.so.zip",
+      "soInsideZip": "fbalpha2012_cps2_libretro_android.so",
+      "jniLibName": "libfbalpha2012_cps2_libretro_android.so",
+      "extensions": [
+        "zip",
+        "7z"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "fbalpha2012_cps3",
+      "displayName": "Arcade (fbalpha2012_cps3)",
+      "platformId": "arcade",
+      "zipArm64": "fbalpha2012_cps3_libretro_android.so.zip",
+      "zipArm32": "fbalpha2012_cps3_libretro_android.so.zip",
+      "soInsideZip": "fbalpha2012_cps3_libretro_android.so",
+      "jniLibName": "libfbalpha2012_cps3_libretro_android.so",
+      "extensions": [
+        "zip",
+        "7z"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "fbalpha2012_neogeo",
+      "displayName": "Arcade (fbalpha2012_neogeo)",
+      "platformId": "arcade",
+      "zipArm64": "fbalpha2012_neogeo_libretro_android.so.zip",
+      "zipArm32": "fbalpha2012_neogeo_libretro_android.so.zip",
+      "soInsideZip": "fbalpha2012_neogeo_libretro_android.so",
+      "jniLibName": "libfbalpha2012_neogeo_libretro_android.so",
+      "extensions": [
+        "zip",
+        "7z"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "hbmame",
+      "displayName": "Arcade (hbmame)",
+      "platformId": "arcade",
+      "zipArm64": "hbmame_libretro_android.so.zip",
+      "zipArm32": "hbmame_libretro_android.so.zip",
+      "soInsideZip": "hbmame_libretro_android.so",
+      "jniLibName": "libhbmame_libretro_android.so",
+      "extensions": [
+        "zip",
+        "7z"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mame2000",
+      "displayName": "Arcade (mame2000)",
+      "platformId": "arcade",
+      "zipArm64": "mame2000_libretro_android.so.zip",
+      "zipArm32": "mame2000_libretro_android.so.zip",
+      "soInsideZip": "mame2000_libretro_android.so",
+      "jniLibName": "libmame2000_libretro_android.so",
+      "extensions": [
+        "zip",
+        "7z"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mame2003_midway",
+      "displayName": "Arcade (mame2003_midway)",
+      "platformId": "arcade",
+      "zipArm64": "mame2003_midway_libretro_android.so.zip",
+      "zipArm32": "mame2003_midway_libretro_android.so.zip",
+      "soInsideZip": "mame2003_midway_libretro_android.so",
+      "jniLibName": "libmame2003_midway_libretro_android.so",
+      "extensions": [
+        "zip",
+        "7z"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mame2015",
+      "displayName": "Arcade (mame2015)",
+      "platformId": "arcade",
+      "zipArm64": "mame2015_libretro_android.so.zip",
+      "zipArm32": "mame2015_libretro_android.so.zip",
+      "soInsideZip": "mame2015_libretro_android.so",
+      "jniLibName": "libmame2015_libretro_android.so",
+      "extensions": [
+        "zip",
+        "7z"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mame2016",
+      "displayName": "Arcade (mame2016)",
+      "platformId": "arcade",
+      "zipArm64": "mame2016_libretro_android.so.zip",
+      "zipArm32": "mame2016_libretro_android.so.zip",
+      "soInsideZip": "mame2016_libretro_android.so",
+      "jniLibName": "libmame2016_libretro_android.so",
+      "extensions": [
+        "zip",
+        "7z"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mamemess",
+      "displayName": "Arcade (mamemess)",
+      "platformId": "arcade",
+      "zipArm64": "mamemess_libretro_android.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "mamemess_libretro_android.so",
+      "jniLibName": "libmamemess_libretro_android.so",
+      "extensions": [
+        "zip",
+        "7z"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mame2003",
+      "displayName": "Arcade MAME 2003 (0.78)",
+      "platformId": "arcade",
+      "zipArm64": "mame2003_libretro_android.so.zip",
+      "zipArm32": "mame2003_libretro_android.so.zip",
+      "soInsideZip": "mame2003_libretro_android.so",
+      "jniLibName": "libmame2003_libretro_android.so",
+      "extensions": [
+        "zip"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mame2003_plus",
+      "displayName": "Arcade MAME 2003-Plus (0.78+ Enhanced)",
+      "platformId": "arcade",
+      "zipArm64": "mame2003_plus_libretro_android.so.zip",
+      "zipArm32": "mame2003_plus_libretro_android.so.zip",
+      "soInsideZip": "mame2003_plus_libretro_android.so",
+      "jniLibName": "libmame2003_plus_libretro_android.so",
+      "extensions": [
+        "zip",
+        "7z"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mame2010",
+      "displayName": "Arcade MAME 2010 (0.139)",
+      "platformId": "arcade",
+      "zipArm64": "mame2010_libretro_android.so.zip",
+      "zipArm32": "mame2010_libretro_android.so.zip",
+      "soInsideZip": "mame2010_libretro_android.so",
+      "jniLibName": "libmame2010_libretro_android.so",
+      "extensions": [
+        "zip",
+        "7z"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mamearcade",
+      "displayName": "Arcade MAME Current",
+      "platformId": "arcade",
+      "zipArm64": "mamearcade_libretro_android.so.zip",
+      "zipArm32": "mamearcade_libretro_android.so.zip",
+      "soInsideZip": "mamearcade_libretro_android.so",
+      "jniLibName": "libmamearcade_libretro_android.so",
+      "extensions": [
+        "zip",
+        "7z",
+        "chd"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "gearlynx",
+      "displayName": "Atari (gearlynx)",
+      "platformId": "atari",
+      "zipArm64": "gearlynx_libretro_android.so.zip",
+      "zipArm32": "gearlynx_libretro_android.so.zip",
+      "soInsideZip": "gearlynx_libretro_android.so",
+      "jniLibName": "libgearlynx_libretro_android.so",
+      "extensions": [
+        "bin",
+        "a26",
+        "a78",
+        "lnx",
+        "j64",
+        "st"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "hatari2014",
+      "displayName": "Atari (hatari2014)",
+      "platformId": "atari",
+      "zipArm64": "hatari2014_libretro_android.so.zip",
+      "zipArm32": "hatari2014_libretro_android.so.zip",
+      "soInsideZip": "hatari2014_libretro_android.so",
+      "jniLibName": "libhatari2014_libretro_android.so",
+      "extensions": [
+        "bin",
+        "a26",
+        "a78",
+        "lnx",
+        "j64",
+        "st"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "hatarib",
+      "displayName": "Atari (hatarib)",
+      "platformId": "atari",
+      "zipArm64": "hatarib_libretro_android.so.zip",
+      "zipArm32": "hatarib_libretro_android.so.zip",
+      "soInsideZip": "hatarib_libretro_android.so",
+      "jniLibName": "libhatarib_libretro_android.so",
+      "extensions": [
+        "bin",
+        "a26",
+        "a78",
+        "lnx",
+        "j64",
+        "st"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "stella2023",
+      "displayName": "Atari (stella2023)",
+      "platformId": "atari",
+      "zipArm64": "stella2023_libretro_android.so.zip",
+      "zipArm32": "stella2023_libretro_android.so.zip",
+      "soInsideZip": "stella2023_libretro_android.so",
+      "jniLibName": "libstella2023_libretro_android.so",
+      "extensions": [
+        "bin",
+        "a26",
+        "a78",
+        "lnx",
+        "j64",
+        "st"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "stella",
+      "displayName": "Atari 2600 (Stella Current)",
+      "platformId": "atari2600",
+      "zipArm64": "stella_libretro_android.so.zip",
+      "zipArm32": "stella_libretro_android.so.zip",
+      "soInsideZip": "stella_libretro_android.so",
+      "jniLibName": "libstella_libretro_android.so",
+      "extensions": [
+        "a26",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "a5200",
+      "displayName": "Atari 5200",
+      "platformId": "atari5200",
+      "zipArm64": "a5200_libretro_android.so.zip",
+      "zipArm32": "a5200_libretro_android.so.zip",
+      "soInsideZip": "a5200_libretro_android.so",
+      "jniLibName": "liba5200_libretro_android.so",
+      "extensions": [
+        "a52",
+        "bin"
+      ],
+      "biosFiles": [
+        "5200.rom"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "prosystem",
+      "displayName": "Atari 7800 (ProSystem)",
+      "platformId": "atari7800",
+      "zipArm64": "prosystem_libretro_android.so.zip",
+      "zipArm32": "prosystem_libretro_android.so.zip",
+      "soInsideZip": "prosystem_libretro_android.so",
+      "jniLibName": "libprosystem_libretro_android.so",
+      "extensions": [
+        "a78",
+        "bin"
+      ],
+      "biosFiles": [
+        "7800 BIOS (U).rom"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "atari800",
+      "displayName": "Atari 800 / XL / XE / 5200",
+      "platformId": "atari800",
+      "zipArm64": "atari800_libretro_android.so.zip",
+      "zipArm32": "atari800_libretro_android.so.zip",
+      "soInsideZip": "atari800_libretro_android.so",
+      "jniLibName": "libatari800_libretro_android.so",
+      "extensions": [
+        "atr",
+        "xex",
+        "xfd",
+        "a52",
+        "car"
+      ],
+      "biosFiles": [
+        "ATARIXL.ROM",
+        "ATARIBAS.ROM"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "hatari",
+      "displayName": "Atari ST / STE / TT / Falcon",
+      "platformId": "atarist",
+      "zipArm64": "hatari_libretro_android.so.zip",
+      "zipArm32": "hatari_libretro_android.so.zip",
+      "soInsideZip": "hatari_libretro_android.so",
+      "jniLibName": "libhatari_libretro_android.so",
+      "extensions": [
+        "st",
+        "msa",
+        "stx",
+        "dim",
+        "ipf"
+      ],
+      "biosFiles": [
+        "tos.img"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "bk",
+      "displayName": "Soviet BK-0010 / BK-0011M",
+      "platformId": "bk",
+      "zipArm64": "bk_libretro_android.so.zip",
+      "zipArm32": "bk_libretro_android.so.zip",
+      "soInsideZip": "bk_libretro_android.so",
+      "jniLibName": "libbk_libretro_android.so",
+      "extensions": [
+        "bin",
+        "bkd",
+        "img"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vice_x64",
+      "displayName": "Commodore 64 (VICE x64 Fast)",
+      "platformId": "c64",
+      "zipArm64": "vice_x64_libretro_android.so.zip",
+      "zipArm32": "vice_x64_libretro_android.so.zip",
+      "soInsideZip": "vice_x64_libretro_android.so",
+      "jniLibName": "libvice_x64_libretro_android.so",
+      "extensions": [
+        "d64",
+        "d81",
+        "t64",
+        "tap",
+        "prg",
+        "crt"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vice_x64sc",
+      "displayName": "Commodore 64 (VICE x64sc Cycle-Accurate)",
+      "platformId": "c64",
+      "zipArm64": "vice_x64sc_libretro_android.so.zip",
+      "zipArm32": "vice_x64sc_libretro_android.so.zip",
+      "soInsideZip": "vice_x64sc_libretro_android.so",
+      "jniLibName": "libvice_x64sc_libretro_android.so",
+      "extensions": [
+        "d64",
+        "d81",
+        "t64",
+        "tap",
+        "prg",
+        "crt"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "frodo",
+      "displayName": "Commodore 64 / 128 (frodo)",
+      "platformId": "c64",
+      "zipArm64": "frodo_libretro_android.so.zip",
+      "zipArm32": "frodo_libretro_android.so.zip",
+      "soInsideZip": "frodo_libretro_android.so",
+      "jniLibName": "libfrodo_libretro_android.so",
+      "extensions": [
+        "d64",
+        "t64",
+        "prg",
+        "crt",
+        "tap"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vice_x128",
+      "displayName": "Commodore 64 / 128 (vice_x128)",
+      "platformId": "c64",
+      "zipArm64": "vice_x128_libretro_android.so.zip",
+      "zipArm32": "vice_x128_libretro_android.so.zip",
+      "soInsideZip": "vice_x128_libretro_android.so",
+      "jniLibName": "libvice_x128_libretro_android.so",
+      "extensions": [
+        "d64",
+        "t64",
+        "prg",
+        "crt",
+        "tap"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vice_xcbm2",
+      "displayName": "Commodore 64 / 128 (vice_xcbm2)",
+      "platformId": "c64",
+      "zipArm64": "vice_xcbm2_libretro_android.so.zip",
+      "zipArm32": "vice_xcbm2_libretro_android.so.zip",
+      "soInsideZip": "vice_xcbm2_libretro_android.so",
+      "jniLibName": "libvice_xcbm2_libretro_android.so",
+      "extensions": [
+        "d64",
+        "t64",
+        "prg",
+        "crt",
+        "tap"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vice_xcbm5x0",
+      "displayName": "Commodore 64 / 128 (vice_xcbm5x0)",
+      "platformId": "c64",
+      "zipArm64": "vice_xcbm5x0_libretro_android.so.zip",
+      "zipArm32": "vice_xcbm5x0_libretro_android.so.zip",
+      "soInsideZip": "vice_xcbm5x0_libretro_android.so",
+      "jniLibName": "libvice_xcbm5x0_libretro_android.so",
+      "extensions": [
+        "d64",
+        "t64",
+        "prg",
+        "crt",
+        "tap"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vice_xpet",
+      "displayName": "Commodore 64 / 128 (vice_xpet)",
+      "platformId": "c64",
+      "zipArm64": "vice_xpet_libretro_android.so.zip",
+      "zipArm32": "vice_xpet_libretro_android.so.zip",
+      "soInsideZip": "vice_xpet_libretro_android.so",
+      "jniLibName": "libvice_xpet_libretro_android.so",
+      "extensions": [
+        "d64",
+        "t64",
+        "prg",
+        "crt",
+        "tap"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vice_xplus4",
+      "displayName": "Commodore 64 / 128 (vice_xplus4)",
+      "platformId": "c64",
+      "zipArm64": "vice_xplus4_libretro_android.so.zip",
+      "zipArm32": "vice_xplus4_libretro_android.so.zip",
+      "soInsideZip": "vice_xplus4_libretro_android.so",
+      "jniLibName": "libvice_xplus4_libretro_android.so",
+      "extensions": [
+        "d64",
+        "t64",
+        "prg",
+        "crt",
+        "tap"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vice_xscpu64",
+      "displayName": "Commodore 64 / 128 (vice_xscpu64)",
+      "platformId": "c64",
+      "zipArm64": "vice_xscpu64_libretro_android.so.zip",
+      "zipArm32": "vice_xscpu64_libretro_android.so.zip",
+      "soInsideZip": "vice_xscpu64_libretro_android.so",
+      "jniLibName": "libvice_xscpu64_libretro_android.so",
+      "extensions": [
+        "d64",
+        "t64",
+        "prg",
+        "crt",
+        "tap"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vice_xvic",
+      "displayName": "Commodore 64 / 128 (vice_xvic)",
+      "platformId": "c64",
+      "zipArm64": "vice_xvic_libretro_android.so.zip",
+      "zipArm32": "vice_xvic_libretro_android.so.zip",
+      "soInsideZip": "vice_xvic_libretro_android.so",
+      "jniLibName": "libvice_xvic_libretro_android.so",
+      "extensions": [
+        "d64",
+        "t64",
+        "prg",
+        "crt",
+        "tap"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "freechaf",
+      "displayName": "Fairchild Channel F",
+      "platformId": "channelf",
+      "zipArm64": "freechaf_libretro_android.so.zip",
+      "zipArm32": "freechaf_libretro_android.so.zip",
+      "soInsideZip": "freechaf_libretro_android.so",
+      "jniLibName": "libfreechaf_libretro_android.so",
+      "extensions": [
+        "bin",
+        "chf"
+      ],
+      "biosFiles": [
+        "sl31253.bin",
+        "sl31254.bin"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "gearcoleco",
+      "displayName": "ColecoVision (Gearcoleco)",
+      "platformId": "colecovision",
+      "zipArm64": "gearcoleco_libretro_android.so.zip",
+      "zipArm32": "gearcoleco_libretro_android.so.zip",
+      "soInsideZip": "gearcoleco_libretro_android.so",
+      "jniLibName": "libgearcoleco_libretro_android.so",
+      "extensions": [
+        "col",
+        "cv",
+        "bin",
+        "rom"
+      ],
+      "biosFiles": [
+        "colecovision.rom"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "dosbox_core",
+      "displayName": "MS-DOS (DOSBox-Core)",
+      "platformId": "dos",
+      "zipArm64": "dosbox_core_libretro_android.so.zip",
+      "zipArm32": "dosbox_core_libretro_android.so.zip",
+      "soInsideZip": "dosbox_core_libretro_android.so",
+      "jniLibName": "libdosbox_core_libretro_android.so",
+      "extensions": [
+        "exe",
+        "com",
+        "bat",
+        "conf"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "dosbox_svn",
+      "displayName": "MS-DOS (DOSBox-SVN)",
+      "platformId": "dos",
+      "zipArm64": "dosbox_svn_libretro_android.so.zip",
+      "zipArm32": "dosbox_svn_libretro_android.so.zip",
+      "soInsideZip": "dosbox_svn_libretro_android.so",
+      "jniLibName": "libdosbox_svn_libretro_android.so",
+      "extensions": [
+        "exe",
+        "com",
+        "bat",
+        "conf"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "dosbox",
+      "displayName": "MS-DOS (dosbox)",
+      "platformId": "dos",
+      "zipArm64": "dosbox_libretro_android.so.zip",
+      "zipArm32": "dosbox_libretro_android.so.zip",
+      "soInsideZip": "dosbox_libretro_android.so",
+      "jniLibName": "libdosbox_libretro_android.so",
+      "extensions": [
+        "zip",
+        "exe",
+        "com",
+        "bat",
+        "iso",
+        "cue"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "lowresnx",
+      "displayName": "LowRes NX Fantasy Console",
+      "platformId": "fantasy",
+      "zipArm64": "lowresnx_libretro_android.so.zip",
+      "zipArm32": "lowresnx_libretro_android.so.zip",
+      "soInsideZip": "lowresnx_libretro_android.so",
+      "jniLibName": "liblowresnx_libretro_android.so",
+      "extensions": [
+        "nx"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "retro8",
+      "displayName": "PICO-8 (Retro8)",
+      "platformId": "fantasy",
+      "zipArm64": "retro8_libretro_android.so.zip",
+      "zipArm32": "retro8_libretro_android.so.zip",
+      "soInsideZip": "retro8_libretro_android.so",
+      "jniLibName": "libretro8_libretro_android.so",
+      "extensions": [
+        "p8",
+        "png"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "tic80",
+      "displayName": "TIC-80 Fantasy Computer",
+      "platformId": "fantasy",
+      "zipArm64": "tic80_libretro_android.so.zip",
+      "zipArm32": "tic80_libretro_android.so.zip",
+      "soInsideZip": "tic80_libretro_android.so",
+      "jniLibName": "libtic80_libretro_android.so",
+      "extensions": [
+        "tic"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "wasm4",
+      "displayName": "WASM-4 Fantasy Console",
+      "platformId": "fantasy",
+      "zipArm64": "wasm4_libretro_android.so.zip",
+      "zipArm32": "wasm4_libretro_android.so.zip",
+      "soInsideZip": "wasm4_libretro_android.so",
+      "jniLibName": "libwasm4_libretro_android.so",
+      "extensions": [
+        "wasm"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vba_next",
+      "displayName": "Game Boy Advance (VBA Next)",
+      "platformId": "gba",
+      "zipArm64": "vba_next_libretro_android.so.zip",
+      "zipArm32": "vba_next_libretro_android.so.zip",
+      "soInsideZip": "vba_next_libretro_android.so",
+      "jniLibName": "libvba_next_libretro_android.so",
+      "extensions": [
+        "gba"
+      ],
+      "biosFiles": [
+        "gba_bios.bin"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vbam",
+      "displayName": "Game Boy Advance (VBA-M)",
+      "platformId": "gba",
+      "zipArm64": "vbam_libretro_android.so.zip",
+      "zipArm32": "vbam_libretro_android.so.zip",
+      "soInsideZip": "vbam_libretro_android.so",
+      "jniLibName": "libvbam_libretro_android.so",
+      "extensions": [
+        "gba",
+        "gb",
+        "gbc"
+      ],
+      "biosFiles": [
+        "gba_bios.bin"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "gpsp",
+      "displayName": "Game Boy Advance (gpSP Ultra-Fast Dynarec)",
+      "platformId": "gba",
+      "zipArm64": "gpsp_libretro_android.so.zip",
+      "zipArm32": "gpsp_libretro_android.so.zip",
+      "soInsideZip": "gpsp_libretro_android.so",
+      "jniLibName": "libgpsp_libretro_android.so",
+      "extensions": [
+        "gba",
+        "bin"
+      ],
+      "biosFiles": [
+        "gba_bios.bin"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mednafen_gba",
+      "displayName": "Game Boy Advance (mednafen_gba)",
+      "platformId": "gba",
+      "zipArm64": "mednafen_gba_libretro_android.so.zip",
+      "zipArm32": "mednafen_gba_libretro_android.so.zip",
+      "soInsideZip": "mednafen_gba_libretro_android.so",
+      "jniLibName": "libmednafen_gba_libretro_android.so",
+      "extensions": [
+        "gba",
+        "agb"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "meteor",
+      "displayName": "Game Boy Advance (meteor)",
+      "platformId": "gba",
+      "zipArm64": "meteor_libretro_android.so.zip",
+      "zipArm32": "meteor_libretro_android.so.zip",
+      "soInsideZip": "meteor_libretro_android.so",
+      "jniLibName": "libmeteor_libretro_android.so",
+      "extensions": [
+        "gba",
+        "agb"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "DoubleCherryGB",
+      "displayName": "Game Boy / Color (DoubleCherryGB)",
+      "platformId": "gbc",
+      "zipArm64": "DoubleCherryGB_libretro_android.so.zip",
+      "zipArm32": "DoubleCherryGB_libretro_android.so.zip",
+      "soInsideZip": "DoubleCherryGB_libretro_android.so",
+      "jniLibName": "libDoubleCherryGB_libretro_android.so",
+      "extensions": [
+        "gb",
+        "gbc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "gearboy",
+      "displayName": "Game Boy / Color (Gearboy)",
+      "platformId": "gbc",
+      "zipArm64": "gearboy_libretro_android.so.zip",
+      "zipArm32": "gearboy_libretro_android.so.zip",
+      "soInsideZip": "gearboy_libretro_android.so",
+      "jniLibName": "libgearboy_libretro_android.so",
+      "extensions": [
+        "gb",
+        "gbc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "sameboy",
+      "displayName": "Game Boy / Color (SameBoy Accuracy)",
+      "platformId": "gbc",
+      "zipArm64": "sameboy_libretro_android.so.zip",
+      "zipArm32": "sameboy_libretro_android.so.zip",
+      "soInsideZip": "sameboy_libretro_android.so",
+      "jniLibName": "libsameboy_libretro_android.so",
+      "extensions": [
+        "gb",
+        "gbc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "tgbdual",
+      "displayName": "Game Boy / Color (TGB Dual 2P Link)",
+      "platformId": "gbc",
+      "zipArm64": "tgbdual_libretro_android.so.zip",
+      "zipArm32": "tgbdual_libretro_android.so.zip",
+      "soInsideZip": "tgbdual_libretro_android.so",
+      "jniLibName": "libtgbdual_libretro_android.so",
+      "extensions": [
+        "gb",
+        "gbc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "fixgb",
+      "displayName": "Game Boy / Color (fixgb)",
+      "platformId": "gbc",
+      "zipArm64": "fixgb_libretro_android.so.zip",
+      "zipArm32": "fixgb_libretro_android.so.zip",
+      "soInsideZip": "fixgb_libretro_android.so",
+      "jniLibName": "libfixgb_libretro_android.so",
+      "extensions": [
+        "gb",
+        "gbc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "irogb",
+      "displayName": "Game Boy / Color (irogb)",
+      "platformId": "gbc",
+      "zipArm64": "irogb_libretro_android.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "irogb_libretro_android.so",
+      "jniLibName": "libirogb_libretro_android.so",
+      "extensions": [
+        "gb",
+        "gbc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "dolphin",
+      "displayName": "Nintendo GameCube / Wii (Dolphin)",
+      "platformId": "gc_wii",
+      "zipArm64": "dolphin_libretro_android.so.zip",
+      "zipArm32": "dolphin_libretro_android.so.zip",
+      "soInsideZip": "dolphin_libretro_android.so",
+      "jniLibName": "libdolphin_libretro_android.so",
+      "extensions": [
+        "iso",
+        "gcm",
+        "wbfs",
+        "ciso",
+        "rvz",
+        "wad",
+        "dol",
+        "elf"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "freeintv",
+      "displayName": "Mattel Intellivision (FreeIntv)",
+      "platformId": "intellivision",
+      "zipArm64": "freeintv_libretro_android.so.zip",
+      "zipArm32": "freeintv_libretro_android.so.zip",
+      "soInsideZip": "freeintv_libretro_android.so",
+      "jniLibName": "libfreeintv_libretro_android.so",
+      "extensions": [
+        "int",
+        "bin",
+        "rom"
+      ],
+      "biosFiles": [
+        "exec.bin",
+        "grom.bin"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "virtualjaguar",
+      "displayName": "Atari Jaguar",
+      "platformId": "jaguar",
+      "zipArm64": "virtualjaguar_libretro_android.so.zip",
+      "zipArm32": "virtualjaguar_libretro_android.so.zip",
+      "soInsideZip": "virtualjaguar_libretro_android.so",
+      "jniLibName": "libvirtualjaguar_libretro_android.so",
+      "extensions": [
+        "j64",
+        "jag",
+        "rom",
+        "abs",
+        "cof"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mednafen_lynx",
+      "displayName": "Atari Lynx (Beetle Lynx)",
+      "platformId": "lynx",
+      "zipArm64": "mednafen_lynx_libretro_android.so.zip",
+      "zipArm32": "mednafen_lynx_libretro_android.so.zip",
+      "soInsideZip": "mednafen_lynx_libretro_android.so",
+      "jniLibName": "libmednafen_lynx_libretro_android.so",
+      "extensions": [
+        "lnx",
+        "o"
+      ],
+      "biosFiles": [
+        "lynxboot.img"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "handy",
+      "displayName": "Atari Lynx (Handy)",
+      "platformId": "lynx",
+      "zipArm64": "handy_libretro_android.so.zip",
+      "zipArm32": "handy_libretro_android.so.zip",
+      "soInsideZip": "handy_libretro_android.so",
+      "jniLibName": "libhandy_libretro_android.so",
+      "extensions": [
+        "lnx",
+        "lyx",
+        "o"
+      ],
+      "biosFiles": [
+        "lynxboot.img"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "smsplus",
+      "displayName": "Sega Master System / Game Gear",
+      "platformId": "mastersystem",
+      "zipArm64": "smsplus_libretro_android.so.zip",
+      "zipArm32": "smsplus_libretro_android.so.zip",
+      "soInsideZip": "smsplus_libretro_android.so",
+      "jniLibName": "libsmsplus_libretro_android.so",
+      "extensions": [
+        "sms",
+        "gg"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "gearsystem",
+      "displayName": "Sega Master System / Game Gear / SG-1000",
+      "platformId": "mastersystem",
+      "zipArm64": "gearsystem_libretro_android.so.zip",
+      "zipArm32": "gearsystem_libretro_android.so.zip",
+      "soInsideZip": "gearsystem_libretro_android.so",
+      "jniLibName": "libgearsystem_libretro_android.so",
+      "extensions": [
+        "sms",
+        "gg",
+        "sg"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "blastem",
+      "displayName": "Sega Mega Drive / Genesis (blastem)",
+      "platformId": "megadrive",
+      "zipArm64": "blastem_libretro_android.so.zip",
+      "zipArm32": "blastem_libretro_android.so.zip",
+      "soInsideZip": "blastem_libretro_android.so",
+      "jniLibName": "libblastem_libretro_android.so",
+      "extensions": [
+        "md",
+        "gen",
+        "smd",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "clownmdemu",
+      "displayName": "Sega Mega Drive / Genesis (clownmdemu)",
+      "platformId": "megadrive",
+      "zipArm64": "clownmdemu_libretro_android.so.zip",
+      "zipArm32": "clownmdemu_libretro_android.so.zip",
+      "soInsideZip": "clownmdemu_libretro_android.so",
+      "jniLibName": "libclownmdemu_libretro_android.so",
+      "extensions": [
+        "md",
+        "gen",
+        "smd",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "genesis_plus_gx_wide",
+      "displayName": "Sega Mega Drive Widescreen (16:9)",
+      "platformId": "megadrive",
+      "zipArm64": "genesis_plus_gx_wide_libretro_android.so.zip",
+      "zipArm32": "genesis_plus_gx_wide_libretro_android.so.zip",
+      "soInsideZip": "genesis_plus_gx_wide_libretro_android.so",
+      "jniLibName": "libgenesis_plus_gx_wide_libretro_android.so",
+      "extensions": [
+        "md",
+        "gen",
+        "smd",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "fmsx",
+      "displayName": "MSX / MSX2 (fMSX)",
+      "platformId": "msx",
+      "zipArm64": "fmsx_libretro_android.so.zip",
+      "zipArm32": "fmsx_libretro_android.so.zip",
+      "soInsideZip": "fmsx_libretro_android.so",
+      "jniLibName": "libfmsx_libretro_android.so",
+      "extensions": [
+        "rom",
+        "mx1",
+        "mx2",
+        "dsk",
+        "cas"
+      ],
+      "biosFiles": [
+        "MSX.ROM",
+        "MSX2.ROM"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "bluemsx",
+      "displayName": "MSX / MSX2 / MSX2+ / ColecoVision (blueMSX)",
+      "platformId": "msx",
+      "zipArm64": "bluemsx_libretro_android.so.zip",
+      "zipArm32": "bluemsx_libretro_android.so.zip",
+      "soInsideZip": "bluemsx_libretro_android.so",
+      "jniLibName": "libbluemsx_libretro_android.so",
+      "extensions": [
+        "rom",
+        "ri",
+        "mx1",
+        "mx2",
+        "col",
+        "dsk",
+        "cas"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mupen64plus_next_gles2",
+      "displayName": "Nintendo 64 (Mupen64Plus-Next GLES2)",
+      "platformId": "n64",
+      "zipArm64": "mupen64plus_next_gles2_libretro_android.so.zip",
+      "zipArm32": "mupen64plus_next_gles2_libretro_android.so.zip",
+      "soInsideZip": "mupen64plus_next_gles2_libretro_android.so",
+      "jniLibName": "libmupen64plus_next_gles2_libretro_android.so",
+      "extensions": [
+        "z64",
+        "n64",
+        "v64"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "parallel_n64",
+      "displayName": "Nintendo 64 (ParaLLEl N64)",
+      "platformId": "n64",
+      "zipArm64": "parallel_n64_libretro_android.so.zip",
+      "zipArm32": "parallel_n64_libretro_android.so.zip",
+      "soInsideZip": "parallel_n64_libretro_android.so",
+      "jniLibName": "libparallel_n64_libretro_android.so",
+      "extensions": [
+        "z64",
+        "n64",
+        "v64"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "parallel_dc",
+      "displayName": "Nintendo 64 (parallel_dc)",
+      "platformId": "n64",
+      "zipArm64": "parallel_dc_libretro_android.so.zip",
+      "zipArm32": "parallel_dc_libretro_android.so.zip",
+      "soInsideZip": "parallel_dc_libretro_android.so",
+      "jniLibName": "libparallel_dc_libretro_android.so",
+      "extensions": [
+        "z64",
+        "n64",
+        "v64"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "desmume2015",
+      "displayName": "Nintendo DS (DeSmuME 2015)",
+      "platformId": "nds",
+      "zipArm64": "desmume2015_libretro_android.so.zip",
+      "zipArm32": "desmume2015_libretro_android.so.zip",
+      "soInsideZip": "desmume2015_libretro_android.so",
+      "jniLibName": "libdesmume2015_libretro_android.so",
+      "extensions": [
+        "nds"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "desmume",
+      "displayName": "Nintendo DS (DeSmuME)",
+      "platformId": "nds",
+      "zipArm64": "desmume_libretro_android.so.zip",
+      "zipArm32": "desmume_libretro_android.so.zip",
+      "soInsideZip": "desmume_libretro_android.so",
+      "jniLibName": "libdesmume_libretro_android.so",
+      "extensions": [
+        "nds",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "melondsds",
+      "displayName": "Nintendo DS / DSi (melonDS DS Enhanced)",
+      "platformId": "nds",
+      "zipArm64": "melondsds_libretro_android.so.zip",
+      "zipArm32": "melondsds_libretro_android.so.zip",
+      "soInsideZip": "melondsds_libretro_android.so",
+      "jniLibName": "libmelondsds_libretro_android.so",
+      "extensions": [
+        "nds",
+        "dsi"
+      ],
+      "biosFiles": [
+        "bios7.bin",
+        "bios9.bin",
+        "firmware.bin"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "neocd",
+      "displayName": "SNK Neo Geo CD",
+      "platformId": "neocd",
+      "zipArm64": "neocd_libretro_android.so.zip",
+      "zipArm32": "neocd_libretro_android.so.zip",
+      "soInsideZip": "neocd_libretro_android.so",
+      "jniLibName": "libneocd_libretro_android.so",
+      "extensions": [
+        "cue",
+        "chd"
+      ],
+      "biosFiles": [
+        "neocd/neocd_f.rom",
+        "neocd/000-lo.lo"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mesen",
+      "displayName": "NES / Famicom (Mesen Cycle-Accurate)",
+      "platformId": "nes",
+      "zipArm64": "mesen_libretro_android.so.zip",
+      "zipArm32": "mesen_libretro_android.so.zip",
+      "soInsideZip": "mesen_libretro_android.so",
+      "jniLibName": "libmesen_libretro_android.so",
+      "extensions": [
+        "nes",
+        "fds",
+        "unf"
+      ],
+      "biosFiles": [
+        "disksys.rom"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "nestopia",
+      "displayName": "NES / Famicom (Nestopia UE)",
+      "platformId": "nes",
+      "zipArm64": "nestopia_libretro_android.so.zip",
+      "zipArm32": "nestopia_libretro_android.so.zip",
+      "soInsideZip": "nestopia_libretro_android.so",
+      "jniLibName": "libnestopia_libretro_android.so",
+      "extensions": [
+        "nes",
+        "fds",
+        "unf"
+      ],
+      "biosFiles": [
+        "disksys.rom"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "quicknes",
+      "displayName": "NES / Famicom (QuickNES Fast)",
+      "platformId": "nes",
+      "zipArm64": "quicknes_libretro_android.so.zip",
+      "zipArm32": "quicknes_libretro_android.so.zip",
+      "soInsideZip": "quicknes_libretro_android.so",
+      "jniLibName": "libquicknes_libretro_android.so",
+      "extensions": [
+        "nes"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "fixnes",
+      "displayName": "NES / Famicom (fixnes)",
+      "platformId": "nes",
+      "zipArm64": "fixnes_libretro_android.so.zip",
+      "zipArm32": "fixnes_libretro_android.so.zip",
+      "soInsideZip": "fixnes_libretro_android.so",
+      "jniLibName": "libfixnes_libretro_android.so",
+      "extensions": [
+        "nes",
+        "fds"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mesen2",
+      "displayName": "NES / Famicom (mesen2)",
+      "platformId": "nes",
+      "zipArm64": "mesen2_libretro_android.so.zip",
+      "zipArm32": "mesen2_libretro_android.so.zip",
+      "soInsideZip": "mesen2_libretro_android.so",
+      "jniLibName": "libmesen2_libretro_android.so",
+      "extensions": [
+        "nes",
+        "fds"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "rustynes",
+      "displayName": "NES / Famicom (rustynes)",
+      "platformId": "nes",
+      "zipArm64": "rustynes_libretro_android.so.zip",
+      "zipArm32": "rustynes_libretro_android.so.zip",
+      "soInsideZip": "rustynes_libretro_android.so",
+      "jniLibName": "librustynes_libretro_android.so",
+      "extensions": [
+        "nes",
+        "fds"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "race",
+      "displayName": "SNK Neo Geo Pocket / Color (RACE)",
+      "platformId": "ngp",
+      "zipArm64": "race_libretro_android.so.zip",
+      "zipArm32": "race_libretro_android.so.zip",
+      "soInsideZip": "race_libretro_android.so",
+      "jniLibName": "librace_libretro_android.so",
+      "extensions": [
+        "ngp",
+        "ngc",
+        "ngpc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "o2em",
+      "displayName": "Magnavox Odyssey 2 / Videopac",
+      "platformId": "odyssey2",
+      "zipArm64": "o2em_libretro_android.so.zip",
+      "zipArm32": "o2em_libretro_android.so.zip",
+      "soInsideZip": "o2em_libretro_android.so",
+      "jniLibName": "libo2em_libretro_android.so",
+      "extensions": [
+        "bin"
+      ],
+      "biosFiles": [
+        "o2rom.bin"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "quasi88",
+      "displayName": "NEC PC-8801 (QUASI88)",
+      "platformId": "pc88",
+      "zipArm64": "quasi88_libretro_android.so.zip",
+      "zipArm32": "quasi88_libretro_android.so.zip",
+      "soInsideZip": "quasi88_libretro_android.so",
+      "jniLibName": "libquasi88_libretro_android.so",
+      "extensions": [
+        "d88",
+        "u88",
+        "m3u"
+      ],
+      "biosFiles": [
+        "quasi88/n88.rom"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "nekop2",
+      "displayName": "NEC PC-9801 (Neko Project II)",
+      "platformId": "pc98",
+      "zipArm64": "nekop2_libretro_android.so.zip",
+      "zipArm32": "nekop2_libretro_android.so.zip",
+      "soInsideZip": "nekop2_libretro_android.so",
+      "jniLibName": "libnekop2_libretro_android.so",
+      "extensions": [
+        "d98",
+        "fdi",
+        "hdi",
+        "nhd"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "np2kai",
+      "displayName": "NEC PC-9801 / PC-9821 (Neko Project II Kai)",
+      "platformId": "pc98",
+      "zipArm64": "np2kai_libretro_android.so.zip",
+      "zipArm32": "np2kai_libretro_android.so.zip",
+      "soInsideZip": "np2kai_libretro_android.so",
+      "jniLibName": "libnp2kai_libretro_android.so",
+      "extensions": [
+        "d98",
+        "fdi",
+        "hdi",
+        "nhd",
+        "thd",
+        "fdd"
+      ],
+      "biosFiles": [
+        "np2kai/bios.rom"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mednafen_supergrafx",
+      "displayName": "NEC SuperGrafx",
+      "platformId": "pce",
+      "zipArm64": "mednafen_supergrafx_libretro_android.so.zip",
+      "zipArm32": "mednafen_supergrafx_libretro_android.so.zip",
+      "soInsideZip": "mednafen_supergrafx_libretro_android.so",
+      "jniLibName": "libmednafen_supergrafx_libretro_android.so",
+      "extensions": [
+        "pce",
+        "sgx",
+        "cue",
+        "chd"
+      ],
+      "biosFiles": [
+        "syscard3.pce"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mednafen_pce",
+      "displayName": "PC Engine / SuperGrafx (Beetle PCE Accurate)",
+      "platformId": "pce",
+      "zipArm64": "mednafen_pce_libretro_android.so.zip",
+      "zipArm32": "mednafen_pce_libretro_android.so.zip",
+      "soInsideZip": "mednafen_pce_libretro_android.so",
+      "jniLibName": "libmednafen_pce_libretro_android.so",
+      "extensions": [
+        "pce",
+        "sgx",
+        "cue",
+        "chd"
+      ],
+      "biosFiles": [
+        "syscard3.pce"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "pcee2",
+      "displayName": "PC Engine / TurboGrafx-16 (pcee2)",
+      "platformId": "pce",
+      "zipArm64": "pcee2_libretro_android.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "pcee2_libretro_android.so",
+      "jniLibName": "libpcee2_libretro_android.so",
+      "extensions": [
+        "pce",
+        "cue",
+        "chd"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mednafen_pcfx",
+      "displayName": "NEC PC-FX",
+      "platformId": "pcfx",
+      "zipArm64": "mednafen_pcfx_libretro_android.so.zip",
+      "zipArm32": "mednafen_pcfx_libretro_android.so.zip",
+      "soInsideZip": "mednafen_pcfx_libretro_android.so",
+      "jniLibName": "libmednafen_pcfx_libretro_android.so",
+      "extensions": [
+        "cue",
+        "chd",
+        "ccd",
+        "toc"
+      ],
+      "biosFiles": [
+        "pcfx.bios"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "pokemini",
+      "displayName": "Nintendo Pokemon Mini",
+      "platformId": "pokemini",
+      "zipArm64": "pokemini_libretro_android.so.zip",
+      "zipArm32": "pokemini_libretro_android.so.zip",
+      "soInsideZip": "pokemini_libretro_android.so",
+      "jniLibName": "libpokemini_libretro_android.so",
+      "extensions": [
+        "min"
+      ],
+      "biosFiles": [
+        "bios.min"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "nxengine",
+      "displayName": "Cave Story (NXEngine)",
+      "platformId": "ports",
+      "zipArm64": "nxengine_libretro_android.so.zip",
+      "zipArm32": "nxengine_libretro_android.so.zip",
+      "soInsideZip": "nxengine_libretro_android.so",
+      "jniLibName": "libnxengine_libretro_android.so",
+      "extensions": [
+        "exe"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "chailove",
+      "displayName": "ChaiLove 2D Framework",
+      "platformId": "ports",
+      "zipArm64": "chailove_libretro_android.so.zip",
+      "zipArm32": "chailove_libretro_android.so.zip",
+      "soInsideZip": "chailove_libretro_android.so",
+      "jniLibName": "libchailove_libretro_android.so",
+      "extensions": [
+        "chai",
+        "chailove"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "2048",
+      "displayName": "Libretro Core (2048)",
+      "platformId": "ports",
+      "zipArm64": "2048_libretro_android.so.zip",
+      "zipArm32": "2048_libretro_android.so.zip",
+      "soInsideZip": "2048_libretro_android.so",
+      "jniLibName": "lib2048_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "3dengine",
+      "displayName": "Libretro Core (3dengine)",
+      "platformId": "ports",
+      "zipArm64": "3dengine_libretro_android.so.zip",
+      "zipArm32": "3dengine_libretro_android.so.zip",
+      "soInsideZip": "3dengine_libretro_android.so",
+      "jniLibName": "lib3dengine_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "amiarcadia",
+      "displayName": "Libretro Core (amiarcadia)",
+      "platformId": "ports",
+      "zipArm64": "amiarcadia_libretro_android.so.zip",
+      "zipArm32": "amiarcadia_libretro_android.so.zip",
+      "soInsideZip": "amiarcadia_libretro_android.so",
+      "jniLibName": "libamiarcadia_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "amiberry",
+      "displayName": "Libretro Core (amiberry)",
+      "platformId": "ports",
+      "zipArm64": "amiberry_libretro_android.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "amiberry_libretro_android.so",
+      "jniLibName": "libamiberry_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "anarch",
+      "displayName": "Libretro Core (anarch)",
+      "platformId": "ports",
+      "zipArm64": "anarch_libretro_android.so.zip",
+      "zipArm32": "anarch_libretro_android.so.zip",
+      "soInsideZip": "anarch_libretro_android.so",
+      "jniLibName": "libanarch_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "applewin",
+      "displayName": "Libretro Core (applewin)",
+      "platformId": "ports",
+      "zipArm64": "applewin_libretro_android.so.zip",
+      "zipArm32": "applewin_libretro_android.so.zip",
+      "soInsideZip": "applewin_libretro_android.so",
+      "jniLibName": "libapplewin_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "ardens",
+      "displayName": "Libretro Core (ardens)",
+      "platformId": "ports",
+      "zipArm64": "ardens_libretro_android.so.zip",
+      "zipArm32": "ardens_libretro_android.so.zip",
+      "soInsideZip": "ardens_libretro_android.so",
+      "jniLibName": "libardens_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "arduous",
+      "displayName": "Libretro Core (arduous)",
+      "platformId": "ports",
+      "zipArm64": "arduous_libretro_android.so.zip",
+      "zipArm32": "arduous_libretro_android.so.zip",
+      "soInsideZip": "arduous_libretro_android.so",
+      "jniLibName": "libarduous_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "armsx2",
+      "displayName": "Libretro Core (armsx2)",
+      "platformId": "ports",
+      "zipArm64": "armsx2_libretro_android.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "armsx2_libretro_android.so",
+      "jniLibName": "libarmsx2_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "b2",
+      "displayName": "Libretro Core (b2)",
+      "platformId": "ports",
+      "zipArm64": "b2_libretro_android.so.zip",
+      "zipArm32": "b2_libretro_android.so.zip",
+      "soInsideZip": "b2_libretro_android.so",
+      "jniLibName": "libb2_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "bbkemu",
+      "displayName": "Libretro Core (bbkemu)",
+      "platformId": "ports",
+      "zipArm64": "bbkemu_libretro_android.so.zip",
+      "zipArm32": "bbkemu_libretro_android.so.zip",
+      "soInsideZip": "bbkemu_libretro_android.so",
+      "jniLibName": "libbbkemu_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "boom3",
+      "displayName": "Libretro Core (boom3)",
+      "platformId": "ports",
+      "zipArm64": "boom3_libretro_android.so.zip",
+      "zipArm32": "boom3_libretro_android.so.zip",
+      "soInsideZip": "boom3_libretro_android.so",
+      "jniLibName": "libboom3_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "cannonball",
+      "displayName": "Libretro Core (cannonball)",
+      "platformId": "ports",
+      "zipArm64": "cannonball_libretro_android.so.zip",
+      "zipArm32": "cannonball_libretro_android.so.zip",
+      "soInsideZip": "cannonball_libretro_android.so",
+      "jniLibName": "libcannonball_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "cemu",
+      "displayName": "Libretro Core (cemu)",
+      "platformId": "ports",
+      "zipArm64": "cemu_libretro_android.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "cemu_libretro_android.so",
+      "jniLibName": "libcemu_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "coolbaremu",
+      "displayName": "Libretro Core (coolbaremu)",
+      "platformId": "ports",
+      "zipArm64": "coolbaremu_libretro_android.so.zip",
+      "zipArm32": "coolbaremu_libretro_android.so.zip",
+      "soInsideZip": "coolbaremu_libretro_android.so",
+      "jniLibName": "libcoolbaremu_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "craft",
+      "displayName": "Libretro Core (craft)",
+      "platformId": "ports",
+      "zipArm64": "craft_libretro_android.so.zip",
+      "zipArm32": "craft_libretro_android.so.zip",
+      "soInsideZip": "craft_libretro_android.so",
+      "jniLibName": "libcraft_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "dice",
+      "displayName": "Libretro Core (dice)",
+      "platformId": "ports",
+      "zipArm64": "dice_libretro_android.so.zip",
+      "zipArm32": "dice_libretro_android.so.zip",
+      "soInsideZip": "dice_libretro_android.so",
+      "jniLibName": "libdice_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "dingooemu",
+      "displayName": "Libretro Core (dingooemu)",
+      "platformId": "ports",
+      "zipArm64": "dingooemu_libretro_android.so.zip",
+      "zipArm32": "dingooemu_libretro_android.so.zip",
+      "soInsideZip": "dingooemu_libretro_android.so",
+      "jniLibName": "libdingooemu_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "dinothawr",
+      "displayName": "Libretro Core (dinothawr)",
+      "platformId": "ports",
+      "zipArm64": "dinothawr_libretro_android.so.zip",
+      "zipArm32": "dinothawr_libretro_android.so.zip",
+      "soInsideZip": "dinothawr_libretro_android.so",
+      "jniLibName": "libdinothawr_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "doukutsu_rs",
+      "displayName": "Libretro Core (doukutsu_rs)",
+      "platformId": "ports",
+      "zipArm64": "doukutsu_rs_libretro_android.so.zip",
+      "zipArm32": "doukutsu_rs_libretro_android.so.zip",
+      "soInsideZip": "doukutsu_rs_libretro_android.so",
+      "jniLibName": "libdoukutsu_rs_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "ecwolf",
+      "displayName": "Libretro Core (ecwolf)",
+      "platformId": "ports",
+      "zipArm64": "ecwolf_libretro_android.so.zip",
+      "zipArm32": "ecwolf_libretro_android.so.zip",
+      "soInsideZip": "ecwolf_libretro_android.so",
+      "jniLibName": "libecwolf_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "eduke32",
+      "displayName": "Libretro Core (eduke32)",
+      "platformId": "ports",
+      "zipArm64": "eduke32_libretro_android.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "eduke32_libretro_android.so",
+      "jniLibName": "libeduke32_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "emuscv",
+      "displayName": "Libretro Core (emuscv)",
+      "platformId": "ports",
+      "zipArm64": "emuscv_libretro_android.so.zip",
+      "zipArm32": "emuscv_libretro_android.so.zip",
+      "soInsideZip": "emuscv_libretro_android.so",
+      "jniLibName": "libemuscv_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "ep128emu_core",
+      "displayName": "Libretro Core (ep128emu_core)",
+      "platformId": "ports",
+      "zipArm64": "ep128emu_core_libretro_android.so.zip",
+      "zipArm32": "ep128emu_core_libretro_android.so.zip",
+      "soInsideZip": "ep128emu_core_libretro_android.so",
+      "jniLibName": "libep128emu_core_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "ffmpeg",
+      "displayName": "Libretro Core (ffmpeg)",
+      "platformId": "ports",
+      "zipArm64": "ffmpeg_libretro_android.so.zip",
+      "zipArm32": "ffmpeg_libretro_android.so.zip",
+      "soInsideZip": "ffmpeg_libretro_android.so",
+      "jniLibName": "libffmpeg_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "galaksija",
+      "displayName": "Libretro Core (galaksija)",
+      "platformId": "ports",
+      "zipArm64": "galaksija_libretro_android.so.zip",
+      "zipArm32": "galaksija_libretro_android.so.zip",
+      "soInsideZip": "galaksija_libretro_android.so",
+      "jniLibName": "libgalaksija_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "gam4980",
+      "displayName": "Libretro Core (gam4980)",
+      "platformId": "ports",
+      "zipArm64": "gam4980_libretro_android.so.zip",
+      "zipArm32": "gam4980_libretro_android.so.zip",
+      "soInsideZip": "gam4980_libretro_android.so",
+      "jniLibName": "libgam4980_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "gametank",
+      "displayName": "Libretro Core (gametank)",
+      "platformId": "ports",
+      "zipArm64": "gametank_libretro_android.so.zip",
+      "zipArm32": "gametank_libretro_android.so.zip",
+      "soInsideZip": "gametank_libretro_android.so",
+      "jniLibName": "libgametank_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "geargrafx",
+      "displayName": "Libretro Core (geargrafx)",
+      "platformId": "ports",
+      "zipArm64": "geargrafx_libretro_android.so.zip",
+      "zipArm32": "geargrafx_libretro_android.so.zip",
+      "soInsideZip": "geargrafx_libretro_android.so",
+      "jniLibName": "libgeargrafx_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "geartowns",
+      "displayName": "Libretro Core (geartowns)",
+      "platformId": "ports",
+      "zipArm64": "geartowns_libretro_android.so.zip",
+      "zipArm32": "geartowns_libretro_android.so.zip",
+      "soInsideZip": "geartowns_libretro_android.so",
+      "jniLibName": "libgeartowns_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "geolith",
+      "displayName": "Libretro Core (geolith)",
+      "platformId": "ports",
+      "zipArm64": "geolith_libretro_android.so.zip",
+      "zipArm32": "geolith_libretro_android.so.zip",
+      "soInsideZip": "geolith_libretro_android.so",
+      "jniLibName": "libgeolith_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "gme",
+      "displayName": "Libretro Core (gme)",
+      "platformId": "ports",
+      "zipArm64": "gme_libretro_android.so.zip",
+      "zipArm32": "gme_libretro_android.so.zip",
+      "soInsideZip": "gme_libretro_android.so",
+      "jniLibName": "libgme_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "gong",
+      "displayName": "Libretro Core (gong)",
+      "platformId": "ports",
+      "zipArm64": "gong_libretro_android.so.zip",
+      "zipArm32": "gong_libretro_android.so.zip",
+      "soInsideZip": "gong_libretro_android.so",
+      "jniLibName": "libgong_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "gw",
+      "displayName": "Libretro Core (gw)",
+      "platformId": "ports",
+      "zipArm64": "gw_libretro_android.so.zip",
+      "zipArm32": "gw_libretro_android.so.zip",
+      "soInsideZip": "gw_libretro_android.so",
+      "jniLibName": "libgw_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "holani",
+      "displayName": "Libretro Core (holani)",
+      "platformId": "ports",
+      "zipArm64": "holani_libretro_android.so.zip",
+      "zipArm32": "holani_libretro_android.so.zip",
+      "soInsideZip": "holani_libretro_android.so",
+      "jniLibName": "libholani_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "hyperscanemu",
+      "displayName": "Libretro Core (hyperscanemu)",
+      "platformId": "ports",
+      "zipArm64": "hyperscanemu_libretro_android.so.zip",
+      "zipArm32": "hyperscanemu_libretro_android.so.zip",
+      "soInsideZip": "hyperscanemu_libretro_android.so",
+      "jniLibName": "libhyperscanemu_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "hypseushw",
+      "displayName": "Libretro Core (hypseushw)",
+      "platformId": "ports",
+      "zipArm64": "hypseushw_libretro_android.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "hypseushw_libretro_android.so",
+      "jniLibName": "libhypseushw_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "jaxe",
+      "displayName": "Libretro Core (jaxe)",
+      "platformId": "ports",
+      "zipArm64": "jaxe_libretro_android.so.zip",
+      "zipArm32": "jaxe_libretro_android.so.zip",
+      "soInsideZip": "jaxe_libretro_android.so",
+      "jniLibName": "libjaxe_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "jollycv",
+      "displayName": "Libretro Core (jollycv)",
+      "platformId": "ports",
+      "zipArm64": "jollycv_libretro_android.so.zip",
+      "zipArm32": "jollycv_libretro_android.so.zip",
+      "soInsideZip": "jollycv_libretro_android.so",
+      "jniLibName": "libjollycv_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "jumpnbump",
+      "displayName": "Libretro Core (jumpnbump)",
+      "platformId": "ports",
+      "zipArm64": "jumpnbump_libretro_android.so.zip",
+      "zipArm32": "jumpnbump_libretro_android.so.zip",
+      "soInsideZip": "jumpnbump_libretro_android.so",
+      "jniLibName": "libjumpnbump_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "m2000",
+      "displayName": "Libretro Core (m2000)",
+      "platformId": "ports",
+      "zipArm64": "m2000_libretro_android.so.zip",
+      "zipArm32": "m2000_libretro_android.so.zip",
+      "soInsideZip": "m2000_libretro_android.so",
+      "jniLibName": "libm2000_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mcsoftserve",
+      "displayName": "Libretro Core (mcsoftserve)",
+      "platformId": "ports",
+      "zipArm64": "mcsoftserve_libretro_android.so.zip",
+      "zipArm32": "mcsoftserve_libretro_android.so.zip",
+      "soInsideZip": "mcsoftserve_libretro_android.so",
+      "jniLibName": "libmcsoftserve_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "minivmac",
+      "displayName": "Libretro Core (minivmac)",
+      "platformId": "ports",
+      "zipArm64": "minivmac_libretro_android.so.zip",
+      "zipArm32": "minivmac_libretro_android.so.zip",
+      "soInsideZip": "minivmac_libretro_android.so",
+      "jniLibName": "libminivmac_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mojozork",
+      "displayName": "Libretro Core (mojozork)",
+      "platformId": "ports",
+      "zipArm64": "mojozork_libretro_android.so.zip",
+      "zipArm32": "mojozork_libretro_android.so.zip",
+      "soInsideZip": "mojozork_libretro_android.so",
+      "jniLibName": "libmojozork_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mrboom",
+      "displayName": "Libretro Core (mrboom)",
+      "platformId": "ports",
+      "zipArm64": "mrboom_libretro_android.so.zip",
+      "zipArm32": "mrboom_libretro_android.so.zip",
+      "soInsideZip": "mrboom_libretro_android.so",
+      "jniLibName": "libmrboom_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mu",
+      "displayName": "Libretro Core (mu)",
+      "platformId": "ports",
+      "zipArm64": "mu_libretro_android.so.zip",
+      "zipArm32": "mu_libretro_android.so.zip",
+      "soInsideZip": "mu_libretro_android.so",
+      "jniLibName": "libmu_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "native32emu",
+      "displayName": "Libretro Core (native32emu)",
+      "platformId": "ports",
+      "zipArm64": "native32emu_libretro_android.so.zip",
+      "zipArm32": "native32emu_libretro_android.so.zip",
+      "soInsideZip": "native32emu_libretro_android.so",
+      "jniLibName": "libnative32emu_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "nicaiemu",
+      "displayName": "Libretro Core (nicaiemu)",
+      "platformId": "ports",
+      "zipArm64": "nicaiemu_libretro_android.so.zip",
+      "zipArm32": "nicaiemu_libretro_android.so.zip",
+      "soInsideZip": "nicaiemu_libretro_android.so",
+      "jniLibName": "libnicaiemu_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "noods",
+      "displayName": "Libretro Core (noods)",
+      "platformId": "ports",
+      "zipArm64": "noods_libretro_android.so.zip",
+      "zipArm32": "noods_libretro_android.so.zip",
+      "soInsideZip": "noods_libretro_android.so",
+      "jniLibName": "libnoods_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "nuance",
+      "displayName": "Libretro Core (nuance)",
+      "platformId": "ports",
+      "zipArm64": "nuance_libretro_android.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "nuance_libretro_android.so",
+      "jniLibName": "libnuance_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "numero",
+      "displayName": "Libretro Core (numero)",
+      "platformId": "ports",
+      "zipArm64": "numero_libretro_android.so.zip",
+      "zipArm32": "numero_libretro_android.so.zip",
+      "soInsideZip": "numero_libretro_android.so",
+      "jniLibName": "libnumero_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "oberon",
+      "displayName": "Libretro Core (oberon)",
+      "platformId": "ports",
+      "zipArm64": "oberon_libretro_android.so.zip",
+      "zipArm32": "oberon_libretro_android.so.zip",
+      "soInsideZip": "oberon_libretro_android.so",
+      "jniLibName": "liboberon_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "openlara",
+      "displayName": "Libretro Core (openlara)",
+      "platformId": "ports",
+      "zipArm64": "openlara_libretro_android.so.zip",
+      "zipArm32": "openlara_libretro_android.so.zip",
+      "soInsideZip": "openlara_libretro_android.so",
+      "jniLibName": "libopenlara_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "openmsx",
+      "displayName": "Libretro Core (openmsx)",
+      "platformId": "ports",
+      "zipArm64": "openmsx_libretro_android.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "openmsx_libretro_android.so",
+      "jniLibName": "libopenmsx_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "pd777",
+      "displayName": "Libretro Core (pd777)",
+      "platformId": "ports",
+      "zipArm64": "pd777_libretro_android.so.zip",
+      "zipArm32": "pd777_libretro_android.so.zip",
+      "soInsideZip": "pd777_libretro_android.so",
+      "jniLibName": "libpd777_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "piece",
+      "displayName": "Libretro Core (piece)",
+      "platformId": "ports",
+      "zipArm64": "piece_libretro_android.so.zip",
+      "zipArm32": "piece_libretro_android.so.zip",
+      "soInsideZip": "piece_libretro_android.so",
+      "jniLibName": "libpiece_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "pocketcdg",
+      "displayName": "Libretro Core (pocketcdg)",
+      "platformId": "ports",
+      "zipArm64": "pocketcdg_libretro_android.so.zip",
+      "zipArm32": "pocketcdg_libretro_android.so.zip",
+      "soInsideZip": "pocketcdg_libretro_android.so",
+      "jniLibName": "libpocketcdg_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "pokket",
+      "displayName": "Libretro Core (pokket)",
+      "platformId": "ports",
+      "zipArm64": "pokket_libretro_android.so.zip",
+      "zipArm32": "pokket_libretro_android.so.zip",
+      "soInsideZip": "pokket_libretro_android.so",
+      "jniLibName": "libpokket_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "pokketstation",
+      "displayName": "Libretro Core (pokketstation)",
+      "platformId": "ports",
+      "zipArm64": "pokketstation_libretro_android.so.zip",
+      "zipArm32": "pokketstation_libretro_android.so.zip",
+      "soInsideZip": "pokketstation_libretro_android.so",
+      "jniLibName": "libpokketstation_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "potator",
+      "displayName": "Libretro Core (potator)",
+      "platformId": "ports",
+      "zipArm64": "potator_libretro_android.so.zip",
+      "zipArm32": "potator_libretro_android.so.zip",
+      "soInsideZip": "potator_libretro_android.so",
+      "jniLibName": "libpotator_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "qemu",
+      "displayName": "Libretro Core (qemu)",
+      "platformId": "ports",
+      "zipArm64": "qemu_libretro_android.so.zip",
+      "zipArm32": "qemu_libretro_android.so.zip",
+      "soInsideZip": "qemu_libretro_android.so",
+      "jniLibName": "libqemu_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "radio",
+      "displayName": "Libretro Core (radio)",
+      "platformId": "ports",
+      "zipArm64": "radio_libretro_android.so.zip",
+      "zipArm32": "radio_libretro_android.so.zip",
+      "soInsideZip": "radio_libretro_android.so",
+      "jniLibName": "libradio_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "reminiscence",
+      "displayName": "Libretro Core (reminiscence)",
+      "platformId": "ports",
+      "zipArm64": "reminiscence_libretro_android.so.zip",
+      "zipArm32": "reminiscence_libretro_android.so.zip",
+      "soInsideZip": "reminiscence_libretro_android.so",
+      "jniLibName": "libreminiscence_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "romcleaner",
+      "displayName": "Libretro Core (romcleaner)",
+      "platformId": "ports",
+      "zipArm64": "romcleaner_libretro_android.so.zip",
+      "zipArm32": "romcleaner_libretro_android.so.zip",
+      "soInsideZip": "romcleaner_libretro_android.so",
+      "jniLibName": "libromcleaner_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "rpcs3",
+      "displayName": "Libretro Core (rpcs3)",
+      "platformId": "ports",
+      "zipArm64": "rpcs3_libretro_android.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "rpcs3_libretro_android.so",
+      "jniLibName": "librpcs3_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "rust_dos",
+      "displayName": "Libretro Core (rust_dos)",
+      "platformId": "ports",
+      "zipArm64": "rust_dos_libretro_android.so.zip",
+      "zipArm32": "rust_dos_libretro_android.so.zip",
+      "soInsideZip": "rust_dos_libretro_android.so",
+      "jniLibName": "librust_dos_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "same_cdi",
+      "displayName": "Libretro Core (same_cdi)",
+      "platformId": "ports",
+      "zipArm64": "same_cdi_libretro_android.so.zip",
+      "zipArm32": "same_cdi_libretro_android.so.zip",
+      "soInsideZip": "same_cdi_libretro_android.so",
+      "jniLibName": "libsame_cdi_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "sameduck",
+      "displayName": "Libretro Core (sameduck)",
+      "platformId": "ports",
+      "zipArm64": "sameduck_libretro_android.so.zip",
+      "zipArm32": "sameduck_libretro_android.so.zip",
+      "soInsideZip": "sameduck_libretro_android.so",
+      "jniLibName": "libsameduck_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "skyemu",
+      "displayName": "Libretro Core (skyemu)",
+      "platformId": "ports",
+      "zipArm64": "skyemu_libretro_android.so.zip",
+      "zipArm32": "skyemu_libretro_android.so.zip",
+      "soInsideZip": "skyemu_libretro_android.so",
+      "jniLibName": "libskyemu_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "spmp8000emu",
+      "displayName": "Libretro Core (spmp8000emu)",
+      "platformId": "ports",
+      "zipArm64": "spmp8000emu_libretro_android.so.zip",
+      "zipArm32": "spmp8000emu_libretro_android.so.zip",
+      "soInsideZip": "spmp8000emu_libretro_android.so",
+      "jniLibName": "libspmp8000emu_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "squirreljme",
+      "displayName": "Libretro Core (squirreljme)",
+      "platformId": "ports",
+      "zipArm64": "squirreljme_libretro_android.so.zip",
+      "zipArm32": "squirreljme_libretro_android.so.zip",
+      "soInsideZip": "squirreljme_libretro_android.so",
+      "jniLibName": "libsquirreljme_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "superbroswar",
+      "displayName": "Libretro Core (superbroswar)",
+      "platformId": "ports",
+      "zipArm64": "superbroswar_libretro_android.so.zip",
+      "zipArm32": "superbroswar_libretro_android.so.zip",
+      "soInsideZip": "superbroswar_libretro_android.so",
+      "jniLibName": "libsuperbroswar_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "supermodel",
+      "displayName": "Libretro Core (supermodel)",
+      "platformId": "ports",
+      "zipArm64": "supermodel_libretro_android.so.zip",
+      "zipArm32": "supermodel_libretro_android.so.zip",
+      "soInsideZip": "supermodel_libretro_android.so",
+      "jniLibName": "libsupermodel_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "tamalibretro",
+      "displayName": "Libretro Core (tamalibretro)",
+      "platformId": "ports",
+      "zipArm64": "tamalibretro_libretro_android.so.zip",
+      "zipArm32": "tamalibretro_libretro_android.so.zip",
+      "soInsideZip": "tamalibretro_libretro_android.so",
+      "jniLibName": "libtamalibretro_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "test",
+      "displayName": "Libretro Core (test)",
+      "platformId": "ports",
+      "zipArm64": "test_libretro_android.so.zip",
+      "zipArm32": "test_libretro_android.so.zip",
+      "soInsideZip": "test_libretro_android.so",
+      "jniLibName": "libtest_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "theodore",
+      "displayName": "Libretro Core (theodore)",
+      "platformId": "ports",
+      "zipArm64": "theodore_libretro_android.so.zip",
+      "zipArm32": "theodore_libretro_android.so.zip",
+      "soInsideZip": "theodore_libretro_android.so",
+      "jniLibName": "libtheodore_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "thepowdertoy",
+      "displayName": "Libretro Core (thepowdertoy)",
+      "platformId": "ports",
+      "zipArm64": "thepowdertoy_libretro_android.so.zip",
+      "zipArm32": "thepowdertoy_libretro_android.so.zip",
+      "soInsideZip": "thepowdertoy_libretro_android.so",
+      "jniLibName": "libthepowdertoy_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "tia",
+      "displayName": "Libretro Core (tia)",
+      "platformId": "ports",
+      "zipArm64": "tia_libretro_android.so.zip",
+      "zipArm32": "tia_libretro_android.so.zip",
+      "soInsideZip": "tia_libretro_android.so",
+      "jniLibName": "libtia_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "uw8",
+      "displayName": "Libretro Core (uw8)",
+      "platformId": "ports",
+      "zipArm64": "uw8_libretro_android.so.zip",
+      "zipArm32": "uw8_libretro_android.so.zip",
+      "soInsideZip": "uw8_libretro_android.so",
+      "jniLibName": "libuw8_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "uzdoom",
+      "displayName": "Libretro Core (uzdoom)",
+      "platformId": "ports",
+      "zipArm64": "uzdoom_libretro_android.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "uzdoom_libretro_android.so",
+      "jniLibName": "libuzdoom_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "uzem",
+      "displayName": "Libretro Core (uzem)",
+      "platformId": "ports",
+      "zipArm64": "uzem_libretro_android.so.zip",
+      "zipArm32": "uzem_libretro_android.so.zip",
+      "soInsideZip": "uzem_libretro_android.so",
+      "jniLibName": "libuzem_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vaporspec",
+      "displayName": "Libretro Core (vaporspec)",
+      "platformId": "ports",
+      "zipArm64": "vaporspec_libretro_android.so.zip",
+      "zipArm32": "vaporspec_libretro_android.so.zip",
+      "soInsideZip": "vaporspec_libretro_android.so",
+      "jniLibName": "libvaporspec_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vemulator",
+      "displayName": "Libretro Core (vemulator)",
+      "platformId": "ports",
+      "zipArm64": "vemulator_libretro_android.so.zip",
+      "zipArm32": "vemulator_libretro_android.so.zip",
+      "soInsideZip": "vemulator_libretro_android.so",
+      "jniLibName": "libvemulator_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vircon32",
+      "displayName": "Libretro Core (vircon32)",
+      "platformId": "ports",
+      "zipArm64": "vircon32_libretro_android.so.zip",
+      "zipArm32": "vircon32_libretro_android.so.zip",
+      "soInsideZip": "vircon32_libretro_android.so",
+      "jniLibName": "libvircon32_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "virtualxt",
+      "displayName": "Libretro Core (virtualxt)",
+      "platformId": "ports",
+      "zipArm64": "virtualxt_libretro_android.so.zip",
+      "zipArm32": "virtualxt_libretro_android.so.zip",
+      "soInsideZip": "virtualxt_libretro_android.so",
+      "jniLibName": "libvirtualxt_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vita3k",
+      "displayName": "Libretro Core (vita3k)",
+      "platformId": "ports",
+      "zipArm64": "vita3k_libretro_android.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "vita3k_libretro_android.so",
+      "jniLibName": "libvita3k_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vitaquake2-rogue",
+      "displayName": "Libretro Core (vitaquake2-rogue)",
+      "platformId": "ports",
+      "zipArm64": "vitaquake2-rogue_libretro_android.so.zip",
+      "zipArm32": "vitaquake2-rogue_libretro_android.so.zip",
+      "soInsideZip": "vitaquake2-rogue_libretro_android.so",
+      "jniLibName": "libvitaquake2-rogue_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vitaquake2-xatrix",
+      "displayName": "Libretro Core (vitaquake2-xatrix)",
+      "platformId": "ports",
+      "zipArm64": "vitaquake2-xatrix_libretro_android.so.zip",
+      "zipArm32": "vitaquake2-xatrix_libretro_android.so.zip",
+      "soInsideZip": "vitaquake2-xatrix_libretro_android.so",
+      "jniLibName": "libvitaquake2-xatrix_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vitaquake2-zaero",
+      "displayName": "Libretro Core (vitaquake2-zaero)",
+      "platformId": "ports",
+      "zipArm64": "vitaquake2-zaero_libretro_android.so.zip",
+      "zipArm32": "vitaquake2-zaero_libretro_android.so.zip",
+      "soInsideZip": "vitaquake2-zaero_libretro_android.so",
+      "jniLibName": "libvitaquake2-zaero_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "wqxemu",
+      "displayName": "Libretro Core (wqxemu)",
+      "platformId": "ports",
+      "zipArm64": "wqxemu_libretro_android.so.zip",
+      "zipArm32": "wqxemu_libretro_android.so.zip",
+      "soInsideZip": "wqxemu_libretro_android.so",
+      "jniLibName": "libwqxemu_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "xenia_edge",
+      "displayName": "Libretro Core (xenia_edge)",
+      "platformId": "ports",
+      "zipArm64": "xenia_edge_libretro_android.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "xenia_edge_libretro_android.so",
+      "jniLibName": "libxenia_edge_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "xrick",
+      "displayName": "Libretro Core (xrick)",
+      "platformId": "ports",
+      "zipArm64": "xrick_libretro_android.so.zip",
+      "zipArm32": "xrick_libretro_android.so.zip",
+      "soInsideZip": "xrick_libretro_android.so",
+      "jniLibName": "libxrick_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "ymir",
+      "displayName": "Libretro Core (ymir)",
+      "platformId": "ports",
+      "zipArm64": "ymir_libretro_android.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "ymir_libretro_android.so",
+      "jniLibName": "libymir_libretro_android.so",
+      "extensions": [
+        "zip",
+        "rom",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "lutro",
+      "displayName": "Lutro 2D Lua Game Framework",
+      "platformId": "ports",
+      "zipArm64": "lutro_libretro_android.so.zip",
+      "zipArm32": "lutro_libretro_android.so.zip",
+      "soInsideZip": "lutro_libretro_android.so",
+      "jniLibName": "liblutro_libretro_android.so",
+      "extensions": [
+        "lutro",
+        "lua"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "tyrquake",
+      "displayName": "Quake (TyrQuake)",
+      "platformId": "ports",
+      "zipArm64": "tyrquake_libretro_android.so.zip",
+      "zipArm32": "tyrquake_libretro_android.so.zip",
+      "soInsideZip": "tyrquake_libretro_android.so",
+      "jniLibName": "libtyrquake_libretro_android.so",
+      "extensions": [
+        "pak"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vitaquake2",
+      "displayName": "Quake II Engine",
+      "platformId": "ports",
+      "zipArm64": "vitaquake2_libretro_android.so.zip",
+      "zipArm32": "vitaquake2_libretro_android.so.zip",
+      "soInsideZip": "vitaquake2_libretro_android.so",
+      "jniLibName": "libvitaquake2_libretro_android.so",
+      "extensions": [
+        "pak"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "play",
+      "displayName": "Sony PlayStation 2 (Play!)",
+      "platformId": "ps2",
+      "zipArm64": "play_libretro_android.so.zip",
+      "zipArm32": "play_libretro_android.so.zip",
+      "soInsideZip": "play_libretro_android.so",
+      "jniLibName": "libplay_libretro_android.so",
+      "extensions": [
+        "iso",
+        "chd",
+        "cso",
+        "isz",
+        "bin",
+        "elf"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "playdiaemu",
+      "displayName": "Sony PlayStation 2 (playdiaemu)",
+      "platformId": "ps2",
+      "zipArm64": "playdiaemu_libretro_android.so.zip",
+      "zipArm32": "playdiaemu_libretro_android.so.zip",
+      "soInsideZip": "playdiaemu_libretro_android.so",
+      "jniLibName": "libplaydiaemu_libretro_android.so",
+      "extensions": [
+        "iso",
+        "chd",
+        "cso"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mednafen_psx_hw",
+      "displayName": "Sony PlayStation (Beetle PSX HW)",
+      "platformId": "psx",
+      "zipArm64": "mednafen_psx_hw_libretro_android.so.zip",
+      "zipArm32": "mednafen_psx_hw_libretro_android.so.zip",
+      "soInsideZip": "mednafen_psx_hw_libretro_android.so",
+      "jniLibName": "libmednafen_psx_hw_libretro_android.so",
+      "extensions": [
+        "cue",
+        "chd",
+        "pbp",
+        "toc",
+        "ccd",
+        "m3u"
+      ],
+      "biosFiles": [
+        "scph5500.bin",
+        "scph5501.bin",
+        "scph5502.bin"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mednafen_psx",
+      "displayName": "Sony PlayStation (Beetle PSX Software)",
+      "platformId": "psx",
+      "zipArm64": "mednafen_psx_libretro_android.so.zip",
+      "zipArm32": "mednafen_psx_libretro_android.so.zip",
+      "soInsideZip": "mednafen_psx_libretro_android.so",
+      "jniLibName": "libmednafen_psx_libretro_android.so",
+      "extensions": [
+        "cue",
+        "chd",
+        "pbp",
+        "toc",
+        "ccd",
+        "m3u"
+      ],
+      "biosFiles": [
+        "scph5500.bin",
+        "scph5501.bin",
+        "scph5502.bin"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "pcsx2",
+      "displayName": "Sony PlayStation (pcsx2)",
+      "platformId": "psx",
+      "zipArm64": "pcsx2_libretro_android.so.zip",
+      "zipArm32": "",
+      "soInsideZip": "pcsx2_libretro_android.so",
+      "jniLibName": "libpcsx2_libretro_android.so",
+      "extensions": [
+        "cue",
+        "chd",
+        "pbp",
+        "bin",
+        "iso"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "easyrpg",
+      "displayName": "RPG Maker 2000 / 2003 (EasyRPG Player)",
+      "platformId": "rpgmaker",
+      "zipArm64": "easyrpg_libretro_android.so.zip",
+      "zipArm32": "easyrpg_libretro_android.so.zip",
+      "soInsideZip": "easyrpg_libretro_android.so",
+      "jniLibName": "libeasyrpg_libretro_android.so",
+      "extensions": [
+        "ldb",
+        "easyrpg",
+        "zip"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mednafen_saturn",
+      "displayName": "Sega Saturn (Beetle Saturn Cycle-Accurate)",
+      "platformId": "saturn",
+      "zipArm64": "mednafen_saturn_libretro_android.so.zip",
+      "zipArm32": "mednafen_saturn_libretro_android.so.zip",
+      "soInsideZip": "mednafen_saturn_libretro_android.so",
+      "jniLibName": "libmednafen_saturn_libretro_android.so",
+      "extensions": [
+        "cue",
+        "chd",
+        "ccd",
+        "toc",
+        "m3u"
+      ],
+      "biosFiles": [
+        "sega_101.bin",
+        "mpr-17933.bin"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "yabasanshiro",
+      "displayName": "Sega Saturn (YabaSanshiro HW GLES3)",
+      "platformId": "saturn",
+      "zipArm64": "yabasanshiro_libretro_android.so.zip",
+      "zipArm32": "yabasanshiro_libretro_android.so.zip",
+      "soInsideZip": "yabasanshiro_libretro_android.so",
+      "jniLibName": "libyabasanshiro_libretro_android.so",
+      "extensions": [
+        "cue",
+        "chd",
+        "iso",
+        "ccd",
+        "mds"
+      ],
+      "biosFiles": [
+        "saturn_bios.bin"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "yabause",
+      "displayName": "Sega Saturn (Yabause)",
+      "platformId": "saturn",
+      "zipArm64": "yabause_libretro_android.so.zip",
+      "zipArm32": "yabause_libretro_android.so.zip",
+      "soInsideZip": "yabause_libretro_android.so",
+      "jniLibName": "libyabause_libretro_android.so",
+      "extensions": [
+        "cue",
+        "chd",
+        "iso",
+        "mds"
+      ],
+      "biosFiles": [
+        "saturn_bios.bin"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "scummvm",
+      "displayName": "ScummVM Adventure Engines",
+      "platformId": "scummvm",
+      "zipArm64": "scummvm_libretro_android.so.zip",
+      "zipArm32": "scummvm_libretro_android.so.zip",
+      "soInsideZip": "scummvm_libretro_android.so",
+      "jniLibName": "libscummvm_libretro_android.so",
+      "extensions": [
+        "scummvm",
+        "zip"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "snes9x2005",
+      "displayName": "Super Nintendo (Snes9x 2005 Low-Power)",
+      "platformId": "snes",
+      "zipArm64": "snes9x2005_libretro_android.so.zip",
+      "zipArm32": "snes9x2005_libretro_android.so.zip",
+      "soInsideZip": "snes9x2005_libretro_android.so",
+      "jniLibName": "libsnes9x2005_libretro_android.so",
+      "extensions": [
+        "sfc",
+        "smc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "snes9x2010",
+      "displayName": "Super Nintendo (Snes9x 2010 Fast)",
+      "platformId": "snes",
+      "zipArm64": "snes9x2010_libretro_android.so.zip",
+      "zipArm32": "snes9x2010_libretro_android.so.zip",
+      "soInsideZip": "snes9x2010_libretro_android.so",
+      "jniLibName": "libsnes9x2010_libretro_android.so",
+      "extensions": [
+        "sfc",
+        "smc",
+        "swc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": true
+    },
+    {
+      "id": "bsnes",
+      "displayName": "Super Nintendo (bsnes Accuracy)",
+      "platformId": "snes",
+      "zipArm64": "bsnes_libretro_android.so.zip",
+      "zipArm32": "bsnes_libretro_android.so.zip",
+      "soInsideZip": "bsnes_libretro_android.so",
+      "jniLibName": "libbsnes_libretro_android.so",
+      "extensions": [
+        "sfc",
+        "smc",
+        "bs"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "bsnes-jg",
+      "displayName": "Super Nintendo (bsnes-jg)",
+      "platformId": "snes",
+      "zipArm64": "bsnes-jg_libretro_android.so.zip",
+      "zipArm32": "bsnes-jg_libretro_android.so.zip",
+      "soInsideZip": "bsnes-jg_libretro_android.so",
+      "jniLibName": "libbsnes-jg_libretro_android.so",
+      "extensions": [
+        "sfc",
+        "smc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "bsnes2014_accuracy",
+      "displayName": "Super Nintendo (bsnes2014_accuracy)",
+      "platformId": "snes",
+      "zipArm64": "bsnes2014_accuracy_libretro_android.so.zip",
+      "zipArm32": "bsnes2014_accuracy_libretro_android.so.zip",
+      "soInsideZip": "bsnes2014_accuracy_libretro_android.so",
+      "jniLibName": "libbsnes2014_accuracy_libretro_android.so",
+      "extensions": [
+        "sfc",
+        "smc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "bsnes2014_balanced",
+      "displayName": "Super Nintendo (bsnes2014_balanced)",
+      "platformId": "snes",
+      "zipArm64": "bsnes2014_balanced_libretro_android.so.zip",
+      "zipArm32": "bsnes2014_balanced_libretro_android.so.zip",
+      "soInsideZip": "bsnes2014_balanced_libretro_android.so",
+      "jniLibName": "libbsnes2014_balanced_libretro_android.so",
+      "extensions": [
+        "sfc",
+        "smc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "bsnes2014_performance",
+      "displayName": "Super Nintendo (bsnes2014_performance)",
+      "platformId": "snes",
+      "zipArm64": "bsnes2014_performance_libretro_android.so.zip",
+      "zipArm32": "bsnes2014_performance_libretro_android.so.zip",
+      "soInsideZip": "bsnes2014_performance_libretro_android.so",
+      "jniLibName": "libbsnes2014_performance_libretro_android.so",
+      "extensions": [
+        "sfc",
+        "smc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "bsnes_cplusplus98",
+      "displayName": "Super Nintendo (bsnes_cplusplus98)",
+      "platformId": "snes",
+      "zipArm64": "bsnes_cplusplus98_libretro_android.so.zip",
+      "zipArm32": "bsnes_cplusplus98_libretro_android.so.zip",
+      "soInsideZip": "bsnes_cplusplus98_libretro_android.so",
+      "jniLibName": "libbsnes_cplusplus98_libretro_android.so",
+      "extensions": [
+        "sfc",
+        "smc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "bsnes_hd_beta",
+      "displayName": "Super Nintendo (bsnes_hd_beta)",
+      "platformId": "snes",
+      "zipArm64": "bsnes_hd_beta_libretro_android.so.zip",
+      "zipArm32": "bsnes_hd_beta_libretro_android.so.zip",
+      "soInsideZip": "bsnes_hd_beta_libretro_android.so",
+      "jniLibName": "libbsnes_hd_beta_libretro_android.so",
+      "extensions": [
+        "sfc",
+        "smc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "bsnes_mercury_accuracy",
+      "displayName": "Super Nintendo (bsnes_mercury_accuracy)",
+      "platformId": "snes",
+      "zipArm64": "bsnes_mercury_accuracy_libretro_android.so.zip",
+      "zipArm32": "bsnes_mercury_accuracy_libretro_android.so.zip",
+      "soInsideZip": "bsnes_mercury_accuracy_libretro_android.so",
+      "jniLibName": "libbsnes_mercury_accuracy_libretro_android.so",
+      "extensions": [
+        "sfc",
+        "smc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "bsnes_mercury_balanced",
+      "displayName": "Super Nintendo (bsnes_mercury_balanced)",
+      "platformId": "snes",
+      "zipArm64": "bsnes_mercury_balanced_libretro_android.so.zip",
+      "zipArm32": "bsnes_mercury_balanced_libretro_android.so.zip",
+      "soInsideZip": "bsnes_mercury_balanced_libretro_android.so",
+      "jniLibName": "libbsnes_mercury_balanced_libretro_android.so",
+      "extensions": [
+        "sfc",
+        "smc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "bsnes_mercury_performance",
+      "displayName": "Super Nintendo (bsnes_mercury_performance)",
+      "platformId": "snes",
+      "zipArm64": "bsnes_mercury_performance_libretro_android.so.zip",
+      "zipArm32": "bsnes_mercury_performance_libretro_android.so.zip",
+      "soInsideZip": "bsnes_mercury_performance_libretro_android.so",
+      "jniLibName": "libbsnes_mercury_performance_libretro_android.so",
+      "extensions": [
+        "sfc",
+        "smc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mednafen_snes",
+      "displayName": "Super Nintendo (mednafen_snes)",
+      "platformId": "snes",
+      "zipArm64": "mednafen_snes_libretro_android.so.zip",
+      "zipArm32": "mednafen_snes_libretro_android.so.zip",
+      "soInsideZip": "mednafen_snes_libretro_android.so",
+      "jniLibName": "libmednafen_snes_libretro_android.so",
+      "extensions": [
+        "sfc",
+        "smc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mednafen_supafaust",
+      "displayName": "Super Nintendo (mednafen_supafaust)",
+      "platformId": "snes",
+      "zipArm64": "mednafen_supafaust_libretro_android.so.zip",
+      "zipArm32": "mednafen_supafaust_libretro_android.so.zip",
+      "soInsideZip": "mednafen_supafaust_libretro_android.so",
+      "jniLibName": "libmednafen_supafaust_libretro_android.so",
+      "extensions": [
+        "sfc",
+        "smc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "snes9x2002",
+      "displayName": "Super Nintendo (snes9x2002)",
+      "platformId": "snes",
+      "zipArm64": "snes9x2002_libretro_android.so.zip",
+      "zipArm32": "snes9x2002_libretro_android.so.zip",
+      "soInsideZip": "snes9x2002_libretro_android.so",
+      "jniLibName": "libsnes9x2002_libretro_android.so",
+      "extensions": [
+        "sfc",
+        "smc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "snes9x2005_plus",
+      "displayName": "Super Nintendo (snes9x2005_plus)",
+      "platformId": "snes",
+      "zipArm64": "snes9x2005_plus_libretro_android.so.zip",
+      "zipArm32": "snes9x2005_plus_libretro_android.so.zip",
+      "soInsideZip": "snes9x2005_plus_libretro_android.so",
+      "jniLibName": "libsnes9x2005_plus_libretro_android.so",
+      "extensions": [
+        "sfc",
+        "smc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mesen-s",
+      "displayName": "Super Nintendo / Super Game Boy (Mesen-S)",
+      "platformId": "snes",
+      "zipArm64": "mesen-s_libretro_android.so.zip",
+      "zipArm32": "mesen-s_libretro_android.so.zip",
+      "soInsideZip": "mesen-s_libretro_android.so",
+      "jniLibName": "libmesen-s_libretro_android.so",
+      "extensions": [
+        "sfc",
+        "smc",
+        "gb",
+        "gbc"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "vecx",
+      "displayName": "GCE Vectrex (vecx)",
+      "platformId": "vectrex",
+      "zipArm64": "vecx_libretro_android.so.zip",
+      "zipArm32": "vecx_libretro_android.so.zip",
+      "soInsideZip": "vecx_libretro_android.so",
+      "jniLibName": "libvecx_libretro_android.so",
+      "extensions": [
+        "vec",
+        "bin",
+        "gam"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "mednafen_vb",
+      "displayName": "Nintendo Virtual Boy",
+      "platformId": "virtualboy",
+      "zipArm64": "mednafen_vb_libretro_android.so.zip",
+      "zipArm32": "mednafen_vb_libretro_android.so.zip",
+      "soInsideZip": "mednafen_vb_libretro_android.so",
+      "jniLibName": "libmednafen_vb_libretro_android.so",
+      "extensions": [
+        "vb",
+        "vboy",
+        "bin"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "x1",
+      "displayName": "Sharp X1",
+      "platformId": "x1",
+      "zipArm64": "x1_libretro_android.so.zip",
+      "zipArm32": "x1_libretro_android.so.zip",
+      "soInsideZip": "x1_libretro_android.so",
+      "jniLibName": "libx1_libretro_android.so",
+      "extensions": [
+        "dx1",
+        "2d",
+        "2hd",
+        "tfd",
+        "d88",
+        "tap"
+      ],
+      "biosFiles": [
+        "xmil/IPLROM.X1"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "px68k",
+      "displayName": "Sharp X68000 (PX68K)",
+      "platformId": "x68000",
+      "zipArm64": "px68k_libretro_android.so.zip",
+      "zipArm32": "px68k_libretro_android.so.zip",
+      "soInsideZip": "px68k_libretro_android.so",
+      "jniLibName": "libpx68k_libretro_android.so",
+      "extensions": [
+        "dim",
+        "img",
+        "d88",
+        "88d",
+        "hdm",
+        "dup",
+        "2hd",
+        "xdf",
+        "hdf",
+        "cmd",
+        "m3u"
+      ],
+      "biosFiles": [
+        "keropi/iplrom.dat",
+        "keropi/cgrom.dat"
+      ],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "81",
+      "displayName": "Sinclair ZX81 (EightyOne)",
+      "platformId": "zx81",
+      "zipArm64": "81_libretro_android.so.zip",
+      "zipArm32": "81_libretro_android.so.zip",
+      "soInsideZip": "81_libretro_android.so",
+      "jniLibName": "lib81_libretro_android.so",
+      "extensions": [
+        "p",
+        "tzx",
+        "t81"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    },
+    {
+      "id": "fuse",
+      "displayName": "ZX Spectrum 48K / 128K / Pentagon (Fuse)",
+      "platformId": "zxspectrum",
+      "zipArm64": "fuse_libretro_android.so.zip",
+      "zipArm32": "fuse_libretro_android.so.zip",
+      "soInsideZip": "fuse_libretro_android.so",
+      "jniLibName": "libfuse_libretro_android.so",
+      "extensions": [
+        "tzx",
+        "tap",
+        "z80",
+        "sna",
+        "scl",
+        "trd",
+        "dsk"
+      ],
+      "biosFiles": [],
+      "recommended": false,
+      "prebundledArm64": false,
+      "prebundledArm32": false
+    }
+  ]
+}

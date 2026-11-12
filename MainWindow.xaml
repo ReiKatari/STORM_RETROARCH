@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:StormRetroArch"
         x:Name="RootWindow"
-        Title="STORM RETROARCH 2.4.0"
+        Title="STORM RETROARCH 2.5.0"
         Width="1500" Height="890"
         MinWidth="960" MinHeight="620"
         WindowStartupLocation="CenterScreen"
@@ -848,7 +848,7 @@
                 <!-- Left: App Icon & Title with REQUIRED Margin="10,0,24,0" + Engine Status Pill -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Image Source="app_icon.png" Width="22" Height="22" Margin="0,0,8,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                    <TextBlock Text="STORM RETROARCH 2.4.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,24,0"/>
+                    <TextBlock Text="STORM RETROARCH 2.5.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,24,0"/>
 
                     <!-- Engine Status Pill -->
                     <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="12" Padding="8,3" VerticalAlignment="Center">
@@ -1076,7 +1076,7 @@
                     <!-- Sidebar Footer: Version -->
                     <Border DockPanel.Dock="Bottom" Background="#14FFFFFF" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,1,0,0" Padding="12,8">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                            <TextBlock Text="STORM RETROARCH 2.4.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" FontWeight="SemiBold"/>
+                            <TextBlock Text="STORM RETROARCH 2.5.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" FontWeight="SemiBold"/>
                         </StackPanel>
                     </Border>
 
@@ -1646,7 +1646,7 @@
                                         </Grid>
 
                                         <!-- Active Game & Live Core Switcher Bar -->
-                                        <!-- 2.4.0 Active Input Device Bar -->
+                                        <!-- 2.5.0 Active Input Device Bar -->
                                         <Border DockPanel.Dock="Top" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="0,0,0,10">
                                             <DockPanel LastChildFill="True">
                                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
@@ -2011,7 +2011,7 @@
                                             </Button>
                                         </StackPanel>
                                         <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Text="Командный центр STORM RETROARCH 2.4.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="21" FontWeight="Bold" Margin="0,0,0,3"/>
+                                            <TextBlock Text="Командный центр STORM RETROARCH 2.5.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="21" FontWeight="Bold" Margin="0,0,0,3"/>
                                             <TextBlock Text="Быстрые переходы, оперативная настройка движка Libretro, управление сохранениями и перестраиваемые панели" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5"/>
                                         </StackPanel>
                                     </DockPanel>
@@ -2199,7 +2199,7 @@
                                     <!-- 2.0.0 Hardware Strip (OpenGL HW Render, WASAPI 15 мс, DRC VRR, Gamepad UI Nav) -->
                                     <Border Background="{DynamicResource ThemeHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="12,7" Margin="0,8,0,0">
                                         <WrapPanel VerticalAlignment="Center">
-                                            <TextBlock Text="Аппаратный стек 2.4.0:" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                                            <TextBlock Text="Аппаратный стек 2.5.0:" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,14,0"/>
                                             <CheckBox x:Name="ChkMainHwRender" Content="Аппаратный 3D Vulkan / D3D11-12 / GLCore" IsChecked="True" Margin="0,0,16,0" Checked="ChkMainHwRender_Changed" Unchecked="ChkMainHwRender_Changed"/>
                                             <CheckBox x:Name="ChkMainWasapi" Content="Звук WASAPI (15 мс)" IsChecked="True" Margin="0,0,16,0" Checked="ChkMainWasapi_Changed" Unchecked="ChkMainWasapi_Changed"/>
                                             <CheckBox x:Name="ChkMainDrc" Content="Синхронизация DRC (VRR / 120 Гц)" IsChecked="True" Margin="0,0,16,0" Checked="ChkMainDrc_Changed" Unchecked="ChkMainDrc_Changed"/>
@@ -4874,7 +4874,7 @@
                                 </StackPanel>
                             </Border>
 
-<!-- BdrMegaBezelOnlineHub (2.4.0) -->
+<!-- BdrMegaBezelOnlineHub (2.5.0) -->
                             <Border x:Name="BdrMegaBezelOnlineHub" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="0,0,0,12">
                                 <StackPanel>
                                     <!-- Top DockPanel -->
@@ -5951,7 +5951,7 @@
         <Border x:Name="BottomFooterBorder" Grid.Row="4" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,1,0,0" Padding="12,0">
             <DockPanel LastChildFill="True">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                    <TextBlock Text="STORM RETROARCH 2.4.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                    <TextBlock Text="STORM RETROARCH 2.5.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,14,0"/>
                     <TextBlock Text="100% LIBRETRO COMPATIBLE" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center"/>
                 </StackPanel>
                 <TextBlock x:Name="TxtFooterStatus" Text="Готово к работе" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center"/>
@@ -6049,7 +6049,7 @@
                     <DockPanel Margin="0,0,0,14">
                         <Image Source="app_icon.png" Width="44" Height="44" Margin="0,0,14,0" RenderOptions.BitmapScalingMode="HighQuality"/>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="STORM RETROARCH 2.4.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="18" FontWeight="Bold"/>
+                            <TextBlock Text="STORM RETROARCH 2.5.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="18" FontWeight="Bold"/>
                             <TextBlock Text="STORM AURORA FLUID UNIFIED DESIGN SYSTEM" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="11" FontWeight="SemiBold"/>
                         </StackPanel>
                     </DockPanel>

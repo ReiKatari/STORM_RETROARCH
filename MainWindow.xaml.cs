@@ -330,7 +330,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }));
         };
 
-        // 2.4.0 Multi-Device Input Engine & Controller Hotkey Studio
+        // 2.5.0 Multi-Device Input Engine & Controller Hotkey Studio
         DeviceInputProfileEngine.Initialize();
         DeviceInputProfileEngine.OnDeviceProfileActivated += (dev, msg) =>
         {
@@ -2958,7 +2958,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (!match) continue;
             }
 
-            // 2.0.0 / 2.4.0 Smart Collections filter
+            // 2.0.0 / 2.5.0 Smart Collections filter
             if (_selectedSmartCollection == "Избранное")
             {
                 if (!g.IsFavorite) continue;

@@ -24,9 +24,13 @@ android {
 
     defaultConfig {
         applicationId = "com.storm.retroarch"
-        targetSdk = 36
-        versionCode = 240
-        versionName = "2.4.0"
+        minSdk = 26
+        // Official sideload RetroArch_aarch64 strategy: targetSdk = 28 places APK in untrusted_app_27 SELinux domain
+        // on Android 10-16, permitting dlopen() on downloaded Libretro .so cores inside context.filesDir/cores/.
+        //noinspection ExpiredTargetSdkVersion,OldTargetApi
+        targetSdk = 28
+        versionCode = 250
+        versionName = "2.5.0"
 
         externalNativeBuild {
             cmake {
@@ -34,6 +38,16 @@ android {
                 arguments += listOf("-DANDROID_STL=c++_shared")
             }
         }
+    }
+
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+        disable += setOf("ExpiredTargetSdkVersion", "OldTargetApi")
+    }
+
+    androidResources {
+        noCompress += listOf("zip", "gz", "cht", "so")
     }
 
     externalNativeBuild {
@@ -69,7 +83,7 @@ android {
         }
         create("legacy") {
             dimension = "edition"
-            minSdk = 21
+            minSdk = 26
             ndk {
                 abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
             }
@@ -89,6 +103,7 @@ android {
 
     packaging {
         jniLibs {
+            // Extracts pre-bundled jniLibs/<abi>/lib*_android.so directly to nativeLibraryDir (apk_data_file SELinux)
             useLegacyPackaging = true
         }
     }
@@ -104,4 +119,7 @@ android {
 }
 
 dependencies {
+    implementation("androidx.activity:activity-ktx:1.8.1")
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.documentfile:documentfile:1.0.1")
 }

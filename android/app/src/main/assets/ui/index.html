@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ru" data-storm-theme="MIDNIGHT" data-storm-accent="VIOLET" data-storm-font="Inter">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0D0B18">
+  <title>STORM RETROARCH 2.5.0</title>
+  <link rel="stylesheet" href="studio.css">
+</head>
+<body>
+  <div class="studio-shell" id="studioShell">
+    <!-- Landscape / Console Handheld Left Navigation Rail (>= 760px) -->
+    <aside class="handheld-rail" id="handheldRail" aria-label="STORM Studio Navigation">
+      <div class="rail-brand">
+        <div class="brand-emblem" aria-hidden="true">
+          <svg class="ico ico-lg" viewBox="0 0 24 24">
+            <polygon points="13 2 4 14 11 14 10 22 20 10 13 10 13 2"></polygon>
+          </svg>
+        </div>
+        <div class="brand-text-wrap">
+          <div class="brand-title"><span class="storm-word">STORM</span> RETROARCH</div>
+          <div class="brand-sub-row">
+            <span class="version-pill">2.5.0</span>
+            <span class="core-ready-pill" id="railCoreReady">
+              <span class="ready-dot"></span>
+              <span id="railReadyLabel">20 Ready</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <nav class="rail-nav-list" id="railNavList"></nav>
+
+      <div class="rail-hint">
+        <span id="railPadHint">L1 / R1 - Модули</span>
+        <span class="version-pill" id="railPadCount">D-PAD</span>
+      </div>
+    </aside>
+
+    <!-- Main Studio Column -->
+    <div class="studio-main-col">
+      <!-- Sticky Translucent Glass Top Header -->
+      <header class="top-glass-header" id="topGlassHeader">
+        <div class="header-top-row">
+          <div class="header-brand-cluster">
+            <div class="brand-emblem header-brand-mobile-only" aria-hidden="true">
+              <svg class="ico" viewBox="0 0 24 24">
+                <polygon points="13 2 4 14 11 14 10 22 20 10 13 10 13 2"></polygon>
+              </svg>
+            </div>
+            <div class="brand-text-wrap">
+              <div class="brand-title">
+                <span class="storm-word">STORM</span> RETROARCH
+              </div>
+              <div class="brand-sub-row">
+                <span class="version-pill">2.5.0</span>
+                <span class="core-ready-pill" id="headerCoreReady">
+                  <span class="ready-dot"></span>
+                  <span id="headerReadyLabel">20 ядер готово</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="header-actions-cluster">
+            <button type="button" class="icon-btn-3d" id="btnQuickSearch" data-action="quick-search" aria-label="Поиск игры">
+              <svg class="ico" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="7"></circle>
+                <line x1="20" y1="20" x2="16.2" y2="16.2"></line>
+              </svg>
+            </button>
+            <button type="button" class="icon-btn-3d" id="btnQuickScan" data-action="pick-rom-folder" aria-label="Сканировать папку">
+              <svg class="ico" viewBox="0 0 24 24">
+                <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"></path>
+                <line x1="12" y1="11" x2="12" y2="16"></line>
+                <line x1="9.5" y1="13.5" x2="14.5" y2="13.5"></line>
+              </svg>
+            </button>
+            <button type="button" class="icon-btn-3d" id="btnOpenStudioHub" data-action="open-studio-hub" aria-label="Все модули студии">
+              <svg class="ico" viewBox="0 0 24 24">
+                <rect x="3" y="3" width="7" height="7" rx="1.8"></rect>
+                <rect x="14" y="3" width="7" height="7" rx="1.8"></rect>
+                <rect x="3" y="14" width="7" height="7" rx="1.8"></rect>
+                <rect x="14" y="14" width="7" height="7" rx="1.8"></rect>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Portrait 1-Tap Horizontal Quick-Module Pills (All 12 Studio Sections) -->
+        <div class="quick-module-strip" id="quickModuleStrip" role="tablist" aria-label="Быстрый выбор модуля"></div>
+      </header>
+
+      <!-- Active Module Viewport -->
+      <main class="studio-viewport" id="studioViewport" tabindex="-1"></main>
+    </div>
+
+    <!-- Portrait Floating Sculpted Glass Bottom Dock (< 760px) -->
+    <nav class="bottom-glass-dock" id="bottomGlassDock" aria-label="Главная навигация"></nav>
+  </div>
+
+  <!-- Studio Bento Hub Drawer (All 12 Modules in 1 Tap) -->
+  <div class="modal-backdrop" id="studioHubModal" hidden>
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="studioHubTitle">
+      <div class="sheet-handle"></div>
+      <div id="studioHubContent"></div>
+    </div>
+  </div>
+
+  <!-- Game Inspector Bottom Sheet -->
+  <div class="modal-backdrop" id="gameInspectorModal" hidden>
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="inspectorGameTitle">
+      <div class="sheet-handle"></div>
+      <div id="gameInspectorContent"></div>
+    </div>
+  </div>
+
+  <!-- Core Options Modal -->
+  <div class="modal-backdrop" id="coreOptionsModal" hidden>
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="coreOptionsTitle">
+      <div class="sheet-handle"></div>
+      <div id="coreOptionsContent"></div>
+    </div>
+  </div>
+
+  <!-- Floating Toast Stack -->
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+  <script src="studio.js"></script>
+</body>
+</html>

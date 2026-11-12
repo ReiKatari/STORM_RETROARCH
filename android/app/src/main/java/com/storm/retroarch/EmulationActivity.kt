@@ -5,17 +5,23 @@ import android.app.Dialog
 import android.app.GameManager
 import android.app.GameState
 import android.content.Context
+import android.content.SharedPreferences
+import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.os.VibrationEffect
@@ -26,6 +32,7 @@ import android.view.Gravity
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
@@ -34,14 +41,14 @@ import android.view.Window
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
-import android.widget.Button
-import android.widget.CheckBox
+import android.view.animation.DecelerateInterpolator
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import java.io.File
@@ -51,6 +58,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.pow
 import kotlin.math.roundToInt
 
 class EmulationActivity : Activity() {
@@ -65,7 +73,12 @@ class EmulationActivity : Activity() {
         const val EXTRA_ACCENT_IDX = "accent_idx"
         const val EXTRA_LANG_CODE = "lang_code"
 
-        private const val PREFS_EMU = "storm_retroarch_emu_prefs"
+        private const val PREFS_UNIFIED = "storm_retroarch_prefs"
+        private const val PREFS_EMU_LEGACY = "storm_retroarch_emu_prefs"
+
+        private const val GYRO_OFF = 0
+        private const val GYRO_LEFT_STICK = 1
+        private const val GYRO_RIGHT_STICK = 2
     }
 
     private lateinit var rootLayout: FrameLayout
@@ -95,6 +108,11 @@ class EmulationActivity : Activity() {
     @Volatile private var coreLoadedOk = false
     @Volatile private var fastForwardMultiplier = 1
     @Volatile private var rewindHeld = false
+    @Volatile private var rewindEnabled = true
+    @Volatile private var highRefresh120Hz = true
+    @Volatile private var audioGainDb = 0f
+    @Volatile private var audioGainLinear = 1.0f
+    @Volatile private var frameSkip = 0
     @Volatile private var activeSaveSlot = 0
 
     private var emuThread: Thread? = null
@@ -105,14 +123,99 @@ class EmulationActivity : Activity() {
     private var selectButtonHeld = false
     private var prevMotionBitmask = 0
 
+    // Gyroscope Tilt-to-Stick sensor state
+    private var sensorManager: SensorManager? = null
+    private var gyroSensor: Sensor? = null
+    private var gyroRegistered = false
+    private var gyroTiltMode = GYRO_OFF
+    private var gyroCalibrated = false
+    private var gyroBasePitch = 0f
+    private var gyroBaseRoll = 0f
+    private var gyroFilteredX = 0f
+    private var gyroFilteredY = 0f
+    private val rotMatrix = FloatArray(9)
+    private val remappedRotMatrix = FloatArray(9)
+    private val orientAngles = FloatArray(3)
+
     // Cheats & RAM Scanner state
     private var gameCheatFile: File? = null
     private val gameCheatEntries = ArrayList<MobileCheatEntry>()
     private var ramScanWidthBytes = 2
     private val frozenRamAddresses = HashSet<Int>()
 
-    // Active quick drawer
+    // Active quick studio overlay
     private var quickDrawerDialog: Dialog? = null
+    private var lastAppliedSurfaceHeight = -1
+
+    private val gyroSensorListener = object : SensorEventListener {
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+        override fun onSensorChanged(event: SensorEvent) {
+            if (gyroTiltMode == GYRO_OFF || emuPaused || !coreLoadedOk || !NativeLibretroBridge.isLibraryLoaded) return
+            val pitch: Float
+            val roll: Float
+
+            if (event.sensor.type == Sensor.TYPE_GAME_ROTATION_VECTOR || event.sensor.type == Sensor.TYPE_ROTATION_VECTOR) {
+                SensorManager.getRotationMatrixFromVector(rotMatrix, event.values)
+                val dispRot = getDisplayRotationSafe()
+                when (dispRot) {
+                    Surface.ROTATION_90 -> SensorManager.remapCoordinateSystem(rotMatrix, SensorManager.AXIS_Y, SensorManager.AXIS_MINUS_X, remappedRotMatrix)
+                    Surface.ROTATION_180 -> SensorManager.remapCoordinateSystem(rotMatrix, SensorManager.AXIS_MINUS_X, SensorManager.AXIS_MINUS_Y, remappedRotMatrix)
+                    Surface.ROTATION_270 -> SensorManager.remapCoordinateSystem(rotMatrix, SensorManager.AXIS_MINUS_Y, SensorManager.AXIS_X, remappedRotMatrix)
+                    else -> System.arraycopy(rotMatrix, 0, remappedRotMatrix, 0, 9)
+                }
+                SensorManager.getOrientation(remappedRotMatrix, orientAngles)
+                pitch = orientAngles[1] // Forward / back tilt in radians
+                roll = orientAngles[2]  // Left / right tilt in radians
+            } else if (event.sensor.type == Sensor.TYPE_ACCELEROMETER && event.values.size >= 3) {
+                val dispRot = getDisplayRotationSafe()
+                val ax = event.values[0]
+                val ay = event.values[1]
+                val rawX: Float
+                val rawY: Float
+                when (dispRot) {
+                    Surface.ROTATION_90 -> { rawX = ay; rawY = ax }
+                    Surface.ROTATION_270 -> { rawX = -ay; rawY = -ax }
+                    Surface.ROTATION_180 -> { rawX = ax; rawY = -ay }
+                    else -> { rawX = -ax; rawY = ay }
+                }
+                roll = (rawX / 9.81f).coerceIn(-1f, 1f) * 0.55f
+                pitch = (rawY / 9.81f).coerceIn(-1f, 1f) * 0.55f
+            } else {
+                return
+            }
+
+            if (!gyroCalibrated) {
+                gyroBasePitch = pitch
+                gyroBaseRoll = roll
+                gyroCalibrated = true
+            }
+
+            // Full deflection at ~24 degrees (0.42 rad) tilt from comfortable resting posture
+            val maxTiltRad = 0.42f
+            val targetX = ((roll - gyroBaseRoll) / maxTiltRad).coerceIn(-1f, 1f)
+            val targetY = (-(pitch - gyroBasePitch) / maxTiltRad).coerceIn(-1f, 1f)
+
+            gyroFilteredX += (targetX - gyroFilteredX) * 0.34f
+            gyroFilteredY += (targetY - gyroFilteredY) * 0.34f
+
+            val deadzone = 0.08f
+            val normX = if (abs(gyroFilteredX) < deadzone) 0f else gyroFilteredX
+            val normY = if (abs(gyroFilteredY) < deadzone) 0f else gyroFilteredY
+
+            val stickIdx = if (gyroTiltMode == GYRO_RIGHT_STICK) {
+                NativeLibretroBridge.RETRO_DEVICE_INDEX_ANALOG_RIGHT
+            } else {
+                NativeLibretroBridge.RETRO_DEVICE_INDEX_ANALOG_LEFT
+            }
+
+            val axisX = (normX * 32767f).roundToInt().coerceIn(-32767, 32767)
+            val axisY = (normY * 32767f).roundToInt().coerceIn(-32767, 32767)
+            NativeLibretroBridge.nativeSetAnalog(0, stickIdx, NativeLibretroBridge.RETRO_DEVICE_ID_ANALOG_X, axisX)
+            NativeLibretroBridge.nativeSetAnalog(0, stickIdx, NativeLibretroBridge.RETRO_DEVICE_ID_ANALOG_Y, axisY)
+            touchOverlay.setGyroStickPreview(stickIdx, normX, normY)
+        }
+    }
 
     private val fpsHudUpdater = object : Runnable {
         override fun run() {
@@ -121,12 +224,14 @@ class EmulationActivity : Activity() {
                 val fps = if (NativeLibretroBridge.isLibraryLoaded) {
                     NativeLibretroBridge.nativeGetMeasuredFps()
                 } else 0.0
+                val ms = if (fps > 1.0) 1000.0 / fps else 0.0
                 val modeTag = when {
-                    rewindHeld -> " • REW"
-                    fastForwardMultiplier > 1 -> " • ${fastForwardMultiplier}x"
+                    rewindHeld -> " | REW"
+                    fastForwardMultiplier > 1 -> " | ${fastForwardMultiplier}X"
+                    touchOverlay.isTurboLatchActive -> " | TURBO"
                     else -> ""
                 }
-                fpsHudText.text = String.format(Locale.US, "%.1f FPS • %s%s", fps, coreName, modeTag)
+                fpsHudText.text = String.format(Locale.US, "%.1f FPS (%.1f ms) | %s%s", fps, ms, coreName, modeTag)
             }
             mainHandler.postDelayed(this, 500L)
         }
@@ -159,7 +264,9 @@ class EmulationActivity : Activity() {
             }
         }
 
+        loadUnifiedSharedSettings()
         ensureDirectories()
+
         val rawFile = File(romPath)
         romBaseStem = rawFile.nameWithoutExtension.ifBlank { sanitizeName(romName) }
         effectiveRomPath = if (rawFile.exists()) {
@@ -168,12 +275,200 @@ class EmulationActivity : Activity() {
             romPath
         }
 
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+        gyroSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
+            ?: sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+            ?: sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+
         configureImmersiveAndRefreshRate()
         setAndroidGameModeState(isInterruptible = false)
         buildActivityLayout()
         detectInitialControllerPresence()
+        updateGyroRegistration()
         startEmulationEngine()
         mainHandler.postDelayed(fpsHudUpdater, 500L)
+    }
+
+    // === Unified SharedPreferences Reader & Sync ("storm_retroarch_prefs" + Legacy Fallback) ===
+
+    private fun unifiedPrefs(): SharedPreferences = getSharedPreferences(PREFS_UNIFIED, Context.MODE_PRIVATE)
+    private fun legacyPrefs(): SharedPreferences = getSharedPreferences(PREFS_EMU_LEGACY, Context.MODE_PRIVATE)
+
+    private fun readPrefBool(primaryKey: String, legacyKey: String, defaultVal: Boolean): Boolean {
+        val up = unifiedPrefs()
+        if (up.contains(primaryKey)) {
+            val raw = up.all[primaryKey]
+            return when (raw) {
+                is Boolean -> raw
+                is String -> raw.equals("true", ignoreCase = true) || raw == "1"
+                is Number -> raw.toInt() != 0
+                else -> defaultVal
+            }
+        }
+        val lp = legacyPrefs()
+        if (lp.contains(legacyKey)) return lp.getBoolean(legacyKey, defaultVal)
+        return defaultVal
+    }
+
+    private fun readPrefFloat(primaryKey: String, defaultVal: Float): Float {
+        val raw = unifiedPrefs().all[primaryKey] ?: return defaultVal
+        return when (raw) {
+            is Float -> raw
+            is Double -> raw.toFloat()
+            is Int -> raw.toFloat()
+            is Long -> raw.toFloat()
+            is String -> raw.toFloatOrNull() ?: defaultVal
+            else -> defaultVal
+        }
+    }
+
+    private fun readPrefInt(primaryKey: String, defaultVal: Int): Int {
+        val raw = unifiedPrefs().all[primaryKey] ?: return defaultVal
+        return when (raw) {
+            is Int -> raw
+            is Long -> raw.toInt()
+            is Float -> raw.roundToInt()
+            is Double -> raw.roundToInt()
+            is String -> raw.toIntOrNull() ?: defaultVal
+            else -> defaultVal
+        }
+    }
+
+    private fun resolveGyroModeFromPrefs(): Int {
+        val raw = unifiedPrefs().all["gyroTiltStick"] ?: return GYRO_OFF
+        return when (raw) {
+            is Boolean -> if (raw) GYRO_LEFT_STICK else GYRO_OFF
+            is Number -> when (raw.toInt()) {
+                1 -> GYRO_LEFT_STICK
+                2 -> GYRO_RIGHT_STICK
+                else -> GYRO_OFF
+            }
+            is String -> {
+                val s = raw.trim().lowercase(Locale.ROOT)
+                when {
+                    s == "right" || s == "r" || s.contains("прав") -> GYRO_RIGHT_STICK
+                    s == "left" || s == "l" || s == "true" || s == "on" || s.contains("лев") -> GYRO_LEFT_STICK
+                    else -> GYRO_OFF
+                }
+            }
+            else -> GYRO_OFF
+        }
+    }
+
+    private fun persistGyroMode(mode: Int) {
+        gyroTiltMode = mode
+        gyroCalibrated = false
+        gyroFilteredX = 0f
+        gyroFilteredY = 0f
+        val strVal = when (mode) {
+            GYRO_LEFT_STICK -> "left"
+            GYRO_RIGHT_STICK -> "right"
+            else -> "off"
+        }
+        unifiedPrefs().edit().putString("gyroTiltStick", strVal).apply()
+        if (mode == GYRO_OFF && coreLoadedOk && NativeLibretroBridge.isLibraryLoaded) {
+            NativeLibretroBridge.nativeSetAnalog(0, 0, NativeLibretroBridge.RETRO_DEVICE_ID_ANALOG_X, 0)
+            NativeLibretroBridge.nativeSetAnalog(0, 0, NativeLibretroBridge.RETRO_DEVICE_ID_ANALOG_Y, 0)
+            NativeLibretroBridge.nativeSetAnalog(0, 1, NativeLibretroBridge.RETRO_DEVICE_ID_ANALOG_X, 0)
+            NativeLibretroBridge.nativeSetAnalog(0, 1, NativeLibretroBridge.RETRO_DEVICE_ID_ANALOG_Y, 0)
+        }
+        if (::touchOverlay.isInitialized) {
+            touchOverlay.setGyroStickPreview(MobileTouchGamepadOverlay.STICK_LEFT, 0f, 0f)
+            touchOverlay.setGyroStickPreview(MobileTouchGamepadOverlay.STICK_RIGHT, 0f, 0f)
+        }
+        updateGyroRegistration()
+    }
+
+    private fun resolveInitialShaderMode(): Int {
+        val up = unifiedPrefs()
+        val raw = up.all["shaderPreset"]
+        if (raw != null) {
+            when (raw) {
+                is Number -> return raw.toInt().coerceIn(0, 3)
+                is String -> {
+                    val s = raw.trim().lowercase(Locale.ROOT)
+                    return when {
+                        s.contains("crt") || s.contains("scanline") -> NativeLibretroBridge.SHADER_CRT_SCANLINES
+                        s.contains("lcd") || s.contains("grid") -> NativeLibretroBridge.SHADER_LCD_GRID
+                        s.contains("bilinear") || s.contains("smooth") -> NativeLibretroBridge.SHADER_BILINEAR_SMOOTH
+                        s == "1" -> NativeLibretroBridge.SHADER_BILINEAR_SMOOTH
+                        s == "2" -> NativeLibretroBridge.SHADER_CRT_SCANLINES
+                        s == "3" -> NativeLibretroBridge.SHADER_LCD_GRID
+                        else -> NativeLibretroBridge.SHADER_PIXEL_PERFECT
+                    }
+                }
+            }
+        }
+        return legacyPrefs().getInt("shader_mode", NativeLibretroBridge.SHADER_PIXEL_PERFECT).coerceIn(0, 3)
+    }
+
+    private fun persistShaderMode(mode: Int) {
+        val name = when (mode) {
+            NativeLibretroBridge.SHADER_BILINEAR_SMOOTH -> "Bilinear"
+            NativeLibretroBridge.SHADER_CRT_SCANLINES -> "CRT Scanlines"
+            NativeLibretroBridge.SHADER_LCD_GRID -> "LCD Grid"
+            else -> "Pixel-Perfect"
+        }
+        unifiedPrefs().edit().putString("shaderPreset", name).apply()
+        legacyPrefs().edit().putInt("shader_mode", mode).apply()
+    }
+
+    private fun resolveInitialAspectMode(): Int {
+        val up = unifiedPrefs()
+        val raw = up.all["aspectRatio"]
+        if (raw != null) {
+            when (raw) {
+                is Number -> return raw.toInt().coerceIn(0, 4)
+                is String -> {
+                    val s = raw.trim().lowercase(Locale.ROOT)
+                    return when {
+                        s.contains("4:3") -> NativeLibretroBridge.ASPECT_4_3
+                        s.contains("16:9") || s.contains("wide") -> NativeLibretroBridge.ASPECT_16_9
+                        s.contains("int") || s.contains("pixel") -> NativeLibretroBridge.ASPECT_INTEGER
+                        s.contains("stretch") || s.contains("full") -> NativeLibretroBridge.ASPECT_STRETCH
+                        else -> NativeLibretroBridge.ASPECT_CORE_FIT
+                    }
+                }
+            }
+        }
+        val lp = legacyPrefs()
+        return lp.getInt(
+            "aspect_mode",
+            if (lp.getBoolean("integer_scale", false)) NativeLibretroBridge.ASPECT_INTEGER
+            else NativeLibretroBridge.ASPECT_CORE_FIT
+        ).coerceIn(0, 4)
+    }
+
+    private fun persistAspectMode(mode: Int) {
+        val label = when (mode) {
+            NativeLibretroBridge.ASPECT_4_3 -> "4:3"
+            NativeLibretroBridge.ASPECT_16_9 -> "16:9"
+            NativeLibretroBridge.ASPECT_INTEGER -> "Integer"
+            NativeLibretroBridge.ASPECT_STRETCH -> "Stretch"
+            else -> "Auto"
+        }
+        unifiedPrefs().edit().putString("aspectRatio", label).apply()
+        legacyPrefs().edit()
+            .putInt("aspect_mode", mode)
+            .putBoolean("integer_scale", mode == NativeLibretroBridge.ASPECT_INTEGER)
+            .apply()
+    }
+
+    private fun updateAudioGain(db: Float) {
+        audioGainDb = db.coerceIn(-24f, 12f)
+        audioGainLinear = 10.0.pow((audioGainDb / 20.0)).toFloat()
+        try {
+            audioTrack?.setVolume(audioGainLinear.coerceIn(0f, 1f))
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun loadUnifiedSharedSettings() {
+        rewindEnabled = readPrefBool("rewindEnabled", "rewind_enabled", true)
+        highRefresh120Hz = readPrefBool("highRefresh120Hz", "high_refresh_120hz", true)
+        frameSkip = readPrefInt("frameSkip", 0).coerceIn(0, 3)
+        updateAudioGain(readPrefFloat("audioGainDb", 0f))
+        gyroTiltMode = resolveGyroModeFromPrefs()
     }
 
     private fun ensureDirectories() {
@@ -195,6 +490,19 @@ class EmulationActivity : Activity() {
 
     private fun statePreviewFile(slot: Int): File = File(statesDir, "$romBaseStem.state$slot.png")
 
+    private fun getDisplayRotationSafe(): Int {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                display?.rotation ?: Surface.ROTATION_0
+            } else {
+                @Suppress("DEPRECATION")
+                windowManager.defaultDisplay?.rotation ?: Surface.ROTATION_0
+            }
+        } catch (_: Throwable) {
+            Surface.ROTATION_0
+        }
+    }
+
     private fun configureImmersiveAndRefreshRate() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
@@ -204,7 +512,6 @@ class EmulationActivity : Activity() {
             window.attributes = lp
         }
 
-        // Request 90 / 120 / 144 Hz high refresh rate mode if supported by display
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             try {
                 @Suppress("DEPRECATION")
@@ -212,13 +519,17 @@ class EmulationActivity : Activity() {
                 val modes = disp?.supportedModes
                 if (!modes.isNullOrEmpty()) {
                     val activeMode = disp.mode
-                    val best = modes
-                        .filter { it.physicalWidth == activeMode.physicalWidth && it.physicalHeight == activeMode.physicalHeight }
-                        .maxByOrNull { it.refreshRate }
-                        ?: modes.maxByOrNull { it.refreshRate }
-                    if (best != null) {
+                    val sameRes = modes.filter {
+                        it.physicalWidth == activeMode.physicalWidth && it.physicalHeight == activeMode.physicalHeight
+                    }.ifEmpty { modes.toList() }
+                    val chosen = if (highRefresh120Hz) {
+                        sameRes.maxByOrNull { it.refreshRate }
+                    } else {
+                        sameRes.minByOrNull { abs(it.refreshRate - 60f) } ?: sameRes.firstOrNull()
+                    }
+                    if (chosen != null) {
                         val lp = window.attributes
-                        lp.preferredDisplayModeId = best.modeId
+                        lp.preferredDisplayModeId = chosen.modeId
                         window.attributes = lp
                     }
                 }
@@ -264,13 +575,67 @@ class EmulationActivity : Activity() {
         }
     }
 
+    private fun updateGyroRegistration() {
+        val sm = sensorManager ?: return
+        val sensor = gyroSensor ?: return
+        val shouldRun = gyroTiltMode != GYRO_OFF && !emuPaused && !isFinishing && !isDestroyed
+        if (shouldRun && !gyroRegistered) {
+            gyroCalibrated = false
+            gyroRegistered = sm.registerListener(gyroSensorListener, sensor, SensorManager.SENSOR_DELAY_GAME)
+        } else if (!shouldRun && gyroRegistered) {
+            sm.unregisterListener(gyroSensorListener)
+            gyroRegistered = false
+        }
+    }
+
+    private fun syncViewportBoundsWithHandheldDeck() {
+        if (!::rootLayout.isInitialized || !::surfaceView.isInitialized || !::touchOverlay.isInitialized) return
+        val totalH = rootLayout.height
+        val totalW = rootLayout.width
+        if (totalH <= 0 || totalW <= 0) return
+
+        val ratio = touchOverlay.getActiveViewportBottomRatio()
+        val targetH = if (ratio < 0.99f) {
+            (totalH * ratio).roundToInt().coerceAtLeast(120)
+        } else {
+            ViewGroup.LayoutParams.MATCH_PARENT
+        }
+
+        if (targetH != lastAppliedSurfaceHeight) {
+            lastAppliedSurfaceHeight = targetH
+            val sLp = surfaceView.layoutParams as? FrameLayout.LayoutParams
+                ?: FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, targetH)
+            sLp.width = ViewGroup.LayoutParams.MATCH_PARENT
+            sLp.height = targetH
+            sLp.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            surfaceView.layoutParams = sLp
+
+            val bLp = bezelImageView.layoutParams as? FrameLayout.LayoutParams
+            if (bLp != null) {
+                bLp.width = ViewGroup.LayoutParams.MATCH_PARENT
+                bLp.height = targetH
+                bLp.gravity = Gravity.TOP
+                bezelImageView.layoutParams = bLp
+            }
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        gyroCalibrated = false
+        lastAppliedSurfaceHeight = -2
+        rootLayout.post { syncViewportBoundsWithHandheldDeck() }
+    }
+
     private fun buildActivityLayout() {
-        val prefs = getSharedPreferences(PREFS_EMU, Context.MODE_PRIVATE)
-        val showFps = prefs.getBoolean("show_fps_hud", true)
+        val showFps = readPrefBool("fpsHud", "show_fps_hud", true)
 
         rootLayout = FrameLayout(this).apply {
-            setBackgroundColor(Color.BLACK)
+            setBackgroundColor(Color.rgb(6, 5, 13))
             keepScreenOn = true
+            addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                post { syncViewportBoundsWithHandheldDeck() }
+            }
         }
 
         surfaceView = SurfaceView(this).apply {
@@ -316,7 +681,7 @@ class EmulationActivity : Activity() {
         }
         rootLayout.addView(
             surfaceView,
-            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.TOP)
         )
 
         bezelImageView = ImageView(this).apply {
@@ -328,19 +693,20 @@ class EmulationActivity : Activity() {
         applyOptionalBezelOverlay()
         rootLayout.addView(
             bezelImageView,
-            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.TOP)
         )
 
         fpsHudText = TextView(this).apply {
             setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.8f)
+            fontFeatureSettings = "tnum"
             StormThemeEngine.applyFont(this, bold = true)
             setPadding(dp(10f), dp(4f), dp(10f), dp(4f))
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dpF(10f)
-                setColor(Color.argb(155, 14, 10, 28))
-                setStroke(dp(1f), StormThemeEngine.withAlpha(StormThemeEngine.activeAccentColor, 165))
+                setColor(Color.argb(175, 14, 11, 28))
+                setStroke(dp(1f), StormThemeEngine.withAlpha(StormThemeEngine.activeAccentColor, 175))
             }
             visibility = if (showFps) View.VISIBLE else View.GONE
             text = coreName
@@ -356,6 +722,7 @@ class EmulationActivity : Activity() {
 
         touchOverlay = MobileTouchGamepadOverlay(this).apply {
             accentColor = StormThemeEngine.activeAccentColor
+            syncPreferencesFromUnifiedStore()
             setPlatform(platformName)
             callback = object : MobileTouchGamepadOverlay.Callback {
                 override fun onDigitalButton(libretroId: Int, pressed: Boolean) {
@@ -390,7 +757,15 @@ class EmulationActivity : Activity() {
                 }
 
                 override fun onRewindHold(holding: Boolean) {
-                    rewindHeld = holding
+                    if (rewindEnabled) {
+                        rewindHeld = holding
+                    } else if (holding) {
+                        Toast.makeText(this@EmulationActivity, "Перемотка отключена в настройках", Toast.LENGTH_SHORT).show()
+                    }
+                }
+
+                override fun onDeckVisibilityChanged() {
+                    rootLayout.post { syncViewportBoundsWithHandheldDeck() }
                 }
             }
         }
@@ -400,11 +775,12 @@ class EmulationActivity : Activity() {
         )
 
         setContentView(rootLayout)
+        rootLayout.post { syncViewportBoundsWithHandheldDeck() }
     }
 
     private fun applyOptionalBezelOverlay() {
-        val prefs = getSharedPreferences(PREFS_EMU, Context.MODE_PRIVATE)
-        if (!prefs.getBoolean("enable_bezel_overlay", false)) {
+        val enabled = readPrefBool("bezelOverlay", "enable_bezel_overlay", false)
+        if (!enabled) {
             bezelImageView.visibility = View.GONE
             return
         }
@@ -450,13 +826,8 @@ class EmulationActivity : Activity() {
             return
         }
 
-        val prefs = getSharedPreferences(PREFS_EMU, Context.MODE_PRIVATE)
-        val initialShader = prefs.getInt("shader_mode", NativeLibretroBridge.SHADER_PIXEL_PERFECT)
-        val initialAspect = prefs.getInt(
-            "aspect_mode",
-            if (prefs.getBoolean("integer_scale", false)) NativeLibretroBridge.ASPECT_INTEGER
-            else NativeLibretroBridge.ASPECT_CORE_FIT
-        )
+        val initialShader = resolveInitialShaderMode()
+        val initialAspect = resolveInitialAspectMode()
 
         emuRunning = true
         emuPaused = false
@@ -486,7 +857,7 @@ class EmulationActivity : Activity() {
                 NativeLibretroBridge.nativeLoadSram(srm.absolutePath)
             }
 
-            // Auto-load & apply saved .cht cheats for this game
+            // Auto-load & apply active .cht cheats for this game on launch
             loadAndApplyGameCheats()
 
             val targetFps = NativeLibretroBridge.nativeGetFps().let { if (it in 20.0..120.0) it else 60.0 }
@@ -509,22 +880,28 @@ class EmulationActivity : Activity() {
                     continue
                 }
 
-                if (rewindHeld) {
+                if (rewindHeld && rewindEnabled) {
                     val popped = NativeLibretroBridge.nativePopRewindSnapshot()
                     if (popped) {
-                        // Render the restored snapshot cleanly
                         NativeLibretroBridge.nativeRunFrame()
                     }
                     NativeLibretroBridge.nativePullAudioSamples(audioBuf, audioBuf.size)
                 } else {
-                    val steps = fastForwardMultiplier.coerceIn(1, 4)
-                    for (s in 0 until steps) {
+                    val ffSteps = fastForwardMultiplier.coerceIn(1, 4)
+                    val totalSteps = if (ffSteps > 1) ffSteps else (1 + frameSkip.coerceIn(0, 3))
+                    for (s in 0 until totalSteps) {
                         NativeLibretroBridge.nativeRunFrame()
                         val pulled = NativeLibretroBridge.nativePullAudioSamples(audioBuf, audioBuf.size)
-                        if (pulled > 0 && s == 0) {
+                        if (pulled > 0 && (ffSteps == 1 || s == 0)) {
                             val sr = NativeLibretroBridge.nativeGetSampleRate()
                             if (sr > 8000 && sr != currentSampleRate) {
                                 initOrUpdateAudioTrack(sr)
+                            }
+                            if (audioGainLinear > 1.02f) {
+                                val g = audioGainLinear
+                                for (i in 0 until pulled) {
+                                    audioBuf[i] = (audioBuf[i] * g).roundToInt().coerceIn(-32768, 32767).toShort()
+                                }
                             }
                             try {
                                 audioTrack?.write(audioBuf, 0, pulled, AudioTrack.WRITE_NON_BLOCKING)
@@ -533,7 +910,7 @@ class EmulationActivity : Activity() {
                         }
                     }
                     frameCounter++
-                    if (frameCounter % 3L == 0L) {
+                    if (rewindEnabled && frameCounter % 3L == 0L) {
                         NativeLibretroBridge.nativePushRewindSnapshot()
                     }
                 }
@@ -551,7 +928,8 @@ class EmulationActivity : Activity() {
                     flushSramSafe()
                 }
 
-                nextFrameDeadline += frameDurationNs
+                val paceMultiplier = if (fastForwardMultiplier == 1 && frameSkip > 0) (1 + frameSkip) else 1
+                nextFrameDeadline += frameDurationNs * paceMultiplier
                 val sleepNs = nextFrameDeadline - System.nanoTime()
                 if (sleepNs > 1_500_000L) {
                     try {
@@ -610,7 +988,10 @@ class EmulationActivity : Activity() {
                 builder.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
             }
 
-            audioTrack = builder.build().also { it.play() }
+            audioTrack = builder.build().also {
+                it.setVolume(audioGainLinear.coerceIn(0f, 1f))
+                it.play()
+            }
         } catch (_: Throwable) {
         }
     }
@@ -697,14 +1078,22 @@ class EmulationActivity : Activity() {
         }
     }
 
+    private fun setFastForwardMultiplier(multiplier: Int, showToast: Boolean = false) {
+        fastForwardMultiplier = multiplier.coerceIn(1, 4)
+        touchOverlay.isFastForwardActive = fastForwardMultiplier > 1
+        touchOverlay.fastForwardSpeedLabel = if (fastForwardMultiplier > 1) "FAST ${fastForwardMultiplier}X" else "FAST 2X"
+        if (showToast) {
+            Toast.makeText(this, "${StormLocalization.tr("quick_fast_forward")}: ${fastForwardMultiplier}x", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun cycleFastForwardSpeed() {
-        fastForwardMultiplier = when (fastForwardMultiplier) {
+        val next = when (fastForwardMultiplier) {
             1 -> 2
             2 -> 4
             else -> 1
         }
-        touchOverlay.isFastForwardActive = fastForwardMultiplier > 1
-        Toast.makeText(this, "${StormLocalization.tr("quick_fast_forward")}: ${fastForwardMultiplier}x", Toast.LENGTH_SHORT).show()
+        setFastForwardMultiplier(next, showToast = true)
     }
 
     // === Physical Controller & Keyboard Routing ===
@@ -792,7 +1181,6 @@ class EmulationActivity : Activity() {
             return super.onGenericMotionEvent(event)
         }
 
-        // Route digital D-Pad HAT + L2/R2 trigger thresholds via profile manager
         val mask = MobileControllerProfileManager.extractMotionRetroPadBitmask(event, this)
         val hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X)
         val hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y)
@@ -805,7 +1193,6 @@ class EmulationActivity : Activity() {
             touchOverlay.setPhysicalControllerActive(true)
         }
 
-        // Apply digital transitions for HAT & triggers (bits UP, DOWN, LEFT, RIGHT, L2, R2)
         val digitalIds = intArrayOf(
             MobileControllerProfileManager.RETRO_ID_UP,
             MobileControllerProfileManager.RETRO_ID_DOWN,
@@ -824,7 +1211,6 @@ class EmulationActivity : Activity() {
         }
         prevMotionBitmask = mask
 
-        // Route true 16-bit analog stick axes (-32767..32767)
         val deadzone = event.device?.let { MobileControllerProfileManager.getOrCreateProfile(it, this).analogDeadzone } ?: 0.18f
         fun scaleAxis(v: Float): Int = if (abs(v) < deadzone) 0 else (v.coerceIn(-1f, 1f) * 32767f).roundToInt()
 
@@ -846,7 +1232,7 @@ class EmulationActivity : Activity() {
         when (action) {
             MobileControllerProfileManager.HOTKEY_QUICK_SAVE -> if (pressed) performSaveState(activeSaveSlot)
             MobileControllerProfileManager.HOTKEY_QUICK_LOAD -> if (pressed) performLoadState(activeSaveSlot)
-            MobileControllerProfileManager.HOTKEY_REWIND -> rewindHeld = pressed
+            MobileControllerProfileManager.HOTKEY_REWIND -> if (rewindEnabled) rewindHeld = pressed
             MobileControllerProfileManager.HOTKEY_FAST_FORWARD -> if (pressed) cycleFastForwardSpeed()
             MobileControllerProfileManager.HOTKEY_QUICK_MENU -> if (pressed) showInGameQuickDrawer()
             MobileControllerProfileManager.HOTKEY_SCREENSHOT -> if (pressed) captureScreenshotToGallery()
@@ -883,7 +1269,7 @@ class EmulationActivity : Activity() {
             } catch (_: Throwable) {
             }
         }
-        val msg = if (ok) "${StormLocalization.tr("saves_quick_save")}: #${slot}" else "Save State Failed"
+        val msg = if (ok) "Сохранено в слот #$slot" else "Ошибка сохранения слота #$slot"
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
         return ok
     }
@@ -892,11 +1278,11 @@ class EmulationActivity : Activity() {
         if (!coreLoadedOk || !NativeLibretroBridge.isLibraryLoaded) return false
         val sf = stateFile(slot)
         if (!sf.exists()) {
-            Toast.makeText(this, "${StormLocalization.tr("saves_slot")} #$slot: ${StormLocalization.tr("saves_empty_slot")}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Слот #$slot пуст", Toast.LENGTH_SHORT).show()
             return false
         }
         val ok = NativeLibretroBridge.nativeLoadState(sf.absolutePath)
-        val msg = if (ok) "${StormLocalization.tr("saves_quick_load")}: #${slot}" else "Load State Failed"
+        val msg = if (ok) "Загружен слот #$slot" else "Ошибка загрузки слота #$slot"
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
         return ok
     }
@@ -904,7 +1290,7 @@ class EmulationActivity : Activity() {
     private fun captureScreenshotToGallery(preCaptured: Bitmap? = null): File? {
         val bmp = preCaptured ?: captureCurrentFrameBitmap()
         if (bmp == null) {
-            Toast.makeText(this, "Frame buffer unavailable", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Кадр игры недоступен", Toast.LENGTH_SHORT).show()
             return null
         }
         return try {
@@ -914,23 +1300,24 @@ class EmulationActivity : Activity() {
             FileOutputStream(out).use { fos ->
                 bmp.compress(Bitmap.CompressFormat.PNG, 100, fos)
             }
-            Toast.makeText(this, "${StormLocalization.tr("quick_screenshot")}: ${out.name}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Скриншот сохранен: ${out.name}", Toast.LENGTH_SHORT).show()
             out
         } catch (_: Throwable) {
             null
         }
     }
 
-    // === In-Game Slide-Over Quick Drawer ===
+    // === STORM AURORA FLUID Glassmorphic Slide-Over Quick Studio ===
 
     fun showInGameQuickDrawer() {
         if (isFinishing || isDestroyed) return
         if (quickDrawerDialog?.isShowing == true) return
 
-        // Capture live frame BEFORE pausing so Save State & Screenshot inside drawer have exact frame!
         val snapshotBeforePause = captureCurrentFrameBitmap()
         touchOverlay.releaseAllInputs()
+        flushSramSafe()
         emuPaused = true
+        updateGyroRegistration()
         setAndroidGameModeState(isInterruptible = true)
 
         val pal = StormThemeEngine.currentTheme
@@ -950,31 +1337,31 @@ class EmulationActivity : Activity() {
             quickDrawerDialog = null
             if (!touchOverlay.isEditMode) {
                 emuPaused = false
+                updateGyroRegistration()
                 setAndroidGameModeState(isInterruptible = false)
             }
+            syncViewportBoundsWithHandheldDeck()
             applyImmersiveSystemBars()
         }
 
-        // Outer scrim (tap outside drawer dismisses!)
         val scrim = FrameLayout(this).apply {
-            setBackgroundColor(Color.argb(150, 4, 3, 12))
+            setBackgroundColor(Color.argb(168, 4, 3, 12))
+            alpha = 0f
             setOnClickListener { dialog.dismiss() }
         }
 
-        val drawerWidth = minOf((resources.displayMetrics.widthPixels * 0.86f).roundToInt(), dp(420f))
+        val screenW = resources.displayMetrics.widthPixels
+        val drawerWidth = minOf((screenW * 0.88f).roundToInt(), dp(440f))
+
         val drawerCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             isClickable = true
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                intArrayOf(StormThemeEngine.lighten(pal.bgSurface, 0.04f), pal.bgMain)
-            ).apply {
-                setStroke(dp(1.2f), accent)
-            }
+            background = createGlassStudioDrawerDrawable(accent)
             setPadding(dp(16f), dp(18f), dp(16f), dp(18f))
+            translationX = drawerWidth.toFloat()
         }
 
-        // Header row: Title + FPS/Core badge + Close button
+        // 1. HEADER: Game Title + Platform + Live FPS / Frame-Time Badge + Close
         val headerRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -986,59 +1373,81 @@ class EmulationActivity : Activity() {
         val headerTitle = TextView(this).apply {
             text = romName
             setTextColor(pal.textPrimary)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16.5f)
             maxLines = 1
             StormThemeEngine.applyFont(this, bold = true)
         }
+        val platformSubtitle = TextView(this).apply {
+            text = "$platformName  |  $coreName"
+            setTextColor(pal.textSecondary)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.2f)
+            maxLines = 1
+            StormThemeEngine.applyFont(this, bold = false)
+        }
         val measuredFps = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetMeasuredFps() else 60.0
-        val coreBadge = TextView(this).apply {
-            text = String.format(Locale.US, "STORM RETROARCH 2.4.0 • %s • %.1f FPS", coreName, measuredFps)
-            setTextColor(accent)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f)
+        val frameMs = if (measuredFps > 1.0) 1000.0 / measuredFps else 16.7
+        val telemetryPill = TextView(this).apply {
+            text = String.format(Locale.US, "STORM RETROARCH 2.5.0  |  %.1f FPS  |  %.1f ms", measuredFps, frameMs)
+            fontFeatureSettings = "tnum"
+            setTextColor(StormThemeEngine.lighten(accent, 0.25f))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f)
             StormThemeEngine.applyFont(this, bold = true)
+            setPadding(dp(8f), dp(3f), dp(8f), dp(3f))
+            background = GradientDrawable().apply {
+                cornerRadius = dpF(8f)
+                setColor(StormThemeEngine.withAlpha(accent, 34))
+                setStroke(dp(1f), StormThemeEngine.withAlpha(accent, 110))
+            }
         }
         titleCol.addView(headerTitle)
-        titleCol.addView(coreBadge)
+        titleCol.addView(platformSubtitle, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dp(2f)
+            bottomMargin = dp(5f)
+        })
+        titleCol.addView(telemetryPill, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         headerRow.addView(titleCol)
 
-        val closeBtn = createIconActionButton(StormVectorIcons.CLOSE, "", isAccent = false) {
+        val closeTopBtn = createIconActionButton(StormVectorIcons.CLOSE, "", isAccent = false) {
             dialog.dismiss()
         }
-        headerRow.addView(closeBtn, LinearLayout.LayoutParams(dp(38f), dp(38f)))
+        headerRow.addView(closeTopBtn, LinearLayout.LayoutParams(dp(38f), dp(38f)).apply { leftMargin = dp(8f) })
         drawerCard.addView(headerRow)
+
+        // Primary 3D "Продолжить" button right below header
+        drawerCard.addView(
+            createIconActionButton(StormVectorIcons.PLAY, "Продолжить", isAccent = true) {
+                dialog.dismiss()
+            },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44f)).apply {
+                topMargin = dp(12f)
+                bottomMargin = dp(8f)
+            }
+        )
 
         val scroll = ScrollView(this).apply {
             isVerticalScrollBarEnabled = false
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f).apply {
-                topMargin = dp(12f)
-            }
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
         }
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, 0, 0, dp(12f))
+            setPadding(0, dp(4f), 0, dp(12f))
         }
 
-        // 1. Resume Primary Button
-        body.addView(
-            createIconActionButton(StormVectorIcons.PLAY, StormLocalization.tr("quick_resume"), isAccent = true) {
-                dialog.dismiss()
-            },
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44f)).apply { bottomMargin = dp(12f) }
-        )
+        // 2. VISUAL SAVE / LOAD STATE STRIP (SLOTS 0 - 9)
+        val saveCard = createStudioGroupCard()
+        saveCard.addView(createSectionLabel("Быстрые сохранения (Слоты 0 - 9)"))
 
-        // 2. Save / Load State Slots 0-9 with live PNG thumbnail preview
-        body.addView(createSectionLabel("${StormLocalization.tr("saves_title")} (0 - 9)"))
-        val slotPreviewCard = LinearLayout(this).apply {
+        val slotPreviewRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = StormThemeEngine.createVolumetricCardDrawable(this@EmulationActivity, cornerDp = 12f)
-            setPadding(dp(10f), dp(8f), dp(10f), dp(8f))
+            background = StormThemeEngine.createRecessedInputDrawable(this@EmulationActivity, cornerDp = 10f)
+            setPadding(dp(8f), dp(8f), dp(10f), dp(8f))
         }
         val slotThumbView = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
-            setBackgroundColor(Color.argb(160, 10, 8, 20))
+            setBackgroundColor(Color.argb(190, 8, 6, 18))
         }
-        slotPreviewCard.addView(slotThumbView, LinearLayout.LayoutParams(dp(92f), dp(64f)))
+        slotPreviewRow.addView(slotThumbView, LinearLayout.LayoutParams(dp(96f), dp(66f)))
 
         val slotMetaCol = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1046,20 +1455,21 @@ class EmulationActivity : Activity() {
                 leftMargin = dp(10f)
             }
         }
-        val slotStatusLabel = TextView(this).apply {
+        val slotTitleTv = TextView(this).apply {
             setTextColor(pal.textPrimary)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
             StormThemeEngine.applyFont(this, bold = true)
         }
-        val slotTimeLabel = TextView(this).apply {
+        val slotTimeTv = TextView(this).apply {
             setTextColor(pal.textSecondary)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+            fontFeatureSettings = "tnum"
             StormThemeEngine.applyFont(this, bold = false)
         }
-        slotMetaCol.addView(slotStatusLabel)
-        slotMetaCol.addView(slotTimeLabel)
-        slotPreviewCard.addView(slotMetaCol)
-        body.addView(slotPreviewCard, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8f) })
+        slotMetaCol.addView(slotTitleTv)
+        slotMetaCol.addView(slotTimeTv, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(3f) })
+        slotPreviewRow.addView(slotMetaCol)
+        saveCard.addView(slotPreviewRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8f) })
 
         val slotChipsRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val slotChipViews = ArrayList<TextView>(10)
@@ -1067,29 +1477,38 @@ class EmulationActivity : Activity() {
         fun refreshSlotPreview() {
             val sf = stateFile(activeSaveSlot)
             val pf = statePreviewFile(activeSaveSlot)
-            slotStatusLabel.text = "${StormLocalization.tr("saves_slot")} #$activeSaveSlot"
+            slotTitleTv.text = "Слот #$activeSaveSlot"
             if (sf.exists()) {
                 val dt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(sf.lastModified()))
-                slotTimeLabel.text = "$dt (${sf.length() / 1024} KB)"
+                val kb = (sf.length() / 1024L).coerceAtLeast(1L)
+                slotTimeTv.text = "$dt  |  $kb КБ"
                 val bmp = if (pf.exists()) BitmapFactory.decodeFile(pf.absolutePath) else snapshotBeforePause
                 slotThumbView.setImageBitmap(bmp)
             } else {
-                slotTimeLabel.text = StormLocalization.tr("saves_empty_slot")
+                slotTimeTv.text = "Свободный слот (готов к записи)"
                 slotThumbView.setImageBitmap(snapshotBeforePause)
             }
             for ((idx, tv) in slotChipViews.withIndex()) {
                 val sel = idx == activeSaveSlot
+                val hasData = stateFile(idx).exists()
+                tv.text = if (hasData) "$idx *" else "$idx"
                 tv.background = StormThemeEngine.createFilterChipDrawable(this, sel, accent, 10f)
-                tv.setTextColor(if (sel) StormThemeEngine.contrastTextForFill(accent) else pal.textPrimary)
+                tv.setTextColor(
+                    when {
+                        sel -> StormThemeEngine.contrastTextForFill(accent)
+                        hasData -> StormThemeEngine.lighten(accent, 0.28f)
+                        else -> pal.textPrimary
+                    }
+                )
             }
         }
 
         for (slot in 0..9) {
             val chip = TextView(this).apply {
-                text = "#$slot"
                 gravity = Gravity.CENTER
+                fontFeatureSettings = "tnum"
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-                setPadding(dp(12f), dp(6f), dp(12f), dp(6f))
+                setPadding(dp(13f), dp(6f), dp(13f), dp(6f))
                 StormThemeEngine.applyFont(this, bold = true)
                 setOnClickListener {
                     activeSaveSlot = slot
@@ -1099,160 +1518,274 @@ class EmulationActivity : Activity() {
             slotChipViews.add(chip)
             slotChipsRow.addView(chip, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(6f) })
         }
-        val slotScroll = HorizontalScrollView(this).apply {
-            isHorizontalScrollBarEnabled = false
-            addView(slotChipsRow)
-        }
-        body.addView(slotScroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8f) })
+        saveCard.addView(
+            HorizontalScrollView(this).apply {
+                isHorizontalScrollBarEnabled = false
+                addView(slotChipsRow)
+            },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8f) }
+        )
         refreshSlotPreview()
 
-        val saveLoadRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        saveLoadRow.addView(
-            createIconActionButton(StormVectorIcons.SAVE, StormLocalization.tr("saves_quick_save"), isAccent = true) {
+        val saveLoadBtnRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        saveLoadBtnRow.addView(
+            createIconActionButton(StormVectorIcons.SAVE, "Сохранить", isAccent = true) {
                 performSaveState(activeSaveSlot, snapshotBeforePause)
                 refreshSlotPreview()
             },
             LinearLayout.LayoutParams(0, dp(42f), 1f).apply { rightMargin = dp(6f) }
         )
-        saveLoadRow.addView(
-            createIconActionButton(StormVectorIcons.LOAD, StormLocalization.tr("saves_quick_load"), isAccent = false) {
+        saveLoadBtnRow.addView(
+            createIconActionButton(StormVectorIcons.LOAD, "Загрузить", isAccent = false) {
                 if (performLoadState(activeSaveSlot)) {
                     dialog.dismiss()
                 }
             },
             LinearLayout.LayoutParams(0, dp(42f), 1f)
         )
-        body.addView(saveLoadRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(12f) })
+        saveCard.addView(saveLoadBtnRow)
+        body.addView(saveCard, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(10f) })
 
-        // 3. Rewind & Fast-Forward (1x / 2x / 4x)
+        // 3. SPEED, REWIND, RESTART & SCREENSHOT CONTROLS
+        val speedCard = createStudioGroupCard()
         val rewCount = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetRewindCount() else 0
-        body.addView(createSectionLabel("${StormLocalization.tr("quick_fast_forward")} / ${StormLocalization.tr("quick_rewind")} ($rewCount)"))
-        val speedRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        for (spd in listOf(1, 2, 4)) {
-            val isSel = fastForwardMultiplier == spd
-            val btn = TextView(this).apply {
-                text = "${spd}x"
-                gravity = Gravity.CENTER
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f)
-                StormThemeEngine.applyFont(this, bold = true)
-                background = StormThemeEngine.createFilterChipDrawable(this@EmulationActivity, isSel, accent, 10f)
-                setTextColor(if (isSel) StormThemeEngine.contrastTextForFill(accent) else pal.textPrimary)
-                setOnClickListener {
-                    fastForwardMultiplier = spd
-                    touchOverlay.isFastForwardActive = spd > 1
-                    dialog.dismiss()
-                }
-            }
-            speedRow.addView(btn, LinearLayout.LayoutParams(0, dp(38f), 1f).apply { rightMargin = dp(6f) })
-        }
-        val rewindStepBtn = createIconActionButton(StormVectorIcons.REWIND, "Rewind", isAccent = false) {
-            if (NativeLibretroBridge.isLibraryLoaded) {
-                var poppedAny = false
-                repeat(15) {
-                    if (NativeLibretroBridge.nativePopRewindSnapshot()) poppedAny = true
-                }
-                if (poppedAny) {
-                    Toast.makeText(this, StormLocalization.tr("quick_rewind"), Toast.LENGTH_SHORT).show()
-                    dialog.dismiss()
-                } else {
-                    Toast.makeText(this, "Rewind buffer empty", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-        speedRow.addView(rewindStepBtn, LinearLayout.LayoutParams(0, dp(38f), 1.3f))
-        body.addView(speedRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(12f) })
+        speedCard.addView(createSectionLabel("Скорость и управление временем (буфер: $rewCount)"))
 
-        // 4. Video Filter (Pixel-Perfect, Smooth Bilinear, CRT Scanlines, LCD Grid)
-        body.addView(createSectionLabel("Video Filter"))
-        val curShader = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetShaderMode() else 0
-        val shaderOptions = listOf(
-            NativeLibretroBridge.SHADER_PIXEL_PERFECT to "Pixel-Perfect",
-            NativeLibretroBridge.SHADER_BILINEAR_SMOOTH to "Smooth Bilinear",
-            NativeLibretroBridge.SHADER_CRT_SCANLINES to "CRT Scanlines",
-            NativeLibretroBridge.SHADER_LCD_GRID to "LCD Grid"
-        )
-        body.addView(buildHorizontalModeChips(shaderOptions, curShader) { mode ->
-            NativeLibretroBridge.nativeSetShaderMode(mode)
-            getSharedPreferences(PREFS_EMU, Context.MODE_PRIVATE).edit().putInt("shader_mode", mode).apply()
+        val speedModes = listOf(1 to "1x Норма", 2 to "Ускорение 2x", 4 to "Ускорение 4x")
+        speedCard.addView(buildHorizontalModeChips(speedModes, fastForwardMultiplier) { spd ->
+            setFastForwardMultiplier(spd, showToast = false)
         })
 
-        // 5. Aspect Ratio (Core Provided, 4:3, 16:9, Integer)
-        body.addView(createSectionLabel("Aspect Ratio"))
-        val curAspect = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetAspectMode() else 0
-        val aspectOptions = listOf(
-            NativeLibretroBridge.ASPECT_CORE_FIT to "Core Provided",
-            NativeLibretroBridge.ASPECT_4_3 to "4:3",
-            NativeLibretroBridge.ASPECT_16_9 to "16:9",
-            NativeLibretroBridge.ASPECT_INTEGER to "Integer"
-        )
-        body.addView(buildHorizontalModeChips(aspectOptions, curAspect) { mode ->
-            NativeLibretroBridge.nativeSetAspectMode(mode)
-            getSharedPreferences(PREFS_EMU, Context.MODE_PRIVATE).edit().putInt("aspect_mode", mode).apply()
-        })
-
-        // 6. Cheats (.cht) & Live Native RAM Scanner
-        body.addView(createSectionLabel(StormLocalization.tr("cheats_title")))
-        val cheatRamRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        cheatRamRow.addView(
-            createIconActionButton(StormVectorIcons.CHEATS, "Читы (.cht) (${gameCheatEntries.count { it.isEnabled }}/${gameCheatEntries.size})", isAccent = false) {
-                showInGameCheatsDialog()
+        val timeToolsRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        timeToolsRow.addView(
+            createIconActionButton(StormVectorIcons.REWIND, "Перемотка назад", isAccent = false) {
+                if (!rewindEnabled) {
+                    Toast.makeText(this, "Включите перемотку ниже", Toast.LENGTH_SHORT).show()
+                } else if (NativeLibretroBridge.isLibraryLoaded) {
+                    var poppedAny = false
+                    repeat(18) {
+                        if (NativeLibretroBridge.nativePopRewindSnapshot()) poppedAny = true
+                    }
+                    if (poppedAny) {
+                        Toast.makeText(this, "Перемотка назад выполнена", Toast.LENGTH_SHORT).show()
+                        dialog.dismiss()
+                    } else {
+                        Toast.makeText(this, "Буфер перемотки пуст", Toast.LENGTH_SHORT).show()
+                    }
+                }
             },
-            LinearLayout.LayoutParams(0, dp(42f), 1f).apply { rightMargin = dp(6f) }
+            LinearLayout.LayoutParams(0, dp(40f), 1.15f).apply { rightMargin = dp(6f) }
         )
-        cheatRamRow.addView(
-            createIconActionButton(StormVectorIcons.RAM, StormLocalization.tr("ram_scanner_title"), isAccent = false) {
-                showLiveRamScannerDialog()
-            },
-            LinearLayout.LayoutParams(0, dp(42f), 1f)
-        )
-        body.addView(cheatRamRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(12f) })
-
-        // 7. Touch Controls Layout & Live Editor
-        body.addView(createSectionLabel(StormLocalization.tr("touch_overlay_title")))
-        val layoutOptions = MobileTouchGamepadOverlay.LayoutProfile.entries.mapIndexed { i, lp -> i to lp.id }
-        val currentLayoutIdx = MobileTouchGamepadOverlay.LayoutProfile.entries.indexOf(touchOverlay.layoutProfile).coerceAtLeast(0)
-        body.addView(buildHorizontalModeChips(layoutOptions, currentLayoutIdx) { idx ->
-            val prof = MobileTouchGamepadOverlay.LayoutProfile.entries[idx]
-            touchOverlay.setLayoutProfile(prof)
-            touchOverlay.setPhysicalControllerActive(false)
-        })
-
-        body.addView(
-            createIconActionButton(StormVectorIcons.SLIDERS, StormLocalization.tr("touch_edit_layout"), isAccent = false) {
-                touchOverlay.setPhysicalControllerActive(false)
-                touchOverlay.isEditMode = true
-                dialog.dismiss()
-                emuPaused = false
-            },
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42f)).apply { bottomMargin = dp(10f) }
-        )
-
-        // 8. Screenshot, Reset Game & Exit to Library
-        val utilRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        utilRow.addView(
-            createIconActionButton(StormVectorIcons.CAMERA, StormLocalization.tr("quick_screenshot"), isAccent = false) {
+        timeToolsRow.addView(
+            createIconActionButton(StormVectorIcons.CAMERA, "Скриншот", isAccent = false) {
                 captureScreenshotToGallery(snapshotBeforePause)
             },
-            LinearLayout.LayoutParams(0, dp(42f), 1f).apply { rightMargin = dp(6f) }
+            LinearLayout.LayoutParams(0, dp(40f), 0.95f)
         )
-        utilRow.addView(
-            createIconActionButton(StormVectorIcons.REFRESH, StormLocalization.tr("quick_restart"), isAccent = false) {
+        speedCard.addView(timeToolsRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6f) })
+
+        speedCard.addView(
+            createIconActionButton(StormVectorIcons.REFRESH, "Перезапуск игры", isAccent = false) {
                 if (NativeLibretroBridge.isLibraryLoaded && coreLoadedOk) {
                     NativeLibretroBridge.nativeReset()
                 }
                 dialog.dismiss()
             },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40f))
+        )
+        body.addView(speedCard, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(10f) })
+
+        // 4. IN-GAME CHEATS (.CHT) & LIVE RAM SCANNER
+        val cheatCard = createStudioGroupCard()
+        cheatCard.addView(createSectionLabel("Читы и живой сканер памяти RAM"))
+        val cheatBtnLabelTvHolder = arrayOfNulls<TextView>(1)
+        val cheatRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val activeCheatCount = gameCheatEntries.count { it.isEnabled }
+        val cheatsBtn = createIconActionButton(
+            StormVectorIcons.CHEATS,
+            "Читы .cht ($activeCheatCount/${gameCheatEntries.size})",
+            isAccent = activeCheatCount > 0,
+            outLabelRef = cheatBtnLabelTvHolder
+        ) {
+            showInGameCheatsDialog {
+                val nowActive = gameCheatEntries.count { it.isEnabled }
+                cheatBtnLabelTvHolder[0]?.text = "Читы .cht ($nowActive/${gameCheatEntries.size})"
+            }
+        }
+        cheatRow.addView(cheatsBtn, LinearLayout.LayoutParams(0, dp(42f), 1f).apply { rightMargin = dp(6f) })
+        cheatRow.addView(
+            createIconActionButton(StormVectorIcons.RAM, "Сканер RAM", isAccent = frozenRamAddresses.isNotEmpty()) {
+                showLiveRamScannerDialog()
+            },
             LinearLayout.LayoutParams(0, dp(42f), 1f)
         )
-        body.addView(utilRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(10f) })
+        cheatCard.addView(cheatRow)
+        body.addView(cheatCard, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(10f) })
 
-        body.addView(
-            createIconActionButton(StormVectorIcons.CLOSE, StormLocalization.tr("quick_exit"), isAccent = false) {
-                dialog.dismiss()
-                finishAndSave()
-            },
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44f))
+        // 5. LIVE 3D TOUCH GAMEPAD & DISPLAY TWEAKER
+        val touchCard = createStudioGroupCard()
+        touchCard.addView(createSectionLabel("3D Геймпад: цветовая тема кнопок"))
+        val colorThemeOptions = MobileTouchGamepadOverlay.ButtonColorTheme.entries.mapIndexed { idx, th ->
+            idx to th.displayName
+        }
+        val initialThemeIdx = MobileTouchGamepadOverlay.ButtonColorTheme.entries.indexOf(touchOverlay.buttonColorTheme).coerceAtLeast(0)
+        touchCard.addView(buildHorizontalModeChips(colorThemeOptions, initialThemeIdx) { idx ->
+            val chosen = MobileTouchGamepadOverlay.ButtonColorTheme.entries[idx]
+            touchOverlay.setButtonColorTheme(chosen, persist = true)
+        })
+
+        touchCard.addView(createSectionLabel("Раскладка геймпада"))
+        val presetOptions = listOf(
+            MobileTouchGamepadOverlay.LayoutProfile.CONSOLE_PRO,
+            MobileTouchGamepadOverlay.LayoutProfile.ARCADE_6BTN,
+            MobileTouchGamepadOverlay.LayoutProfile.SNES,
+            MobileTouchGamepadOverlay.LayoutProfile.GENESIS_6BTN,
+            MobileTouchGamepadOverlay.LayoutProfile.NES,
+            MobileTouchGamepadOverlay.LayoutProfile.RPG_MINIMAL,
+            MobileTouchGamepadOverlay.LayoutProfile.HIDDEN
         )
+        val presetChipPairs = presetOptions.mapIndexed { i, lp -> i to lp.displayName }
+        val curPresetIdx = presetOptions.indexOf(touchOverlay.layoutProfile).coerceAtLeast(0)
+        touchCard.addView(buildHorizontalModeChips(presetChipPairs, curPresetIdx) { idx ->
+            val prof = presetOptions[idx]
+            touchOverlay.setLayoutProfile(prof, persistPresetPref = true)
+            if (prof != MobileTouchGamepadOverlay.LayoutProfile.HIDDEN) {
+                touchOverlay.setPhysicalControllerActive(false)
+            }
+            syncViewportBoundsWithHandheldDeck()
+        })
+
+        // Opacity Slider (25% - 100%)
+        touchCard.addView(
+            buildStyledSliderRow(
+                title = "Прозрачность кнопок",
+                minPct = 25,
+                maxPct = 100,
+                initialPct = (touchOverlay.overlayAlpha * 100f).roundToInt().coerceIn(25, 100),
+                accent = accent
+            ) { pct, persistNow ->
+                touchOverlay.setOverlayAlpha(pct / 100f, persist = persistNow)
+            }
+        )
+
+        // Scale Slider (70% - 140%)
+        touchCard.addView(
+            buildStyledSliderRow(
+                title = "Масштаб кнопок",
+                minPct = 70,
+                maxPct = 140,
+                initialPct = (touchOverlay.buttonScale * 100f).roundToInt().coerceIn(70, 140),
+                accent = accent
+            ) { pct, persistNow ->
+                touchOverlay.setButtonScale(pct / 100f, persist = persistNow)
+            }
+        )
+
+        // Gyroscope Tilt-to-Stick Option
+        touchCard.addView(createSectionLabel("Гироскоп (наклон корпуса в стик)"))
+        val gyroOptions = listOf(
+            GYRO_OFF to "Выкл",
+            GYRO_LEFT_STICK to "Левый стик",
+            GYRO_RIGHT_STICK to "Правый стик"
+        )
+        touchCard.addView(buildHorizontalModeChips(gyroOptions, gyroTiltMode) { mode ->
+            persistGyroMode(mode)
+            if (mode != GYRO_OFF) {
+                Toast.makeText(this, "Гироскоп откалиброван по текущему наклону", Toast.LENGTH_SHORT).show()
+            }
+        })
+
+        // Edit Button Positions button
+        touchCard.addView(
+            createIconActionButton(StormVectorIcons.SLIDERS, "Настроить позиции кнопок", isAccent = false) {
+                if (touchOverlay.layoutProfile == MobileTouchGamepadOverlay.LayoutProfile.HIDDEN) {
+                    touchOverlay.setLayoutProfile(MobileTouchGamepadOverlay.LayoutProfile.resolveForPlatform(platformName), persistPresetPref = true)
+                }
+                touchOverlay.setPhysicalControllerActive(false)
+                touchOverlay.isEditMode = true
+                dialog.dismiss()
+                emuPaused = false
+                updateGyroRegistration()
+            },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42f)).apply { topMargin = dp(2f) }
+        )
+        body.addView(touchCard, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(10f) })
+
+        // 6. DISPLAY, SHADER & HUD TWEAKER
+        val displayCard = createStudioGroupCard()
+        displayCard.addView(createSectionLabel("Пропорции экрана (Aspect Ratio)"))
+        val curAspect = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetAspectMode() else resolveInitialAspectMode()
+        val aspectOptions = listOf(
+            NativeLibretroBridge.ASPECT_CORE_FIT to "Auto",
+            NativeLibretroBridge.ASPECT_4_3 to "4:3",
+            NativeLibretroBridge.ASPECT_16_9 to "16:9",
+            NativeLibretroBridge.ASPECT_INTEGER to "Integer",
+            NativeLibretroBridge.ASPECT_STRETCH to "Stretch"
+        )
+        displayCard.addView(buildHorizontalModeChips(aspectOptions, curAspect) { mode ->
+            if (NativeLibretroBridge.isLibraryLoaded) {
+                NativeLibretroBridge.nativeSetAspectMode(mode)
+            }
+            persistAspectMode(mode)
+        })
+
+        displayCard.addView(createSectionLabel("Видео-шейдер"))
+        val curShader = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetShaderMode() else resolveInitialShaderMode()
+        val shaderOptions = listOf(
+            NativeLibretroBridge.SHADER_PIXEL_PERFECT to "Pixel-Perfect",
+            NativeLibretroBridge.SHADER_BILINEAR_SMOOTH to "Bilinear",
+            NativeLibretroBridge.SHADER_CRT_SCANLINES to "CRT Scanlines",
+            NativeLibretroBridge.SHADER_LCD_GRID to "LCD Grid"
+        )
+        displayCard.addView(buildHorizontalModeChips(shaderOptions, curShader) { mode ->
+            if (NativeLibretroBridge.isLibraryLoaded) {
+                NativeLibretroBridge.nativeSetShaderMode(mode)
+            }
+            persistShaderMode(mode)
+        })
+
+        // Quick Toggles Row: FPS HUD, Виброотклик, Перемотка
+        val quickTogglesRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        quickTogglesRow.addView(
+            buildCompactToggleChip("FPS HUD", fpsHudText.visibility == View.VISIBLE, accent) { on ->
+                fpsHudText.visibility = if (on) View.VISIBLE else View.GONE
+                unifiedPrefs().edit().putBoolean("fpsHud", on).apply()
+                legacyPrefs().edit().putBoolean("show_fps_hud", on).apply()
+            },
+            LinearLayout.LayoutParams(0, dp(36f), 1f).apply { rightMargin = dp(6f) }
+        )
+        quickTogglesRow.addView(
+            buildCompactToggleChip("Виброотклик", touchOverlay.hapticsEnabled, accent) { on ->
+                touchOverlay.hapticsEnabled = on
+                touchOverlay.saveLayouts()
+            },
+            LinearLayout.LayoutParams(0, dp(36f), 1f).apply { rightMargin = dp(6f) }
+        )
+        quickTogglesRow.addView(
+            buildCompactToggleChip("Перемотка", rewindEnabled, accent) { on ->
+                rewindEnabled = on
+                unifiedPrefs().edit().putBoolean("rewindEnabled", on).apply()
+                legacyPrefs().edit().putBoolean("rewind_enabled", on).apply()
+            },
+            LinearLayout.LayoutParams(0, dp(36f), 1f)
+        )
+        displayCard.addView(quickTogglesRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(4f) })
+        body.addView(displayCard, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(12f) })
+
+        // 7. EXIT TO STUDIO
+        val exitBtn = createIconActionButton(StormVectorIcons.CLOSE, "Выйти в студию", isAccent = false) {
+            dialog.dismiss()
+            finishAndSave()
+        }.apply {
+            background = StormThemeEngine.createVolumetricButtonDrawable(
+                this@EmulationActivity,
+                Color.rgb(88, 24, 42),
+                Color.rgb(48, 12, 24),
+                Color.rgb(244, 63, 94),
+                12f
+            )
+        }
+        body.addView(exitBtn, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44f)))
 
         scroll.addView(body)
         drawerCard.addView(scroll)
@@ -1265,6 +1798,513 @@ class EmulationActivity : Activity() {
         dialog.setContentView(scrim)
         quickDrawerDialog = dialog
         dialog.show()
+
+        // Smooth 60-120 FPS slide-over entrance choreography
+        scrim.animate().alpha(1f).setDuration(180L).start()
+        drawerCard.animate()
+            .translationX(0f)
+            .setDuration(220L)
+            .setInterpolator(DecelerateInterpolator())
+            .start()
+    }
+
+    // === Glassmorphic In-Game Cheats (.cht) Modal ===
+
+    private fun showInGameCheatsDialog(onUpdated: () -> Unit = {}) {
+        val pal = StormThemeEngine.currentTheme
+        val accent = StormThemeEngine.activeAccentColor
+
+        val dlg = Dialog(this, android.R.style.Theme_Translucent_NoTitleBar_Fullscreen)
+        dlg.setCanceledOnTouchOutside(true)
+
+        val backdrop = FrameLayout(this).apply {
+            setBackgroundColor(Color.argb(175, 4, 3, 12))
+            setPadding(dp(18f), dp(24f), dp(18f), dp(24f))
+            setOnClickListener { dlg.dismiss() }
+        }
+
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            isClickable = true
+            background = createGlassStudioDrawerDrawable(accent, cornerDp = 18f)
+            setPadding(dp(16f), dp(16f), dp(16f), dp(16f))
+        }
+
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val title = TextView(this).apply {
+            text = "Читы (.cht) - $romName"
+            setTextColor(pal.textPrimary)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15.5f)
+            maxLines = 1
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            StormThemeEngine.applyFont(this, bold = true)
+        }
+        header.addView(title)
+        header.addView(
+            createIconActionButton(StormVectorIcons.CLOSE, "", isAccent = false) { dlg.dismiss() },
+            LinearLayout.LayoutParams(dp(34f), dp(34f))
+        )
+        card.addView(header)
+
+        val listContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(8f), 0, dp(8f))
+        }
+
+        fun syncAndApplyLive() {
+            gameCheatFile?.let { MobileCheatAndBiosManager.saveChtFile(it, gameCheatEntries) }
+            pushActiveCheatsToCore()
+            onUpdated()
+        }
+
+        fun rebuildRows() {
+            listContainer.removeAllViews()
+            if (gameCheatEntries.isEmpty()) {
+                val empty = TextView(this).apply {
+                    text = "Для этой игры еще нет сохраненных кодов .cht. Добавьте код GameGenie / ActionReplay / ProActionReplay ниже - он применится мгновенно без выхода из игры."
+                    setTextColor(pal.textSecondary)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                    setPadding(dp(4f), dp(12f), dp(4f), dp(12f))
+                }
+                listContainer.addView(empty)
+            } else {
+                for (entry in gameCheatEntries) {
+                    val row = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.CENTER_VERTICAL
+                        background = StormThemeEngine.createVolumetricCardDrawable(this@EmulationActivity, cornerDp = 10f)
+                        setPadding(dp(10f), dp(8f), dp(10f), dp(8f))
+                    }
+                    val info = LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL
+                        layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                            rightMargin = dp(8f)
+                        }
+                    }
+                    val descTv = TextView(this).apply {
+                        text = entry.description
+                        setTextColor(pal.textPrimary)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f)
+                        StormThemeEngine.applyFont(this, bold = true)
+                    }
+                    val codeTv = TextView(this).apply {
+                        text = entry.code
+                        setTextColor(pal.textSecondary)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f)
+                        fontFeatureSettings = "tnum"
+                    }
+                    info.addView(descTv)
+                    info.addView(codeTv)
+
+                    val stateBtn = TextView(this).apply {
+                        gravity = Gravity.CENTER
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+                        setPadding(dp(12f), dp(6f), dp(12f), dp(6f))
+                        StormThemeEngine.applyFont(this, bold = true)
+
+                        fun renderToggleVisual() {
+                            text = if (entry.isEnabled) "ВКЛ" else "ВЫКЛ"
+                            background = StormThemeEngine.createFilterChipDrawable(this@EmulationActivity, entry.isEnabled, accent, 9f)
+                            setTextColor(if (entry.isEnabled) StormThemeEngine.contrastTextForFill(accent) else pal.textSecondary)
+                        }
+                        renderToggleVisual()
+                        setOnClickListener {
+                            entry.isEnabled = !entry.isEnabled
+                            renderToggleVisual()
+                            syncAndApplyLive()
+                        }
+                    }
+
+                    row.addView(info)
+                    row.addView(stateBtn)
+                    listContainer.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                        bottomMargin = dp(6f)
+                    })
+                }
+            }
+        }
+        rebuildRows()
+
+        val scroll = ScrollView(this).apply {
+            isVerticalScrollBarEnabled = false
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(220f)).apply {
+                topMargin = dp(8f)
+                bottomMargin = dp(8f)
+            }
+            addView(listContainer)
+        }
+        card.addView(scroll)
+
+        val descInput = EditText(this).apply {
+            hint = "Название чита (напр. Бесконечные жизни)"
+            setHintTextColor(pal.textSecondary)
+            setTextColor(pal.textPrimary)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            background = StormThemeEngine.createRecessedInputDrawable(this@EmulationActivity)
+            setPadding(dp(10f), dp(7f), dp(10f), dp(7f))
+        }
+        val codeInput = EditText(this).apply {
+            hint = "Код чита (напр. 7E0DBE09 или 0099-01-63)"
+            setHintTextColor(pal.textSecondary)
+            setTextColor(pal.textPrimary)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            background = StormThemeEngine.createRecessedInputDrawable(this@EmulationActivity)
+            setPadding(dp(10f), dp(7f), dp(10f), dp(7f))
+        }
+        card.addView(descInput, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6f) })
+        card.addView(codeInput, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8f) })
+
+        val btnBar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        btnBar.addView(
+            createIconActionButton(StormVectorIcons.CHEATS, "Добавить код", isAccent = false) {
+                val c = codeInput.text.toString().trim()
+                if (c.isNotEmpty()) {
+                    val d = descInput.text.toString().trim().ifBlank { "Чит #${gameCheatEntries.size + 1}" }
+                    gameCheatEntries.add(MobileCheatEntry(gameCheatEntries.size, d, d, c, true))
+                    descInput.setText("")
+                    codeInput.setText("")
+                    rebuildRows()
+                    syncAndApplyLive()
+                }
+            },
+            LinearLayout.LayoutParams(0, dp(42f), 1f).apply { rightMargin = dp(6f) }
+        )
+        btnBar.addView(
+            createIconActionButton(StormVectorIcons.CHECK, "Применить и закрыть", isAccent = true) {
+                syncAndApplyLive()
+                Toast.makeText(this, "Читы применены к ядру", Toast.LENGTH_SHORT).show()
+                dlg.dismiss()
+            },
+            LinearLayout.LayoutParams(0, dp(42f), 1.15f)
+        )
+        card.addView(btnBar)
+
+        val modalW = minOf((resources.displayMetrics.widthPixels * 0.92f).roundToInt(), dp(480f))
+        backdrop.addView(card, FrameLayout.LayoutParams(modalW, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
+        dlg.setContentView(backdrop)
+        dlg.show()
+    }
+
+    // === Glassmorphic Live Native RAM Scanner Modal (8 / 16 / 32-bit) ===
+
+    private fun showLiveRamScannerDialog() {
+        val pal = StormThemeEngine.currentTheme
+        val accent = StormThemeEngine.activeAccentColor
+
+        val dlg = Dialog(this, android.R.style.Theme_Translucent_NoTitleBar_Fullscreen)
+        dlg.setCanceledOnTouchOutside(true)
+
+        val backdrop = FrameLayout(this).apply {
+            setBackgroundColor(Color.argb(175, 4, 3, 12))
+            setPadding(dp(16f), dp(20f), dp(16f), dp(20f))
+            setOnClickListener { dlg.dismiss() }
+        }
+
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            isClickable = true
+            background = createGlassStudioDrawerDrawable(accent, cornerDp = 18f)
+            setPadding(dp(16f), dp(16f), dp(16f), dp(16f))
+        }
+
+        val ramSize = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetSystemRamSize() else 0
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val title = TextView(this).apply {
+            text = "Живой сканер RAM (${ramSize / 1024} КБ)"
+            setTextColor(pal.textPrimary)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15.5f)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            StormThemeEngine.applyFont(this, bold = true)
+        }
+        header.addView(title)
+        header.addView(
+            createIconActionButton(StormVectorIcons.CLOSE, "", isAccent = false) { dlg.dismiss() },
+            LinearLayout.LayoutParams(dp(34f), dp(34f))
+        )
+        card.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8f) })
+
+        val widthOptions = listOf(1 to "8-бит (1B)", 2 to "16-бит (2B)", 4 to "32-бит (4B)")
+        card.addView(buildHorizontalModeChips(widthOptions, ramScanWidthBytes) { w -> ramScanWidthBytes = w })
+
+        val valueInput = EditText(this).apply {
+            hint = "Искомое / новое значение (напр. 99 или 5000)"
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED
+            setHintTextColor(pal.textSecondary)
+            setTextColor(pal.textPrimary)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            fontFeatureSettings = "tnum"
+            background = StormThemeEngine.createRecessedInputDrawable(this@EmulationActivity)
+            setPadding(dp(12f), dp(8f), dp(12f), dp(8f))
+        }
+        card.addView(valueInput, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8f) })
+
+        val statusRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val matchesLabel = TextView(this).apply {
+            text = "Найдено адресов: 0"
+            setTextColor(StormThemeEngine.lighten(accent, 0.22f))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            fontFeatureSettings = "tnum"
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            StormThemeEngine.applyFont(this, bold = true)
+        }
+        val clearFreezeBtn = createSimpleChipButton("Сбросить заморозку (${frozenRamAddresses.size})") {
+            if (NativeLibretroBridge.isLibraryLoaded) {
+                NativeLibretroBridge.nativeRamClearFrozen()
+            }
+            frozenRamAddresses.clear()
+            Toast.makeText(this, "Все замороженные адреса освобождены", Toast.LENGTH_SHORT).show()
+        }
+        statusRow.addView(matchesLabel)
+        statusRow.addView(clearFreezeBtn)
+        card.addView(statusRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6f) })
+
+        val candidatesList = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        fun renderCandidates(totalMatches: Int) {
+            matchesLabel.text = "Найдено адресов: $totalMatches"
+            clearFreezeBtn.text = "Сброс заморозки (${frozenRamAddresses.size})"
+            candidatesList.removeAllViews()
+            if (!NativeLibretroBridge.isLibraryLoaded) return
+            val packedArr = NativeLibretroBridge.nativeRamGetCandidates(64)
+            for (packed in packedArr) {
+                val addr = NativeLibretroBridge.unpackCandidateAddress(packed)
+                val curVal = NativeLibretroBridge.unpackCandidateValue(packed)
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    background = StormThemeEngine.createVolumetricCardDrawable(this@EmulationActivity, cornerDp = 9f)
+                    setPadding(dp(10f), dp(6f), dp(8f), dp(6f))
+                }
+                val addrTv = TextView(this).apply {
+                    text = String.format(Locale.US, "0x%06X  =  %d", addr, curVal)
+                    fontFeatureSettings = "tnum"
+                    setTextColor(pal.textPrimary)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                    StormThemeEngine.applyFont(this, bold = true)
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                }
+                val writeBtn = TextView(this).apply {
+                    text = "Записать"
+                    setTextColor(StormThemeEngine.contrastTextForFill(accent))
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+                    StormThemeEngine.applyFont(this, bold = true)
+                    setPadding(dp(10f), dp(5f), dp(10f), dp(5f))
+                    background = StormThemeEngine.createAccentButtonDrawable(this@EmulationActivity, accent, 8f)
+                    setOnClickListener {
+                        val targetV = valueInput.text.toString().trim().toLongOrNull() ?: curVal
+                        NativeLibretroBridge.nativeRamWriteValue(addr, ramScanWidthBytes, targetV)
+                        addrTv.text = String.format(Locale.US, "0x%06X  =  %d", addr, targetV)
+                        Toast.makeText(this@EmulationActivity, String.format(Locale.US, "0x%06X <- %d", addr, targetV), Toast.LENGTH_SHORT).show()
+                    }
+                }
+                val isFrozen = frozenRamAddresses.contains(addr)
+                val freezeBtn = TextView(this).apply {
+                    text = if (isFrozen) "Заморожен" else "Заморозить"
+                    setTextColor(if (isFrozen) StormThemeEngine.contrastTextForFill(accent) else pal.textPrimary)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+                    StormThemeEngine.applyFont(this, bold = true)
+                    setPadding(dp(10f), dp(5f), dp(10f), dp(5f))
+                    background = StormThemeEngine.createFilterChipDrawable(this@EmulationActivity, isFrozen, accent, 8f)
+                    setOnClickListener {
+                        val nextFreeze = !frozenRamAddresses.contains(addr)
+                        val targetV = valueInput.text.toString().trim().toLongOrNull() ?: curVal
+                        NativeLibretroBridge.nativeRamSetFrozen(addr, ramScanWidthBytes, targetV, nextFreeze)
+                        if (nextFreeze) frozenRamAddresses.add(addr) else frozenRamAddresses.remove(addr)
+                        text = if (nextFreeze) "Заморожен" else "Заморозить"
+                        setTextColor(if (nextFreeze) StormThemeEngine.contrastTextForFill(accent) else pal.textPrimary)
+                        background = StormThemeEngine.createFilterChipDrawable(this@EmulationActivity, nextFreeze, accent, 8f)
+                        clearFreezeBtn.text = "Сброс заморозки (${frozenRamAddresses.size})"
+                    }
+                }
+                row.addView(addrTv)
+                row.addView(writeBtn, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(6f) })
+                row.addView(freezeBtn)
+                candidatesList.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(5f) })
+            }
+        }
+
+        val scanRow1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        scanRow1.addView(
+            createIconActionButton(StormVectorIcons.SEARCH, "Первый поиск", isAccent = true) {
+                val v = valueInput.text.toString().trim().toLongOrNull() ?: 0L
+                val count = NativeLibretroBridge.nativeRamScanFirst(ramScanWidthBytes, v)
+                renderCandidates(count)
+            },
+            LinearLayout.LayoutParams(0, dp(40f), 1f).apply { rightMargin = dp(6f) }
+        )
+        scanRow1.addView(
+            createIconActionButton(StormVectorIcons.CHECK, "След. поиск (Точно)", isAccent = false) {
+                val v = valueInput.text.toString().trim().toLongOrNull() ?: 0L
+                val count = NativeLibretroBridge.nativeRamScanNext(NativeLibretroBridge.RAM_SCAN_EXACT, v)
+                renderCandidates(count)
+            },
+            LinearLayout.LayoutParams(0, dp(40f), 1.15f)
+        )
+        card.addView(scanRow1, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6f) })
+
+        val scanRow2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        scanRow2.addView(
+            createSimpleChipButton("Выросло") {
+                renderCandidates(NativeLibretroBridge.nativeRamScanNext(NativeLibretroBridge.RAM_SCAN_INCREASED, 0L))
+            },
+            LinearLayout.LayoutParams(0, dp(36f), 1f).apply { rightMargin = dp(6f) }
+        )
+        scanRow2.addView(
+            createSimpleChipButton("Уменьшилось") {
+                renderCandidates(NativeLibretroBridge.nativeRamScanNext(NativeLibretroBridge.RAM_SCAN_DECREASED, 0L))
+            },
+            LinearLayout.LayoutParams(0, dp(36f), 1f).apply { rightMargin = dp(6f) }
+        )
+        scanRow2.addView(
+            createSimpleChipButton("Изменилось") {
+                renderCandidates(NativeLibretroBridge.nativeRamScanNext(NativeLibretroBridge.RAM_SCAN_CHANGED, 0L))
+            },
+            LinearLayout.LayoutParams(0, dp(36f), 1f)
+        )
+        card.addView(scanRow2)
+
+        val candScroll = ScrollView(this).apply {
+            isVerticalScrollBarEnabled = false
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(195f)).apply {
+                topMargin = dp(8f)
+                bottomMargin = dp(8f)
+            }
+            addView(candidatesList)
+        }
+        card.addView(candScroll)
+        if (NativeLibretroBridge.isLibraryLoaded) {
+            renderCandidates(NativeLibretroBridge.nativeRamGetCandidates(64).size)
+        }
+
+        val modalW = minOf((resources.displayMetrics.widthPixels * 0.94f).roundToInt(), dp(500f))
+        backdrop.addView(card, FrameLayout.LayoutParams(modalW, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
+        dlg.setContentView(backdrop)
+        dlg.show()
+    }
+
+    // === Glassmorphic & Volumetric 3D UI Builders (Zero Emojis, Single Icon Mandate) ===
+
+    private fun createGlassStudioDrawerDrawable(accent: Int, cornerDp: Float = 0f): GradientDrawable {
+        val pal = StormThemeEngine.currentTheme
+        return GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            intArrayOf(
+                StormThemeEngine.withAlpha(StormThemeEngine.lighten(pal.bgElevated, 0.08f), 246),
+                StormThemeEngine.withAlpha(pal.bgSurface, 248),
+                StormThemeEngine.withAlpha(StormThemeEngine.darken(pal.bgMain, 0.14f), 252)
+            )
+        ).apply {
+            if (cornerDp > 0f) cornerRadius = dpF(cornerDp)
+            setStroke(dp(1.3f), StormThemeEngine.withAlpha(accent, 195))
+        }
+    }
+
+    private fun createStudioGroupCard(): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = StormThemeEngine.createVolumetricCardDrawable(this@EmulationActivity, cornerDp = 14f)
+            setPadding(dp(12f), dp(10f), dp(12f), dp(10f))
+        }
+    }
+
+    private fun buildStyledSliderRow(
+        title: String,
+        minPct: Int,
+        maxPct: Int,
+        initialPct: Int,
+        accent: Int,
+        onChanged: (pct: Int, persistNow: Boolean) -> Unit
+    ): View {
+        val pal = StormThemeEngine.currentTheme
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(2f), 0, dp(6f))
+        }
+        val topRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val labelTv = TextView(this).apply {
+            text = title
+            setTextColor(pal.textSecondary)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            StormThemeEngine.applyFont(this, bold = true)
+        }
+        val valTv = TextView(this).apply {
+            text = "$initialPct%"
+            fontFeatureSettings = "tnum"
+            setTextColor(StormThemeEngine.lighten(accent, 0.25f))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f)
+            StormThemeEngine.applyFont(this, bold = true)
+        }
+        topRow.addView(labelTv)
+        topRow.addView(valTv)
+        wrap.addView(topRow)
+
+        val seek = SeekBar(this).apply {
+            max = maxPct - minPct
+            progress = (initialPct - minPct).coerceIn(0, maxPct - minPct)
+            progressTintList = ColorStateList.valueOf(accent)
+            thumbTintList = ColorStateList.valueOf(StormThemeEngine.lighten(accent, 0.25f))
+            progressBackgroundTintList = ColorStateList.valueOf(StormThemeEngine.withAlpha(pal.textSecondary, 75))
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val pct = minPct + progress
+                    valTv.text = "$pct%"
+                    if (fromUser) onChanged(pct, false)
+                }
+
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                    val pct = minPct + (seekBar?.progress ?: 0)
+                    onChanged(pct, true)
+                }
+            })
+        }
+        wrap.addView(seek, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        return wrap
+    }
+
+    private fun buildCompactToggleChip(
+        label: String,
+        initialOn: Boolean,
+        accent: Int,
+        onToggle: (Boolean) -> Unit
+    ): TextView {
+        val pal = StormThemeEngine.currentTheme
+        var state = initialOn
+        return TextView(this).apply {
+            gravity = Gravity.CENTER
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+            setPadding(dp(8f), dp(5f), dp(8f), dp(5f))
+            StormThemeEngine.applyFont(this, bold = true)
+
+            fun render() {
+                text = label
+                background = StormThemeEngine.createFilterChipDrawable(this@EmulationActivity, state, accent, 10f)
+                setTextColor(if (state) StormThemeEngine.contrastTextForFill(accent) else pal.textSecondary)
+            }
+            render()
+            StormThemeEngine.attachSpringTouchFeedback(this)
+            setOnClickListener {
+                state = !state
+                render()
+                onToggle(state)
+            }
+        }
     }
 
     private fun buildHorizontalModeChips(
@@ -1293,6 +2333,7 @@ class EmulationActivity : Activity() {
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f)
                 setPadding(dp(12f), dp(7f), dp(12f), dp(7f))
                 StormThemeEngine.applyFont(this, bold = true)
+                StormThemeEngine.attachSpringTouchFeedback(this)
                 setOnClickListener {
                     activeVal = value
                     updateVisuals()
@@ -1307,320 +2348,17 @@ class EmulationActivity : Activity() {
         return HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                bottomMargin = dp(10f)
+                bottomMargin = dp(8f)
             }
             addView(row)
         }
     }
 
-    // === In-Game Cheats Quick Toggle Dialog ===
-
-    private fun showInGameCheatsDialog() {
-        val pal = StormThemeEngine.currentTheme
-        val accent = StormThemeEngine.activeAccentColor
-
-        val dlg = Dialog(this)
-        dlg.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dlg.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = StormThemeEngine.createVolumetricCardDrawable(this@EmulationActivity, cornerDp = 16f)
-            setPadding(dp(16f), dp(16f), dp(16f), dp(16f))
-        }
-
-        val title = TextView(this).apply {
-            text = "${StormLocalization.tr("cheats_title")} - $romName"
-            setTextColor(pal.textPrimary)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-            StormThemeEngine.applyFont(this, bold = true)
-        }
-        card.addView(title)
-
-        val listContainer = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, dp(8f), 0, dp(8f))
-        }
-
-        fun rebuildRows() {
-            listContainer.removeAllViews()
-            if (gameCheatEntries.isEmpty()) {
-                val empty = TextView(this).apply {
-                    text = "Для этой игры пока нет кодов .cht. Добавьте свой код ниже или скачайте базу читов во вкладке Читы."
-                    setTextColor(pal.textSecondary)
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-                    setPadding(0, dp(10f), 0, dp(10f))
-                }
-                listContainer.addView(empty)
-            } else {
-                for (entry in gameCheatEntries) {
-                    val row = LinearLayout(this).apply {
-                        orientation = LinearLayout.HORIZONTAL
-                        gravity = Gravity.CENTER_VERTICAL
-                        setPadding(dp(8f), dp(6f), dp(8f), dp(6f))
-                    }
-                    val cb = CheckBox(this).apply {
-                        isChecked = entry.isEnabled
-                        setOnCheckedChangeListener { _, checked ->
-                            entry.isEnabled = checked
-                        }
-                    }
-                    val info = LinearLayout(this).apply {
-                        orientation = LinearLayout.VERTICAL
-                        layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                    }
-                    val descTv = TextView(this).apply {
-                        text = entry.description
-                        setTextColor(pal.textPrimary)
-                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f)
-                        StormThemeEngine.applyFont(this, bold = true)
-                    }
-                    val codeTv = TextView(this).apply {
-                        text = entry.code
-                        setTextColor(pal.textSecondary)
-                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f)
-                    }
-                    info.addView(descTv)
-                    info.addView(codeTv)
-                    row.addView(cb)
-                    row.addView(info)
-                    listContainer.addView(row)
-                }
-            }
-        }
-        rebuildRows()
-
-        val scroll = ScrollView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(240f)).apply {
-                topMargin = dp(8f)
-                bottomMargin = dp(8f)
-            }
-            addView(listContainer)
-        }
-        card.addView(scroll)
-
-        // Add custom cheat row
-        val descInput = EditText(this).apply {
-            hint = "Описание чита"
-            setHintTextColor(pal.textSecondary)
-            setTextColor(pal.textPrimary)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-            background = StormThemeEngine.createRecessedInputDrawable(this@EmulationActivity)
-            setPadding(dp(10f), dp(6f), dp(10f), dp(6f))
-        }
-        val codeInput = EditText(this).apply {
-            hint = "Код (напр. 0099-01-63)"
-            setHintTextColor(pal.textSecondary)
-            setTextColor(pal.textPrimary)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-            background = StormThemeEngine.createRecessedInputDrawable(this@EmulationActivity)
-            setPadding(dp(10f), dp(6f), dp(10f), dp(6f))
-        }
-        card.addView(descInput, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6f) })
-        card.addView(codeInput, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8f) })
-
-        val btnBar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        btnBar.addView(
-            createIconActionButton(StormVectorIcons.CHEATS, StormLocalization.tr("cheats_add_code"), isAccent = false) {
-                val c = codeInput.text.toString().trim()
-                if (c.isNotEmpty()) {
-                    val d = descInput.text.toString().trim().ifBlank { "Custom Cheat #${gameCheatEntries.size + 1}" }
-                    gameCheatEntries.add(MobileCheatEntry(gameCheatEntries.size, d, d, c, true))
-                    descInput.setText("")
-                    codeInput.setText("")
-                    rebuildRows()
-                }
-            },
-            LinearLayout.LayoutParams(0, dp(40f), 1f).apply { rightMargin = dp(6f) }
-        )
-        btnBar.addView(
-            createIconActionButton(StormVectorIcons.SAVE, StormLocalization.tr("cheats_save"), isAccent = true) {
-                gameCheatFile?.let { MobileCheatAndBiosManager.saveChtFile(it, gameCheatEntries) }
-                pushActiveCheatsToCore()
-                Toast.makeText(this, StormLocalization.tr("cheats_save"), Toast.LENGTH_SHORT).show()
-                dlg.dismiss()
-            },
-            LinearLayout.LayoutParams(0, dp(40f), 1f)
-        )
-        card.addView(btnBar)
-
-        dlg.setContentView(
-            card,
-            ViewGroup.LayoutParams((resources.displayMetrics.widthPixels * 0.90f).roundToInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
-        )
-        dlg.show()
-    }
-
-    // === Live Native RAM Scanner Dialog ===
-
-    private fun showLiveRamScannerDialog() {
-        val pal = StormThemeEngine.currentTheme
-        val accent = StormThemeEngine.activeAccentColor
-
-        val dlg = Dialog(this)
-        dlg.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dlg.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = StormThemeEngine.createVolumetricCardDrawable(this@EmulationActivity, cornerDp = 16f)
-            setPadding(dp(16f), dp(16f), dp(16f), dp(16f))
-        }
-
-        val ramSize = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetSystemRamSize() else 0
-        val title = TextView(this).apply {
-            text = "${StormLocalization.tr("ram_scanner_title")} (${ramSize / 1024} KB RAM)"
-            setTextColor(pal.textPrimary)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-            StormThemeEngine.applyFont(this, bold = true)
-        }
-        card.addView(title)
-
-        // Width selector: 8 / 16 / 32-bit
-        val widthOptions = listOf(1 to "8-bit (1B)", 2 to "16-bit (2B)", 4 to "32-bit (4B)")
-        card.addView(buildHorizontalModeChips(widthOptions, ramScanWidthBytes) { w -> ramScanWidthBytes = w })
-
-        val valueInput = EditText(this).apply {
-            hint = "Значение (напр. 99 или 1000)"
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED
-            setHintTextColor(pal.textSecondary)
-            setTextColor(pal.textPrimary)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-            background = StormThemeEngine.createRecessedInputDrawable(this@EmulationActivity)
-            setPadding(dp(12f), dp(8f), dp(12f), dp(8f))
-        }
-        card.addView(valueInput, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8f) })
-
-        val matchesLabel = TextView(this).apply {
-            text = "${StormLocalization.tr("ram_matches_found")}: 0"
-            setTextColor(accent)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-            StormThemeEngine.applyFont(this, bold = true)
-        }
-        card.addView(matchesLabel)
-
-        val candidatesList = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
-
-        fun renderCandidates(totalMatches: Int) {
-            matchesLabel.text = "${StormLocalization.tr("ram_matches_found")}: $totalMatches"
-            candidatesList.removeAllViews()
-            if (!NativeLibretroBridge.isLibraryLoaded) return
-            val packedArr = NativeLibretroBridge.nativeRamGetCandidates(64)
-            for (packed in packedArr) {
-                val addr = NativeLibretroBridge.unpackCandidateAddress(packed)
-                val curVal = NativeLibretroBridge.unpackCandidateValue(packed)
-                val row = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(0, dp(4f), 0, dp(4f))
-                }
-                val addrTv = TextView(this).apply {
-                    text = String.format(Locale.US, "0x%06X = %d", addr, curVal)
-                    setTextColor(pal.textPrimary)
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                }
-                val writeBtn = TextView(this).apply {
-                    text = "Write"
-                    setTextColor(StormThemeEngine.contrastTextForFill(accent))
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-                    setPadding(dp(10f), dp(5f), dp(10f), dp(5f))
-                    background = StormThemeEngine.createAccentButtonDrawable(this@EmulationActivity, accent, 8f)
-                    setOnClickListener {
-                        val targetV = valueInput.text.toString().trim().toLongOrNull() ?: curVal
-                        NativeLibretroBridge.nativeRamWriteValue(addr, ramScanWidthBytes, targetV)
-                        Toast.makeText(this@EmulationActivity, String.format(Locale.US, "0x%06X <- %d", addr, targetV), Toast.LENGTH_SHORT).show()
-                    }
-                }
-                val isFrozen = frozenRamAddresses.contains(addr)
-                val freezeBtn = TextView(this).apply {
-                    text = if (isFrozen) "Unfreeze" else "Freeze"
-                    setTextColor(pal.textPrimary)
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-                    setPadding(dp(10f), dp(5f), dp(10f), dp(5f))
-                    background = StormThemeEngine.createFilterChipDrawable(this@EmulationActivity, isFrozen, accent, 8f)
-                    setOnClickListener {
-                        val nextFreeze = !frozenRamAddresses.contains(addr)
-                        val targetV = valueInput.text.toString().trim().toLongOrNull() ?: curVal
-                        NativeLibretroBridge.nativeRamSetFrozen(addr, ramScanWidthBytes, targetV, nextFreeze)
-                        if (nextFreeze) frozenRamAddresses.add(addr) else frozenRamAddresses.remove(addr)
-                        text = if (nextFreeze) "Unfreeze" else "Freeze"
-                        background = StormThemeEngine.createFilterChipDrawable(this@EmulationActivity, nextFreeze, accent, 8f)
-                    }
-                }
-                row.addView(addrTv)
-                row.addView(writeBtn, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(6f) })
-                row.addView(freezeBtn)
-                candidatesList.addView(row)
-            }
-        }
-
-        // Scan action buttons: First Scan, Exact, Increased, Decreased
-        val scanRow1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        scanRow1.addView(
-            createIconActionButton(StormVectorIcons.SEARCH, StormLocalization.tr("ram_scan_new"), isAccent = true) {
-                val v = valueInput.text.toString().trim().toLongOrNull() ?: 0L
-                val count = NativeLibretroBridge.nativeRamScanFirst(ramScanWidthBytes, v)
-                renderCandidates(count)
-            },
-            LinearLayout.LayoutParams(0, dp(38f), 1f).apply { rightMargin = dp(6f) }
-        )
-        scanRow1.addView(
-            createIconActionButton(StormVectorIcons.CHECK, StormLocalization.tr("ram_scan_exact"), isAccent = false) {
-                val v = valueInput.text.toString().trim().toLongOrNull() ?: 0L
-                val count = NativeLibretroBridge.nativeRamScanNext(NativeLibretroBridge.RAM_SCAN_EXACT, v)
-                renderCandidates(count)
-            },
-            LinearLayout.LayoutParams(0, dp(38f), 1f)
-        )
-        card.addView(scanRow1, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6f); bottomMargin = dp(6f) })
-
-        val scanRow2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val incBtn = createSimpleChipButton(StormLocalization.tr("ram_scan_increased")) {
-            val count = NativeLibretroBridge.nativeRamScanNext(NativeLibretroBridge.RAM_SCAN_INCREASED, 0L)
-            renderCandidates(count)
-        }
-        val decBtn = createSimpleChipButton(StormLocalization.tr("ram_scan_decreased")) {
-            val count = NativeLibretroBridge.nativeRamScanNext(NativeLibretroBridge.RAM_SCAN_DECREASED, 0L)
-            renderCandidates(count)
-        }
-        scanRow2.addView(incBtn, LinearLayout.LayoutParams(0, dp(36f), 1f).apply { rightMargin = dp(6f) })
-        scanRow2.addView(decBtn, LinearLayout.LayoutParams(0, dp(36f), 1f))
-        card.addView(scanRow2)
-
-        val candScroll = ScrollView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(190f)).apply {
-                topMargin = dp(8f)
-                bottomMargin = dp(8f)
-            }
-            addView(candidatesList)
-        }
-        card.addView(candScroll)
-        renderCandidates(NativeLibretroBridge.nativeRamGetCandidates(64).size)
-
-        card.addView(
-            createIconActionButton(StormVectorIcons.CLOSE, StormLocalization.tr("btn_close"), isAccent = false) {
-                dlg.dismiss()
-            },
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40f))
-        )
-
-        dlg.setContentView(
-            card,
-            ViewGroup.LayoutParams((resources.displayMetrics.widthPixels * 0.92f).roundToInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
-        )
-        dlg.show()
-    }
-
-    // === UI Builders (Single Icon Mandate Compliant) ===
-
     private fun createSectionLabel(textStr: String): TextView {
         return TextView(this).apply {
             text = textStr
             setTextColor(StormThemeEngine.currentTheme.textSecondary)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.2f)
             StormThemeEngine.applyFont(this, bold = true)
             setPadding(0, dp(2f), 0, dp(5f))
         }
@@ -1632,7 +2370,8 @@ class EmulationActivity : Activity() {
             text = label
             gravity = Gravity.CENTER
             setTextColor(pal.textPrimary)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+            setPadding(dp(10f), dp(5f), dp(10f), dp(5f))
             StormThemeEngine.applyFont(this, bold = true)
             background = StormThemeEngine.createSurfaceButtonDrawable(this@EmulationActivity, 10f)
             StormThemeEngine.attachSpringTouchFeedback(this)
@@ -1644,6 +2383,7 @@ class EmulationActivity : Activity() {
         iconName: String,
         label: String,
         isAccent: Boolean,
+        outLabelRef: Array<TextView?>? = null,
         onClick: () -> Unit
     ): LinearLayout {
         val pal = StormThemeEngine.currentTheme
@@ -1677,6 +2417,9 @@ class EmulationActivity : Activity() {
                     maxLines = 1
                     StormThemeEngine.applyFont(this, bold = true)
                 }
+                if (outLabelRef != null && outLabelRef.isNotEmpty()) {
+                    outLabelRef[0] = tv
+                }
                 addView(tv, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                     leftMargin = dp(7f)
                 })
@@ -1701,6 +2444,7 @@ class EmulationActivity : Activity() {
         touchOverlay.releaseAllInputs()
         flushSramSafe()
         emuPaused = true
+        updateGyroRegistration()
         super.onPause()
     }
 
@@ -1710,10 +2454,16 @@ class EmulationActivity : Activity() {
         if (quickDrawerDialog?.isShowing != true && !touchOverlay.isEditMode) {
             emuPaused = false
         }
+        updateGyroRegistration()
+        syncViewportBoundsWithHandheldDeck()
     }
 
     override fun onDestroy() {
         mainHandler.removeCallbacks(fpsHudUpdater)
+        if (gyroRegistered) {
+            sensorManager?.unregisterListener(gyroSensorListener)
+            gyroRegistered = false
+        }
         quickDrawerDialog?.dismiss()
         flushSramSafe()
         emuRunning = false

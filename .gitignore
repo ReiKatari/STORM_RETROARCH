@@ -32,3 +32,5 @@ android/local.properties
 *.aab
 *.jks
 *.keystore
+android/app/src/main/jniLibs/
+system/
