@@ -21,3 +21,14 @@ screenshots/
 cloud_saves/
 guidebooks/
 scratch/
+
+# Android Build & Signing Outputs
+android/.gradle/
+android/build/
+android/app/build/
+android/app/.cxx/
+android/local.properties
+*.apk
+*.aab
+*.jks
+*.keystore
