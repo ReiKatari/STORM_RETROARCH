@@ -16,7 +16,7 @@ public record ThemePalette(
     bool IsLight = false);
 
 public record AccentInfo(string Name, string ColorHex, string GlowHex, string SoftHex);
-public record FontInfo(string Name, string FamilyName);
+public record FontInfo(string Name, string FamilyName, string CssFallback = "Segoe UI, sans-serif");
 
 public static class ThemeManager
 {
@@ -54,21 +54,47 @@ public static class ThemeManager
 
     public static readonly FontInfo[] Fonts = new[]
     {
-        new FontInfo("Inter Variable",   "Inter Variable, Segoe UI Variable Text, Segoe UI, sans-serif"),
-        new FontInfo("Plus Jakarta Sans","Plus Jakarta Sans, Segoe UI Variable Text, Segoe UI, sans-serif"),
-        new FontInfo("Geist Sans",       "Geist Sans, Segoe UI Variable Text, Segoe UI, sans-serif"),
-        new FontInfo("Manrope",          "Manrope, Segoe UI Variable Text, Segoe UI, sans-serif"),
-        new FontInfo("Outfit",           "Outfit, Segoe UI Variable Text, Segoe UI, sans-serif"),
-        new FontInfo("Montserrat",       "Montserrat, Segoe UI Variable Text, Segoe UI, sans-serif"),
-        new FontInfo("Rubik",            "Rubik, Segoe UI Variable Text, Segoe UI, sans-serif"),
-        new FontInfo("Orbitron",         "Orbitron, Segoe UI Variable Display, Segoe UI, sans-serif"),
-        new FontInfo("JetBrains Mono",   "JetBrains Mono, Cascadia Code, Consolas, monospace"),
-        new FontInfo("Cascadia Code",    "Cascadia Code, Consolas, monospace")
+        new FontInfo("Inter",         "Inter",         "Segoe UI, sans-serif"),
+        new FontInfo("Exo 2",         "Exo 2",         "Segoe UI, sans-serif"),
+        new FontInfo("Geist",         "Geist",         "Segoe UI, sans-serif"),
+        new FontInfo("Manrope",       "Manrope",       "Segoe UI, sans-serif"),
+        new FontInfo("Comfortaa",     "Comfortaa",     "Segoe UI, sans-serif"),
+        new FontInfo("Montserrat",   "Montserrat",   "Segoe UI, sans-serif"),
+        new FontInfo("Rubik",         "Rubik",         "Segoe UI, sans-serif"),
+        new FontInfo("Russo One",     "Russo One",     "Segoe UI, sans-serif"),
+        new FontInfo("JetBrains Mono","JetBrains Mono","Consolas, monospace"),
+        new FontInfo("Cascadia Code", "Cascadia Code", "Cascadia Mono, Consolas, monospace")
     };
 
     public static ThemePalette CurrentPalette { get; private set; } = Themes[0];
     public static AccentInfo CurrentAccent { get; private set; } = Accents[0];
     public static FontInfo CurrentFont { get; private set; } = Fonts[0];
+
+    public static string NormalizeFontName(string? fontName)
+    {
+        if (string.IsNullOrWhiteSpace(fontName)) return "Inter";
+        string s = fontName.Trim();
+        if (s.Equals("Inter Variable", StringComparison.OrdinalIgnoreCase)) return "Inter";
+        if (s.Equals("Plus Jakarta Sans", StringComparison.OrdinalIgnoreCase)) return "Exo 2";
+        if (s.Equals("Geist Sans", StringComparison.OrdinalIgnoreCase)) return "Geist";
+        if (s.Equals("Outfit", StringComparison.OrdinalIgnoreCase)) return "Comfortaa";
+        if (s.Equals("Orbitron", StringComparison.OrdinalIgnoreCase)) return "Russo One";
+        return s;
+    }
+
+    public static FontInfo ResolveFont(string? fontNameOrFamily)
+    {
+        string norm = NormalizeFontName(fontNameOrFamily);
+        foreach (var f in Fonts)
+        {
+            if (f.Name.Equals(norm, StringComparison.OrdinalIgnoreCase) ||
+                f.FamilyName.Equals(norm, StringComparison.OrdinalIgnoreCase))
+            {
+                return f;
+            }
+        }
+        return Fonts[0];
+    }
 
     public static Color ParseColor(string hex)
     {
@@ -106,6 +132,12 @@ public static class ThemeManager
         res[key] = brush;
     }
 
+    public static void SetFont(string fontName)
+    {
+        CurrentFont = ResolveFont(fontName);
+        ApplyCurrentResources(CurrentPalette);
+    }
+
     public static void ApplyTheme(string themeName, int accentIndex, int fontIndex)
     {
         ThemePalette pal = Themes.Find(t => t.Name.Equals(themeName, StringComparison.OrdinalIgnoreCase)) ?? Themes[0];
@@ -121,6 +153,11 @@ public static class ThemeManager
         else
             CurrentFont = Fonts[0];
 
+        ApplyCurrentResources(pal);
+    }
+
+    private static void ApplyCurrentResources(ThemePalette pal)
+    {
         if (Application.Current != null)
         {
             var res = Application.Current.Resources;
@@ -161,8 +198,27 @@ public static class ThemeManager
             SetResourceBrush(res, "AccentGlowBrush", CurrentAccent.GlowHex);
             SetResourceBrush(res, "AccentSoftBrush", CurrentAccent.SoftHex);
 
+            // Table Grid & Header Brushes
+            string gridLineHex = pal.IsLight ? "#33182030" : "#38FFFFFF";
+            SetResourceBrush(res, "ThemeTableGridLine", gridLineHex);
+            SetResourceBrush(res, "ThemeTableHeaderBg", pal.IsLight ? "#E2E8F0" : pal.HeaderBg);
+
             // Font Family
-            res["AppFontFamily"] = new FontFamily(CurrentFont.FamilyName);
+            FontFamily appFont;
+            try
+            {
+                appFont = new FontFamily(new Uri("pack://application:,,,/Assets/Fonts/"), $"./#{CurrentFont.FamilyName}, {CurrentFont.CssFallback}");
+            }
+            catch
+            {
+                appFont = new FontFamily(CurrentFont.FamilyName);
+            }
+
+            res["AppFontFamily"] = appFont;
+            if (Application.Current.Resources != null && Application.Current.Resources != res)
+            {
+                Application.Current.Resources["AppFontFamily"] = appFont;
+            }
         }
 
         ThemeChanged?.Invoke();

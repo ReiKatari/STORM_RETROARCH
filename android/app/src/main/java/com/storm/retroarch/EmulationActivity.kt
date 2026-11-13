@@ -236,7 +236,7 @@ class EmulationActivity : Activity() {
                 }
                 fpsHudText.text = String.format(Locale.US, "%.1f FPS (%.1f ms) | %s%s", fps, ms, coreName, modeTag)
             }
-            mainHandler.postDelayed(this, 500L)
+            mainHandler.postDelayed(this, 1000L)
         }
     }
 
@@ -782,28 +782,107 @@ class EmulationActivity : Activity() {
         rootLayout.post { syncViewportBoundsWithHandheldDeck() }
     }
 
-    private fun applyOptionalBezelOverlay() {
-        val enabled = readPrefBool("bezelOverlay", "enable_bezel_overlay", false)
-        if (!enabled) {
+    private fun applyOptionalBezelOverlay(overridePreset: String? = null) {
+        val preset = overridePreset ?: unifiedPrefs().getString("bezelPreset", "none") ?: "none"
+        if (preset == "none" || preset == "Без рамки" || preset == "No Bezel") {
             bezelImageView.visibility = View.GONE
             return
         }
         val bezelsRoot = MobileCheatAndBiosManager.getBezelsDir()
-        if (!bezelsRoot.exists()) return
-        val normKey = MobileCoreRegistry.normalizePlatformKey(platformName, "")
-        val candidate = bezelsRoot.walkTopDown()
-            .maxDepth(4)
-            .firstOrNull { f ->
+        var bmp: Bitmap? = null
+        if (bezelsRoot.exists()) {
+            val normKey = preset.lowercase(Locale.ROOT).replace(" ", "_")
+            val candidate = bezelsRoot.walkTopDown().maxDepth(4).firstOrNull { f ->
                 f.isFile && f.extension.equals("png", ignoreCase = true) &&
-                    f.nameWithoutExtension.lowercase(Locale.ROOT).contains(normKey.ifBlank { "bezel" })
+                    f.nameWithoutExtension.lowercase(Locale.ROOT).contains(normKey)
             }
-        if (candidate != null) {
-            val bmp = BitmapFactory.decodeFile(candidate.absolutePath)
-            if (bmp != null) {
-                bezelImageView.setImageBitmap(bmp)
-                bezelImageView.visibility = View.VISIBLE
+            if (candidate != null) {
+                bmp = BitmapFactory.decodeFile(candidate.absolutePath)
             }
         }
+        if (bmp == null) {
+            val dm = resources.displayMetrics
+            val w = dm.widthPixels.coerceAtLeast(640)
+            val h = dm.heightPixels.coerceAtLeast(360)
+            bmp = generateBezelArtworkBitmap(preset, w, h)
+        }
+        if (bmp != null) {
+            bezelImageView.setImageBitmap(bmp)
+            bezelImageView.visibility = View.VISIBLE
+        } else {
+            bezelImageView.visibility = View.GONE
+        }
+    }
+
+    private fun generateBezelArtworkBitmap(preset: String, w: Int, h: Int): Bitmap {
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bmp)
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        val aspect = 4f / 3f
+        val innerH = (h * 0.88f).roundToInt()
+        val innerW = (innerH * aspect).roundToInt().coerceAtMost((w * 0.88f).roundToInt())
+        val innerX = (w - innerW) / 2
+        val innerY = (h - innerH) / 2
+        val innerRect = android.graphics.RectF(innerX.toFloat(), innerY.toFloat(), (innerX + innerW).toFloat(), (innerY + innerH).toFloat())
+
+        when {
+            preset.contains("Neon", ignoreCase = true) -> {
+                paint.color = Color.rgb(12, 10, 22)
+                canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), paint)
+                paint.style = android.graphics.Paint.Style.STROKE
+                paint.strokeWidth = 6f
+                paint.color = Color.rgb(6, 182, 212)
+                canvas.drawRoundRect(innerRect.left - 8f, innerRect.top - 8f, innerRect.right + 8f, innerRect.bottom + 8f, 16f, 16f, paint)
+                paint.color = Color.rgb(236, 72, 153)
+                canvas.drawRoundRect(innerRect.left - 14f, innerRect.top - 14f, innerRect.right + 14f, innerRect.bottom + 14f, 20f, 20f, paint)
+            }
+            preset.contains("Sony", ignoreCase = true) -> {
+                paint.color = Color.rgb(28, 28, 32)
+                canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), paint)
+                paint.style = android.graphics.Paint.Style.STROKE
+                paint.strokeWidth = 14f
+                paint.color = Color.rgb(18, 18, 20)
+                canvas.drawRoundRect(innerRect.left - 7f, innerRect.top - 7f, innerRect.right + 7f, innerRect.bottom + 7f, 24f, 24f, paint)
+            }
+            preset.contains("GBA", ignoreCase = true) -> {
+                paint.color = Color.rgb(42, 28, 68)
+                canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), paint)
+                paint.style = android.graphics.Paint.Style.STROKE
+                paint.strokeWidth = 10f
+                paint.color = Color.rgb(20, 16, 32)
+                canvas.drawRoundRect(innerRect.left - 5f, innerRect.top - 5f, innerRect.right + 5f, innerRect.bottom + 5f, 18f, 18f, paint)
+            }
+            preset.contains("SNES", ignoreCase = true) -> {
+                paint.color = Color.rgb(48, 48, 56)
+                canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), paint)
+                paint.style = android.graphics.Paint.Style.STROKE
+                paint.strokeWidth = 8f
+                paint.color = Color.rgb(139, 92, 246)
+                canvas.drawRoundRect(innerRect.left - 4f, innerRect.top - 4f, innerRect.right + 4f, innerRect.bottom + 4f, 12f, 12f, paint)
+            }
+            preset.contains("Mega", ignoreCase = true) -> {
+                paint.color = Color.rgb(20, 20, 24)
+                canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), paint)
+                paint.style = android.graphics.Paint.Style.STROKE
+                paint.strokeWidth = 8f
+                paint.color = Color.rgb(239, 68, 68)
+                canvas.drawRoundRect(innerRect.left - 4f, innerRect.top - 4f, innerRect.right + 4f, innerRect.bottom + 4f, 14f, 14f, paint)
+            }
+            else -> {
+                paint.color = Color.rgb(14, 11, 24)
+                canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), paint)
+                paint.style = android.graphics.Paint.Style.STROKE
+                paint.strokeWidth = 6f
+                paint.color = StormThemeEngine.activeAccentColor
+                canvas.drawRoundRect(innerRect.left - 4f, innerRect.top - 4f, innerRect.right + 4f, innerRect.bottom + 4f, 16f, 16f, paint)
+            }
+        }
+
+        paint.style = android.graphics.Paint.Style.FILL
+        paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+        canvas.drawRoundRect(innerRect, 12f, 12f, paint)
+        paint.xfermode = null
+        return bmp
     }
 
     private fun detectInitialControllerPresence() {
@@ -837,6 +916,7 @@ class EmulationActivity : Activity() {
         emuPaused = false
 
         emuThread = Thread({
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_DISPLAY)
             val loaded = NativeLibretroBridge.nativeLoadCoreAndGame(
                 coreSoPath,
                 effectiveRomPath,
@@ -932,15 +1012,12 @@ class EmulationActivity : Activity() {
                     flushSramSafe()
                 }
 
-                val paceMultiplier = if (fastForwardMultiplier == 1 && frameSkip > 0) (1 + frameSkip) else 1
+                val isEco = unifiedPrefs().getBoolean("ecoAntiHeatMode", false)
+                val paceMultiplier = if (isEco) 2 else (if (fastForwardMultiplier == 1 && frameSkip > 0) (1 + frameSkip) else 1)
                 nextFrameDeadline += frameDurationNs * paceMultiplier
                 val sleepNs = nextFrameDeadline - System.nanoTime()
-                if (sleepNs > 1_500_000L) {
-                    try {
-                        Thread.sleep(sleepNs / 1_000_000L, (sleepNs % 1_000_000L).toInt())
-                    } catch (_: InterruptedException) {
-                        break
-                    }
+                if (sleepNs > 100_000L) {
+                    java.util.concurrent.locks.LockSupport.parkNanos(sleepNs)
                 } else if (sleepNs < -frameDurationNs * 3) {
                     nextFrameDeadline = System.nanoTime()
                 }
@@ -953,8 +1030,7 @@ class EmulationActivity : Activity() {
                 NativeLibretroBridge.nativeUnload()
             }
         }, "StormLibretroEmuThread").apply {
-            priority = Thread.MAX_PRIORITY
-            start()
+                        start()
         }
     }
 
@@ -1313,7 +1389,64 @@ class EmulationActivity : Activity() {
 
     // === STORM AURORA FLUID Glassmorphic Slide-Over Quick Studio ===
 
-    fun showInGameQuickDrawer() {
+    private fun createStyledDropdown(
+        label: String,
+        options: List<String>,
+        selectedIndex: Int,
+        pal: StormThemePalette,
+        accent: Int,
+        onSelected: (Int) -> Unit
+    ): LinearLayout {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(4f), 0, dp(6f))
+        }
+        val labelTv = TextView(this).apply {
+            text = label
+            setTextColor(pal.textSecondary)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f)
+            StormThemeEngine.applyFont(this, bold = false)
+        }
+        val spinner = android.widget.Spinner(this).apply {
+            val adapter = object : android.widget.ArrayAdapter<String>(this@EmulationActivity, android.R.layout.simple_spinner_dropdown_item, options) {
+                override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                    val tv = super.getView(position, convertView, parent) as TextView
+                    tv.setTextColor(pal.textPrimary)
+                    tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                    StormThemeEngine.applyFont(tv, bold = true)
+                    return tv
+                }
+                override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
+                    val tv = super.getDropDownView(position, convertView, parent) as TextView
+                    tv.setTextColor(pal.textPrimary)
+                    tv.setBackgroundColor(Color.rgb(18, 14, 30))
+                    tv.setPadding(dp(12f), dp(10f), dp(12f), dp(10f))
+                    StormThemeEngine.applyFont(tv, bold = false)
+                    return tv
+                }
+            }
+            this.adapter = adapter
+            setSelection(selectedIndex.coerceIn(0, options.size - 1), false)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpF(8f)
+                setColor(Color.argb(160, 22, 18, 40))
+                setStroke(dp(1f), StormThemeEngine.withAlpha(accent, 140))
+            }
+            setPadding(dp(10f), dp(8f), dp(10f), dp(8f))
+            onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, pos: Int, id: Long) {
+                    onSelected(pos)
+                }
+                override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+            }
+        }
+        row.addView(labelTv)
+        row.addView(spinner, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42f)).apply { topMargin = dp(2f) })
+        return row
+    }
+
+fun showInGameQuickDrawer() {
         if (isFinishing || isDestroyed) return
         if (quickDrawerDialog?.isShowing == true) return
 
@@ -1391,7 +1524,7 @@ class EmulationActivity : Activity() {
         val measuredFps = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetMeasuredFps() else 60.0
         val frameMs = if (measuredFps > 1.0) 1000.0 / measuredFps else 16.7
         val telemetryPill = TextView(this).apply {
-            text = String.format(Locale.US, "STORM RETROARCH 2.6.1  |  %.1f FPS  |  %.1f ms", measuredFps, frameMs)
+            text = String.format(Locale.US, "STORM RETROARCH 2.7.0  |  %.1f FPS  |  %.1f ms", measuredFps, frameMs)
             fontFeatureSettings = "tnum"
             setTextColor(StormThemeEngine.lighten(accent, 0.25f))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f)
@@ -1715,66 +1848,152 @@ class EmulationActivity : Activity() {
         )
         body.addView(touchCard, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(10f) })
 
-        // 6. DISPLAY, SHADER & HUD TWEAKER
+        // 6. VIDEO & GRAPHICS STUDIO CONTROLS (Grouped Sections + Styled Dropdowns)
         val displayCard = createStudioGroupCard()
-        displayCard.addView(createSectionLabel("Пропорции экрана (Aspect Ratio)"))
-        val curAspect = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetAspectMode() else resolveInitialAspectMode()
-        val aspectOptions = listOf(
-            NativeLibretroBridge.ASPECT_CORE_FIT to "Auto",
-            NativeLibretroBridge.ASPECT_4_3 to "4:3",
-            NativeLibretroBridge.ASPECT_16_9 to "16:9",
-            NativeLibretroBridge.ASPECT_INTEGER to "Integer",
-            NativeLibretroBridge.ASPECT_STRETCH to "Stretch"
+        displayCard.addView(createSectionLabel("Видео и графика"))
+
+        // 6.1 Shader Mode Dropdown (0..7)
+        val shaderLabels = listOf(
+            "Без фильтра",
+            "CRT Royale",
+            "CRT Geom",
+            "CRT Lottes",
+            "LCD Grid",
+            "xBRZ 4x / Мягкий",
+            "VHS / NTSC",
+            "Scanlines (Тонкие)"
         )
-        displayCard.addView(buildHorizontalModeChips(aspectOptions, curAspect) { mode ->
+        val shaderModeMap = listOf(
+            NativeLibretroBridge.SHADER_NONE,
+            NativeLibretroBridge.SHADER_CRT_ROYALE,
+            NativeLibretroBridge.SHADER_CRT_GEOM,
+            NativeLibretroBridge.SHADER_CRT_LOTTES,
+            NativeLibretroBridge.SHADER_LCD_GRID,
+            NativeLibretroBridge.SHADER_SMOOTH_SOFT,
+            NativeLibretroBridge.SHADER_VHS_NTSC,
+            NativeLibretroBridge.SHADER_SCANLINES_SUBTLE
+        )
+        val curShaderRaw = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetShaderMode() else resolveInitialShaderMode()
+        val curShaderIdx = shaderModeMap.indexOf(curShaderRaw).coerceAtLeast(0)
+
+        displayCard.addView(createStyledDropdown("Фильтр / Шейдер", shaderLabels, curShaderIdx, pal, accent) { pos ->
+            val chosenMode = shaderModeMap[pos]
             if (NativeLibretroBridge.isLibraryLoaded) {
-                NativeLibretroBridge.nativeSetAspectMode(mode)
+                NativeLibretroBridge.nativeSetShaderMode(chosenMode)
             }
-            persistAspectMode(mode)
+            persistShaderMode(chosenMode)
         })
 
-        displayCard.addView(createSectionLabel("Видео-шейдер"))
-        val curShader = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetShaderMode() else resolveInitialShaderMode()
-        val shaderOptions = listOf(
-            NativeLibretroBridge.SHADER_PIXEL_PERFECT to "Pixel-Perfect",
-            NativeLibretroBridge.SHADER_BILINEAR_SMOOTH to "Bilinear",
-            NativeLibretroBridge.SHADER_CRT_SCANLINES to "CRT Scanlines",
-            NativeLibretroBridge.SHADER_LCD_GRID to "LCD Grid"
+        // 6.2 Screen Bezel Overlay Dropdown
+        val bezelPresets = listOf(
+            "Без рамки",
+            "Arcade Neon",
+            "Sony CRT",
+            "Handheld GBA",
+            "SNES Classic",
+            "Mega Drive",
+            "STORM Studio"
         )
-        displayCard.addView(buildHorizontalModeChips(shaderOptions, curShader) { mode ->
-            if (NativeLibretroBridge.isLibraryLoaded) {
-                NativeLibretroBridge.nativeSetShaderMode(mode)
-            }
-            persistShaderMode(mode)
+        val curBezelPreset = unifiedPrefs().getString("bezelPreset", "none") ?: "none"
+        val curBezelIdx = when (curBezelPreset) {
+            "Arcade Neon" -> 1
+            "Sony CRT" -> 2
+            "Handheld GBA" -> 3
+            "SNES Classic" -> 4
+            "Mega Drive" -> 5
+            "STORM Studio" -> 6
+            else -> 0
+        }
+        displayCard.addView(createStyledDropdown("Рамка экрана", bezelPresets, curBezelIdx, pal, accent) { pos ->
+            val chosenPreset = bezelPresets[pos]
+            unifiedPrefs().edit().putString("bezelPreset", if (pos == 0) "none" else chosenPreset).apply()
+            applyOptionalBezelOverlay(if (pos == 0) "none" else chosenPreset)
         })
 
-        // Quick Toggles Row: FPS HUD, Виброотклик, Перемотка
-        val quickTogglesRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        quickTogglesRow.addView(
+        // 6.3 Internal Resolution Scale (1x - 4x)
+        val resOptions = listOf("1x (Нативное)", "2x (HD 720p)", "3x (Full HD)", "4x (Ultra HD 4K)")
+        val curScale = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetInternalScale().coerceIn(1, 4) else 1
+        displayCard.addView(createStyledDropdown("Разрешение (1x-4x)", resOptions, curScale - 1, pal, accent) { pos ->
+            val scaleVal = pos + 1
+            if (NativeLibretroBridge.isLibraryLoaded) {
+                NativeLibretroBridge.nativeSetInternalScale(scaleVal)
+            }
+            unifiedPrefs().edit().putInt("internalScale", scaleVal).apply()
+        })
+
+        // 6.4 Aspect Ratio Mode
+        val aspectLabels = listOf("Авто (Core Fit)", "4:3 (Классика)", "16:9 (Широкий)", "На весь экран", "1:1 / Целые пиксели")
+        val aspectValues = listOf(
+            NativeLibretroBridge.ASPECT_CORE_FIT,
+            NativeLibretroBridge.ASPECT_4_3,
+            NativeLibretroBridge.ASPECT_16_9,
+            NativeLibretroBridge.ASPECT_STRETCH,
+            NativeLibretroBridge.ASPECT_INTEGER
+        )
+        val curAspectRaw = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetAspectMode() else resolveInitialAspectMode()
+        val curAspectIdx = aspectValues.indexOf(curAspectRaw).coerceAtLeast(0)
+        displayCard.addView(createStyledDropdown("Соотношение сторон", aspectLabels, curAspectIdx, pal, accent) { pos ->
+            val modeVal = aspectValues[pos]
+            if (NativeLibretroBridge.isLibraryLoaded) {
+                NativeLibretroBridge.nativeSetAspectMode(modeVal)
+            }
+            persistAspectMode(modeVal)
+        })
+
+        // 6.5 Viewport Zoom Mode
+        val zoomLabels = listOf("Авто (По размеру)", "Целые множители (Integer)", "100% (Оригинал 1:1)")
+        val curZoom = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetViewportZoom().coerceIn(0, 2) else 0
+        displayCard.addView(createStyledDropdown("Масштаб", zoomLabels, curZoom, pal, accent) { pos ->
+            if (NativeLibretroBridge.isLibraryLoaded) {
+                NativeLibretroBridge.nativeSetViewportZoom(pos)
+            }
+            unifiedPrefs().edit().putInt("viewportZoom", pos).apply()
+        })
+
+        body.addView(displayCard, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(10f) })
+
+        // 6.6 PERFORMANCE & SOUND STUDIO CONTROLS
+        val perfCard = createStudioGroupCard()
+        perfCard.addView(createSectionLabel("Производительность и звук"))
+
+        val isEcoMode = unifiedPrefs().getBoolean("ecoAntiHeatMode", false)
+        val ecoToggleRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        ecoToggleRow.addView(
+            buildCompactToggleChip("Эко-режим (Меньше нагрева)", isEcoMode, accent) { on ->
+                unifiedPrefs().edit().putBoolean("ecoAntiHeatMode", on).apply()
+                Toast.makeText(this, if (on) "Эко-режим активен: низкий нагрев" else "Эко-режим выключен", Toast.LENGTH_SHORT).show()
+            },
+            LinearLayout.LayoutParams(0, dp(38f), 1f).apply { rightMargin = dp(6f) }
+        )
+        ecoToggleRow.addView(
             buildCompactToggleChip("FPS HUD", fpsHudText.visibility == View.VISIBLE, accent) { on ->
                 fpsHudText.visibility = if (on) View.VISIBLE else View.GONE
                 unifiedPrefs().edit().putBoolean("fpsHud", on).apply()
                 legacyPrefs().edit().putBoolean("show_fps_hud", on).apply()
             },
-            LinearLayout.LayoutParams(0, dp(36f), 1f).apply { rightMargin = dp(6f) }
+            LinearLayout.LayoutParams(0, dp(38f), 1f)
         )
-        quickTogglesRow.addView(
+        perfCard.addView(ecoToggleRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6f) })
+
+        val extraTogglesRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        extraTogglesRow.addView(
             buildCompactToggleChip("Виброотклик", touchOverlay.hapticsEnabled, accent) { on ->
                 touchOverlay.hapticsEnabled = on
                 touchOverlay.saveLayouts()
             },
-            LinearLayout.LayoutParams(0, dp(36f), 1f).apply { rightMargin = dp(6f) }
+            LinearLayout.LayoutParams(0, dp(38f), 1f).apply { rightMargin = dp(6f) }
         )
-        quickTogglesRow.addView(
+        extraTogglesRow.addView(
             buildCompactToggleChip("Перемотка", rewindEnabled, accent) { on ->
                 rewindEnabled = on
                 unifiedPrefs().edit().putBoolean("rewindEnabled", on).apply()
                 legacyPrefs().edit().putBoolean("rewind_enabled", on).apply()
             },
-            LinearLayout.LayoutParams(0, dp(36f), 1f)
+            LinearLayout.LayoutParams(0, dp(38f), 1f)
         )
-        displayCard.addView(quickTogglesRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(4f) })
-        body.addView(displayCard, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(12f) })
+        perfCard.addView(extraTogglesRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+        body.addView(perfCard, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(12f) })
 
         // 7. EXIT TO STUDIO
         val exitBtn = createIconActionButton(StormVectorIcons.CLOSE, "Выйти в студию", isAccent = false) {

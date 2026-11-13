@@ -462,7 +462,9 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         if (::webView.isInitialized) {
+            webView.resumeTimers()
             webView.onResume()
+            evaluateJsOnMain("window.__stormSetPaused?.(false);")
         }
         if (hasCompletedFirstResume && ::stormBridge.isInitialized) {
             // Sync save states & storage status after returning from EmulationActivity or system Settings
@@ -477,9 +479,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         if (::webView.isInitialized) {
+            evaluateJsOnMain("window.__stormSetPaused?.(true);")
             webView.onPause()
+            webView.pauseTimers()
         }
         super.onPause()
+    }
+
+    override fun onStop() {
+        if (::webView.isInitialized) {
+            evaluateJsOnMain("window.__stormSetPaused?.(true);")
+            webView.onPause()
+            webView.pauseTimers()
+        }
+        super.onStop()
     }
 
     override fun onDestroy() {

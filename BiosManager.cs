@@ -23,6 +23,7 @@ public class BiosInfoItem : INotifyPropertyChanged
     public bool IsDirectoryRequirement { get; set; }
     public string Platform { get; set; } = "";
     public string PlatformCategory { get; set; } = "Sony PlayStation";
+    public string SystemFamily => BiosManager.GetSystemFamilyForConsole(Platform);
     public string Description { get; set; } = "";
     public string ExpectedMd5 { get; set; } = "";
     public long ExpectedSize { get; set; }
@@ -71,6 +72,19 @@ public class BiosInfoItem : INotifyPropertyChanged
 
 public static class BiosManager
 {
+    public static string GetSystemFamilyForConsole(string console)
+    {
+        if (string.IsNullOrWhiteSpace(console)) return "Arcade & Home Computers";
+        string c = console.ToLowerInvariant();
+        if (c.Contains("playstation") || c.Contains("ps1") || c.Contains("ps2") || c.Contains("ps3") || c.Contains("psp") || c.Contains("vita") || c.Contains("psx"))
+            return "PlayStation";
+        if (c.Contains("sega") || c.Contains("genesis") || c.Contains("saturn") || c.Contains("dreamcast") || c.Contains("naomi") || c.Contains("mega drive") || c.Contains("master system") || c.Contains("game gear") || c.Contains("atomiswave"))
+            return "Sega";
+        if (c.Contains("nintendo") || c.Contains("nes") || c.Contains("famicom") || c.Contains("snes") || c.Contains("game boy") || c.Contains("gba") || c.Contains("ds") || c.Contains("3ds") || c.Contains("gamecube") || c.Contains("wii"))
+            return "Nintendo";
+        return "Arcade & Home Computers";
+    }
+
     public static readonly string SystemDir = Directory.Exists(CoreManager.InstallDir)
         ? Path.Combine(CoreManager.InstallDir, "system")
         : Path.Combine(CoreManager.AppDir, "system");

@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -332,6 +334,163 @@ public sealed class RollbackNetplayEngine : IDisposable
         string role = _isHost ? "Хост (Игрок 1)" : "Клиент (Игрок 2)";
         return $"{role} • Задержка (Ping): {_pingMs:0.0} мс • Кадров отката: {_rollbackCount} • Комната: {_roomName}";
     }
+
+    // ==================== НОВЫЕ СЕТЕВЫЕ СЕРВИСЫ STORM RETROARCH ====================
+
+    /// <summary>
+    /// Асинхронно измеряет задержку до указанного релея/хоста (ICMP Ping с переходом на TCP handshake).
+    /// Возвращает значение >= 1 мс или -1 при недоступности.
+    /// </summary>
+    public static async Task<int> MeasureRelayLatencyAsync(string host, int port = 55435, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(host)) return -1;
+        host = host.Trim();
+
+        // 1. Попытка ICMP Ping (до 1500 мс)
+        try
+        {
+            using var pinger = new Ping();
+            var reply = await pinger.SendPingAsync(host, 1500).ConfigureAwait(false);
+            if (reply.Status == IPStatus.Success && reply.RoundtripTime >= 0)
+            {
+                return (int)Math.Max(1, reply.RoundtripTime);
+            }
+        }
+        catch { }
+
+        // 2. Fallback: Замер времени подключения через TCP
+        try
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            using var tcp = new TcpClient();
+            using var reg = ct.Register(() => { try { tcp.Close(); } catch { } });
+
+            var connectTask = tcp.ConnectAsync(host, port);
+            var completed = await Task.WhenAny(connectTask, Task.Delay(1500, ct)).ConfigureAwait(false);
+            sw.Stop();
+
+            if (completed == connectTask && tcp.Connected)
+            {
+                return (int)Math.Max(1, sw.ElapsedMilliseconds);
+            }
+        }
+        catch { }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Генерирует читаемый и обратимый код комнаты STORM на основе IP и порта (STORM-XXXX-XXXX-XXXX).
+    /// </summary>
+    public static string GenerateRoomCode(string host, int port)
+    {
+        if (string.IsNullOrWhiteSpace(host)) host = "127.0.0.1";
+        if (port <= 0 || port > 65535) port = 55435;
+
+        byte[] ipBytes;
+        if (!IPAddress.TryParse(host, out var ip) || ip.AddressFamily != AddressFamily.InterNetwork)
+        {
+            try
+            {
+                var addresses = Dns.GetHostAddresses(host);
+                var ipv4 = Array.Find(addresses, a => a.AddressFamily == AddressFamily.InterNetwork);
+                ipBytes = (ipv4 ?? IPAddress.Loopback).GetAddressBytes();
+            }
+            catch
+            {
+                ipBytes = new byte[] { 127, 0, 0, 1 };
+            }
+        }
+        else
+        {
+            ipBytes = ip.GetAddressBytes();
+        }
+
+        byte p1 = (byte)((port >> 8) & 0xFF);
+        byte p2 = (byte)(port & 0xFF);
+
+        return $"STORM-{ipBytes[0]:X2}{ipBytes[1]:X2}-{ipBytes[2]:X2}{ipBytes[3]:X2}-{p1:X2}{p2:X2}";
+    }
+
+    /// <summary>
+    /// Расшифровывает код комнаты STORM обратно в адрес хоста и порт.
+    /// </summary>
+    public static (string Host, int Port)? ParseRoomCode(string code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return null;
+        string clean = code.Trim().ToUpperInvariant().Replace("STORM-", "").Replace("-", "").Replace(" ", "");
+
+        if (clean.Length == 12)
+        {
+            try
+            {
+                byte b0 = Convert.ToByte(clean.Substring(0, 2), 16);
+                byte b1 = Convert.ToByte(clean.Substring(2, 2), 16);
+                byte b2 = Convert.ToByte(clean.Substring(4, 2), 16);
+                byte b3 = Convert.ToByte(clean.Substring(6, 2), 16);
+                int port = (Convert.ToByte(clean.Substring(8, 2), 16) << 8) | Convert.ToByte(clean.Substring(10, 2), 16);
+
+                string ip = $"{b0}.{b1}.{b2}.{b3}";
+                if (port > 0 && port <= 65535)
+                {
+                    return (ip, port);
+                }
+            }
+            catch { }
+        }
+
+        // Поддержка обычного формата host:port
+        if (code.Contains(':'))
+        {
+            var parts = code.Split(':');
+            if (parts.Length == 2 && int.TryParse(parts[1], out int p) && p > 0 && p <= 65535)
+            {
+                return (parts[0].Trim(), p);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Обнаруживает локальные IPv4 адреса текущего ПК в домашней/локальной сети.
+    /// </summary>
+    public static async Task<List<string>> DiscoverLocalNetworkIpsAsync()
+    {
+        return await Task.Run(() =>
+        {
+            var list = new List<string>();
+            try
+            {
+                foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (ni.OperationalStatus != OperationalStatus.Up)
+                        continue;
+
+                    if (ni.NetworkInterfaceType == NetworkInterfaceType.Loopback)
+                        continue;
+
+                    var ipProps = ni.GetIPProperties();
+                    foreach (var addr in ipProps.UnicastAddresses)
+                    {
+                        if (addr.Address.AddressFamily == AddressFamily.InterNetwork &&
+                            !IPAddress.IsLoopback(addr.Address))
+                        {
+                            string ip = addr.Address.ToString();
+                            if (!list.Contains(ip)) list.Add(ip);
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            if (list.Count == 0) list.Add("127.0.0.1");
+            return list;
+        }).ConfigureAwait(false);
+    }
+
+    public Task<int> MeasureLatencyAsync(string host, int port = 55435, CancellationToken ct = default) =>
+        MeasureRelayLatencyAsync(host, port, ct);
 
     public void Dispose()
     {

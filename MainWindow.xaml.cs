@@ -304,7 +304,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         CmbStateSlot.SelectionChanged += CmbStateSlot_SelectionChanged;
         SettingItem.SettingChanged += OnLiveSettingChanged;
 
-        // 2.6.1 Instant Debounced Search Timer (35ms)
+        // 2.7.0 Instant Debounced Search Timer (35ms)
         _searchDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(35) };
         _searchDebounceTimer.Tick += (s, e) =>
         {
@@ -316,6 +316,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             LstCommandPaletteResults.ItemsSource = _filteredPaletteItems;
 
         InitQuickMenuStateSlots();
+        InitializeStudio270();
 
         // 2.0.0 Ambilux Dynamic Glow Event Subscription
         NativeLibretroHost.Current.OnAmbiluxColorUpdated += (r, g, b) =>
@@ -330,7 +331,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }));
         };
 
-        // 2.6.1 Multi-Device Input Engine & Controller Hotkey Studio
+        // 2.7.0 Multi-Device Input Engine & Controller Hotkey Studio
         DeviceInputProfileEngine.Initialize();
         DeviceInputProfileEngine.OnDeviceProfileActivated += (dev, msg) =>
         {
@@ -504,7 +505,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         IntPtr hwnd = helper.Handle;
         try
         {
-            SetWindowText(hwnd, Title ?? "STORM RETROARCH 2.6.1");
+            SetWindowText(hwnd, Title ?? "STORM RETROARCH 2.7.0");
             ChangeWindowMessageFilterEx(hwnd, WM_DROPFILES, MSGFLT_ALLOW, IntPtr.Zero);
             ChangeWindowMessageFilterEx(hwnd, WM_COPYDATA, MSGFLT_ALLOW, IntPtr.Zero);
             ChangeWindowMessageFilterEx(hwnd, WM_COPYGLOBALDATA, MSGFLT_ALLOW, IntPtr.Zero);
@@ -633,7 +634,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _isLoaded = true;
         LogCheckpoint("Before InitStudio200"); InitStudio200(); InitStudio210(); InitStudio220Subsystem(); InitStudio230Subsystem(); InitStudio260(); LogCheckpoint("After InitStudio260");
 
-        // 2.6.1 Non-blocking background subsystem warmup (shaders, saves, BIOS, cheats, bezels, achievements, external emus)
+        // 2.7.0 Non-blocking background subsystem warmup (shaders, saves, BIOS, cheats, bezels, achievements, external emus)
         if (Environment.GetCommandLineArgs().Any(a => a.StartsWith("--screenshot", StringComparison.OrdinalIgnoreCase)))
             {
                 await HydrateSubsystemsInBackgroundAsync();
@@ -2982,7 +2983,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (!match) continue;
             }
 
-            // 2.0.0 / 2.6.1 Smart Collections filter
+            // 2.0.0 / 2.7.0 Smart Collections filter
             if (_selectedSmartCollection == "Избранное")
             {
                 if (!g.IsFavorite) continue;
@@ -9515,7 +9516,29 @@ private void LoadBezels(bool forceReload = true)
         if (sender is Button btn && btn.Tag is RamMatchEntry entry)
         {
             uint.TryParse(TxtRamPokeValue?.Text, out uint pokeVal);
-            ShowOsdToast($"Чит-код добавлен для {entry.HexAddress} = {pokeVal}");
+            string codeStr = $"{entry.Address:X6}+{pokeVal:X2}";
+            string descStr = $"RAM Hack 0x{entry.HexAddress} = {pokeVal}";
+
+            var newCheat = new CheatItem
+            {
+                Index = _selectedCheats.Count,
+                Description = descStr,
+                Code = codeStr,
+                IsEnabled = true
+            };
+            _selectedCheats.Add(newCheat);
+
+            if (_selectedCheatFile != null)
+            {
+                CheatManager.SaveCht(_selectedCheatFile.FilePath, _selectedCheats);
+                _selectedCheatFile.CheatCount = _selectedCheats.Count;
+                _selectedCheatFile.Cheats = new List<CheatItem>(_selectedCheats);
+            }
+            if (NativeLibretroHost.Current.IsRunning)
+            {
+                NativeLibretroHost.Current.ApplyCheats(_selectedCheats);
+            }
+            ShowOsdToast($"Чит-код добавлен и применён: {descStr}");
         }
     }
 

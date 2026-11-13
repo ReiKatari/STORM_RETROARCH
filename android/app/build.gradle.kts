@@ -29,8 +29,8 @@ android {
         // on Android 10-16, permitting dlopen() on downloaded Libretro .so cores inside context.filesDir/cores/.
         //noinspection ExpiredTargetSdkVersion,OldTargetApi
         targetSdk = 28
-        versionCode = 261
-        versionName = "2.6.1"
+        versionCode = 270
+        versionName = "2.7.0"
 
         externalNativeBuild {
             cmake {

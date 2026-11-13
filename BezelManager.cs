@@ -176,9 +176,14 @@ public static class BezelManager
         catch { }
     }
 
-    public static BitmapImage? LoadPreviewImage(string pngPath)
+    public static ImageSource? LoadPreviewImage(string pngPath)
     {
-        if (string.IsNullOrEmpty(pngPath) || !File.Exists(pngPath)) return null;
+        if (string.IsNullOrEmpty(pngPath)) return null;
+
+        var rendered = LiveVisualEffectsEngine.RenderBezelFrameBitmap(pngPath, 360, 202, withSampleScreen: true);
+        if (rendered != null) return rendered;
+
+        if (!File.Exists(pngPath)) return null;
         try
         {
             var bmp = new BitmapImage();
@@ -266,11 +271,18 @@ public static class BezelManager
                         // Refresh active state in 0.0 ms without disk I/O
                         string curOverlay = RetroArchConfigManager.GetString("input_overlay", "");
                         bool ovrEnabled = RetroArchConfigManager.GetBool("input_overlay_enable", false);
+                        bool isNone = !ovrEnabled || string.IsNullOrEmpty(curOverlay) || curOverlay.Equals("none", StringComparison.OrdinalIgnoreCase);
                         foreach (var b in _cachedBezels)
                         {
-                            b.IsActive = ovrEnabled && !string.IsNullOrEmpty(curOverlay) &&
-                                         (curOverlay.Equals(b.CfgPath, StringComparison.OrdinalIgnoreCase) ||
-                                          Path.GetFileName(curOverlay).Equals(Path.GetFileName(b.CfgPath), StringComparison.OrdinalIgnoreCase));
+                            if (b.CfgPath == "none")
+                            {
+                                b.IsActive = isNone;
+                            }
+                            else
+                            {
+                                b.IsActive = !isNone && (curOverlay.Equals(b.CfgPath, StringComparison.OrdinalIgnoreCase) ||
+                                              Path.GetFileName(curOverlay).Equals(Path.GetFileName(b.CfgPath), StringComparison.OrdinalIgnoreCase));
+                            }
                         }
                         return new List<BezelPresetItem>(_cachedBezels);
                     }
@@ -284,6 +296,24 @@ public static class BezelManager
         {
             string currentOverlay = RetroArchConfigManager.GetString("input_overlay", "");
             bool overlayEnabled = RetroArchConfigManager.GetBool("input_overlay_enable", false);
+
+            // Первый обязательный элемент: Без рамки (Полноэкранный режим)
+            var noneBezel = new BezelPresetItem
+            {
+                Name = "Без рамки",
+                Platform = "Без рамки",
+                Description = "Полноэкранный режим без наложения декоративной экранной рамки.",
+                CfgPath = "none",
+                ImagePath = "",
+                PackSource = "STORM Studio",
+                IconPathData = "M12 2A10 10 0 1 0 22 12A10 10 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8a8 8 0 0 1-8 8Z",
+                IconColor = "#94A3B8",
+                AspectRatio = "16:9",
+                IsActive = !overlayEnabled || string.IsNullOrEmpty(currentOverlay) || currentOverlay.Equals("none", StringComparison.OrdinalIgnoreCase),
+                IsCustom = false,
+                PreviewImage = LiveVisualEffectsEngine.RenderBezelFrameBitmap("none", 360, 202, withSampleScreen: true)
+            };
+            list.Add(noneBezel);
 
             if (Directory.Exists(BordersDir))
             {
@@ -352,7 +382,8 @@ public static class BezelManager
 
             // Put built-in studio templates first in exact order, followed by Mega Bezel presets and custom bezels
             var sorted = list
-                .OrderBy(b =>
+                .OrderBy(b => b.CfgPath == "none" ? -1 : 0)
+                .ThenBy(b =>
                 {
                     int idx = BuiltinTemplates.FindIndex(t => t.Name.Equals(b.Name, StringComparison.OrdinalIgnoreCase));
                     if (idx >= 0) return idx;
@@ -542,6 +573,12 @@ public static class BezelManager
 
     public static void ApplyBezel(BezelPresetItem item)
     {
+        if (item.CfgPath == "none" || item.Name == "Без рамки" || string.IsNullOrWhiteSpace(item.CfgPath))
+        {
+            DisableBezel();
+            return;
+        }
+
         if (!File.Exists(item.CfgPath)) return;
 
         RetroArchConfigManager.Set("input_overlay_enable", "true");
@@ -558,7 +595,12 @@ public static class BezelManager
     public static void DisableBezel()
     {
         RetroArchConfigManager.Set("input_overlay_enable", "false");
+        RetroArchConfigManager.Set("input_overlay", "none");
         RetroArchConfigManager.Save();
+        foreach (var b in _cachedBezels)
+        {
+            b.IsActive = (b.CfgPath == "none");
+        }
     }
 
     public static void DeleteBezel(BezelPresetItem item)

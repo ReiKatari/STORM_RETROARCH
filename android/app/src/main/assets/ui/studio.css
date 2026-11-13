@@ -1,4 +1,87 @@
 /* ==========================================================================
+   STORM 10 HIGH-FIDELITY EMBEDDED FONTS (@font-face)
+   ========================================================================== */
+@font-face {
+  font-family: 'Inter';
+  src: url('./fonts/inter.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Exo 2';
+  src: url('./fonts/exo2.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('./fonts/geistsans.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Manrope';
+  src: url('./fonts/manrope.ttf') format('truetype');
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Comfortaa';
+  src: url('./fonts/comfortaa.ttf') format('truetype');
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Montserrat';
+  src: url('./fonts/montserrat.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Rubik';
+  src: url('./fonts/rubik.ttf') format('truetype');
+  font-weight: 300 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Russo One';
+  src: url('./fonts/russoone.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('./fonts/jetbrainsmono.ttf') format('truetype');
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Cascadia Code';
+  src: url('./fonts/cascadiacode.ttf') format('truetype');
+  font-weight: 200 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ==========================================================================
    STORM RETROARCH 2.6.1 - STORM AURORA FLUID MOBILE STUDIO DESIGN SYSTEM
    4-Layer Spatial Glassmorphism + 3D Volumetric Tactile Controls
    120Hz Calibrated Spring Choreography • Virtual Grid • Zero Overflow
@@ -286,6 +369,8 @@
    10 FONT FAMILIES + UI SCALING
    ========================================================================== */
 :root {
+  --table-grid: rgba(255, 255, 255, 0.14);
+  --font-main: var(--font-ui);
   --font-ui: "Inter", "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, monospace;
   --ui-scale: 1;
@@ -424,8 +509,8 @@ svg.ico-lg {
   width: 224px;
   flex-shrink: 0;
   background: var(--bg-header);
-  backdrop-filter: blur(22px) saturate(150%);
-  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
   border-right: 1px solid var(--border-highlight);
   box-shadow: 8px 0 28px rgba(0, 0, 0, 0.45);
   flex-direction: column;
@@ -573,8 +658,8 @@ svg.ico-lg {
   max-width: 100%;
   min-width: 0;
   background: var(--bg-header);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
   border-bottom: 1px solid var(--border-highlight);
   box-shadow: 0 10px 26px -8px rgba(0, 0, 0, 0.58);
   padding: 8px 12px;
@@ -662,8 +747,8 @@ svg.ico-lg {
   bottom: 10px;
   z-index: 45;
   background: rgba(18, 14, 34, 0.90);
-  backdrop-filter: blur(24px) saturate(165%);
-  -webkit-backdrop-filter: blur(24px) saturate(165%);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 20px;
   padding: 6px;
@@ -1194,8 +1279,7 @@ svg.ico-lg {
   min-width: 0;
   max-width: 100%;
   background: var(--bg-glass);
-  backdrop-filter: blur(18px) saturate(145%);
-  -webkit-backdrop-filter: blur(18px) saturate(145%);
+  /* Heavy backdrop-filter removed for 60-120fps scrolling & zero thermal drain */
   border: 1px solid var(--border-card);
   border-radius: 20px;
   padding: 14px;
@@ -2628,4 +2712,68 @@ svg.ico-lg {
     width: 100%;
     justify-content: center;
   }
+}
+
+/* ==========================================================================
+   ECO / ANTI-HEAT MODE RULES & ZERO-BLUR OVERRIDE
+   ========================================================================== */
+body[data-storm-eco="true"] .top-glass-header,
+body[data-storm-eco="true"] .bottom-glass-dock,
+body[data-storm-eco="true"] .modal-sheet,
+body[data-storm-eco="true"] .glass-card,
+body[data-storm-eco="true"] .handheld-rail {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* ==========================================================================
+   STORM UNIFIED DATA TABLES (.storm-table)
+   ========================================================================== */
+.storm-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 10px 0;
+  border-radius: 12px;
+  border: 1px solid var(--table-grid, rgba(255, 255, 255, 0.14));
+}
+
+.storm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+  color: var(--text-main);
+  background: rgba(10, 8, 20, 0.55);
+}
+
+.storm-table th {
+  font-weight: 700;
+  text-align: center;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--accent-text);
+  border: 1px solid var(--table-grid, rgba(255, 255, 255, 0.14));
+  font-feature-settings: "tnum";
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.storm-table td {
+  padding: 8px 12px;
+  border: 1px solid var(--table-grid, rgba(255, 255, 255, 0.14));
+  font-feature-settings: "tnum";
+  vertical-align: middle;
+}
+
+.storm-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.storm-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Smooth font/theme transition */
+body, button, input, select, textarea {
+  transition: font-family 0.18s ease, color 0.18s ease;
 }

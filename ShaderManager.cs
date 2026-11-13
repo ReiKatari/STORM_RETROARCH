@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Windows.Media;
 
 namespace StormRetroArch;
 
@@ -22,6 +23,7 @@ public class ShaderPresetItem : INotifyPropertyChanged
     public int PassesCount { get; set; } = 1;
     public string IconPathData { get; set; } = "M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z";
     public string IconColor { get; set; } = "#38BDF8";
+    public ImageSource? PreviewImage { get; set; }
 
     public bool IsActive
     {
@@ -74,6 +76,7 @@ public static class ShaderManager
                     DateTime currentWrite = Directory.GetLastWriteTimeUtc(ShadersDir);
                     if (currentWrite == _lastShadersDirWriteTimeUtc && _cachedShaders.Count > 0)
                     {
+                        RefreshActiveState();
                         return new List<ShaderPresetItem>(_cachedShaders);
                     }
                 }
@@ -82,132 +85,262 @@ public static class ShaderManager
 
             _cachedShaders.Clear();
 
-        if (Directory.Exists(ShadersDir))
-        {
-            try
+            // 1. Первый обязательный элемент: Без фильтра (Оригинал)
+            var nonePreset = new ShaderPresetItem
             {
-                var files = Directory.GetFiles(ShadersDir, "*.*", SearchOption.AllDirectories)
-                    .Where(f => f.EndsWith(".slangp", StringComparison.OrdinalIgnoreCase) ||
-                                f.EndsWith(".glslp", StringComparison.OrdinalIgnoreCase) ||
-                                f.EndsWith(".cgp", StringComparison.OrdinalIgnoreCase));
+                Name = "Без фильтра",
+                Category = "0. Оригинал (Без фильтра)",
+                Description = "Оригинальное изображение пиксель-в-пиксель без шейдеров и размытия.",
+                RelativePath = "none",
+                PassesCount = 0,
+                IconPathData = "M12 2A10 10 0 1 0 22 12A10 10 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8a8 8 0 0 1-8 8Z",
+                IconColor = "#94A3B8",
+                PreviewImage = LiveVisualEffectsEngine.RenderShaderPreviewBitmap("none")
+            };
+            _cachedShaders.Add(nonePreset);
 
-                foreach (var fullPath in files)
+            // 2. Встроенные эталонные пресеты STORM Studio
+            var studioPresets = new List<ShaderPresetItem>
+            {
+                new ShaderPresetItem
                 {
-                    string rel = Path.GetRelativePath(CoreManager.AppDir, fullPath).Replace('\\', '/');
-                    string fileName = Path.GetFileName(fullPath);
-                    string baseName = Path.GetFileNameWithoutExtension(fullPath);
-                    string cleanTitle = baseName.Replace('-', ' ').Replace('_', ' ').Trim();
-                    cleanTitle = char.ToUpperInvariant(cleanTitle[0]) + cleanTitle.Substring(1);
+                    Name = "CRT Royale (3D Phosphor)",
+                    Category = "1. Студийные ЭЛТ-пресеты",
+                    Description = "Эмуляция люминофорных триад, апертурной решётки и сканлиний.",
+                    RelativePath = "shaders/crt-royale.slangp",
+                    PassesCount = 12,
+                    IconPathData = "M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z",
+                    IconColor = "#38BDF8",
+                    PreviewImage = LiveVisualEffectsEngine.RenderShaderPreviewBitmap("crt-royale")
+                },
+                new ShaderPresetItem
+                {
+                    Name = "CRT Geom (Curved Trinitron)",
+                    Category = "1. Студийные ЭЛТ-пресеты",
+                    Description = "Изогнутый кинескоп Trinitron с бочкообразной геометрией и тёплой гаммой.",
+                    RelativePath = "shaders/crt-geom.slangp",
+                    PassesCount = 8,
+                    IconPathData = "M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z",
+                    IconColor = "#818CF8",
+                    PreviewImage = LiveVisualEffectsEngine.RenderShaderPreviewBitmap("crt-geom")
+                },
+                new ShaderPresetItem
+                {
+                    Name = "CRT Lottes (Arcade Bloom)",
+                    Category = "1. Студийные ЭЛТ-пресеты",
+                    Description = "Классический аркадный монитор с точечной маской и мягким свечением.",
+                    RelativePath = "shaders/crt-lottes.slangp",
+                    PassesCount = 6,
+                    IconPathData = "M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.93V17a1 1 0 0 1-2 0v-.07A8 8 0 0 1 4.07 11H4a1 1 0 0 1 0-2h.07A8 8 0 0 1 11 4.07V4a1 1 0 0 1 2 0v.07A8 8 0 0 1 19.93 11H20a1 1 0 0 1 0 2h-.07A8 8 0 0 1 13 16.93z",
+                    IconColor = "#EC4899",
+                    PreviewImage = LiveVisualEffectsEngine.RenderShaderPreviewBitmap("crt-lottes")
+                },
+                new ShaderPresetItem
+                {
+                    Name = "Scanlines (Subtle 240p)",
+                    Category = "1. Студийные ЭЛТ-пресеты",
+                    Description = "Мягкие затемнённые строки 240p для высокой чёткости без артефактов.",
+                    RelativePath = "shaders/scanlines-subtle.slangp",
+                    PassesCount = 2,
+                    IconPathData = "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z",
+                    IconColor = "#A78BFA",
+                    PreviewImage = LiveVisualEffectsEngine.RenderShaderPreviewBitmap("scanlines-subtle")
+                },
+                new ShaderPresetItem
+                {
+                    Name = "LCD Grid (Game Boy / GBA)",
+                    Category = "2. Портативные ЖК-матрицы",
+                    Description = "Аутентичная субпиксельная сетка портативных консолей с подсветкой.",
+                    RelativePath = "shaders/lcd-grid.slangp",
+                    PassesCount = 3,
+                    IconPathData = "M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z",
+                    IconColor = "#10B981",
+                    PreviewImage = LiveVisualEffectsEngine.RenderShaderPreviewBitmap("lcd-grid")
+                },
+                new ShaderPresetItem
+                {
+                    Name = "xBRZ 4x (HQ Upscale)",
+                    Category = "3. Сглаживание и апскейл",
+                    Description = "Векторное сглаживание ступенчатых пикселей высокого разрешения.",
+                    RelativePath = "shaders/xbrz-4x.slangp",
+                    PassesCount = 4,
+                    IconPathData = "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z",
+                    IconColor = "#FBBF24",
+                    PreviewImage = LiveVisualEffectsEngine.RenderShaderPreviewBitmap("xbrz-4x")
+                },
+                new ShaderPresetItem
+                {
+                    Name = "VHS / NTSC (Tape Glitch)",
+                    Category = "4. Аналоговые эффекты",
+                    Description = "Хроматическая аберрация, композитное размытие и помехи видеокассеты.",
+                    RelativePath = "shaders/vhs-ntsc.slangp",
+                    PassesCount = 5,
+                    IconPathData = "M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z",
+                    IconColor = "#F43F5E",
+                    PreviewImage = LiveVisualEffectsEngine.RenderShaderPreviewBitmap("vhs-ntsc")
+                }
+            };
+            _cachedShaders.AddRange(studioPresets);
 
-                    int passes = 1;
-                    try
+            // 3. Файлы шейдеров с диска (если установлены в shaders/)
+            if (Directory.Exists(ShadersDir))
+            {
+                try
+                {
+                    var files = Directory.GetFiles(ShadersDir, "*.*", SearchOption.AllDirectories)
+                        .Where(f => f.EndsWith(".slangp", StringComparison.OrdinalIgnoreCase) ||
+                                    f.EndsWith(".glslp", StringComparison.OrdinalIgnoreCase) ||
+                                    f.EndsWith(".cgp", StringComparison.OrdinalIgnoreCase));
+
+                    foreach (var fullPath in files)
                     {
-                        using var sr = new StreamReader(fullPath);
-                        string? line;
-                        while ((line = sr.ReadLine()) != null)
+                        string rel = Path.GetRelativePath(CoreManager.AppDir, fullPath).Replace('\\', '/');
+                        string baseName = Path.GetFileNameWithoutExtension(fullPath);
+                        string cleanTitle = baseName.Replace('-', ' ').Replace('_', ' ').Trim();
+                        cleanTitle = char.ToUpperInvariant(cleanTitle[0]) + cleanTitle.Substring(1);
+
+                        // Пропускаем дубли встроенных
+                        if (_cachedShaders.Any(s => s.Name.Equals(cleanTitle, StringComparison.OrdinalIgnoreCase)))
+                            continue;
+
+                        int passes = 1;
+                        try
                         {
-                            var m = Regex.Match(line, @"^shaders\s*=\s*(\d+)");
-                            if (m.Success)
+                            using var sr = new StreamReader(fullPath);
+                            string? line;
+                            while ((line = sr.ReadLine()) != null)
                             {
-                                passes = int.Parse(m.Groups[1].Value);
-                                break;
+                                var m = Regex.Match(line, @"^shaders\s*=\s*(\d+)");
+                                if (m.Success)
+                                {
+                                    passes = int.Parse(m.Groups[1].Value);
+                                    break;
+                                }
                             }
                         }
-                    }
-                    catch { }
+                        catch { }
 
-                    string relLower = rel.ToLowerInvariant();
-                    string category = "Комбинированные пресеты";
-                    string iconData = "M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10 10 10 0 0 0 10-10A10 10 0 0 0 12 2z";
-                    string iconColor = "#A78BFA";
-                    string desc = $"Шейдерный пресет Libretro Slang/GLSL ({FormatPassCountRu(passes)}).";
+                        string relLower = rel.ToLowerInvariant();
+                        string category = "Комбинированные пресеты";
+                        string iconData = "M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10 10 10 0 0 0 10-10A10 10 0 0 0 12 2z";
+                        string iconColor = "#A78BFA";
+                        string desc = $"Шейдерный пресет Libretro Slang/GLSL ({FormatPassCountRu(passes)}).";
 
-                    if (relLower.Contains("/crt") || relLower.Contains("crt-"))
-                    {
-                        category = "CRT и ЭЛТ мониторы";
-                        iconData = "M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z";
-                        iconColor = "#38BDF8";
-                        desc = $"Эмуляция ЭЛТ-кинескопа, люминофорных триад, апертурной решётки и сканлиний ({FormatPassCountRu(passes)}).";
-                    }
-                    else if (relLower.Contains("/anti-aliasing") || relLower.Contains("smaa") || relLower.Contains("fxaa"))
-                    {
-                        category = "Сглаживание (AA / FXAA / SMAA)";
-                        iconData = "M7 2v11h3v9l7-12h-4l4-8z";
-                        iconColor = "#10B981";
-                        desc = $"Морфологическое и субпиксельное сглаживание зубчатых краёв полигонов ({FormatPassCountRu(passes)}).";
-                    }
-                    else if (relLower.Contains("/interpolation") || relLower.Contains("/scale") || relLower.Contains("xbr") || relLower.Contains("hq") || relLower.Contains("fsr"))
-                    {
-                        category = "Апскейл и интерполяция";
-                        iconData = "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z";
-                        iconColor = "#FBBF24";
-                        desc = $"Апскейлер сверхвысокого разрешения: xBRZ, ScaleFX, Bicubic и FSR ({FormatPassCountRu(passes)}).";
-                    }
-                    else if (relLower.Contains("/blurs") || relLower.Contains("blur") || relLower.Contains("bloom"))
-                    {
-                        category = "Размытие и свечение (Bloom / Blur)";
-                        iconData = "M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.93V17a1 1 0 0 1-2 0v-.07A8 8 0 0 1 4.07 11H4a1 1 0 0 1 0-2h.07A8 8 0 0 1 11 4.07V4a1 1 0 0 1 2 0v.07A8 8 0 0 1 19.93 11H20a1 1 0 0 1 0 2h-.07A8 8 0 0 1 13 16.93z";
-                        iconColor = "#EC4899";
-                        desc = $"Кинематографичное свечение Kawase Bloom, мягкое размытие и светорассеяние ({FormatPassCountRu(passes)}).";
-                    }
-                    else if (relLower.Contains("/sharpen") || relLower.Contains("cas") || relLower.Contains("adaptive-sharpen"))
-                    {
-                        category = "Резкость и чёткость (Sharpen / CAS)";
-                        iconData = "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z";
-                        iconColor = "#34D399";
-                        desc = $"Контрастно-адаптивное повышение резкости AMD CAS и Adaptive Sharpen ({FormatPassCountRu(passes)}).";
-                    }
-                    else if (relLower.Contains("/handheld") || relLower.Contains("/ntsc") || relLower.Contains("/vhs") || relLower.Contains("/border"))
-                    {
-                        category = "Портативные и ретро (LCD / NTSC / VHS)";
-                        iconData = "M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z";
-                        iconColor = "#8B5CF6";
-                        desc = $"Аутентичные ЖК-матрицы Game Boy, GBA, NDS, PSP и аналоговые помехи NTSC/VHS ({FormatPassCountRu(passes)}).";
-                    }
+                        if (relLower.Contains("/crt") || relLower.Contains("crt-"))
+                        {
+                            category = "CRT и ЭЛТ мониторы";
+                            iconData = "M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z";
+                            iconColor = "#38BDF8";
+                            desc = $"Эмуляция ЭЛТ-кинескопа, люминофорных триад, апертурной решётки и сканлиний ({FormatPassCountRu(passes)}).";
+                        }
+                        else if (relLower.Contains("/anti-aliasing") || relLower.Contains("smaa") || relLower.Contains("fxaa"))
+                        {
+                            category = "Сглаживание (AA / FXAA / SMAA)";
+                            iconData = "M7 2v11h3v9l7-12h-4l4-8z";
+                            iconColor = "#10B981";
+                            desc = $"Морфологическое и субпиксельное сглаживание зубчатых краёв полигонов ({FormatPassCountRu(passes)}).";
+                        }
+                        else if (relLower.Contains("/interpolation") || relLower.Contains("/scale") || relLower.Contains("xbr") || relLower.Contains("hq") || relLower.Contains("fsr"))
+                        {
+                            category = "Апскейл и интерполяция";
+                            iconData = "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z";
+                            iconColor = "#FBBF24";
+                            desc = $"Апскейлер сверхвысокого разрешения: xBRZ, ScaleFX, Bicubic и FSR ({FormatPassCountRu(passes)}).";
+                        }
+                        else if (relLower.Contains("/blurs") || relLower.Contains("blur") || relLower.Contains("bloom"))
+                        {
+                            category = "Размытие и свечение (Bloom / Blur)";
+                            iconData = "M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.93V17a1 1 0 0 1-2 0v-.07A8 8 0 0 1 4.07 11H4a1 1 0 0 1 0-2h.07A8 8 0 0 1 11 4.07V4a1 1 0 0 1 2 0v.07A8 8 0 0 1 19.93 11H20a1 1 0 0 1 0 2h-.07A8 8 0 0 1 13 16.93z";
+                            iconColor = "#EC4899";
+                            desc = $"Кинематографичное свечение Kawase Bloom, мягкое размытие и светорассеяние ({FormatPassCountRu(passes)}).";
+                        }
+                        else if (relLower.Contains("/sharpen") || relLower.Contains("cas") || relLower.Contains("adaptive-sharpen"))
+                        {
+                            category = "Резкость и чёткость (Sharpen / CAS)";
+                            iconData = "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z";
+                            iconColor = "#34D399";
+                            desc = $"Контрастно-адаптивное повышение резкости AMD CAS и Adaptive Sharpen ({FormatPassCountRu(passes)}).";
+                        }
+                        else if (relLower.Contains("/handheld") || relLower.Contains("/ntsc") || relLower.Contains("/vhs") || relLower.Contains("/border"))
+                        {
+                            category = "Портативные и ретро (LCD / NTSC / VHS)";
+                            iconData = "M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z";
+                            iconColor = "#8B5CF6";
+                            desc = $"Аутентичные ЖК-матрицы Game Boy, GBA, NDS, PSP и аналоговые помехи NTSC/VHS ({FormatPassCountRu(passes)}).";
+                        }
 
-                    _cachedShaders.Add(new ShaderPresetItem
-                    {
-                        Name = cleanTitle,
-                        Category = category,
-                        Description = desc,
-                        RelativePath = rel,
-                        PassesCount = passes,
-                        IconPathData = iconData,
-                        IconColor = iconColor
-                    });
+                        _cachedShaders.Add(new ShaderPresetItem
+                        {
+                            Name = cleanTitle,
+                            Category = category,
+                            Description = desc,
+                            RelativePath = rel,
+                            PassesCount = passes,
+                            IconPathData = iconData,
+                            IconColor = iconColor,
+                            PreviewImage = LiveVisualEffectsEngine.RenderShaderPreviewBitmap(rel)
+                        });
+                    }
+                }
+                catch { }
+            }
+
+            try
+            {
+                if (Directory.Exists(ShadersDir))
+                {
+                    _lastShadersDirWriteTimeUtc = Directory.GetLastWriteTimeUtc(ShadersDir);
+                    _lastShadersCount = _cachedShaders.Count;
                 }
             }
             catch { }
-        }
 
-        // Active shader detection
+            RefreshActiveState();
+
+            // Первый элемент строго "Без фильтра", далее по категориям
+            return _cachedShaders.OrderBy(s => s.RelativePath == "none" ? 0 : 1)
+                                 .ThenBy(s => s.Category)
+                                 .ThenBy(s => s.Name)
+                                 .ToList();
+        }
+    }
+
+    private static void RefreshActiveState()
+    {
         string activeShader = RetroArchConfigManager.GetString("video_shader_dir", "");
         bool isEnabled = RetroArchConfigManager.GetBool("video_shader_enable", true);
 
+        bool anyActive = false;
         foreach (var item in _cachedShaders)
         {
+            if (item.RelativePath == "none") continue;
+
             item.IsActive = isEnabled && !string.IsNullOrEmpty(activeShader) &&
-                            (activeShader.Contains(Path.GetFileName(item.RelativePath), StringComparison.OrdinalIgnoreCase));
+                            (activeShader.Contains(Path.GetFileName(item.RelativePath), StringComparison.OrdinalIgnoreCase) ||
+                             activeShader.Contains(LiveVisualEffectsEngine.NormalizeShaderId(item.RelativePath), StringComparison.OrdinalIgnoreCase));
+
+            if (item.IsActive) anyActive = true;
         }
 
-        try
+        var noneItem = _cachedShaders.FirstOrDefault(s => s.RelativePath == "none");
+        if (noneItem != null)
         {
-            if (Directory.Exists(ShadersDir))
-            {
-                _lastShadersDirWriteTimeUtc = Directory.GetLastWriteTimeUtc(ShadersDir);
-                _lastShadersCount = _cachedShaders.Count;
-            }
-        }
-        catch { }
-
-        return _cachedShaders.OrderBy(s => s.Category).ThenBy(s => s.Name).ToList();
+            noneItem.IsActive = !isEnabled || string.IsNullOrEmpty(activeShader) || !anyActive || activeShader.Equals("none", StringComparison.OrdinalIgnoreCase);
         }
     }
 
     public static void ApplyShader(ShaderPresetItem item)
     {
+        if (item.RelativePath == "none" || string.IsNullOrWhiteSpace(item.RelativePath))
+        {
+            DisableShaders();
+            return;
+        }
+
         RetroArchConfigManager.SetBool("video_shader_enable", true);
-        string fullPath = Path.Combine(CoreManager.AppDir, item.RelativePath);
+        string fullPath = item.RelativePath.StartsWith("shaders/", StringComparison.OrdinalIgnoreCase)
+            ? Path.Combine(CoreManager.AppDir, item.RelativePath)
+            : Path.Combine(CoreManager.AppDir, item.RelativePath);
         RetroArchConfigManager.SetString("video_shader_dir", fullPath);
         RetroArchConfigManager.Save();
 
@@ -220,11 +353,12 @@ public static class ShaderManager
     public static void DisableShaders()
     {
         RetroArchConfigManager.SetBool("video_shader_enable", false);
+        RetroArchConfigManager.SetString("video_shader_dir", "none");
         RetroArchConfigManager.Save();
 
         foreach (var s in _cachedShaders)
         {
-            s.IsActive = false;
+            s.IsActive = (s.RelativePath == "none");
         }
     }
 
@@ -297,5 +431,4 @@ public static class ShaderManager
         if (mod10 >= 2 && mod10 <= 4) return $"{n} прохода";
         return $"{n} проходов";
     }
-
 }

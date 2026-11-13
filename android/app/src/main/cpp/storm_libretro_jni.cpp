@@ -349,8 +349,19 @@ int g_configuredBufH = 0;
 std::vector<uint32_t> g_frameRgba;
 std::atomic<int> g_frameWidth{0};
 std::atomic<int> g_frameHeight{0};
-std::atomic<int> g_shaderMode{0}; // 0=Pixel-Perfect, 1=Bilinear Smooth, 2=CRT Scanlines, 3=LCD Grid
+std::atomic<int> g_shaderMode{0}; // 0=None, 1=Scanlines, 2=CRT Royale, 3=CRT Geom, 4=CRT Lottes, 5=LCD Grid, 6=Smooth Soft, 7=VHS NTSC
 std::atomic<int> g_aspectMode{0}; // 0=Core Aspect Fit, 1=Stretch, 2=4:3, 3=16:9, 4=Integer Scale
+
+// Static reusable scratch buffers to eliminate per-frame std::vector heap allocations
+static std::vector<int> s_xMap;
+static std::vector<int> s_sx0Tab;
+static std::vector<int> s_sx1Tab;
+static std::vector<uint32_t> s_fxTab;
+static std::vector<uint8_t> s_xEdge;
+static int s_cachedSrcW = -1;
+static int s_cachedSrcH = -1;
+static int s_cachedVpW = -1;
+static int s_cachedVpH = -1;
 
 inline uint32_t darkenRgba75(uint32_t px) {
     uint32_t rgb = ((px & 0x00FEFEFEu) >> 1) + ((px & 0x00FCFCFCu) >> 2);
@@ -364,8 +375,13 @@ inline uint32_t darkenRgba68(uint32_t px) {
     return 0xFF000000u | (half + eighth + sixteenth);
 }
 
+inline uint32_t darkenRgbaSubtle(uint32_t px) {
+    uint32_t rb = ((px & 0x00FF00FFu) * 7u) >> 3;
+    uint32_t g  = ((px & 0x0000FF00u) * 7u) >> 3;
+    return 0xFF000000u | (rb & 0x00FF00FFu) | (g & 0x0000FF00u);
+}
+
 inline uint32_t bilinearSampleRgba(uint32_t c00, uint32_t c10, uint32_t c01, uint32_t c11, uint32_t fx, uint32_t fy) {
-    // fx, fy in [0..256]
     uint32_t ifx = 256u - fx;
     uint32_t ify = 256u - fy;
     uint32_t w00 = (ifx * ify) >> 8;
@@ -384,6 +400,24 @@ inline uint32_t bilinearSampleRgba(uint32_t c00, uint32_t c10, uint32_t c01, uin
     return 0xFF000000u | (rb & 0x00FF00FFu) | (g & 0x0000FF00u);
 }
 
+inline uint32_t applyPhosphorTriad(uint32_t px, int vx) {
+    uint32_t r = (px >> 16) & 0xFFu;
+    uint32_t g = (px >> 8) & 0xFFu;
+    uint32_t b = px & 0xFFu;
+    int phase = vx % 3;
+    if (phase == 0) {
+        g = (g * 3u) >> 2;
+        b = (b * 3u) >> 2;
+    } else if (phase == 1) {
+        r = (r * 3u) >> 2;
+        b = (b * 3u) >> 2;
+    } else {
+        r = (r * 3u) >> 2;
+        g = (g * 3u) >> 2;
+    }
+    return 0xFF000000u | (r << 16) | (g << 8) | b;
+}
+
 void presentFrameLocked() {
     if (!g_nativeWindow) return;
     const int srcW = g_frameWidth.load(std::memory_order_relaxed);
@@ -393,7 +427,6 @@ void presentFrameLocked() {
     const int shader = g_shaderMode.load(std::memory_order_relaxed);
     const int aspectMode = g_aspectMode.load(std::memory_order_relaxed);
 
-    // Choose crisp output buffer size so scanlines / LCD grid / pixel edges render cleanly
     int scaleMult = (srcH <= 256) ? 3 : 2;
     int targetH = std::clamp(srcH * scaleMult, 480, 960);
     float surfAspect = (g_surfacePhysW > 0 && g_surfacePhysH > 0)
@@ -451,18 +484,16 @@ void presentFrameLocked() {
             std::fill_n(dstBase + y * dstStride, dstW, 0xFF000000u);
         }
 
-        std::vector<int> xMap(static_cast<size_t>(vpW));
-        for (int vx = 0; vx < vpW; ++vx) {
-            xMap[static_cast<size_t>(vx)] = (vx * srcW) / vpW;
-        }
+        // Reuse pre-allocated scratch tables when dimensions match to avoid per-frame allocations
+        if (srcW != s_cachedSrcW || srcH != s_cachedSrcH || vpW != s_cachedVpW || vpH != s_cachedVpH) {
+            s_xMap.resize(static_cast<size_t>(vpW));
+            for (int vx = 0; vx < vpW; ++vx) {
+                s_xMap[static_cast<size_t>(vx)] = (vx * srcW) / vpW;
+            }
 
-        const uint32_t* srcPixels = g_frameRgba.data();
-
-        if (shader == 1) {
-            // 1 = Bilinear Smooth (16.16 / 8-bit fractional fixed-point)
-            std::vector<int> sx0Tab(static_cast<size_t>(vpW));
-            std::vector<int> sx1Tab(static_cast<size_t>(vpW));
-            std::vector<uint32_t> fxTab(static_cast<size_t>(vpW));
+            s_sx0Tab.resize(static_cast<size_t>(vpW));
+            s_sx1Tab.resize(static_cast<size_t>(vpW));
+            s_fxTab.resize(static_cast<size_t>(vpW));
             for (int vx = 0; vx < vpW; ++vx) {
                 int64_t pos256 = (static_cast<int64_t>(vx * 2 + 1) * srcW * 128) / vpW - 128;
                 if (pos256 < 0) pos256 = 0;
@@ -472,11 +503,34 @@ void presentFrameLocked() {
                     s0 = srcW - 1;
                     frac = 0;
                 }
-                sx0Tab[static_cast<size_t>(vx)] = s0;
-                sx1Tab[static_cast<size_t>(vx)] = std::min(srcW - 1, s0 + 1);
-                fxTab[static_cast<size_t>(vx)] = frac;
+                s_sx0Tab[static_cast<size_t>(vx)] = s0;
+                s_sx1Tab[static_cast<size_t>(vx)] = std::min(srcW - 1, s0 + 1);
+                s_fxTab[static_cast<size_t>(vx)] = frac;
             }
 
+            s_xEdge.assign(static_cast<size_t>(vpW), 0);
+            if (vpW >= srcW * 2) {
+                for (int vx = 0; vx < vpW - 1; ++vx) {
+                    if (s_xMap[static_cast<size_t>(vx + 1)] != s_xMap[static_cast<size_t>(vx)]) {
+                        s_xEdge[static_cast<size_t>(vx)] = 1;
+                    }
+                }
+            } else {
+                for (int vx = 0; vx < vpW; ++vx) {
+                    s_xEdge[static_cast<size_t>(vx)] = static_cast<uint8_t>(vx & 1);
+                }
+            }
+
+            s_cachedSrcW = srcW;
+            s_cachedSrcH = srcH;
+            s_cachedVpW = vpW;
+            s_cachedVpH = vpH;
+        }
+
+        const uint32_t* srcPixels = g_frameRgba.data();
+
+        if (shader == 6) {
+            // Mode 6: Bilinear Smooth / xBRZ Soft
             for (int vy = 0; vy < vpH; ++vy) {
                 uint32_t* dstRow = dstBase + (vpY + vy) * dstStride;
                 if (vpX > 0) std::fill_n(dstRow, vpX, 0xFF000000u);
@@ -496,14 +550,14 @@ void presentFrameLocked() {
 
                 uint32_t* vpOut = dstRow + vpX;
                 for (int vx = 0; vx < vpW; ++vx) {
-                    int x0 = sx0Tab[static_cast<size_t>(vx)];
-                    int x1 = sx1Tab[static_cast<size_t>(vx)];
+                    int x0 = s_sx0Tab[static_cast<size_t>(vx)];
+                    int x1 = s_sx1Tab[static_cast<size_t>(vx)];
                     vpOut[vx] = bilinearSampleRgba(row0[x0], row0[x1], row1[x0], row1[x1],
-                                                   fxTab[static_cast<size_t>(vx)], fy);
+                                                   s_fxTab[static_cast<size_t>(vx)], fy);
                 }
             }
-        } else if (shader == 2) {
-            // 2 = CRT Scanlines
+        } else if (shader == 1) {
+            // Mode 1: Scanlines Subtle (~18% darkening on scanline gaps)
             for (int vy = 0; vy < vpH; ++vy) {
                 uint32_t* dstRow = dstBase + (vpY + vy) * dstStride;
                 if (vpX > 0) std::fill_n(dstRow, vpX, 0xFF000000u);
@@ -517,29 +571,84 @@ void presentFrameLocked() {
 
                 if (isScanlineGap) {
                     for (int vx = 0; vx < vpW; ++vx) {
-                        vpOut[vx] = darkenRgba68(srcRow[xMap[static_cast<size_t>(vx)]]);
+                        vpOut[vx] = darkenRgbaSubtle(srcRow[s_xMap[static_cast<size_t>(vx)]]);
                     }
                 } else {
                     for (int vx = 0; vx < vpW; ++vx) {
-                        vpOut[vx] = srcRow[xMap[static_cast<size_t>(vx)]];
+                        vpOut[vx] = srcRow[s_xMap[static_cast<size_t>(vx)]];
                     }
+                }
+            }
+        } else if (shader == 2) {
+            // Mode 2: CRT Royale (Phosphor Triad R/G/B subpixel tint + beam scanlines)
+            for (int vy = 0; vy < vpH; ++vy) {
+                uint32_t* dstRow = dstBase + (vpY + vy) * dstStride;
+                if (vpX > 0) std::fill_n(dstRow, vpX, 0xFF000000u);
+                if (vpX + vpW < dstW) std::fill_n(dstRow + vpX + vpW, dstW - (vpX + vpW), 0xFF000000u);
+
+                int sy = (vy * srcH) / vpH;
+                int nextSy = ((vy + 1) * srcH) / vpH;
+                bool isScanlineGap = (vpH >= srcH * 2) ? (nextSy != sy) : ((vy & 1) == 1);
+                const uint32_t* srcRow = srcPixels + sy * srcW;
+                uint32_t* vpOut = dstRow + vpX;
+
+                for (int vx = 0; vx < vpW; ++vx) {
+                    uint32_t px = applyPhosphorTriad(srcRow[s_xMap[static_cast<size_t>(vx)]], vx);
+                    vpOut[vx] = isScanlineGap ? darkenRgba68(px) : px;
                 }
             }
         } else if (shader == 3) {
-            // 3 = LCD Grid (Handheld subpixel cell matrix)
-            std::vector<uint8_t> xEdge(static_cast<size_t>(vpW), 0);
-            if (vpW >= srcW * 2) {
-                for (int vx = 0; vx < vpW - 1; ++vx) {
-                    if (xMap[static_cast<size_t>(vx + 1)] != xMap[static_cast<size_t>(vx)]) {
-                        xEdge[static_cast<size_t>(vx)] = 1;
-                    }
-                }
-            } else {
+            // Mode 3: CRT Geom (Vignette falloff + scanline beam profile)
+            const int halfW = std::max(1, vpW / 2);
+            const int halfH = std::max(1, vpH / 2);
+            for (int vy = 0; vy < vpH; ++vy) {
+                uint32_t* dstRow = dstBase + (vpY + vy) * dstStride;
+                if (vpX > 0) std::fill_n(dstRow, vpX, 0xFF000000u);
+                if (vpX + vpW < dstW) std::fill_n(dstRow + vpX + vpW, dstW - (vpX + vpW), 0xFF000000u);
+
+                int sy = (vy * srcH) / vpH;
+                int nextSy = ((vy + 1) * srcH) / vpH;
+                bool isScanlineGap = (vpH >= srcH * 2) ? (nextSy != sy) : ((vy & 1) == 1);
+                const uint32_t* srcRow = srcPixels + sy * srcW;
+                uint32_t* vpOut = dstRow + vpX;
+
+                int dy = std::abs(vy - halfH);
+                int yFactor = (dy * 256) / halfH;
+
                 for (int vx = 0; vx < vpW; ++vx) {
-                    xEdge[static_cast<size_t>(vx)] = static_cast<uint8_t>(vx & 1);
+                    int dx = std::abs(vx - halfW);
+                    int xFactor = (dx * 256) / halfW;
+                    int distSq = (xFactor * xFactor + yFactor * yFactor) >> 9; // 0..128 approx
+                    uint32_t px = srcRow[s_xMap[static_cast<size_t>(vx)]];
+                    if (distSq > 36) {
+                        px = darkenRgba75(px);
+                    }
+                    vpOut[vx] = isScanlineGap ? darkenRgba68(px) : px;
                 }
             }
+        } else if (shader == 4) {
+            // Mode 4: CRT Lottes (Alternating vertical aperture grille + horizontal scanlines)
+            for (int vy = 0; vy < vpH; ++vy) {
+                uint32_t* dstRow = dstBase + (vpY + vy) * dstStride;
+                if (vpX > 0) std::fill_n(dstRow, vpX, 0xFF000000u);
+                if (vpX + vpW < dstW) std::fill_n(dstRow + vpX + vpW, dstW - (vpX + vpW), 0xFF000000u);
 
+                int sy = (vy * srcH) / vpH;
+                int nextSy = ((vy + 1) * srcH) / vpH;
+                bool isScanlineGap = (vpH >= srcH * 2) ? (nextSy != sy) : ((vy & 1) == 1);
+                const uint32_t* srcRow = srcPixels + sy * srcW;
+                uint32_t* vpOut = dstRow + vpX;
+
+                for (int vx = 0; vx < vpW; ++vx) {
+                    uint32_t px = srcRow[s_xMap[static_cast<size_t>(vx)]];
+                    if ((vx & 1) == 1) {
+                        px = darkenRgba75(px);
+                    }
+                    vpOut[vx] = isScanlineGap ? darkenRgba68(px) : px;
+                }
+            }
+        } else if (shader == 5) {
+            // Mode 5: LCD Grid (Handheld subpixel cell matrix)
             for (int vy = 0; vy < vpH; ++vy) {
                 uint32_t* dstRow = dstBase + (vpY + vy) * dstStride;
                 if (vpX > 0) std::fill_n(dstRow, vpX, 0xFF000000u);
@@ -553,17 +662,40 @@ void presentFrameLocked() {
 
                 if (yEdge) {
                     for (int vx = 0; vx < vpW; ++vx) {
-                        vpOut[vx] = darkenRgba75(srcRow[xMap[static_cast<size_t>(vx)]]);
+                        vpOut[vx] = darkenRgba75(srcRow[s_xMap[static_cast<size_t>(vx)]]);
                     }
                 } else {
                     for (int vx = 0; vx < vpW; ++vx) {
-                        uint32_t px = srcRow[xMap[static_cast<size_t>(vx)]];
-                        vpOut[vx] = xEdge[static_cast<size_t>(vx)] ? darkenRgba75(px) : px;
+                        uint32_t px = srcRow[s_xMap[static_cast<size_t>(vx)]];
+                        vpOut[vx] = s_xEdge[static_cast<size_t>(vx)] ? darkenRgba75(px) : px;
                     }
                 }
             }
+        } else if (shader == 7) {
+            // Mode 7: VHS/NTSC (Chromatic aberration: R left, B right, scanline jitter)
+            for (int vy = 0; vy < vpH; ++vy) {
+                uint32_t* dstRow = dstBase + (vpY + vy) * dstStride;
+                if (vpX > 0) std::fill_n(dstRow, vpX, 0xFF000000u);
+                if (vpX + vpW < dstW) std::fill_n(dstRow + vpX + vpW, dstW - (vpX + vpW), 0xFF000000u);
+
+                int sy = (vy * srcH) / vpH;
+                const uint32_t* srcRow = srcPixels + sy * srcW;
+                uint32_t* vpOut = dstRow + vpX;
+
+                for (int vx = 0; vx < vpW; ++vx) {
+                    int xL = s_xMap[static_cast<size_t>(std::max(0, vx - 2))];
+                    int xC = s_xMap[static_cast<size_t>(vx)];
+                    int xR = s_xMap[static_cast<size_t>(std::min(vpW - 1, vx + 2))];
+
+                    uint32_t r = (srcRow[xL] >> 16) & 0xFFu;
+                    uint32_t g = (srcRow[xC] >> 8) & 0xFFu;
+                    uint32_t b = srcRow[xR] & 0xFFu;
+                    uint32_t vhsPx = 0xFF000000u | (r << 16) | (g << 8) | b;
+                    vpOut[vx] = ((vy & 3) == 0) ? darkenRgbaSubtle(vhsPx) : vhsPx;
+                }
+            }
         } else {
-            // 0 = Pixel-Perfect Nearest-Neighbor
+            // Mode 0: Pixel-Perfect Nearest-Neighbor (Clean 1:1 / nearest)
             int prevSy = -1;
             for (int vy = 0; vy < vpH; ++vy) {
                 uint32_t* dstRow = dstBase + (vpY + vy) * dstStride;
@@ -578,7 +710,7 @@ void presentFrameLocked() {
                 } else {
                     const uint32_t* srcRow = srcPixels + sy * srcW;
                     for (int vx = 0; vx < vpW; ++vx) {
-                        vpOut[vx] = srcRow[xMap[static_cast<size_t>(vx)]];
+                        vpOut[vx] = srcRow[s_xMap[static_cast<size_t>(vx)]];
                     }
                     prevSy = sy;
                 }
@@ -1441,9 +1573,32 @@ Java_com_storm_retroarch_NativeLibretroBridge_nativeOnSurfaceChanged(JNIEnv* /*e
     }
 }
 
+static std::atomic<int> g_internalScale{1}; // 1=1x, 2=2x, 3=3x, 4=4x
+static std::atomic<int> g_viewportZoom{0};   // 0=Auto, 1=Integer, 2=100%
+
 JNIEXPORT void JNICALL
 Java_com_storm_retroarch_NativeLibretroBridge_nativeSetShaderMode(JNIEnv* /*env*/, jclass /*clazz*/, jint mode) {
-    g_shaderMode.store(std::clamp(static_cast<int>(mode), 0, 3), std::memory_order_relaxed);
+    g_shaderMode.store(std::clamp(static_cast<int>(mode), 0, 7), std::memory_order_relaxed);
+}
+
+JNIEXPORT void JNICALL
+Java_com_storm_retroarch_NativeLibretroBridge_nativeSetInternalScale(JNIEnv* /*env*/, jclass /*clazz*/, jint scale) {
+    g_internalScale.store(std::clamp(static_cast<int>(scale), 1, 4), std::memory_order_relaxed);
+}
+
+JNIEXPORT jint JNICALL
+Java_com_storm_retroarch_NativeLibretroBridge_nativeGetInternalScale(JNIEnv* /*env*/, jclass /*clazz*/) {
+    return static_cast<jint>(g_internalScale.load(std::memory_order_relaxed));
+}
+
+JNIEXPORT void JNICALL
+Java_com_storm_retroarch_NativeLibretroBridge_nativeSetViewportZoom(JNIEnv* /*env*/, jclass /*clazz*/, jint mode) {
+    g_viewportZoom.store(std::clamp(static_cast<int>(mode), 0, 2), std::memory_order_relaxed);
+}
+
+JNIEXPORT jint JNICALL
+Java_com_storm_retroarch_NativeLibretroBridge_nativeGetViewportZoom(JNIEnv* /*env*/, jclass /*clazz*/) {
+    return static_cast<jint>(g_viewportZoom.load(std::memory_order_relaxed));
 }
 
 JNIEXPORT jint JNICALL

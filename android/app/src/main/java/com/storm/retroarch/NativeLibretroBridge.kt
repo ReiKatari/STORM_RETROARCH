@@ -38,11 +38,19 @@ object NativeLibretroBridge {
     const val RETRO_DEVICE_ID_ANALOG_X = 0
     const val RETRO_DEVICE_ID_ANALOG_Y = 1
 
-    // Shader Modes
+    // Shader Modes (0-7 Full Parity)
+    const val SHADER_NONE = 0
+    const val SHADER_SCANLINES_SUBTLE = 1
+    const val SHADER_CRT_ROYALE = 2
+    const val SHADER_CRT_GEOM = 3
+    const val SHADER_CRT_LOTTES = 4
+    const val SHADER_LCD_GRID = 5
+    const val SHADER_SMOOTH_SOFT = 6
+    const val SHADER_VHS_NTSC = 7
+    // Backwards compatibility aliases
     const val SHADER_PIXEL_PERFECT = 0
-    const val SHADER_BILINEAR_SMOOTH = 1
-    const val SHADER_CRT_SCANLINES = 2
-    const val SHADER_LCD_GRID = 3
+    const val SHADER_BILINEAR_SMOOTH = 6
+    const val SHADER_CRT_SCANLINES = 1
 
     // Aspect Ratio Modes
     const val ASPECT_CORE_FIT = 0
@@ -75,6 +83,10 @@ object NativeLibretroBridge {
     @JvmStatic external fun nativeGetShaderMode(): Int
     @JvmStatic external fun nativeSetAspectMode(mode: Int)
     @JvmStatic external fun nativeGetAspectMode(): Int
+    @JvmStatic external fun nativeSetInternalScale(scale: Int)
+    @JvmStatic external fun nativeGetInternalScale(): Int
+    @JvmStatic external fun nativeSetViewportZoom(mode: Int)
+    @JvmStatic external fun nativeGetViewportZoom(): Int
     @JvmStatic external fun nativeCaptureFrameRgba(): ByteArray?
     @JvmStatic external fun nativeGetFrameWidth(): Int
     @JvmStatic external fun nativeGetFrameHeight(): Int

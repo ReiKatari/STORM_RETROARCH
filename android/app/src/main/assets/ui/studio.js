@@ -1,5 +1,5 @@
 /* ==========================================================================
-   STORM RETROARCH 2.6.1 - MOBILE STUDIO FRONTEND ENGINE (studio.js)
+   STORM RETROARCH 2.7.0 - MOBILE STUDIO FRONTEND ENGINE (studio.js)
    Hardware-Accelerated STORM AURORA FLUID Architecture
    12 Interactive Studio Modules + 120Hz Spring Choreography + Virtual Grid
    Zero Em-Dash, Zero Emojis, Single Vector Icon Mandate
@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "2.6.1";
+  const APP_VERSION = "2.7.0";
   const hasBridge = typeof window.StormBridge !== "undefined";
 
   /* ------------------------------------------------------------------------
@@ -95,16 +95,31 @@
 
   const FONTS = [
     "Inter",
-    "Plus Jakarta Sans",
-    "Geist Sans",
+    "Exo 2",
+    "Geist",
     "Manrope",
-    "Outfit",
+    "Comfortaa",
     "Montserrat",
     "Rubik",
-    "Rajdhani",
+    "Russo One",
     "JetBrains Mono",
-    "Fira Code"
+    "Cascadia Code"
   ];
+
+  function canonicalFont(name) {
+    if (!name) return "Inter";
+    const s = String(name).trim().toLowerCase();
+    if (s.includes("exo") || s.includes("jakarta")) return "Exo 2";
+    if (s.includes("geist")) return "Geist";
+    if (s.includes("manrope")) return "Manrope";
+    if (s.includes("comfortaa") || s.includes("outfit")) return "Comfortaa";
+    if (s.includes("montserrat")) return "Montserrat";
+    if (s.includes("rubik")) return "Rubik";
+    if (s.includes("russo") || s.includes("orbitron") || s.includes("rajdhani")) return "Russo One";
+    if (s.includes("jetbrains")) return "JetBrains Mono";
+    if (s.includes("cascadia") || s.includes("fira")) return "Cascadia Code";
+    return "Inter";
+  }
 
   const LANGUAGES = [
     { code: "ru", label: "Русский" },
@@ -597,7 +612,7 @@
       currentVersion: APP_VERSION,
       latestVersion: APP_VERSION,
       updateAvailable: false,
-      statusMessage: "Установлена актуальная версия 2.6.1"
+      statusMessage: "Установлена актуальная версия 2.7.0"
     },
     games: buildPreviewGames(),
     cores: buildDefaultCores252(),
@@ -727,12 +742,21 @@
 
   function applyVisualTokens() {
     const root = document.documentElement;
+    const fontName = canonicalFont(state.settings.font || "Inter");
     root.setAttribute("data-storm-theme", state.settings.theme || "MIDNIGHT");
     root.setAttribute("data-storm-accent", state.settings.accent || "VIOLET");
-    root.setAttribute("data-storm-font", state.settings.font || "Inter");
+    root.setAttribute("data-storm-font", fontName);
     root.setAttribute("lang", state.settings.language || "ru");
+    root.style.setProperty("--font-main", "'" + fontName + "', system-ui, sans-serif");
+    root.style.setProperty("--font-ui", "'" + fontName + "', system-ui, sans-serif");
+    document.body.style.fontFamily = "'" + fontName + "', system-ui, sans-serif";
     root.style.setProperty("--ui-scale", String((Number(state.settings.uiScale) || 100) / 100));
     root.style.setProperty("--card-zoom", String((Number(state.libZoom) || 100) / 100));
+    if (state.settings.ecoMode) {
+      document.body.setAttribute("data-storm-eco", "true");
+    } else {
+      document.body.removeAttribute("data-storm-eco");
+    }
   }
 
   /* ------------------------------------------------------------------------
@@ -1184,7 +1208,7 @@
       '</div>'
     ) : (
       '<div class="hero-spotlight-card stagger-card" style="--stagger-i:0;">' +
-        '<span class="hero-eyebrow">STORM RETROARCH 2.6.1</span>' +
+        '<span class="hero-eyebrow">STORM RETROARCH 2.7.0</span>' +
         '<h2 class="hero-game-title">' + (isRu() ? "Добро пожаловать в консоль-студию" : "Welcome to STORM Console Studio") + '</h2>' +
         '<p class="section-subtitle">' + (isRu() ? "20 флагманских ядер уже вшиты в APK и готовы к мгновенному офлайн-запуску. Укажите папку с играми или откройте файл ROM:" : "20 flagship cores are pre-bundled inside APK for instant offline play. Pick your ROM folder or open a file:") + '</p>' +
         '<div class="hero-actions-row">' +
@@ -1493,7 +1517,7 @@
      ------------------------------------------------------------------------ */
   function renderCoreCardHtml(c) {
     const statusBadge = c.bundled
-      ? '<span class="badge-pill badge-emerald">' + (isRu() ? "Вшито в APK" : "Pre-Bundled") + '</span>'
+      ? '<span class="badge-pill badge-emerald">' + (isRu() ? isRu() ? "Встроено" : "Built-in" : "Pre-Bundled") + '</span>'
       : (c.installed
           ? '<span class="badge-pill badge-accent">' + (isRu() ? "Установлено" : "Installed") + '</span>'
           : '<span class="badge-pill">' + (isRu() ? "Облако CDN" : "Cloud CDN") + '</span>');
@@ -1717,13 +1741,24 @@
 
   function renderGraphics() {
     const shaders = [
-      { id: "none", title: isRu() ? "Без фильтра" : "Raw Pixels", cls: "" },
-      { id: "crt_royale", title: "CRT Royale", cls: "shader-scanlines" },
-      { id: "crt_geom", title: "CRT Geom Curvature", cls: "shader-scanlines" },
-      { id: "trinitron", title: "Sony Trinitron Aperture", cls: "shader-scanlines" },
-      { id: "lcd_grid", title: "LCD Grid Handheld", cls: "shader-lcd" },
-      { id: "xbrz", title: "xBRZ Smooth HD", cls: "" },
-      { id: "vhs", title: "VHS Composite", cls: "shader-scanlines" }
+      { id: "none", mode: 0, title: isRu() ? "Без фильтра" : "Raw Pixels", sub: "Pixel-Perfect 1:1" },
+      { id: "scanlines", mode: 1, title: "Scanlines (Тонкие)", sub: "Subtle -18% Beam" },
+      { id: "crt_royale", mode: 2, title: "CRT Royale", sub: "Phosphor Triad RGB" },
+      { id: "crt_geom", mode: 3, title: "CRT Geom", sub: "Curvature & Vignette" },
+      { id: "crt_lottes", mode: 4, title: "CRT Lottes", sub: "Aperture Grille Mask" },
+      { id: "lcd_grid", mode: 5, title: "LCD Grid", sub: "Handheld Cell Matrix" },
+      { id: "xbrz", mode: 6, title: "xBRZ 4x / Мягкий", sub: "Smooth Soft Filter" },
+      { id: "vhs", mode: 7, title: "VHS / NTSC", sub: "Chromatic Tape Bleed" }
+    ];
+
+    const bezels = [
+      { id: "none", title: isRu() ? "Без рамки" : "No Bezel", sub: "Full Emulation View" },
+      { id: "Arcade Neon", title: "Arcade Neon", sub: "Cyberpunk Glow Chassis" },
+      { id: "Sony CRT", title: "Sony CRT", sub: "Trinitron Bevel & Vents" },
+      { id: "Handheld GBA", title: "Handheld GBA", sub: "Indigo Handheld Shell" },
+      { id: "SNES Classic", title: "SNES Classic", sub: "Two-Tone Console Frame" },
+      { id: "Mega Drive", title: "Mega Drive", sub: "16-BIT Matte Chassis" },
+      { id: "STORM Studio", title: "STORM Studio", sub: "AURORA FLUID Glass" }
     ];
 
     return (
@@ -1775,6 +1810,11 @@
             '</div>' +
 
             '<div class="toggle-row-3d">' +
+              '<div class="toggle-meta"><div class="toggle-title">' + (isRu() ? "Эко-режим (Меньше нагрева и разряда)" : "Eco Anti-Heat & Battery Saver") + '</div><div class="toggle-desc">' + (isRu() ? "Оптимизация частоты кадров и отключение блюра" : "Halves GPU fillrate & thermal load") + '</div></div>' +
+              '<button type="button" role="switch" aria-checked="' + Boolean(state.settings.ecoMode) + '" class="switch-3d" data-toggle-setting="ecoMode"><span class="switch-track"><span class="switch-thumb"></span></span></button>' +
+            '</div>' +
+
+            '<div class="toggle-row-3d">' +
               '<div class="toggle-meta"><div class="toggle-title">' + (isRu() ? "Перемотка времени (Rewind Buffer)" : "Gameplay Rewind Buffer") + '</div><div class="toggle-desc">' + (isRu() ? "Мгновенный откат ошибок в реальном времени" : "Real-time frame-by-frame rewind") + '</div></div>' +
               '<button type="button" role="switch" aria-checked="' + Boolean(state.settings.rewindEnabled) + '" class="switch-3d" data-toggle-setting="rewindEnabled"><span class="switch-track"><span class="switch-thumb"></span></span></button>' +
             '</div>' +
@@ -1783,14 +1823,17 @@
 
         '<div style="display:flex;flex-direction:column;gap:12px;">' +
           '<div class="glass-card">' +
-            '<h4 class="section-title" style="margin-bottom:10px;">' + (isRu() ? "Шейдеры и ЭЛТ пресеты" : "CRT & Upscale Shader Presets") + '</h4>' +
+            '<div class="section-head">' +
+              '<h4 class="section-title">' + (isRu() ? "8 Видео-шейдеров (Живой Canvas-просмотр)" : "8 Video Shaders (Live Canvas Preview)") + '</h4>' +
+            '</div>' +
             '<div class="shader-cards-grid">' +
               shaders.map(function (sh) {
-                const act = state.settings.shaderPreset === sh.id ? " active" : "";
+                const act = (state.settings.shaderPreset === sh.id || (!state.settings.shaderPreset && sh.id === "none")) ? " active" : "";
                 return (
-                  '<button type="button" class="shader-card-btn' + act + '" data-shader="' + sh.id + '">' +
-                    '<div class="shader-preview-bar ' + sh.cls + '"></div>' +
-                    '<div style="font-size:0.79rem;font-weight:800;">' + esc(sh.title) + '</div>' +
+                  '<button type="button" class="shader-card-btn' + act + '" data-shader="' + sh.id + '" data-shader-mode="' + sh.mode + '">' +
+                    '<canvas class="shader-live-canvas" width="160" height="90" data-shader-preview="' + sh.id + '" style="width:100%;height:74px;border-radius:8px;background:#05040B;display:block;margin-bottom:6px;"></canvas>' +
+                    '<div style="font-size:0.80rem;font-weight:800;color:#F8FAFC;">' + esc(sh.title) + '</div>' +
+                    '<div style="font-size:0.68rem;color:var(--text-secondary);">' + esc(sh.sub) + '</div>' +
                   '</button>'
                 );
               }).join("") +
@@ -1798,16 +1841,18 @@
           '</div>' +
 
           '<div class="glass-card">' +
-            '<h4 class="section-title" style="margin-bottom:10px;">' + (isRu() ? "Онлайн-загрузка рамок и скинов консолей" : "Online Bezel & Console Skin Packs") + '</h4>' +
-            '<div style="display:flex;flex-direction:column;gap:8px;">' +
-              state.bezelPacks.map(function (bp) {
+            '<div class="section-head">' +
+              '<h4 class="section-title">' + (isRu() ? "7 Рамок консолей (Живой Canvas-просмотр)" : "7 Screen Bezels (Live Canvas Preview)") + '</h4>' +
+            '</div>' +
+            '<div class="shader-cards-grid">' +
+              bezels.map(function (bz) {
+                const act = (state.settings.bezelPreset === bz.id || (!state.settings.bezelPreset && bz.id === "none")) ? " active" : "";
                 return (
-                  '<div class="toggle-row-3d">' +
-                    '<div class="toggle-meta"><div class="toggle-title">' + esc(bp.title) + '</div><div class="toggle-desc tabular">' + esc(bp.size) + (bp.installed ? (isRu() ? " • Установлен" : " • Installed") : "") + '</div></div>' +
-                    '<button type="button" class="btn-3d ' + (bp.installed ? "btn-3d-emerald" : "btn-3d-primary") + ' btn-3d-sm" data-action="download-bezel" data-pack="' + esc(bp.id) + '">' +
-                      ico(bp.installed ? "check" : "download") + '<span>' + (bp.installed ? (isRu() ? "Обновить" : "Ready") : (isRu() ? "Скачать" : "Download")) + '</span>' +
-                    '</button>' +
-                  '</div>'
+                  '<button type="button" class="shader-card-btn' + act + '" data-bezel="' + bz.id + '">' +
+                    '<canvas class="bezel-live-canvas" width="160" height="90" data-bezel-preview="' + bz.id + '" style="width:100%;height:74px;border-radius:8px;background:#05040B;display:block;margin-bottom:6px;"></canvas>' +
+                    '<div style="font-size:0.80rem;font-weight:800;color:#F8FAFC;">' + esc(bz.title) + '</div>' +
+                    '<div style="font-size:0.68rem;color:var(--text-secondary);">' + esc(bz.sub) + '</div>' +
+                  '</button>'
                 );
               }).join("") +
             '</div>' +
@@ -1815,6 +1860,122 @@
         '</div>' +
       '</div>'
     );
+  }
+
+  function drawLiveShaderAndBezelPreviews() {
+    // 1. Draw live shader canvases
+    const shaderCanvases = document.querySelectorAll("canvas[data-shader-preview]");
+    shaderCanvases.forEach(function (cv) {
+      const ctx = cv.getContext("2d");
+      if (!ctx) return;
+      const shId = cv.getAttribute("data-shader-preview");
+      const w = cv.width, h = cv.height;
+
+      // Base retro game scene
+      ctx.fillStyle = "#1E1B4B";
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = "#4338CA";
+      ctx.fillRect(0, h * 0.65, w, h * 0.35);
+      ctx.fillStyle = "#10B981";
+      ctx.fillRect(16, h * 0.65 - 24, 28, 24);
+      ctx.fillStyle = "#F59E0B";
+      ctx.fillRect(w - 44, h * 0.65 - 32, 26, 32);
+      ctx.fillStyle = "#F43F5E";
+      ctx.beginPath();
+      ctx.arc(w * 0.5, h * 0.38, 14, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (shId === "scanlines" || shId === "crt_royale" || shId === "crt_geom" || shId === "crt_lottes") {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+        for (let y = 0; y < h; y += 3) {
+          ctx.fillRect(0, y, w, 1);
+        }
+      }
+      if (shId === "crt_royale") {
+        ctx.fillStyle = "rgba(255, 0, 0, 0.08)";
+        for (let x = 0; x < w; x += 3) ctx.fillRect(x, 0, 1, h);
+        ctx.fillStyle = "rgba(0, 255, 0, 0.08)";
+        for (let x = 1; x < w; x += 3) ctx.fillRect(x, 0, 1, h);
+      }
+      if (shId === "crt_geom") {
+        const rad = ctx.createRadialGradient(w/2, h/2, 10, w/2, h/2, w * 0.6);
+        rad.addColorStop(0, "rgba(0,0,0,0)");
+        rad.addColorStop(1, "rgba(0,0,0,0.65)");
+        ctx.fillStyle = rad;
+        ctx.fillRect(0, 0, w, h);
+      }
+      if (shId === "lcd_grid") {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
+        for (let x = 0; x < w; x += 4) ctx.fillRect(x, 0, 1, h);
+        for (let y = 0; y < h; y += 4) ctx.fillRect(0, y, w, 1);
+      }
+      if (shId === "xbrz") {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
+        ctx.fillRect(0, 0, w, h);
+      }
+      if (shId === "vhs") {
+        ctx.fillStyle = "rgba(239, 68, 68, 0.18)";
+        ctx.fillRect(-2, 0, w, h);
+        ctx.fillStyle = "rgba(6, 182, 212, 0.18)";
+        ctx.fillRect(2, 0, w, h);
+      }
+    });
+
+    // 2. Draw live bezel canvases
+    const bezelCanvases = document.querySelectorAll("canvas[data-bezel-preview]");
+    bezelCanvases.forEach(function (cv) {
+      const ctx = cv.getContext("2d");
+      if (!ctx) return;
+      const bzId = cv.getAttribute("data-bezel-preview");
+      const w = cv.width, h = cv.height;
+
+      // Base scene inside
+      ctx.fillStyle = "#0F172A";
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = "#3B82F6";
+      ctx.fillRect(w * 0.2, h * 0.2, w * 0.6, h * 0.6);
+      ctx.fillStyle = "#F59E0B";
+      ctx.fillRect(w * 0.45, h * 0.45, w * 0.1, h * 0.2);
+
+      if (bzId === "Arcade Neon") {
+        ctx.strokeStyle = "#06B6D4";
+        ctx.lineWidth = 4;
+        ctx.strokeRect(10, 8, w - 20, h - 16);
+        ctx.strokeStyle = "#EC4899";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(6, 4, w - 12, h - 8);
+      } else if (bzId === "Sony CRT") {
+        ctx.fillStyle = "#1E293B";
+        ctx.fillRect(0, 0, w, 8);
+        ctx.fillRect(0, h - 8, w, 8);
+        ctx.fillRect(0, 0, 12, h);
+        ctx.fillRect(w - 12, 0, 12, h);
+      } else if (bzId === "Handheld GBA") {
+        ctx.fillStyle = "#4338CA";
+        ctx.fillRect(0, 0, w, 10);
+        ctx.fillRect(0, h - 10, w, 10);
+        ctx.fillRect(0, 0, 16, h);
+        ctx.fillRect(w - 16, 0, 16, h);
+      } else if (bzId === "SNES Classic") {
+        ctx.fillStyle = "#64748B";
+        ctx.fillRect(0, 0, w, 10);
+        ctx.fillRect(0, h - 10, w, 10);
+        ctx.fillRect(0, 0, 14, h);
+        ctx.fillRect(w - 14, 0, 14, h);
+      } else if (bzId === "Mega Drive") {
+        ctx.fillStyle = "#0F172A";
+        ctx.fillRect(0, 0, w, 12);
+        ctx.fillRect(0, h - 12, w, 12);
+        ctx.fillRect(0, 0, 16, h);
+        ctx.fillRect(w - 16, 0, 16, h);
+        ctx.fillStyle = "#EF4444";
+        ctx.fillRect(16, h - 8, 30, 4);
+      } else if (bzId === "STORM Studio") {
+        ctx.strokeStyle = "#8B5CF6";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(6, 6, w - 12, h - 12);
+      }
+    });
   }
 
   function renderAudio() {
@@ -2002,50 +2163,78 @@
   function renderBios() {
     const okCount = state.bios.filter(function (b) { return b.status !== "missing"; }).length;
     const pct = Math.round((okCount / Math.max(1, state.bios.length)) * 100);
-    const platforms = ["all"].concat(state.bios.map(function (b) { return b.platform; }).filter(function (v, i, a) { return a.indexOf(v) === i; }));
-    const shown = state.bios.filter(function (b) {
-      return state.biosPlatform === "all" || b.platform === state.biosPlatform;
-    });
+
+    const categories = ["PlayStation", "Sega", "Nintendo", "Arcade & Computers"];
+    function getCat(b) {
+      if (b.category) return b.category;
+      const p = (b.platform || "").toLowerCase();
+      if (p.includes("ps") || p.includes("playstation")) return "PlayStation";
+      if (p.includes("sega") || p.includes("md") || p.includes("genesis") || p.includes("saturn") || p.includes("dc") || p.includes("dreamcast")) return "Sega";
+      if (p.includes("nes") || p.includes("snes") || p.includes("gb") || p.includes("n64") || p.includes("nds") || p.includes("nintendo") || p.includes("fds")) return "Nintendo";
+      return "Arcade & Computers";
+    }
 
     return (
-      '<div class="glass-card" style="margin-bottom:12px;">' +
-        '<div class="section-head">' +
-          '<div class="section-title-cluster">' +
-            '<div class="section-icon-badge">' + ico("chip") + '</div>' +
-            '<div>' +
-              '<h3 class="section-title">' + (isRu() ? "Системные BIOS и Прошивки (13 платформ)" : "System BIOS & Firmware Checklist (13 Consoles)") + '</h3>' +
-              '<p class="section-subtitle">' + (isRu() ? "Готовность системного каталога: " : "BIOS Readiness: ") + okCount + " / " + state.bios.length + " (" + pct + "%)</p>" +
+      '<div style="display:flex;flex-direction:column;gap:12px;">' +
+        '<div class="glass-card">' +
+          '<div class="section-head">' +
+            '<div class="section-title-cluster">' +
+              '<div class="section-icon-badge">' + ico("chip") + '</div>' +
+              '<div>' +
+                '<h3 class="section-title">' + (isRu() ? "Системные BIOS и Прошивки (Группировка по системам)" : "System BIOS & Firmware Checklist (Grouped by Ecosystem)") + '</h3>' +
+                '<p class="section-subtitle">' + (isRu() ? "Готовность системного каталога: " : "BIOS Readiness: ") + okCount + " / " + state.bios.length + ' (' + pct + '%)</p>' +
+              '</div>' +
+            '</div>' +
+            '<div class="toolbar-row">' +
+              '<button type="button" class="btn-3d btn-3d-primary btn-3d-sm" data-action="pick-bios-folder">' + ico("folder") + '<span>' + (isRu() ? "Автопоиск BIOS" : "Pick BIOS Folder") + '</span></button>' +
+              '<button type="button" class="btn-3d btn-3d-emerald btn-3d-sm" data-action="import-bios-file">' + ico("upload") + '<span>' + (isRu() ? "Импорт файла" : "Import BIOS") + '</span></button>' +
+              '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="scan-bios-md5">' + ico("refresh") + '<span>' + (isRu() ? "Проверить MD5" : "Verify MD5") + '</span></button>' +
             '</div>' +
           '</div>' +
-          '<div class="toolbar-row">' +
-            '<button type="button" class="btn-3d btn-3d-primary btn-3d-sm" data-action="pick-bios-folder">' + ico("folder") + '<span>' + (isRu() ? "Автопоиск BIOS в папке" : "Pick BIOS Folder") + '</span></button>' +
-            '<button type="button" class="btn-3d btn-3d-emerald btn-3d-sm" data-action="import-bios-file">' + ico("upload") + '<span>' + (isRu() ? "Импорт файла BIOS" : "Import BIOS File") + '</span></button>' +
-            '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="scan-bios-md5">' + ico("refresh") + '<span>' + (isRu() ? "Проверить MD5" : "Verify MD5") + '</span></button>' +
-          '</div>' +
+          '<div class="progress-track-3d"><div class="progress-fill-gpu" style="--p:' + (pct / 100).toFixed(2) + ';"></div></div>' +
         '</div>' +
-        '<div class="progress-track-3d" style="margin-bottom:10px;"><div class="progress-fill-gpu" style="--p:' + (pct / 100).toFixed(2) + ';"></div></div>' +
-        '<div class="chips-scroll-row">' +
-          platforms.map(function (p) {
-            return '<button type="button" class="chip-3d' + (state.biosPlatform === p ? " active" : "") + '" data-bios-plat="' + esc(p) + '"><span>' + (p === "all" ? esc(tr("all")) : esc(p)) + '</span></button>';
-          }).join("") +
-        '</div>' +
-      '</div>' +
 
-      '<div class="cores-grid">' +
-        shown.map(function (b) {
-          const pill = b.status === "verified"
-            ? '<span class="badge-pill badge-emerald">' + (isRu() ? "Проверен MD5" : "Verified MD5") + '</span>'
-            : (b.status === "present"
-                ? '<span class="badge-pill badge-amber">' + (isRu() ? "Найден" : "Present") + '</span>'
-                : '<span class="badge-pill badge-rose">' + (isRu() ? "Отсутствует" : "Missing") + '</span>');
+        categories.map(function (cat) {
+          const catBios = state.bios.filter(function (b) { return getCat(b) === cat; });
+          if (!catBios.length) return "";
+          const catOk = catBios.filter(function (b) { return b.status !== "missing"; }).length;
           return (
-            '<div class="core-card">' +
-              '<div class="toolbar-row" style="justify-content:space-between;">' +
-                '<span class="badge-pill badge-accent">' + esc(b.platform) + '</span>' +
-                pill +
+            '<div class="glass-card">' +
+              '<div class="section-head">' +
+                '<h4 class="section-title">' + esc(cat) + '</h4>' +
+                '<span class="badge-pill ' + (catOk === catBios.length ? "badge-emerald" : "badge-amber") + ' tabular">' + catOk + " / " + catBios.length + '</span>' +
               '</div>' +
-              '<div class="mono-code" style="font-size:0.82rem;font-weight:700;color:#F8FAFC;">' + esc(b.relativePath) + '</div>' +
-              '<div class="mono-code" style="font-size:0.69rem;color:var(--text-secondary);word-break:break-all;">MD5: ' + esc(b.expectedMd5) + '</div>' +
+              '<div class="storm-table-wrap">' +
+                '<table class="storm-table">' +
+                  '<thead>' +
+                    '<tr>' +
+                      '<th>' + (isRu() ? "Платформа" : "Platform") + '</th>' +
+                      '<th>' + (isRu() ? "Файл BIOS" : "File Name") + '</th>' +
+                      '<th>' + (isRu() ? "Путь в system/" : "Path") + '</th>' +
+                      '<th>' + (isRu() ? "Ожидаемый MD5" : "Expected MD5") + '</th>' +
+                      '<th>' + (isRu() ? "Статус" : "Status") + '</th>' +
+                    '</tr>' +
+                  '</thead>' +
+                  '<tbody>' +
+                    catBios.map(function (b) {
+                      const pill = b.status === "verified"
+                        ? '<span class="badge-pill badge-emerald">' + (isRu() ? "Проверен MD5" : "Verified MD5") + '</span>'
+                        : (b.status === "present"
+                            ? '<span class="badge-pill badge-amber">' + (isRu() ? "Найден" : "Present") + '</span>'
+                            : '<span class="badge-pill badge-rose">' + (isRu() ? "Отсутствует" : "Missing") + '</span>');
+                      return (
+                        '<tr>' +
+                          '<td><span class="badge-pill badge-accent">' + esc(b.platform) + '</span></td>' +
+                          '<td style="font-weight:700;color:#F8FAFC;word-break:break-word;">' + esc(b.fileName || (b.relativePath ? b.relativePath.split("/").pop() : "-")) + '</td>' +
+                          '<td class="mono-code" style="font-size:0.72rem;color:var(--text-secondary);word-break:break-all;">' + esc(b.relativePath) + '</td>' +
+                          '<td class="mono-code" style="font-size:0.75rem;color:var(--text-secondary);">' + esc(b.expectedMd5 ? b.expectedMd5.slice(0, 12) + "..." : "-") + '</td>' +
+                          '<td style="text-align:center;">' + pill + '</td>' +
+                        '</tr>'
+                      );
+                    }).join("") +
+                  '</tbody>' +
+                '</table>' +
+              '</div>' +
             '</div>'
           );
         }).join("") +
@@ -2138,49 +2327,329 @@
   }
 
   function renderCommunity() {
-    const guides = {
-      PS1: isRu() ? "SwanStation для 3D апскейла 2x-4x + PGXP коррекции геометрии; PCSX ReARMed для бюджетных ARM чипов. BIOS: system/scph5501.bin." : "Use SwanStation for 2x-4x upscale + PGXP geometry; PCSX ReARMed for max speed.",
-      PSP: isRu() ? "Ядро PPSSPP поддерживает Vulkan и GLES3, 2x-4x разрешение 1080p и 60 FPS патчи без внешнего BIOS." : "PPSSPP runs Vulkan/GLES3 at 2x-4x 1080p native speed with zero external BIOS needed.",
-      SNES: isRu() ? "Snes9x вшит в APK: включите Run-Ahead 1 кадр и шейдер CRT Royale для нулевой задержки ввода." : "Snes9x pre-bundled: enable 1-frame Run-Ahead + CRT Royale shader.",
-      Dreamcast: isRu() ? "Flycast поддерживает образы .CHD и широкоэкранный хак 16:9. BIOS: system/dc/dc_boot.bin." : "Flycast supports compressed .CHD + widescreen 16:9. BIOS: system/dc/dc_boot.bin."
-    };
+    const sub = state.communitySubTab || "ra";
+    const subTabs = [
+      { id: "ra", icon: "trophy", label: "RetroAchievements" },
+      { id: "netplay", icon: "wifi", label: isRu() ? "Wi-Fi Netplay" : "Wi-Fi Netplay" },
+      { id: "aiguide", icon: "sparkles", label: isRu() ? "AI Гид" : "AI Guide" },
+      { id: "streaming", icon: "play", label: isRu() ? "Стриминг" : "Live Stream" }
+    ];
+
+    let contentHtml = "";
+
+    if (sub === "ra") {
+      // 1. RETROACHIEVEMENTS
+      const raUser = state.settings.raUsername || "StormPlayer";
+      const isConnected = Boolean(state.settings.raUsername);
+      const achSample = [
+        { id: 101, title: "Yoshi's Island Clear", desc: "Complete World 1 with 100 points", pts: 10, unlocked: true, time: "14.11.2026 12:40" },
+        { id: 102, title: "Yellow Switch Palace", desc: "Activate all yellow blocks", pts: 5, unlocked: true, time: "14.11.2026 13:05" },
+        { id: 103, title: "Iggy's Castle Defeat", desc: "Defeat first castle boss without damage", pts: 15, unlocked: true, time: "14.11.2026 13:20" },
+        { id: 104, title: "Donut Plains Secret", desc: "Find the secret exit to Star Road", pts: 25, unlocked: false, time: "" },
+        { id: 105, title: "Cape Flight Master", desc: "Glide through the clouds for 20 seconds", pts: 20, unlocked: false, time: "" },
+        { id: 106, title: "Bowser's Downfall", desc: "Clear Bowser Castle with 0 lives lost", pts: 50, unlocked: false, time: "" }
+      ];
+
+      contentHtml = (
+        '<div style="display:flex;flex-direction:column;gap:12px;">' +
+          '<div class="glass-card">' +
+            '<div class="section-head">' +
+              '<div style="display:flex;align-items:center;gap:12px;">' +
+                '<img src="https://media.retroachievements.org/UserPic/' + esc(raUser) + '.png" alt="Avatar" style="width:48px;height:48px;border-radius:12px;border:2px solid var(--accent);background:rgba(255,255,255,0.06);object-fit:cover;" onerror="this.style.opacity=0.4;">' +
+                '<div>' +
+                  '<div style="display:flex;align-items:center;gap:8px;">' +
+                    '<h3 class="section-title">' + esc(raUser) + '</h3>' +
+                    '<span class="badge-pill ' + (isConnected ? "badge-emerald" : "badge-amber") + '">' + (isConnected ? (isRu() ? "Подключено" : "Connected") : (isRu() ? "Не авторизован" : "Guest")) + '</span>' +
+                  '</div>' +
+                  '<p class="section-subtitle tabular" style="color:var(--accent-text);font-weight:700;">1,480 pts (Soft: 420) • Rank #12,482 • Super Mario World</p>' +
+                '</div>' +
+              '</div>' +
+              '<div class="toolbar-row">' +
+                '<button type="button" class="btn-3d btn-3d-primary btn-3d-sm" data-action="fetch-ra">' + ico("refresh") + '<span>' + (isRu() ? "Синхронизировать" : "Sync Profile") + '</span></button>' +
+              '</div>' +
+            '</div>' +
+
+            '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:10px;">' +
+              '<input type="text" id="raUserInput" class="input-well-3d" value="' + esc(state.settings.raUsername) + '" placeholder="Логин RetroAchievements">' +
+              '<input type="password" id="raTokenInput" class="input-well-3d" value="' + (state.settings.raToken ? "••••••••••••" : "") + '" placeholder="API Token / Пароль">' +
+            '</div>' +
+
+            '<div class="toggle-row-3d" style="margin-top:8px;">' +
+              '<div class="toggle-meta"><div class="toggle-title">Hardcore Mode</div><div class="toggle-desc">' + (isRu() ? "Удвоенный рейтинг без перемотки и читов" : "Competitive hardcore verification") + '</div></div>' +
+              '<button type="button" role="switch" aria-checked="' + Boolean(state.settings.raHardcore) + '" class="switch-3d" data-toggle-setting="raHardcore"><span class="switch-track"><span class="switch-thumb"></span></span></button>' +
+            '</div>' +
+          '</div>' +
+
+          '<div class="glass-card">' +
+            '<h4 class="section-title" style="margin-bottom:12px;">' + (isRu() ? "Достижения текущей игры (Разблокировано: 3 / 6)" : "Current Game Achievements (Unlocked: 3 / 6)") + '</h4>' +
+            '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;">' +
+              achSample.map(function (a) {
+                if (a.unlocked) {
+                  return (
+                    '<div class="glass-card" style="border:1px solid rgba(16,185,129,0.35);background:linear-gradient(135deg,rgba(16,185,129,0.08) 0%,rgba(10,8,20,0.65) 100%);padding:12px;">' +
+                      '<div style="display:flex;align-items:flex-start;gap:10px;">' +
+                        '<div style="width:36px;height:36px;border-radius:8px;background:rgba(16,185,129,0.22);display:flex;align-items:center;justify-content:center;color:#10B981;font-weight:900;">' + ico("trophy") + '</div>' +
+                        '<div style="flex:1;">' +
+                          '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+                            '<div style="font-weight:800;font-size:0.88rem;color:#F8FAFC;">' + esc(a.title) + '</div>' +
+                            '<span class="badge-pill badge-emerald tabular">+' + a.pts + ' pts</span>' +
+                          '</div>' +
+                          '<div style="font-size:0.75rem;color:var(--text-secondary);margin-top:3px;">' + esc(a.desc) + '</div>' +
+                          '<div class="tabular" style="font-size:0.68rem;color:#10B981;margin-top:4px;">' + (isRu() ? "Разблокировано: " : "Unlocked: ") + esc(a.time) + '</div>' +
+                        '</div>' +
+                      '</div>' +
+                    '</div>'
+                  );
+                } else {
+                  return (
+                    '<div class="glass-card" style="opacity:0.62;filter:grayscale(0.8);border:1px solid rgba(255,255,255,0.08);padding:12px;">' +
+                      '<div style="display:flex;align-items:flex-start;gap:10px;">' +
+                        '<div style="width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;color:var(--text-secondary);">' + ico("lock") + '</div>' +
+                        '<div style="flex:1;">' +
+                          '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+                            '<div style="font-weight:700;font-size:0.86rem;color:var(--text-secondary);">' + esc(a.title) + '</div>' +
+                            '<span class="badge-pill tabular">+' + a.pts + ' pts</span>' +
+                          '</div>' +
+                          '<div style="font-size:0.75rem;color:var(--text-secondary);margin-top:3px;">' + esc(a.desc) + '</div>' +
+                          '<div style="font-size:0.68rem;color:var(--text-secondary);margin-top:4px;">' + (isRu() ? "Заблокировано" : "Locked") + '</div>' +
+                        '</div>' +
+                      '</div>' +
+                    '</div>'
+                  );
+                }
+              }).join("") +
+            '</div>' +
+          '</div>' +
+        '</div>'
+      );
+    } else if (sub === "netplay") {
+      // 2. WI-FI NETPLAY
+      const roomCode = state.netplayRoomCode || "STORM-2701";
+      const pingText = state.netplayPingMs ? (state.netplayPingMs + " ms") : (isRu() ? "18 ms (Отлично)" : "18 ms (Good)");
+
+      contentHtml = (
+        '<div style="display:flex;flex-direction:column;gap:12px;">' +
+          '<div class="glass-card">' +
+            '<div class="section-head">' +
+              '<div class="section-title-cluster">' +
+                '<div class="section-icon-badge">' + ico("wifi") + '</div>' +
+                '<div>' +
+                  '<h3 class="section-title">' + (isRu() ? "Сетевая игра Wi-Fi Netplay" : "Wi-Fi Rollback Netplay") + '</h3>' +
+                  '<p class="section-subtitle">' + (isRu() ? "Кооператив и мультиплеер на 2-4 игрока (Порт 55435)" : "Zero-lag rollback multiplayer over LAN / Relay") + '</p>' +
+                '</div>' +
+              '</div>' +
+              '<div class="toolbar-row">' +
+                '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="gen-netplay-code">' + ico("refresh") + '<span>' + (isRu() ? "Новый код" : "New Code") + '</span></button>' +
+              '</div>' +
+            '</div>' +
+
+            '<div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.03);border:1px dashed var(--accent);border-radius:12px;padding:12px;margin-bottom:12px;">' +
+              '<div>' +
+                '<div style="font-size:0.75rem;color:var(--text-secondary);">' + (isRu() ? "Код вашей комнаты:" : "Your Room Code:") + '</div>' +
+                '<div class="mono-code" style="font-size:1.35rem;font-weight:900;color:var(--accent-text);letter-spacing:0.06em;">' + esc(roomCode) + '</div>' +
+              '</div>' +
+              '<button type="button" class="btn-3d btn-3d-primary btn-3d-sm" data-action="copy-netplay-code">' + ico("copy") + '<span>' + (isRu() ? "Копировать" : "Copy") + '</span></button>' +
+            '</div>' +
+
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">' +
+              '<div>' +
+                '<div class="toggle-title" style="margin-bottom:4px;">' + (isRu() ? "Режим лобби" : "Lobby Role") + '</div>' +
+                '<div class="seg-group-3d">' +
+                  '<button type="button" class="seg-btn-3d' + (state.settings.netplayMode === "host" ? " active" : "") + '" data-netplay-mode="host"><span>' + (isRu() ? "Хост (Сервер)" : "Host") + '</span></button>' +
+                  '<button type="button" class="seg-btn-3d' + (state.settings.netplayMode === "join" ? " active" : "") + '" data-netplay-mode="join"><span>' + (isRu() ? "Клиент (Join)" : "Join") + '</span></button>' +
+                '</div>' +
+              '</div>' +
+              '<div>' +
+                '<div class="toggle-title" style="margin-bottom:4px;">' + (isRu() ? "Релей-сервер пинга" : "Relay Ping Test") + '</div>' +
+                '<div style="display:flex;gap:6px;">' +
+                  '<input type="text" id="netplayRelayInput" class="input-well-3d mono-code" style="flex:1;" value="relay.stormretroarch.ru:55435">' +
+                  '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="test-netplay-ping">' + ico("zap") + '</button>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+
+            '<div style="display:flex;justify-content:space-between;align-items:center;background:rgba(10,8,20,0.55);border-radius:10px;padding:8px 12px;margin-bottom:12px;">' +
+              '<span style="font-size:0.80rem;color:var(--text-secondary);">' + (isRu() ? "Текущий пинг до релея:" : "Measured Ping:") + '</span>' +
+              '<span class="badge-pill badge-emerald tabular" id="netplayPingBadge">' + esc(pingText) + '</span>' +
+            '</div>' +
+
+            '<button type="button" class="btn-3d btn-3d-emerald btn-block" data-action="start-netplay">' + ico("wifi") + '<span>' + (state.settings.netplayMode === "host" ? (isRu() ? "Запустить комнату хоста" : "Launch Host Room") : (isRu() ? "Подключиться к комнате" : "Join Netplay Session")) + '</span></button>' +
+          '</div>' +
+
+          '<div class="glass-card">' +
+            '<h4 class="section-title" style="margin-bottom:10px;">' + (isRu() ? "Недавние сетевые матчи" : "Recent Netplay Matches") + '</h4>' +
+            '<div class="storm-table-wrap">' +
+              '<table class="storm-table">' +
+                '<thead>' +
+                  '<tr>' +
+                    '<th>' + (isRu() ? "Игра" : "Game") + '</th>' +
+                    '<th>' + (isRu() ? "Ядро" : "Core") + '</th>' +
+                    '<th>' + (isRu() ? "Игроки" : "Players") + '</th>' +
+                    '<th>' + (isRu() ? "Пинг" : "Ping") + '</th>' +
+                    '<th>' + (isRu() ? "Результат" : "Status") + '</th>' +
+                  '</tr>' +
+                '</thead>' +
+                '<tbody>' +
+                  '<tr>' +
+                    '<td>Super Mario Kart</td>' +
+                    '<td>Snes9x</td>' +
+                    '<td style="text-align:center;">2 / 2</td>' +
+                    '<td style="text-align:center;" class="tabular">14 ms</td>' +
+                    '<td style="text-align:center;"><span class="badge-pill badge-emerald">' + (isRu() ? "Завершено" : "Completed") + '</span></td>' +
+                  '</tr>' +
+                  '<tr>' +
+                    '<td>Tekken 3</td>' +
+                    '<td>SwanStation</td>' +
+                    '<td style="text-align:center;">2 / 2</td>' +
+                    '<td style="text-align:center;" class="tabular">22 ms</td>' +
+                    '<td style="text-align:center;"><span class="badge-pill badge-emerald">' + (isRu() ? "Завершено" : "Completed") + '</span></td>' +
+                  '</tr>' +
+                '</tbody>' +
+              '</table>' +
+            '</div>' +
+          '</div>' +
+        '</div>'
+      );
+    } else if (sub === "aiguide") {
+      // 3. AI GUIDE (Tactical Vision & TextToSpeech)
+      const aiMsgs = state.aiMessages || [
+        { role: "assistant", text: isRu() ? "Приветствую в STORM RETROARCH 2.7.0! Готов подсказать секреты, тактику против боссов, оптимальные ядра и тайминги комбо." : "Welcome to STORM RETROARCH 2.7.0! I am ready to advise on boss tactics, secrets, core configs, and input timings." }
+      ];
+
+      contentHtml = (
+        '<div style="display:flex;flex-direction:column;gap:12px;">' +
+          '<div class="glass-card">' +
+            '<div class="section-head">' +
+              '<div class="section-title-cluster">' +
+                '<div class="section-icon-badge">' + ico("sparkles") + '</div>' +
+                '<div>' +
+                  '<h3 class="section-title">' + (isRu() ? "Тактический AI-Ассистент (Vision & Озвучка)" : "Tactical AI Guide (Vision & TTS)") + '</h3>' +
+                  '<p class="section-subtitle">' + (isRu() ? "Анализ кадра экрана в реальном времени и подсказки прохождения" : "Live screenshot analysis & gameplay hints") + '</p>' +
+                '</div>' +
+              '</div>' +
+              '<div class="toolbar-row">' +
+                '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="ai-tts-speak">' + ico("wave") + '<span>' + (isRu() ? "Озвучить" : "Speak") + '</span></button>' +
+                '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="ai-tts-stop">' + ico("close") + '<span>' + (isRu() ? "Стоп" : "Stop") + '</span></button>' +
+              '</div>' +
+            '</div>' +
+
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">' +
+              '<div>' +
+                '<div class="toggle-title" style="margin-bottom:4px;">' + (isRu() ? "Модель AI" : "AI Provider & Model") + '</div>' +
+                '<select id="aiModelSelect" class="select-3d">' +
+                  ["STORM Local Assistant", "DeepSeek-R1 (Tactical)", "Claude 3.7 Sonnet (Vision)", "Gemini 2.5 Flash", "OpenAI GPT-4o"].map(function (m) {
+                    return '<option value="' + esc(m) + '"' + (state.aiModel === m ? " selected" : "") + '>' + esc(m) + '</option>';
+                  }).join("") +
+                '</select>' +
+              '</div>' +
+              '<div>' +
+                '<div class="toggle-title" style="margin-bottom:4px;">' + (isRu() ? "Скриншот экрана игры (Vision)" : "Vision Screenshot") + '</div>' +
+                '<button type="button" class="btn-3d ' + (state.aiScreenshotAttached ? "btn-3d-emerald" : "btn-3d-primary") + ' btn-block" data-action="ai-attach-screenshot">' +
+                  ico("camera") + '<span>' + (state.aiScreenshotAttached ? (isRu() ? "Кадр прикреплен" : "Frame Attached") : (isRu() ? "Захватить кадр" : "Attach Frame")) + '</span>' +
+                '</button>' +
+              '</div>' +
+            '</div>' +
+
+            '<div id="aiChatBox" style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto;padding:10px;background:rgba(8,6,18,0.70);border-radius:12px;border:1px solid rgba(255,255,255,0.06);margin-bottom:10px;">' +
+              aiMsgs.map(function (m) {
+                const isUser = m.role === "user";
+                return (
+                  '<div style="display:flex;justify-content:' + (isUser ? "flex-end" : "flex-start") + ';">' +
+                    '<div style="max-width:85%;padding:8px 12px;border-radius:12px;font-size:0.83rem;' + (isUser ? "background:var(--accent);color:#FFFFFF;" : "background:rgba(255,255,255,0.07);color:var(--text-main);border:1px solid rgba(255,255,255,0.08);") + '">' +
+                      esc(m.text) +
+                    '</div>' +
+                  '</div>'
+                );
+              }).join("") +
+            '</div>' +
+
+            '<div style="display:flex;gap:8px;">' +
+              '<input type="text" id="aiPromptInput" class="input-well-3d" style="flex:1;" placeholder="' + (isRu() ? "Задайте вопрос по игре, тактике или комбо..." : "Ask for boss tactics, secret paths, or combos...") + '">' +
+              '<button type="button" class="btn-3d btn-3d-primary" data-action="ai-send-msg">' + ico("check") + '<span>' + (isRu() ? "Спросить" : "Ask") + '</span></button>' +
+            '</div>' +
+          '</div>' +
+        '</div>'
+      );
+    } else {
+      // 4. LIVE STREAMING
+      contentHtml = (
+        '<div style="display:flex;flex-direction:column;gap:12px;">' +
+          '<div class="glass-card">' +
+            '<div class="section-head">' +
+              '<div class="section-title-cluster">' +
+                '<div class="section-icon-badge">' + ico("play") + '</div>' +
+                '<div>' +
+                  '<h3 class="section-title">' + (isRu() ? "Трансляция и Стриминг (RTMP / UDP)" : "Live Video Streaming (RTMP / UDP)") + '</h3>' +
+                  '<p class="section-subtitle">' + (isRu() ? "Прямой эфир на Twitch, YouTube, VK Видео через аппаратный MediaCodec" : "Hardware H.264 broadcast with zero frame lag") + '</p>' +
+                '</div>' +
+              '</div>' +
+              '<div class="toolbar-row">' +
+                '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="ping-stream-server">' + ico("zap") + '<span>' + (isRu() ? "Тест сервера" : "Ping RTMP") + '</span></button>' +
+              '</div>' +
+            '</div>' +
+
+            '<div style="display:flex;flex-direction:column;gap:10px;">' +
+              '<div>' +
+                '<div class="toggle-title" style="margin-bottom:4px;">' + (isRu() ? "Сервер трансляции (URL)" : "Stream Ingest URL") + '</div>' +
+                '<input type="text" id="streamUrlInput" class="input-well-3d mono-code" value="' + esc(state.settings.streamUrl || "rtmp://live.twitch.tv/app/") + '">' +
+              '</div>' +
+              '<div>' +
+                '<div class="toggle-title" style="margin-bottom:4px;">' + (isRu() ? "Ключ потока (Stream Key)" : "Stream Key") + '</div>' +
+                '<input type="password" id="streamKeyInput" class="input-well-3d" value="' + (state.settings.streamKey ? "••••••••••••" : "") + '" placeholder="live_••••••••">' +
+              '</div>' +
+
+              '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
+                '<div>' +
+                  '<div class="toggle-title" style="margin-bottom:4px;">' + (isRu() ? "Битрейт видео" : "Video Bitrate") + '</div>' +
+                  '<select id="streamBitrateSelect" class="select-3d">' +
+                    ["2500 kbps (720p)", "4500 kbps (1080p Standard)", "6000 kbps (1080p 60fps)", "8000 kbps (High Quality)"].map(function (b) {
+                      return '<option value="' + esc(b) + '">' + esc(b) + '</option>';
+                    }).join("") +
+                  '</select>' +
+                '</div>' +
+                '<div>' +
+                  '<div class="toggle-title" style="margin-bottom:4px;">' + (isRu() ? "Частота кадров потока" : "Target FPS") + '</div>' +
+                  '<div class="seg-group-3d">' +
+                    '<button type="button" class="seg-btn-3d active"><span>30 FPS</span></button>' +
+                    '<button type="button" class="seg-btn-3d"><span>60 FPS</span></button>' +
+                  '</div>' +
+                '</div>' +
+              '</div>' +
+
+              '<button type="button" class="btn-3d btn-3d-rose btn-block" data-action="toggle-live-stream">' + ico("play") + '<span>' + (isRu() ? "Начать прямую трансляцию" : "Start Live Broadcast") + '</span></button>' +
+            '</div>' +
+          '</div>' +
+
+          '<div class="glass-card">' +
+            '<h4 class="section-title" style="margin-bottom:10px;">' + (isRu() ? "Аппаратная телеметрия энкодера" : "Hardware Encoder Telemetry") + '</h4>' +
+            '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">' +
+              '<div class="glass-card" style="padding:10px;background:rgba(255,255,255,0.03);">' +
+                '<div style="font-size:0.72rem;color:var(--text-secondary);">' + (isRu() ? "Кодек видео" : "Encoder") + '</div>' +
+                '<div style="font-weight:800;color:var(--accent-text);">MediaCodec H.264</div>' +
+              '</div>' +
+              '<div class="glass-card" style="padding:10px;background:rgba(255,255,255,0.03);">' +
+                '<div style="font-size:0.72rem;color:var(--text-secondary);">' + (isRu() ? "Потерянные кадры" : "Dropped Frames") + '</div>' +
+                '<div class="tabular" style="font-weight:800;color:#10B981;">0 (0.0%)</div>' +
+              '</div>' +
+              '<div class="glass-card" style="padding:10px;background:rgba(255,255,255,0.03);">' +
+                '<div style="font-size:0.72rem;color:var(--text-secondary);">' + (isRu() ? "Буфер звука" : "Audio Buffer") + '</div>' +
+                '<div class="tabular" style="font-weight:800;color:#10B981;">48 kHz / 100% OK</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>'
+      );
+    }
 
     return (
-      '<div class="cores-grid">' +
-        '<div class="glass-card" style="display:flex;flex-direction:column;gap:10px;">' +
-          '<div class="section-title-cluster"><div class="section-icon-badge">' + ico("trophy") + '</div><div><h3 class="section-title">RetroAchievements</h3><p class="section-subtitle">' + (isRu() ? "Трофеи классических консолей онлайн" : "Global retro trophy tracking") + '</p></div></div>' +
-          '<input type="text" id="raUserInput" class="input-well-3d" value="' + esc(state.settings.raUsername) + '" placeholder="Логин RetroAchievements">' +
-          '<input type="password" class="input-well-3d" value="••••••••••••" placeholder="API Token / Пароль">' +
-          '<div class="toggle-row-3d">' +
-            '<div class="toggle-meta"><div class="toggle-title">Hardcore Mode</div><div class="toggle-desc">' + (isRu() ? "Удвоенный рейтинг без перемотки и читов" : "Competitive hardcore verification") + '</div></div>' +
-            '<button type="button" role="switch" aria-checked="' + Boolean(state.settings.raHardcore) + '" class="switch-3d" data-toggle-setting="raHardcore"><span class="switch-track"><span class="switch-thumb"></span></span></button>' +
-          '</div>' +
-          '<button type="button" class="btn-3d btn-3d-primary btn-block" data-action="save-ra-login">' + ico("check") + '<span>' + (isRu() ? "Сохранить профиль достижений" : "Connect Profile") + '</span></button>' +
+      '<div style="display:flex;flex-direction:column;gap:12px;">' +
+        '<div class="chips-scroll-row" style="margin-bottom:4px;">' +
+          subTabs.map(function (st) {
+            const act = sub === st.id ? " active" : "";
+            return '<button type="button" class="chip-3d' + act + '" data-community-sub="' + st.id + '">' + ico(st.icon) + '<span>' + esc(st.label) + '</span></button>';
+          }).join("") +
         '</div>' +
-
-        '<div class="glass-card" style="display:flex;flex-direction:column;gap:10px;">' +
-          '<div class="section-title-cluster"><div class="section-icon-badge">' + ico("wifi") + '</div><div><h3 class="section-title">' + (isRu() ? "Локальный Wi-Fi Netplay" : "Local Wi-Fi Netplay") + '</h3><p class="section-subtitle">' + (isRu() ? "Кооператив на 2-4 игроков (Порт 55435)" : "Rollback multiplayer over Wi-Fi (Port 55435)") + '</p></div></div>' +
-          '<div class="seg-group-3d">' +
-            '<button type="button" class="seg-btn-3d' + (state.settings.netplayMode === "host" ? " active" : "") + '" data-netplay-mode="host"><span>' + (isRu() ? "Создать комнату (Host)" : "Host Room") + '</span></button>' +
-            '<button type="button" class="seg-btn-3d' + (state.settings.netplayMode === "join" ? " active" : "") + '" data-netplay-mode="join"><span>' + (isRu() ? "Подключиться (Join)" : "Join Room") + '</span></button>' +
-          '</div>' +
-          '<input type="text" class="input-well-3d mono-code" value="192.168.1.100:' + esc(state.settings.netplayPort) + '">' +
-          '<div class="toggle-row-3d">' +
-            '<div class="toggle-meta"><div class="toggle-title">Relay Server & Spectator</div><div class="toggle-desc">' + (isRu() ? "Обход NAT и режим зрителя" : "NAT traversal & spectator mode") + '</div></div>' +
-            '<button type="button" role="switch" aria-checked="' + Boolean(state.settings.netplayRelay) + '" class="switch-3d" data-toggle-setting="netplayRelay"><span class="switch-track"><span class="switch-thumb"></span></span></button>' +
-          '</div>' +
-          '<button type="button" class="btn-3d btn-3d-emerald btn-block" data-action="start-netplay">' + ico("wifi") + '<span>' + (state.settings.netplayMode === "host" ? (isRu() ? "Запустить сервер 55435" : "Start Host 55435") : (isRu() ? "Подключиться к комнате" : "Connect")) + '</span></button>' +
-        '</div>' +
-
-        '<div class="glass-card" style="display:flex;flex-direction:column;gap:10px;">' +
-          '<div class="section-title-cluster"><div class="section-icon-badge">' + ico("bolt") + '</div><div><h3 class="section-title">' + (isRu() ? "Тактический офлайн-гид платформ" : "Offline Tactical Emulation Guide") + '</h3><p class="section-subtitle">' + (isRu() ? "Лучшие ядра, BIOS и настройки FPS" : "Optimal cores, BIOS & FPS recipes") + '</p></div></div>' +
-          '<div class="chips-scroll-row">' +
-            Object.keys(guides).map(function (gp) {
-              return '<button type="button" class="chip-3d' + (state.guidePlatform === gp ? " active" : "") + '" data-guide-plat="' + gp + '"><span>' + gp + '</span></button>';
-            }).join("") +
-          '</div>' +
-          '<div class="glass-card" style="background:var(--bg-input);font-size:0.81rem;color:var(--text-secondary);">' + esc(guides[state.guidePlatform]) + '</div>' +
-        '</div>' +
+        contentHtml +
       '</div>'
     );
   }
@@ -2256,7 +2725,7 @@
             '</div>' +
 
             '<div class="toolbar-row">' +
-              '<button type="button" class="btn-3d btn-3d-primary" style="flex:1;" data-action="check-updates">' + ico("refresh") + '<span>' + (isRu() ? "Проверить обновления (2.6.1)" : "Check Updates (2.6.1)") + '</span></button>' +
+              '<button type="button" class="btn-3d btn-3d-primary" style="flex:1;" data-action="check-updates">' + ico("refresh") + '<span>' + (isRu() ? "Проверить обновления (2.7.0)" : "Check Updates (2.7.0)") + '</span></button>' +
               (state.updateInfo.updateAvailable ? (
                 '<button type="button" class="btn-3d btn-3d-emerald" data-action="install-update">' + ico("download") + '<span>' + (isRu() ? "Обновить" : "Update") + '</span></button>'
               ) : "") +
@@ -2301,6 +2770,7 @@
     if (state.activeTab === "library") updateLibraryResults();
     else if (state.activeTab === "cores") updateCoresResults();
     else if (state.activeTab === "cheats") updateCheatsResults();
+    else if (state.activeTab === "graphics") drawLiveShaderAndBezelPreviews();
   }
 
   function renderShellAndView() {
@@ -2318,7 +2788,7 @@
     if (!modal || !box) return;
     box.innerHTML =
       '<div class="section-head">' +
-        '<div><h3 class="section-title" id="studioHubTitle">' + (isRu() ? "Все 12 модулей STORM RETROARCH 2.6.1" : "All 12 STORM Studio Modules") + '</h3><p class="section-subtitle">' + (isRu() ? "Выберите нужный раздел консоли в одно касание" : "Jump to any console subsystem in 1 tap") + '</p></div>' +
+        '<div><h3 class="section-title" id="studioHubTitle">' + (isRu() ? "Все 12 модулей STORM RETROARCH 2.7.0" : "All 12 STORM Studio Modules") + '</h3><p class="section-subtitle">' + (isRu() ? "Выберите нужный раздел консоли в одно касание" : "Jump to any console subsystem in 1 tap") + '</p></div>' +
         '<button type="button" class="icon-btn-3d" data-action="close-modals" aria-label="Close">' + ico("close") + '</button>' +
       '</div>' +
       '<div class="quick-bento-grid">' +
@@ -2403,7 +2873,7 @@
         '<div class="toggle-title" style="margin-bottom:5px;">' + (isRu() ? "Предпочитаемое ядро для этой игры (" + g.platform + ")" : "Preferred Core for Game") + '</div>' +
         '<select id="inspectorCoreSelect" class="select-3d" data-game="' + esc(g.id) + '">' +
           validCores.map(function (c) {
-            return '<option value="' + esc(c.id) + '"' + (c.id === g.coreId ? " selected" : "") + '>' + esc(c.displayName) + (c.bundled ? " [APK]" : "") + '</option>';
+            return '<option value="' + esc(c.id) + '"' + (c.id === g.coreId ? " selected" : "") + '>' + esc(c.displayName) + (c.bundled ? (isRu() ? " (Встроено)" : " (Built-in)") : "") + '</option>';
           }).join("") +
         '</select>' +
       '</div>' +
@@ -2542,7 +3012,7 @@
       { kind: "action", icon: "folder", title: ru ? "Сканировать папку с ROM" : "Scan ROM Folder", meta: state.storagePath, execType: "action", action: "quick-scan-storage" },
       { kind: "action", icon: "cpu", title: ru ? "Автосканер BIOS (MD5)" : "Auto-Scan BIOS (MD5)", meta: ru ? "Проверка системных прошивок" : "Verify system firmware hashes", execType: "action", action: "scan-bios-md5" },
       { kind: "action", icon: "archive", title: ru ? "Экспорт сохранений в ZIP" : "Export Saves Backup ZIP", meta: ru ? "Портативный перенос на ПК" : "Portable PC save transfer", execType: "action", action: "export-saves-zip" },
-      { kind: "action", icon: "refresh", title: ru ? "Проверить обновления (2.6.1)" : "Check Updates (2.6.1)", meta: "STORM RETROARCH", execType: "action", action: "check-updates" },
+      { kind: "action", icon: "refresh", title: ru ? "Проверить обновления (2.7.0)" : "Check Updates (2.7.0)", meta: "STORM RETROARCH", execType: "action", action: "check-updates" },
       { kind: "action", icon: "grid", title: ru ? "Все 12 модулей Студии" : "All 12 Studio Modules", meta: ru ? "Быстрый переход по разделам" : "Open 12-module launcher", execType: "hub" }
     ];
 
@@ -2681,7 +3151,7 @@
         window.StormBridge.exportSavesBackupZip();
       } else if (item.action === "check-updates") {
         if (hasBridge && window.StormBridge.checkForUpdates) window.StormBridge.checkForUpdates();
-        else showToast(isRu() ? "У вас установлена актуальная версия (2.6.1)" : "STORM RETROARCH 2.6.1 is up to date");
+        else showToast(isRu() ? "У вас установлена актуальная версия (2.7.0)" : "STORM RETROARCH 2.7.0 is up to date");
       }
     }
   }
@@ -3262,7 +3732,7 @@
       else showToast(isRu() ? "Полный доступ к /storage/emulated/0/STORM RETROARCH активен" : "Storage access active");
     } else if (act === "check-updates") {
       if (hasBridge && window.StormBridge.checkForUpdates) window.StormBridge.checkForUpdates();
-      else showToast(isRu() ? "У вас установлена актуальная версия (2.6.1)" : "STORM RETROARCH 2.6.1 is up to date");
+      else showToast(isRu() ? "У вас установлена актуальная версия (2.7.0)" : "STORM RETROARCH 2.7.0 is up to date");
     } else if (act === "install-update") {
       if (hasBridge && window.StormBridge.installUpdateApk) window.StormBridge.installUpdateApk();
     }
@@ -3330,7 +3800,7 @@
     else if (t.id === "ctrlThemeSelect") { saveSettingsPatch({ touchColorTheme: t.value }); renderViewport(); }
     else if (t.id === "ctrlHapticSelect") { saveSettingsPatch({ hapticStrength: t.value }); }
     else if (t.id === "ctrlTurboSelect") { saveSettingsPatch({ turboHz: t.value }); renderViewport(); }
-    else if (t.id === "fontFamilySelect") { saveSettingsPatch({ font: t.value }); renderShellAndView(); }
+    else if (t.id === "fontFamilySelect") { saveSettingsPatch({ font: canonicalFont(t.value) }); applyVisualTokens(); showToast((isRu() ? "Шрифт: " : "Font: ") + canonicalFont(t.value)); }
     else if (t.id === "inspectorStatusSelect") {
       const gid = t.getAttribute("data-game");
       persistGameMetadata(gid, { completionStatus: t.value });
@@ -3433,7 +3903,12 @@
   let gamepadLoopActive = false;
   let lastPadActionAt = 0;
 
+  let gamepadRafId = null;
   function pollGamepadLoop(ts) {
+    if (document.hidden || window.__stormPaused) {
+      gamepadLoopActive = false;
+      return;
+    }
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     let anyConnected = false;
     for (let i = 0; i < pads.length; i++) {
@@ -3451,9 +3926,40 @@
         else if ((gp.buttons[15] && gp.buttons[15].pressed) || gp.axes[0] > 0.55) { moveSpatialFocus("right"); lastPadActionAt = ts; }
       }
     }
-    if (anyConnected) requestAnimationFrame(pollGamepadLoop);
-    else gamepadLoopActive = false;
+    if (anyConnected && !document.hidden && !window.__stormPaused) {
+      gamepadRafId = requestAnimationFrame(pollGamepadLoop);
+    } else {
+      gamepadLoopActive = false;
+    }
   }
+
+  window.__stormSetPaused = function (paused) {
+    window.__stormPaused = Boolean(paused);
+    if (!window.__stormPaused && !gamepadLoopActive) {
+      const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+      const hasAny = Array.prototype.some.call(pads, function (p) { return p && p.connected; });
+      if (hasAny) {
+        gamepadLoopActive = true;
+        gamepadRafId = requestAnimationFrame(pollGamepadLoop);
+      }
+    } else if (window.__stormPaused && gamepadRafId) {
+      cancelAnimationFrame(gamepadRafId);
+      gamepadLoopActive = false;
+    }
+  };
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden && gamepadRafId) {
+      cancelAnimationFrame(gamepadRafId);
+      gamepadLoopActive = false;
+    } else if (!document.hidden && !window.__stormPaused && !gamepadLoopActive) {
+      const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+      if (Array.prototype.some.call(pads, function (p) { return p && p.connected; })) {
+        gamepadLoopActive = true;
+        gamepadRafId = requestAnimationFrame(pollGamepadLoop);
+      }
+    }
+  }, { passive: true });
 
   window.addEventListener("gamepadconnected", function () {
     if (!gamepadLoopActive) {

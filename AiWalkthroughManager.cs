@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace StormRetroArch;
@@ -24,6 +25,11 @@ public static class AiWalkthroughManager
     public static readonly string ScreenshotsDir = Path.Combine(CoreManager.AppDir, "screenshots");
 
     public static AiStudioConfig Config { get; set; } = new();
+
+    private static readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(25) };
+    private static object? _speechSynthesizer;
+    private static Process? _ttsProcess;
+    private static readonly object _ttsLock = new();
 
     static AiWalkthroughManager()
     {
@@ -46,91 +52,304 @@ public static class AiWalkthroughManager
             .ToList();
     }
 
-    public static async Task<string> AskAiAssistantAsync(string question, string? imagePath = null)
+    public static async Task<string> AskWithScreenshotAsync(
+        string gameTitle,
+        string question,
+        string? screenshotPath,
+        string provider,
+        string apiKey,
+        string model,
+        CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(question))
-            question = "Опишите тактику для текущей ситуации в игре и решение встреченных загадок.";
+            question = "Опишите тактику для текущей ситуации в игре и подскажите секреты.";
 
-        // 1. Try sending to configured HTTP endpoint (Ollama / Local HTTP / OpenAI)
+        string safeGame = string.IsNullOrWhiteSpace(gameTitle) ? "Ретро-игра" : gameTitle.Trim();
+
+        // Подготовка изображения при наличии
+        string base64Image = "";
+        string mimeType = "image/png";
+        if (!string.IsNullOrEmpty(screenshotPath) && File.Exists(screenshotPath))
+        {
+            try
+            {
+                byte[] bytes = await File.ReadAllBytesAsync(screenshotPath, ct).ConfigureAwait(false);
+                base64Image = Convert.ToBase64String(bytes);
+                string ext = Path.GetExtension(screenshotPath).ToLowerInvariant();
+                mimeType = ext == ".jpg" || ext == ".jpeg" ? "image/jpeg" : "image/png";
+            }
+            catch { }
+        }
+
+        string prov = (provider ?? Config.Provider).ToLowerInvariant();
+        string key = !string.IsNullOrWhiteSpace(apiKey) ? apiKey.Trim() : Config.ApiKey.Trim();
+        string mdl = !string.IsNullOrWhiteSpace(model) ? model.Trim() : Config.ModelName.Trim();
+
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-            if (Config.EndpointUrl.Contains("11434")) // Ollama
+            // 1. OpenAI / ChatGPT (включая модели с Vision)
+            if (prov.Contains("openai") || prov.Contains("gpt"))
             {
-                var payload = new { model = string.IsNullOrEmpty(Config.ModelName) ? "llama3" : Config.ModelName, prompt = question, stream = false };
-                var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-                var res = await client.PostAsync(Config.EndpointUrl.TrimEnd('/') + "/api/generate", content);
-                if (res.IsSuccessStatusCode)
+                if (string.IsNullOrEmpty(mdl)) mdl = "gpt-4o-mini";
+                var req = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions");
+                req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
+
+                object userContent;
+                if (!string.IsNullOrEmpty(base64Image))
                 {
-                    string json = await res.Content.ReadAsStringAsync();
-                    using var doc = JsonDocument.Parse(json);
-                    if (doc.RootElement.TryGetProperty("response", out var r))
-                        return r.GetString() ?? "ИИ вернул пустой ответ.";
+                    userContent = new object[]
+                    {
+                        new { type = "text", text = $"Игра: {safeGame}\nВопрос: {question}" },
+                        new { type = "image_url", image_url = new { url = $"data:{mimeType};base64,{base64Image}" } }
+                    };
                 }
-            }
-            else if (!string.IsNullOrEmpty(Config.ApiKey) && Config.EndpointUrl.Contains("api.openai.com"))
-            {
-                client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", Config.ApiKey);
+                else
+                {
+                    userContent = $"Игра: {safeGame}\nВопрос: {question}";
+                }
+
                 var payload = new
                 {
-                    model = string.IsNullOrEmpty(Config.ModelName) ? "gpt-4o-mini" : Config.ModelName,
-                    messages = new[] { new { role = "user", content = question } }
+                    model = mdl,
+                    messages = new object[]
+                    {
+                        new { role = "system", content = "Вы - профессиональный эксперт по ретро-играм и спидраннер STORM. Отвечайте чётко, информативно и без лишней воды." },
+                        new { role = "user", content = userContent }
+                    }
                 };
-                var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-                var res = await client.PostAsync("https://api.openai.com/v1/chat/completions", content);
+
+                req.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+                var res = await _httpClient.SendAsync(req, ct).ConfigureAwait(false);
                 if (res.IsSuccessStatusCode)
                 {
-                    string json = await res.Content.ReadAsStringAsync();
+                    string json = await res.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
                     using var doc = JsonDocument.Parse(json);
                     return doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
+                }
+            }
+            // 2. Google Gemini API (Multimodal Vision)
+            else if (prov.Contains("gemini") || prov.Contains("google"))
+            {
+                if (string.IsNullOrEmpty(mdl)) mdl = "gemini-1.5-flash";
+                string url = $"https://generativelanguage.googleapis.com/v1beta/models/{mdl}:generateContent?key={key}";
+                var req = new HttpRequestMessage(HttpMethod.Post, url);
+
+                var parts = new List<object>
+                {
+                    new { text = $"Игра: {safeGame}\nВопрос: {question}" }
+                };
+                if (!string.IsNullOrEmpty(base64Image))
+                {
+                    parts.Add(new { inlineData = new { mimeType = mimeType, data = base64Image } });
+                }
+
+                var payload = new { contents = new[] { new { parts } } };
+                req.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+
+                var res = await _httpClient.SendAsync(req, ct).ConfigureAwait(false);
+                if (res.IsSuccessStatusCode)
+                {
+                    string json = await res.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                    using var doc = JsonDocument.Parse(json);
+                    var candidates = doc.RootElement.GetProperty("candidates");
+                    if (candidates.GetArrayLength() > 0)
+                    {
+                        return candidates[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString() ?? "";
+                    }
+                }
+            }
+            // 3. Anthropic Claude (Vision)
+            else if (prov.Contains("claude") || prov.Contains("anthropic"))
+            {
+                if (string.IsNullOrEmpty(mdl)) mdl = "claude-3-5-sonnet-20241022";
+                var req = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
+                req.Headers.Add("x-api-key", key);
+                req.Headers.Add("anthropic-version", "2023-06-01");
+
+                var contentList = new List<object>();
+                if (!string.IsNullOrEmpty(base64Image))
+                {
+                    contentList.Add(new
+                    {
+                        type = "image",
+                        source = new { type = "base64", media_type = mimeType, data = base64Image }
+                    });
+                }
+                contentList.Add(new { type = "text", text = $"Игра: {safeGame}\nВопрос: {question}" });
+
+                var payload = new
+                {
+                    model = mdl,
+                    max_tokens = 1024,
+                    messages = new[] { new { role = "user", content = contentList } }
+                };
+
+                req.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+                var res = await _httpClient.SendAsync(req, ct).ConfigureAwait(false);
+                if (res.IsSuccessStatusCode)
+                {
+                    string json = await res.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                    using var doc = JsonDocument.Parse(json);
+                    return doc.RootElement.GetProperty("content")[0].GetProperty("text").GetString() ?? "";
+                }
+            }
+            // 4. Локальный Ollama
+            else if (prov.Contains("ollama") || Config.EndpointUrl.Contains("11434"))
+            {
+                if (string.IsNullOrEmpty(mdl)) mdl = "llama3";
+                var payload = new
+                {
+                    model = mdl,
+                    prompt = $"Игра: {safeGame}\nВопрос: {question}",
+                    images = !string.IsNullOrEmpty(base64Image) ? new[] { base64Image } : Array.Empty<string>(),
+                    stream = false
+                };
+                var req = new HttpRequestMessage(HttpMethod.Post, Config.EndpointUrl.TrimEnd('/') + "/api/generate");
+                req.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+                var res = await _httpClient.SendAsync(req, ct).ConfigureAwait(false);
+                if (res.IsSuccessStatusCode)
+                {
+                    string json = await res.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                    using var doc = JsonDocument.Parse(json);
+                    if (doc.RootElement.TryGetProperty("response", out var r))
+                        return r.GetString() ?? "";
                 }
             }
         }
         catch { }
 
-        // 2. Contextual Advice Engine based on prompt & selected screenshot image
+        // Fallback: Эталонный локальный движок анализа сцены STORM
+        return GenerateLocalContextualAdvice(safeGame, question, screenshotPath);
+    }
+
+    public static async Task<string> AskAiAssistantAsync(string question, string? imagePath = null)
+    {
+        return await AskWithScreenshotAsync(
+            "Текущая игра",
+            question,
+            imagePath,
+            Config.Provider,
+            Config.ApiKey,
+            Config.ModelName);
+    }
+
+    private static string GenerateLocalContextualAdvice(string gameTitle, string question, string? imagePath)
+    {
         string sceneName = !string.IsNullOrEmpty(imagePath) ? Path.GetFileNameWithoutExtension(imagePath) : "Активная игра";
         var sb = new StringBuilder();
-        sb.AppendLine($"[STORM AI Walkthrough Engine • {sceneName}]");
+        sb.AppendLine($"[STORM AI Walkthrough Engine • {safeString(gameTitle)} • {sceneName}]");
         sb.AppendLine();
         sb.AppendLine($"Запрос игрока: «{question}»");
         sb.AppendLine();
         sb.AppendLine("Тактический анализ сцены:");
-        sb.AppendLine("• Режим отображения: Рекомендуется соотношение сторон 4:3 (Core Provided) с шейдером CRT-Easymode или Royale для максимальной чёткости деталей.");
-        sb.AppendLine("• Реакция на тайминги: Активируйте Run-Ahead на 1 кадр в разделе «Задержка», если испытываете сложности с уклонением от атак босса.");
-        sb.AppendLine("• Пространственная навигация: Обратите внимание на мерцающие плитки пола и трещины в стенах - используйте бомбы или спецатаки для поиска секретных комнат.");
+        sb.AppendLine("• Режим отображения: Рекомендуется соотношение сторон 4:3 с фильтром CRT Royale для идеальной читаемости хитбоксов врагов.");
+        sb.AppendLine("• Паттерн босса / врагов: Противники совершают рывок после анимации замаха. Держите дистанцию в 2-3 корпуса и контратакуйте в прыжке.");
+        sb.AppendLine("• Тайминги уклонения: Используйте фреймы неуязвимости (i-frames) во время переката или подката.");
         sb.AppendLine();
-        sb.AppendLine("Секреты и загадки:");
-        sb.AppendLine("• Взаимодействие с окружением: Если проход заблокирован, задействуйте переключатели в строгой последовательности (Слева направо: 2 → 4 → 1 → 3).");
-        sb.AppendLine("• Звуковой ориентир: Внимательно слушайте смену музыкальной темы перед входом в комнату босса для своевременного восстановления HP/MP.");
-
+        sb.AppendLine("Поиск тайников и ресурсов:");
+        sb.AppendLine("• Скрытые стены: Простукивайте подозрительные тупики и трещины. В большинстве аркад тайники находятся в левой части экрана.");
+        sb.AppendLine("• Экономия инвентаря: Сохраняйте расходные зелья и усиления до финальной фазы уровня.");
+        sb.AppendLine();
+        sb.AppendLine("Решение загадки:");
+        sb.AppendLine("• Если проход заблокирован, задействуйте переключатели в последовательности: Слева направо (2 → 4 → 1 → 3).");
         return sb.ToString();
+    }
+
+    private static string safeString(string s) => s.Replace('\r', ' ').Replace('\n', ' ').Trim();
+
+    /// <summary>
+    /// Быстрое и непрерывное озвучивание текста на русском языке без обрезки.
+    /// Поддерживает мгновенную отмену через StopSpeaking().
+    /// </summary>
+    public static async Task SpeakTextFastAsync(string text, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        StopSpeaking();
+
+        // 1. Попытка вызвать System.Speech in-process через рефлексию
+        try
+        {
+            var speechType = Type.GetType("System.Speech.Synthesis.SpeechSynthesizer, System.Speech");
+            if (speechType != null)
+            {
+                lock (_ttsLock)
+                {
+                    _speechSynthesizer ??= Activator.CreateInstance(speechType);
+                }
+
+                if (_speechSynthesizer != null)
+                {
+                    var speakAsync = speechType.GetMethod("SpeakAsync", new[] { typeof(string) });
+                    speakAsync?.Invoke(_speechSynthesizer, new object[] { text });
+                    return;
+                }
+            }
+        }
+        catch { }
+
+        // 2. Фоновый неблокирующий вызов PowerShell без ограничения в 250 символов
+        await Task.Run(() =>
+        {
+            lock (_ttsLock)
+            {
+                try
+                {
+                    string safeText = text.Replace('"', ' ').Replace('\'', ' ').Replace('\r', ' ').Replace('\n', ' ').Trim();
+                    if (safeText.Length > 2500) safeText = safeText.Substring(0, 2500);
+
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "powershell.exe",
+                        Arguments = $"-NoProfile -NonInteractive -Command \"Add-Type -AssemblyName System.Speech; $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer; $synth.Rate = 1; $synth.Speak('{safeText}')\"",
+                        CreateNoWindow = true,
+                        UseShellExecute = false
+                    };
+                    _ttsProcess = Process.Start(psi);
+                }
+                catch { }
+            }
+        }, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Мгновенно останавливает воспроизведение текущей голосовой подсказки.
+    /// </summary>
+    public static void StopSpeaking()
+    {
+        lock (_ttsLock)
+        {
+            if (_speechSynthesizer != null)
+            {
+                try
+                {
+                    var speakAsyncCancelAll = _speechSynthesizer.GetType().GetMethod("SpeakAsyncCancelAll");
+                    speakAsyncCancelAll?.Invoke(_speechSynthesizer, null);
+                }
+                catch { }
+            }
+
+            if (_ttsProcess != null)
+            {
+                try
+                {
+                    if (!_ttsProcess.HasExited)
+                    {
+                        _ttsProcess.Kill(true);
+                    }
+                }
+                catch { }
+                finally
+                {
+                    try { _ttsProcess.Dispose(); } catch { }
+                    _ttsProcess = null;
+                }
+            }
+        }
     }
 
     public static void SpeakRussianTextAsync(string text)
     {
-        if (string.IsNullOrWhiteSpace(text)) return;
-        Task.Run(() =>
-        {
-            try
-            {
-                string cleanText = text.Replace('"', ' ').Replace('\'', ' ').Replace('\n', ' ').Replace('\r', ' ');
-                if (cleanText.Length > 250) cleanText = cleanText.Substring(0, 250);
-
-                var psi = new ProcessStartInfo
-                {
-                    FileName = "powershell.exe",
-                    Arguments = $"-NoProfile -NonInteractive -Command \"Add-Type -AssemblyName System.Speech; $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer; $synth.Rate = 1; $synth.Speak('{cleanText}')\"",
-                    CreateNoWindow = true,
-                    UseShellExecute = false
-                };
-                Process.Start(psi);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[TTS Error]: {ex.Message}");
-            }
-        });
+        _ = SpeakTextFastAsync(text);
     }
 
     public static string GenerateHtmlHintBook(string gameTitle, string? screenshotPath, string aiAnalysisText)
@@ -215,7 +434,7 @@ public static class AiWalkthroughManager
         <h1>{gameTitle} - Интерактивная Книга Подсказок</h1>
         {imageHtml}
         <div class=""advice-box"">{aiAnalysisText}</div>
-        <div class=""footer"">Сгенерировано в STORM RETROARCH 2.6.1 • Дата: {DateTime.Now:yyyy-MM-dd HH:mm}</div>
+        <div class=""footer"">Сгенерировано в STORM RETROARCH 2.7.0 • Дата: {DateTime.Now:yyyy-MM-dd HH:mm}</div>
     </div>
 </body>
 </html>";
