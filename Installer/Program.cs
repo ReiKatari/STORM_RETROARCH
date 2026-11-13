@@ -77,7 +77,7 @@ namespace StormRetroArch.Installer
     public sealed class InstallerForm : Form
     {
         private const string AppDisplayName = "STORM RETROARCH";
-        private const string AppVersion = "2.7.0";
+        private const string AppVersion = "2.7.1";
         private const string AppFolderName = "STORM RETROARCH";
         private const string ExeName = "STORM RETROARCH.exe";
         private const string IcoName = "AppIcon.ico";
@@ -643,7 +643,7 @@ namespace StormRetroArch.Installer
             {
                 Text = ResolveDefaultInstallPath(),
                 Location = new Point(4, 106),
-                Size = new Size(656, 28),
+                Size = new Size(632, 28),
                 BackColor = Color.FromArgb(22, 18, 42),
                 ForeColor = Color.White,
                 BorderStyle = BorderStyle.FixedSingle,
@@ -654,8 +654,8 @@ namespace StormRetroArch.Installer
             btnBrowse = new VolumetricButton
             {
                 Text = "Обзор...",
-                Location = new Point(668, 103),
-                Size = new Size(124, 32),
+                Location = new Point(644, 103),
+                Size = new Size(148, 32),
                 ForeColor = Color.White
             };
             btnBrowse.Click += BtnBrowse_Click;
@@ -775,8 +775,8 @@ namespace StormRetroArch.Installer
             btnCancel = new VolumetricButton
             {
                 Text = "Отмена",
-                Size = new Size(130, 38),
-                Location = new Point(516, 13),
+                Size = new Size(148, 38),
+                Location = new Point(474, 13),
                 ForeColor = Color.White
             };
             btnCancel.Click += (s, e) => this.Close();
@@ -785,8 +785,8 @@ namespace StormRetroArch.Installer
             btnInstall = new VolumetricButton
             {
                 Text = "Установить",
-                Size = new Size(160, 38),
-                Location = new Point(658, 13),
+                Size = new Size(184, 38),
+                Location = new Point(634, 13),
                 IsPrimary = true,
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 9.8f, FontStyle.Bold)

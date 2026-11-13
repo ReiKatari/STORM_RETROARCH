@@ -18,6 +18,9 @@ import java.net.URL
 import java.nio.charset.StandardCharsets
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.zip.GZIPInputStream
+import java.util.zip.Inflater
+import java.util.zip.InflaterInputStream
 import java.util.zip.ZipInputStream
 
 data class MobileCoreInfo(
@@ -67,7 +70,7 @@ object MobileCoreRegistry {
     const val STORM_PUBLIC_ROOT = "/storage/emulated/0/STORM RETROARCH"
     const val STORM_MIRROR_CORES_BASE = "https://stormgamesworld.ru/uploads/programs/STORM_RETROARCH/cores"
     const val BUILDBOT_ANDROID_BASE = "https://buildbot.libretro.com/nightly/android/latest"
-    private const val USER_AGENT = "STORM-RETROARCH/2.5.0 (Android; LibretroCoreLoader)"
+    private const val USER_AGENT = "STORM-RETROARCH/2.7.1 (Android; LibretroCoreLoader)"
     private const val MIN_VALID_SO_BYTES = 32768L
 
     private val downloadExecutor = Executors.newFixedThreadPool(2)
@@ -813,6 +816,17 @@ object MobileCoreRegistry {
         return dir
     }
 
+    private val CORE_STEM_REGEX = Regex(
+        "^(?:lib)?([a-z0-9_+.-]+?)_libretro(?:_android)?(?:\\.so)?(?:\\..+)?$",
+        RegexOption.IGNORE_CASE
+    )
+
+    @Volatile
+    private var cachedPublicDropMap: Map<String, File> = emptyMap()
+
+    @Volatile
+    private var lastPublicScanMs: Long = 0L
+
     fun getPublicCoresDir(): File {
         val dir = File(STORM_PUBLIC_ROOT, "cores")
         try {
@@ -820,6 +834,185 @@ object MobileCoreRegistry {
         } catch (_: Throwable) {
         }
         return dir
+    }
+
+    fun getPublicCoreDropDirs(): List<File> {
+        val rawDirs = listOf(
+            File(STORM_PUBLIC_ROOT, "cores"),
+            File(STORM_PUBLIC_ROOT, "lib"),
+            File(STORM_PUBLIC_ROOT, "LIB")
+        )
+        val out = ArrayList<File>(rawDirs.size)
+        val seen = HashSet<String>(rawDirs.size)
+        for (dir in rawDirs) {
+            try {
+                if (dir.name != "LIB" && !dir.exists()) {
+                    dir.mkdirs()
+                }
+            } catch (_: Throwable) {
+            }
+            val key = try { dir.canonicalPath } catch (_: Throwable) { dir.absolutePath }
+            if (seen.add(key)) {
+                out.add(dir)
+            }
+        }
+        return out
+    }
+
+    fun extractCoreIdStem(fileName: String): String {
+        val base = File(fileName).name.trim().lowercase(Locale.ROOT)
+        CORE_STEM_REGEX.matchEntire(base)?.let { m ->
+            return m.groupValues[1]
+        }
+        return base
+            .removePrefix("lib")
+            .replace(Regex("\\.lcbk$", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\.\\d{8}T\\d{6}.*$", RegexOption.IGNORE_CASE), "")
+            .removeSuffix(".zip")
+            .removeSuffix(".gz")
+            .removeSuffix("_android.so")
+            .removeSuffix(".so")
+            .removeSuffix("_libretro")
+    }
+
+    private fun isSupportedDropCoreFileName(name: String): Boolean {
+        val low = name.lowercase(Locale.ROOT)
+        return low.endsWith(".so") || low.endsWith(".so.zip") || low.endsWith(".lcbk") ||
+            (low.endsWith(".zip") && low.contains("libretro"))
+    }
+
+    private fun dropFilePriority(name: String): Int {
+        val low = name.lowercase(Locale.ROOT)
+        return when {
+            low.startsWith("lib") && low.endsWith(".so") -> 4
+            low.endsWith(".so") -> 3
+            low.endsWith(".zip") -> 2
+            low.endsWith(".lcbk") -> 1
+            else -> 0
+        }
+    }
+
+    private fun scanPublicDropCoreFiles(forceRefresh: Boolean = false): Map<String, File> {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (!forceRefresh && now - lastPublicScanMs < 5000L && cachedPublicDropMap.isNotEmpty()) {
+            return cachedPublicDropMap
+        }
+        val map = LinkedHashMap<String, File>()
+        for (dir in getPublicCoreDropDirs()) {
+            if (!dir.exists() || !dir.canRead()) continue
+            val files = dir.listFiles { f -> f.isFile && isSupportedDropCoreFileName(f.name) } ?: continue
+            for (f in files) {
+                if (f.length() < 16384L) continue
+                val stem = extractCoreIdStem(f.name)
+                if (stem.isBlank()) continue
+                val prev = map[stem]
+                if (prev == null || dropFilePriority(f.name) > dropFilePriority(prev.name)) {
+                    map[stem] = f
+                }
+            }
+        }
+        cachedPublicDropMap = map
+        lastPublicScanMs = now
+        return map
+    }
+
+    fun extractCorePayloadToElf(srcFile: File, dstTempFile: File): Pair<Boolean, String?> {
+        if (!srcFile.exists() || !srcFile.isFile || srcFile.length() < 64L) return false to null
+        dstTempFile.parentFile?.mkdirs()
+
+        val head = ByteArray(16)
+        val headLen = try {
+            FileInputStream(srcFile).use { it.read(head) }
+        } catch (_: Throwable) {
+            return false to null
+        }
+        if (headLen < 4) return false to null
+
+        if (head[0] == 0x7F.toByte() && head[1] == 'E'.code.toByte() &&
+            head[2] == 'L'.code.toByte() && head[3] == 'F'.code.toByte()
+        ) {
+            return try {
+                FileInputStream(srcFile).use { inp ->
+                    FileOutputStream(dstTempFile).use { out ->
+                        inp.copyTo(out, 16 * 1024)
+                        out.flush()
+                    }
+                }
+                val ok = hasValidElfMagic(dstTempFile)
+                ok to if (ok) srcFile.name else null
+            } catch (_: Throwable) {
+                false to null
+            }
+        }
+
+        if (head[0] == 'P'.code.toByte() && head[1] == 'K'.code.toByte()) {
+            try {
+                ZipInputStream(BufferedInputStream(FileInputStream(srcFile), 32 * 1024)).use { zis ->
+                    var entry = zis.nextEntry
+                    while (entry != null) {
+                        if (!entry.isDirectory && (entry.name.endsWith(".so", ignoreCase = true) || entry.size > MIN_VALID_SO_BYTES)) {
+                            val innerName = File(entry.name).name
+                            FileOutputStream(dstTempFile).use { out ->
+                                zis.copyTo(out, 32 * 1024)
+                                out.flush()
+                            }
+                            if (hasValidElfMagic(dstTempFile)) {
+                                zis.closeEntry()
+                                return true to innerName
+                            }
+                        }
+                        zis.closeEntry()
+                        entry = zis.nextEntry
+                    }
+                }
+            } catch (_: Throwable) {
+            }
+        }
+
+        if (head[0] == 0x1F.toByte() && head[1] == 0x8B.toByte()) {
+            try {
+                GZIPInputStream(BufferedInputStream(FileInputStream(srcFile), 32 * 1024)).use { gzis ->
+                    FileOutputStream(dstTempFile).use { out ->
+                        gzis.copyTo(out, 32 * 1024)
+                        out.flush()
+                    }
+                }
+                if (hasValidElfMagic(dstTempFile)) {
+                    return true to null
+                }
+            } catch (_: Throwable) {
+            }
+        }
+
+        val skipOffsets = intArrayOf(0, 4, 8, 12)
+        for (off in skipOffsets) {
+            if (off + 2 <= headLen && head[off] == 0x78.toByte()) {
+                for (nowrap in booleanArrayOf(false, true)) {
+                    try {
+                        val inflater = Inflater(nowrap)
+                        FileInputStream(srcFile).use { fis ->
+                            if (off > 0) {
+                                val skipped = ByteArray(off)
+                                fis.read(skipped)
+                            }
+                            InflaterInputStream(BufferedInputStream(fis, 32 * 1024), inflater).use { iis ->
+                                FileOutputStream(dstTempFile).use { out ->
+                                    iis.copyTo(out, 32 * 1024)
+                                    out.flush()
+                                }
+                            }
+                        }
+                        if (hasValidElfMagic(dstTempFile)) {
+                            return true to null
+                        }
+                    } catch (_: Throwable) {
+                    }
+                }
+            }
+        }
+
+        try { dstTempFile.delete() } catch (_: Throwable) {}
+        return false to null
     }
 
     /**
@@ -907,11 +1100,11 @@ object MobileCoreRegistry {
         // Tier 2: Pre-bundled APK jniLibs extracted to nativeLibraryDir (0.0s instant offline load!)
         resolveBundledCoreFile(context, core)?.let { return it }
 
-        // Tier 3: Public /storage/emulated/0/STORM RETROARCH/cores/ drop-in folder
-        val pubDir = getPublicCoresDir()
-        if (pubDir.exists() && pubDir.canRead()) {
-            val execDir = getExecutableCoresDir(context)
-            val candidates = listOf(core.jniLibName, core.soInsideZip, "${core.soBaseName}_android.so").distinct()
+        // Tier 3: Public /storage/emulated/0/STORM RETROARCH/{cores,lib}/ drop-in folders (.so, lib*.so, .zip, .lcbk)
+        val execDir = getExecutableCoresDir(context)
+        val candidates = listOf(core.jniLibName, core.soInsideZip, "${core.soBaseName}_android.so").distinct()
+        for (pubDir in getPublicCoreDropDirs()) {
+            if (!pubDir.exists() || !pubDir.canRead()) continue
             for (name in candidates) {
                 val extFile = File(pubDir, name)
                 if (extFile.exists() && extFile.length() > MIN_VALID_SO_BYTES && hasValidElfMagic(extFile)) {
@@ -923,6 +1116,25 @@ object MobileCoreRegistry {
                         null
                     }
                 }
+            }
+        }
+        val dropMap = scanPublicDropCoreFiles(forceRefresh = false)
+        val stemMatch = dropMap[core.id.lowercase(Locale.ROOT)]
+            ?: dropMap[extractCoreIdStem(core.jniLibName)]
+        if (stemMatch != null) {
+            val tmp = File(execDir, "drop_extract_${core.id}_${System.currentTimeMillis()}.so.tmp")
+            val (ok, _) = extractCorePayloadToElf(stemMatch, tmp)
+            if (ok) {
+                return try {
+                    val dst = File(execDir, core.jniLibName)
+                    replaceTargetWithReadOnlySo(tmp, dst)
+                    dst
+                } catch (_: Throwable) {
+                    try { tmp.delete() } catch (_: Throwable) {}
+                    null
+                }
+            } else {
+                try { tmp.delete() } catch (_: Throwable) {}
             }
         }
         return null
@@ -952,20 +1164,48 @@ object MobileCoreRegistry {
     }
 
     fun syncPublicCoresToExecutableDir(context: Context): Int {
-        val pubDir = getPublicCoresDir()
-        if (!pubDir.exists() || !pubDir.canRead()) return 0
+        val dropMap = scanPublicDropCoreFiles(forceRefresh = true)
+        if (dropMap.isEmpty()) return 0
         val execDir = getExecutableCoresDir(context)
-        val files = pubDir.listFiles { f -> f.isFile && f.name.endsWith(".so", ignoreCase = true) } ?: return 0
+        val catalog = init(context)
         var imported = 0
-        for (src in files) {
-            if (!hasValidElfMagic(src)) continue
-            val normalizedName = if (src.name.startsWith("lib")) src.name else "lib${src.name}"
-            val dst = File(execDir, normalizedName)
-            if (!dst.exists() || dst.length() != src.length()) {
-                try {
-                    copyFileAtomicDcl(src, dst)
-                    imported++
-                } catch (_: Throwable) {
+        for ((stem, src) in dropMap) {
+            val matched = catalog.firstOrNull {
+                it.id.equals(stem, ignoreCase = true) ||
+                    extractCoreIdStem(it.jniLibName) == stem
+            }
+            val targetName = matched?.jniLibName ?: run {
+                val base = File(src.name).name
+                if (base.lowercase(Locale.ROOT).endsWith(".so")) {
+                    if (base.startsWith("lib", ignoreCase = true)) "lib" + base.substring(3) else "lib$base"
+                } else {
+                    "lib${stem}_libretro_android.so"
+                }
+            }
+            val dst = File(execDir, targetName)
+            val isDirectSo = src.name.endsWith(".so", ignoreCase = true) && hasValidElfMagic(src)
+            if (isDirectSo) {
+                if (!dst.exists() || dst.length() != src.length()) {
+                    try {
+                        copyFileAtomicDcl(src, dst)
+                        imported++
+                    } catch (_: Throwable) {
+                    }
+                } else {
+                    enforceReadOnlyExecutableDclPermissions(dst)
+                }
+            } else if (!dst.exists() || !hasValidElfMagic(dst)) {
+                val tmp = File(execDir, "sync_${stem}_${System.currentTimeMillis()}.so.tmp")
+                val (ok, _) = extractCorePayloadToElf(src, tmp)
+                if (ok) {
+                    try {
+                        replaceTargetWithReadOnlySo(tmp, dst)
+                        imported++
+                    } catch (_: Throwable) {
+                        try { tmp.delete() } catch (_: Throwable) {}
+                    }
+                } else {
+                    try { tmp.delete() } catch (_: Throwable) {}
                 }
             } else {
                 enforceReadOnlyExecutableDclPermissions(dst)
@@ -1260,47 +1500,15 @@ object MobileCoreRegistry {
                 }
             }
 
-            var insideEntryName = rawDisplayName
-            if (!hasValidElfMagic(tempInput)) {
-                var foundInside = false
-                ZipInputStream(BufferedInputStream(FileInputStream(tempInput), 16 * 1024)).use { zis ->
-                    var entry = zis.nextEntry
-                    while (entry != null) {
-                        if (!entry.isDirectory && entry.name.endsWith(".so", ignoreCase = true)) {
-                            insideEntryName = File(entry.name).name
-                            FileOutputStream(tempExtracted).use { out ->
-                                zis.copyTo(out, 16 * 1024)
-                                out.flush()
-                            }
-                            foundInside = true
-                            zis.closeEntry()
-                            break
-                        }
-                        zis.closeEntry()
-                        entry = zis.nextEntry
-                    }
-                }
-                tempInput.delete()
-                if (!foundInside) {
-                    tempExtracted.delete()
-                    return null to "No valid Android .so Libretro core found in archive"
-                }
-            } else {
-                tempInput.renameTo(tempExtracted)
-            }
-
-            if (!hasValidElfMagic(tempExtracted)) {
+            val (extractedOk, discoveredInnerName) = extractCorePayloadToElf(tempInput, tempExtracted)
+            tempInput.delete()
+            if (!extractedOk || !hasValidElfMagic(tempExtracted)) {
                 tempExtracted.delete()
-                return null to "Selected file is not a valid ELF .so binary"
+                return null to "No valid Android ELF .so Libretro core found in selected file (.so / .zip / .lcbk)"
             }
 
-            val cleanStem = insideEntryName
-                .lowercase(Locale.ROOT)
-                .removePrefix("lib")
-                .removeSuffix(".zip")
-                .removeSuffix("_android.so")
-                .removeSuffix(".so")
-                .removeSuffix("_libretro")
+            val insideEntryName = discoveredInnerName?.takeIf { it.isNotBlank() } ?: rawDisplayName
+            val cleanStem = extractCoreIdStem(insideEntryName).ifBlank { extractCoreIdStem(rawDisplayName) }
 
             val matchedCore = catalog.firstOrNull {
                 it.id.lowercase(Locale.ROOT) == cleanStem ||
@@ -1308,8 +1516,13 @@ object MobileCoreRegistry {
                     it.soInsideZip.equals(insideEntryName, ignoreCase = true)
             }
 
-            val targetFileName = matchedCore?.jniLibName
-                ?: if (insideEntryName.startsWith("lib")) insideEntryName else "lib$insideEntryName"
+            val targetFileName = matchedCore?.jniLibName ?: run {
+                if (insideEntryName.endsWith(".so", ignoreCase = true)) {
+                    if (insideEntryName.startsWith("lib")) insideEntryName else "lib$insideEntryName"
+                } else {
+                    "lib${cleanStem.ifBlank { "custom" }}_libretro_android.so"
+                }
+            }
             val targetSo = File(coresDir, targetFileName)
             replaceTargetWithReadOnlySo(tempExtracted, targetSo)
 

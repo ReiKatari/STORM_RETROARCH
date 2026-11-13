@@ -1511,20 +1511,20 @@ fun showInGameQuickDrawer() {
             text = romName
             setTextColor(pal.textPrimary)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16.5f)
-            maxLines = 1
+            maxLines = 2
             StormThemeEngine.applyFont(this, bold = true)
         }
         val platformSubtitle = TextView(this).apply {
             text = "$platformName  |  $coreName"
             setTextColor(pal.textSecondary)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.2f)
-            maxLines = 1
+            maxLines = 2
             StormThemeEngine.applyFont(this, bold = false)
         }
         val measuredFps = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetMeasuredFps() else 60.0
         val frameMs = if (measuredFps > 1.0) 1000.0 / measuredFps else 16.7
         val telemetryPill = TextView(this).apply {
-            text = String.format(Locale.US, "STORM RETROARCH 2.7.0  |  %.1f FPS  |  %.1f ms", measuredFps, frameMs)
+            text = String.format(Locale.US, "STORM RETROARCH 2.7.1  |  %.1f FPS  |  %.1f ms", measuredFps, frameMs)
             fontFeatureSettings = "tnum"
             setTextColor(StormThemeEngine.lighten(accent, 0.25f))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f)
@@ -1555,7 +1555,7 @@ fun showInGameQuickDrawer() {
             createIconActionButton(StormVectorIcons.PLAY, "Продолжить", isAccent = true) {
                 dialog.dismiss()
             },
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44f)).apply {
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 topMargin = dp(12f)
                 bottomMargin = dp(8f)
             }
@@ -1670,7 +1670,7 @@ fun showInGameQuickDrawer() {
                 performSaveState(activeSaveSlot, snapshotBeforePause)
                 refreshSlotPreview()
             },
-            LinearLayout.LayoutParams(0, dp(42f), 1f).apply { rightMargin = dp(6f) }
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(6f) }
         )
         saveLoadBtnRow.addView(
             createIconActionButton(StormVectorIcons.LOAD, "Загрузить", isAccent = false) {
@@ -1678,7 +1678,7 @@ fun showInGameQuickDrawer() {
                     dialog.dismiss()
                 }
             },
-            LinearLayout.LayoutParams(0, dp(42f), 1f)
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         )
         saveCard.addView(saveLoadBtnRow)
         body.addView(saveCard, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(10f) })
@@ -1711,13 +1711,13 @@ fun showInGameQuickDrawer() {
                     }
                 }
             },
-            LinearLayout.LayoutParams(0, dp(40f), 1.15f).apply { rightMargin = dp(6f) }
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.15f).apply { rightMargin = dp(6f) }
         )
         timeToolsRow.addView(
             createIconActionButton(StormVectorIcons.CAMERA, "Скриншот", isAccent = false) {
                 captureScreenshotToGallery(snapshotBeforePause)
             },
-            LinearLayout.LayoutParams(0, dp(40f), 0.95f)
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 0.95f)
         )
         speedCard.addView(timeToolsRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6f) })
 
@@ -1749,12 +1749,12 @@ fun showInGameQuickDrawer() {
                 cheatBtnLabelTvHolder[0]?.text = "Читы .cht ($nowActive/${gameCheatEntries.size})"
             }
         }
-        cheatRow.addView(cheatsBtn, LinearLayout.LayoutParams(0, dp(42f), 1f).apply { rightMargin = dp(6f) })
+        cheatRow.addView(cheatsBtn, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(6f) })
         cheatRow.addView(
             createIconActionButton(StormVectorIcons.RAM, "Сканер RAM", isAccent = frozenRamAddresses.isNotEmpty()) {
                 showLiveRamScannerDialog()
             },
-            LinearLayout.LayoutParams(0, dp(42f), 1f)
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         )
         cheatCard.addView(cheatRow)
         body.addView(cheatCard, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(10f) })
@@ -1963,7 +1963,7 @@ fun showInGameQuickDrawer() {
                 unifiedPrefs().edit().putBoolean("ecoAntiHeatMode", on).apply()
                 Toast.makeText(this, if (on) "Эко-режим активен: низкий нагрев" else "Эко-режим выключен", Toast.LENGTH_SHORT).show()
             },
-            LinearLayout.LayoutParams(0, dp(38f), 1f).apply { rightMargin = dp(6f) }
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(6f) }
         )
         ecoToggleRow.addView(
             buildCompactToggleChip("FPS HUD", fpsHudText.visibility == View.VISIBLE, accent) { on ->
@@ -1971,7 +1971,7 @@ fun showInGameQuickDrawer() {
                 unifiedPrefs().edit().putBoolean("fpsHud", on).apply()
                 legacyPrefs().edit().putBoolean("show_fps_hud", on).apply()
             },
-            LinearLayout.LayoutParams(0, dp(38f), 1f)
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         )
         perfCard.addView(ecoToggleRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6f) })
 
@@ -1981,7 +1981,7 @@ fun showInGameQuickDrawer() {
                 touchOverlay.hapticsEnabled = on
                 touchOverlay.saveLayouts()
             },
-            LinearLayout.LayoutParams(0, dp(38f), 1f).apply { rightMargin = dp(6f) }
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(6f) }
         )
         extraTogglesRow.addView(
             buildCompactToggleChip("Перемотка", rewindEnabled, accent) { on ->
@@ -1989,7 +1989,7 @@ fun showInGameQuickDrawer() {
                 unifiedPrefs().edit().putBoolean("rewindEnabled", on).apply()
                 legacyPrefs().edit().putBoolean("rewind_enabled", on).apply()
             },
-            LinearLayout.LayoutParams(0, dp(38f), 1f)
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         )
         perfCard.addView(extraTogglesRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
@@ -2008,7 +2008,7 @@ fun showInGameQuickDrawer() {
                 12f
             )
         }
-        body.addView(exitBtn, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44f)))
+        body.addView(exitBtn, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         scroll.addView(body)
         drawerCard.addView(scroll)
@@ -2193,7 +2193,7 @@ fun showInGameQuickDrawer() {
                     syncAndApplyLive()
                 }
             },
-            LinearLayout.LayoutParams(0, dp(42f), 1f).apply { rightMargin = dp(6f) }
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(6f) }
         )
         btnBar.addView(
             createIconActionButton(StormVectorIcons.CHECK, "Применить и закрыть", isAccent = true) {
@@ -2201,7 +2201,7 @@ fun showInGameQuickDrawer() {
                 Toast.makeText(this, "Читы применены к ядру", Toast.LENGTH_SHORT).show()
                 dlg.dismiss()
             },
-            LinearLayout.LayoutParams(0, dp(42f), 1.15f)
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.15f)
         )
         card.addView(btnBar)
 
@@ -2364,7 +2364,7 @@ fun showInGameQuickDrawer() {
                 val count = NativeLibretroBridge.nativeRamScanFirst(ramScanWidthBytes, v)
                 renderCandidates(count)
             },
-            LinearLayout.LayoutParams(0, dp(40f), 1f).apply { rightMargin = dp(6f) }
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(6f) }
         )
         scanRow1.addView(
             createIconActionButton(StormVectorIcons.CHECK, "След. поиск (Точно)", isAccent = false) {
@@ -2372,7 +2372,7 @@ fun showInGameQuickDrawer() {
                 val count = NativeLibretroBridge.nativeRamScanNext(NativeLibretroBridge.RAM_SCAN_EXACT, v)
                 renderCandidates(count)
             },
-            LinearLayout.LayoutParams(0, dp(40f), 1.15f)
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.15f)
         )
         card.addView(scanRow1, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6f) })
 
@@ -2381,19 +2381,19 @@ fun showInGameQuickDrawer() {
             createSimpleChipButton("Выросло") {
                 renderCandidates(NativeLibretroBridge.nativeRamScanNext(NativeLibretroBridge.RAM_SCAN_INCREASED, 0L))
             },
-            LinearLayout.LayoutParams(0, dp(36f), 1f).apply { rightMargin = dp(6f) }
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(6f) }
         )
         scanRow2.addView(
             createSimpleChipButton("Уменьшилось") {
                 renderCandidates(NativeLibretroBridge.nativeRamScanNext(NativeLibretroBridge.RAM_SCAN_DECREASED, 0L))
             },
-            LinearLayout.LayoutParams(0, dp(36f), 1f).apply { rightMargin = dp(6f) }
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(6f) }
         )
         scanRow2.addView(
             createSimpleChipButton("Изменилось") {
                 renderCandidates(NativeLibretroBridge.nativeRamScanNext(NativeLibretroBridge.RAM_SCAN_CHANGED, 0L))
             },
-            LinearLayout.LayoutParams(0, dp(36f), 1f)
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         )
         card.addView(scanRow2)
 
@@ -2511,8 +2511,10 @@ fun showInGameQuickDrawer() {
         var state = initialOn
         return TextView(this).apply {
             gravity = Gravity.CENTER
+            minimumHeight = dp(40f)
+            maxLines = 2
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
-            setPadding(dp(8f), dp(5f), dp(8f), dp(5f))
+            setPadding(dp(8f), dp(6f), dp(8f), dp(6f))
             StormThemeEngine.applyFont(this, bold = true)
 
             fun render() {
@@ -2616,6 +2618,7 @@ fun showInGameQuickDrawer() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
+            minimumHeight = dp(42f)
             background = if (isAccent) {
                 StormThemeEngine.createAccentButtonDrawable(this@EmulationActivity, accent, 12f)
             } else {
@@ -2637,7 +2640,8 @@ fun showInGameQuickDrawer() {
                     text = label
                     setTextColor(fgColor)
                     setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-                    maxLines = 1
+                    maxLines = 2
+                    gravity = Gravity.CENTER
                     StormThemeEngine.applyFont(this, bold = true)
                 }
                 if (outLabelRef != null && outLabelRef.isNotEmpty()) {

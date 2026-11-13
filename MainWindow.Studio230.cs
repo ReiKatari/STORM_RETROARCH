@@ -13,7 +13,7 @@ using System.Windows.Media.Imaging;
 namespace StormRetroArch;
 
 /// <summary>
-/// Phase 2.7.0 Studio UI, Regional Cover Art, Strict Platform Cores, Libretro Cheats Database and RAM Trainer Integrator.
+/// Phase 2.7.1 Studio UI, Regional Cover Art, Strict Platform Cores, Libretro Cheats Database and RAM Trainer Integrator.
 /// </summary>
 public partial class MainWindow
 {

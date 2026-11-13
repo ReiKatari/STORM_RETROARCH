@@ -45,12 +45,12 @@ class StormNativeBridge(
     @Volatile
     private var lastUpdateInfo: MobileUpdateInfo = MobileUpdateInfo(
         updateAvailable = false,
-        currentVersion = "2.7.0",
-        latestVersion = "2.7.0",
+        currentVersion = "2.7.1",
+        latestVersion = "2.7.1",
         apkDownloadUrl = "",
         releaseNotes = "",
         releasePageUrl = "https://github.com/ReiKatari/STORM_RETROARCH/releases",
-        statusMessage = "STORM RETROARCH 2.7.0"
+        statusMessage = "STORM RETROARCH 2.7.1"
     )
 
     @Volatile
@@ -67,6 +67,7 @@ class StormNativeBridge(
         try {
             ensurePublicDirectoryStructure()
             MobileCoreRegistry.init(appCtx)
+            MobileCoreRegistry.getPublicCoreDropDirs()
             MobileCoreRegistry.syncPublicCoresToExecutableDir(appCtx)
 
             val games = MobileLibraryAndCoverEngine.scanLibraryDirectories(appCtx)
@@ -1094,9 +1095,9 @@ class StormNativeBridge(
         if (!info.updateAvailable || info.apkDownloadUrl.isBlank()) {
             emitToast(
                 if (StormLocalization.currentLanguage == "ru") {
-                    "Установлена актуальная версия 2.7.0"
+                    "Установлена актуальная версия 2.7.1"
                 } else {
-                    "STORM RETROARCH 2.7.0 is up to date"
+                    "STORM RETROARCH 2.7.1 is up to date"
                 }
             )
             return
@@ -1456,7 +1457,7 @@ class StormNativeBridge(
             .put("statusMessage", info.statusMessage)
     }
 
-    // === RetroAchievements, Netplay, AI Guide & Streaming 2.7.0 Methods ===
+    // === RetroAchievements, Netplay, AI Guide & Streaming 2.7.1 Methods ===
 
     private var textToSpeech: android.speech.tts.TextToSpeech? = null
 

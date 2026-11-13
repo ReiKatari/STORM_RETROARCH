@@ -1055,8 +1055,8 @@ svg.ico-lg {
   position: relative;
   display: flex;
   align-items: center;
-  flex: 1;
-  min-width: 180px;
+  flex: 1 1 240px;
+  min-width: 240px;
 }
 
 .input-well-wrap .input-lead-ico {
@@ -2603,9 +2603,9 @@ svg.ico-lg {
   font-size: 0.84rem;
   font-weight: 800;
   color: #F8FAFC;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .omnibox-item-meta {
@@ -2739,9 +2739,10 @@ body[data-storm-eco="true"] .handheld-rail {
 }
 
 .storm-table {
-  width: 100%;
+  min-width: 100%;
+  width: max-content;
   border-collapse: collapse;
-  font-size: 0.86rem;
+  font-size: 0.84rem;
   color: var(--text-main);
   background: rgba(10, 8, 20, 0.55);
 }
@@ -2749,20 +2750,24 @@ body[data-storm-eco="true"] .handheld-rail {
 .storm-table th {
   font-weight: 700;
   text-align: center;
-  padding: 10px 12px;
+  padding: 9px 10px;
   background: rgba(255, 255, 255, 0.07);
   color: var(--accent-text);
   border: 1px solid var(--table-grid, rgba(255, 255, 255, 0.14));
   font-feature-settings: "tnum";
   letter-spacing: 0.02em;
   white-space: nowrap;
+  word-break: normal;
+  line-height: 1.25;
 }
 
 .storm-table td {
-  padding: 8px 12px;
+  padding: 8px 10px;
   border: 1px solid var(--table-grid, rgba(255, 255, 255, 0.14));
   font-feature-settings: "tnum";
   vertical-align: middle;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 .storm-table tbody tr:nth-child(even) {
@@ -2776,4 +2781,32 @@ body[data-storm-eco="true"] .handheld-rail {
 /* Smooth font/theme transition */
 body, button, input, select, textarea {
   transition: font-family 0.18s ease, color 0.18s ease;
+}
+
+/* 2.7.1 Zero-Truncation Anti-Clip Guarantees */
+.btn-3d,
+.btn-3d > span,
+.bento-tile-head,
+.bento-tile-head > span,
+.theme-swatch-btn,
+.accent-pill-btn {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  height: auto;
+}
+
+.btn-3d {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.btn-3d > span,
+.bento-tile-head > span {
+  min-width: 0;
+  line-height: 1.24;
+}
+
+.inspector-save-btn {
+  padding: 10px 24px;
 }
