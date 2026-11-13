@@ -299,7 +299,7 @@ object MobileCheatAndBiosManager {
                     }
                 }
             }
-            marker.writeText("2.6.0", StandardCharsets.UTF_8)
+            marker.writeText("2.6.1", StandardCharsets.UTF_8)
             starterUnpackedSession = true
         } catch (_: Throwable) {
         }
@@ -773,9 +773,9 @@ object MobileCheatAndBiosManager {
         // Sony PlayStation 2
         MobileBiosItem("ps2_bios", "scph39001.bin", "pcsx2/bios/scph39001.bin", "PS2", "", true, false, "BIOS Sony PlayStation 2 (USA 4MB ROM0)", "Sony PlayStation 2 BIOS (USA 4MB ROM0)"),
         // Sega CD / Mega-CD
-        MobileBiosItem("scd_us", "bios_CD_U.bin", "bios_CD_U.bin", "Sega CD", "2efd74e3232ff260e371b99f84024f7f", false, false, "BIOS Sega CD (Северная Америка)", "Sega CD BIOS (North America)"),
-        MobileBiosItem("scd_eu", "bios_CD_E.bin", "bios_CD_E.bin", "Sega CD", "e66fa1dc5820d254611fdcdba0662372", false, false, "BIOS Mega-CD (Европа PAL)", "Mega-CD BIOS (Europe PAL)"),
-        MobileBiosItem("scd_jp", "bios_CD_J.bin", "bios_CD_J.bin", "Sega CD", "278a9397d192149e84e820ac621a8edd", false, false, "BIOS Mega-CD (Япония NTSC-J)", "Mega-CD BIOS (Japan NTSC-J)"),
+        MobileBiosItem("scd_us", "bios_CD_U.bin", "bios_CD_U.bin", "Sega CD", "1f8381f343aafc55be6312951b8e165c", false, false, "BIOS Sega CD (Северная Америка)", "Sega CD BIOS (North America)"),
+        MobileBiosItem("scd_eu", "bios_CD_E.bin", "bios_CD_E.bin", "Sega CD", "ad0044bfe79314f473d00d59550ba623", false, false, "BIOS Mega-CD (Европа PAL)", "Mega-CD BIOS (Europe PAL)"),
+        MobileBiosItem("scd_jp", "bios_CD_J.bin", "bios_CD_J.bin", "Sega CD", "a2ca6d04f23639d3c423a43355b07c20", false, false, "BIOS Mega-CD (Япония NTSC-J)", "Mega-CD BIOS (Japan NTSC-J)"),
         // Sega Saturn
         MobileBiosItem("sat_jp", "sega_101.bin", "sega_101.bin", "Saturn", "85ec9ca47d8f6807718151cbcca8b964", false, false, "BIOS Sega Saturn (Япония)", "Sega Saturn BIOS (Japan)"),
         MobileBiosItem("sat_us_eu", "mpr-17933.bin", "mpr-17933.bin", "Saturn", "3240872c70984b6cbfda1586cab68dbe", false, false, "BIOS Sega Saturn (США / Европа)", "Sega Saturn BIOS (USA / Europe)"),
@@ -816,6 +816,9 @@ object MobileCheatAndBiosManager {
         "1e68c231d0896b7eadcad1d7d8e76129" to "scph7001.bin",
         "b6ba06f1eb0f31be76138fbd37ef7ab9" to "bios_CD_U.bin",
         "854b9150240a198070150e4566ae1290" to "bios_CD_U.bin",
+        "2efd74e3232ff260e371b99f84024f7f" to "bios_CD_U.bin",
+        "e66fa1dc5820d254611fdcdba0662372" to "bios_CD_E.bin",
+        "278a9397d192149e84e820ac621a8edd" to "bios_CD_J.bin",
         "e40a5dfb3d017ba8779faba30cbd1c8e" to "kick40063.A600",
         "8639fd5e549bd6238cfee79e3e749114" to "goldstar.bin"
     )
@@ -1590,7 +1593,7 @@ object MobileCheatAndBiosManager {
 object AutoUpdateHelper {
 
     const val GITHUB_LATEST_RELEASE_API = "https://api.github.com/repos/ReiKatari/STORM_RETROARCH/releases/latest"
-    const val DEFAULT_CURRENT_VERSION = "2.6.0"
+    const val DEFAULT_CURRENT_VERSION = "2.6.1"
 
     private val updateExecutor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())

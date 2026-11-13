@@ -1,5 +1,5 @@
 /* ==========================================================================
-   STORM RETROARCH 2.6.0 - STORM AURORA FLUID MOBILE STUDIO DESIGN SYSTEM
+   STORM RETROARCH 2.6.1 - STORM AURORA FLUID MOBILE STUDIO DESIGN SYSTEM
    4-Layer Spatial Glassmorphism + 3D Volumetric Tactile Controls
    120Hz Calibrated Spring Choreography • Virtual Grid • Zero Overflow
    ========================================================================== */
@@ -984,8 +984,12 @@ svg.ico-lg {
 
 .input-well-3d,
 .textarea-well-3d,
+.textarea-3d,
 .select-3d {
+  display: block;
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   min-height: 44px;
   padding: 9px 14px;
   border-radius: 12px;
@@ -1005,19 +1009,47 @@ svg.ico-lg {
   padding-left: 38px;
 }
 
-.textarea-well-3d {
-  min-height: 84px;
+.textarea-well-3d,
+.textarea-3d {
+  min-height: 88px;
   resize: vertical;
+  font-family: inherit;
+  line-height: 1.48;
+}
+
+#m3uPathsArea {
   font-family: var(--font-mono);
 }
 
+.notes-well-3d {
+  width: 100%;
+  min-height: 92px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 500;
+  line-height: 1.48;
+  resize: vertical;
+  color: var(--text-primary);
+  background: linear-gradient(180deg, rgba(7, 9, 20, 0.92) 0%, rgba(16, 13, 34, 0.88) 100%);
+  border: 1px solid rgba(167, 139, 250, 0.24);
+  box-shadow:
+    inset 0 3px 8px rgba(0, 0, 0, 0.72),
+    0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
 .input-well-3d::placeholder,
-.textarea-well-3d::placeholder {
+.textarea-well-3d::placeholder,
+.textarea-3d::placeholder,
+.notes-well-3d::placeholder {
   color: var(--text-muted);
 }
 
 .input-well-3d:focus,
 .textarea-well-3d:focus,
+.textarea-3d:focus,
+.notes-well-3d:focus,
 .select-3d:focus {
   outline: none;
   border-color: var(--accent-hover);
@@ -2106,7 +2138,7 @@ svg.ico-lg {
 }
 
 /* ==========================================================================
-   2.6.0: 120HZ SPRING CHOREOGRAPHY, VIRTUAL GRID, FUNNEL, ROULETTE & OMNIBOX
+   2.6.1: 120HZ SPRING CHOREOGRAPHY, VIRTUAL GRID, FUNNEL, ROULETTE & OMNIBOX
    ========================================================================== */
 @keyframes viewEnterUp {
   from {
@@ -2268,15 +2300,15 @@ svg.ico-lg {
 }
 
 .star-rating-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
 }
 
 .star-btn {
-  width: 40px;
-  height: 40px;
+  width: 100%;
+  height: 42px;
   border-radius: 11px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.05);
@@ -2502,5 +2534,98 @@ svg.ico-lg {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+/* 2.6.1 Symmetric 3-Button Grid & Full-Width Game Inspector Form */
+.action-trio-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.action-trio-grid > .btn-3d {
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+}
+
+.action-trio-grid > .btn-trio-hero {
+  grid-column: 1 / -1;
+  min-height: 46px;
+  font-size: 0.94rem;
+}
+
+@media (min-width: 620px) {
+  .action-trio-grid {
+    grid-template-columns: 1.35fr 1fr 1fr;
+  }
+
+  .action-trio-grid > .btn-trio-hero {
+    grid-column: auto;
+  }
+}
+
+.inspector-meta-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.038);
+}
+
+.inspector-field {
+  width: 100%;
+  min-width: 0;
+}
+
+.inspector-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.inspector-save-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.inspector-save-btn {
+  min-width: min(100%, 280px);
+  min-height: 44px;
+  padding: 0 24px;
+  margin: 0 auto;
+  justify-content: center;
+  text-align: center;
+}
+
+.poster-title {
+  font-weight: 800;
+  color: #F8FAFC;
+  line-height: 1.25;
+}
+
+.poster-sub {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+@media (max-width: 520px) {
+  .stats-funnel-card .section-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .stats-funnel-card .section-head .btn-3d {
+    width: 100%;
+    justify-content: center;
   }
 }

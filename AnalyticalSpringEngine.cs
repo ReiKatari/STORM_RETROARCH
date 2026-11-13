@@ -828,7 +828,7 @@ public static class AnalyticalSpringEngine
     }
 
     /// <summary>
-    /// 2.6.0 Directional Spring Choreography: glides Y (direction * 18px -> 0), Scale (0.986 -> 1.0),
+    /// 2.6.1 Directional Spring Choreography: glides Y (direction * 18px -> 0), Scale (0.986 -> 1.0),
     /// and Opacity (0.15 -> 1.0) at 60-120 FPS, preserving in-flight velocity on rapid tab switches.
     /// </summary>
     public static void AnimateDirectionalViewTransition(FrameworkElement viewRoot, int direction)

@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:StormRetroArch"
         x:Name="RootWindow"
-        Title="STORM RETROARCH 2.6.0"
+        Title="STORM RETROARCH 2.6.1"
         Width="1500" Height="890"
         MinWidth="960" MinHeight="620"
         WindowStartupLocation="CenterScreen"
@@ -848,7 +848,7 @@
                 <!-- Left: App Icon & Title with REQUIRED Margin="10,0,24,0" + Engine Status Pill -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Image Source="app_icon.png" Width="22" Height="22" Margin="0,0,8,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-                    <TextBlock Text="STORM RETROARCH 2.6.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,24,0"/>
+                    <TextBlock Text="STORM RETROARCH 2.6.1" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,24,0"/>
 
                     <!-- Engine Status Pill -->
                     <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="12" Padding="8,3" VerticalAlignment="Center">
@@ -1076,7 +1076,7 @@
                     <!-- Sidebar Footer: Version -->
                     <Border DockPanel.Dock="Bottom" Background="#14FFFFFF" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="0,1,0,0" Padding="12,8">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                            <TextBlock Text="STORM RETROARCH 2.6.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" FontWeight="SemiBold"/>
+                            <TextBlock Text="STORM RETROARCH 2.6.1" Foreground="{DynamicResource ThemeTextMuted}" FontSize="10.5" FontWeight="SemiBold"/>
                         </StackPanel>
                     </Border>
 
@@ -1646,7 +1646,7 @@
                                         </Grid>
 
                                         <!-- Active Game & Live Core Switcher Bar -->
-                                        <!-- 2.6.0 Active Input Device Bar -->
+                                        <!-- 2.6.1 Active Input Device Bar -->
                                         <Border DockPanel.Dock="Top" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="0,0,0,10">
                                             <DockPanel LastChildFill="True">
                                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
@@ -2011,7 +2011,7 @@
                                             </Button>
                                         </StackPanel>
                                         <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Text="Командный центр STORM RETROARCH 2.6.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="21" FontWeight="Bold" Margin="0,0,0,3"/>
+                                            <TextBlock Text="Командный центр STORM RETROARCH 2.6.1" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="21" FontWeight="Bold" Margin="0,0,0,3"/>
                                             <TextBlock Text="Быстрые переходы, оперативная настройка движка Libretro, управление сохранениями и перестраиваемые панели" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="12.5"/>
                                         </StackPanel>
                                     </DockPanel>
@@ -2205,7 +2205,7 @@
                                     <!-- 2.0.0 Hardware Strip (OpenGL HW Render, WASAPI 15 мс, DRC VRR, Gamepad UI Nav) -->
                                     <Border Background="{DynamicResource ThemeHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="1" CornerRadius="8" Padding="12,7" Margin="0,8,0,0">
                                         <WrapPanel VerticalAlignment="Center">
-                                            <TextBlock Text="Аппаратный стек 2.6.0:" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                                            <TextBlock Text="Аппаратный стек 2.6.1:" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,14,0"/>
                                             <CheckBox x:Name="ChkMainHwRender" Content="Аппаратный 3D Vulkan / D3D11-12 / GLCore" IsChecked="True" Margin="0,0,16,0" Checked="ChkMainHwRender_Changed" Unchecked="ChkMainHwRender_Changed"/>
                                             <CheckBox x:Name="ChkMainWasapi" Content="Звук WASAPI (15 мс)" IsChecked="True" Margin="0,0,16,0" Checked="ChkMainWasapi_Changed" Unchecked="ChkMainWasapi_Changed"/>
                                             <CheckBox x:Name="ChkMainDrc" Content="Синхронизация DRC (VRR / 120 Гц)" IsChecked="True" Margin="0,0,16,0" Checked="ChkMainDrc_Changed" Unchecked="ChkMainDrc_Changed"/>
@@ -2433,7 +2433,7 @@
                                 </Border>
                             </UniformGrid>
 
-                            <!-- Card 4: Player Analytics & Backlog Funnel (2.6.0) -->
+                            <!-- Card 4: Player Analytics & Backlog Funnel (2.6.1) -->
                             <Border x:Name="BdrDashboardAnalytics" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="12" Padding="16" Margin="0,0,0,14">
                                 <StackPanel>
                                     <DockPanel LastChildFill="True" Margin="0,0,0,12">
@@ -3433,23 +3433,23 @@
 
                                     <!-- Interactive 5-Star Vector Rating Bar -->
                                     <TextBlock Text="Рейтинг игры:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,0,0,10">
-                                        <Button x:Name="BtnSplitStar1" Tag="1" Style="{StaticResource CapsuleButton}" Padding="6,4" Margin="0,0,4,0" Click="BtnSplitStar_Click" ToolTip="Оценка: 1 из 5">
+                                    <UniformGrid Columns="5" Margin="0,0,0,10">
+                                        <Button x:Name="BtnSplitStar1" Tag="1" Style="{StaticResource CapsuleButton}" Padding="4,5" Margin="0,0,4,0" HorizontalContentAlignment="Center" Click="BtnSplitStar_Click" ToolTip="Оценка: 1 из 5">
                                             <Path x:Name="PathSplitStar1" Data="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" Fill="#4B5563" Stretch="Uniform" Width="14" Height="14"/>
                                         </Button>
-                                        <Button x:Name="BtnSplitStar2" Tag="2" Style="{StaticResource CapsuleButton}" Padding="6,4" Margin="0,0,4,0" Click="BtnSplitStar_Click" ToolTip="Оценка: 2 из 5">
+                                        <Button x:Name="BtnSplitStar2" Tag="2" Style="{StaticResource CapsuleButton}" Padding="4,5" Margin="0,0,4,0" HorizontalContentAlignment="Center" Click="BtnSplitStar_Click" ToolTip="Оценка: 2 из 5">
                                             <Path x:Name="PathSplitStar2" Data="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" Fill="#4B5563" Stretch="Uniform" Width="14" Height="14"/>
                                         </Button>
-                                        <Button x:Name="BtnSplitStar3" Tag="3" Style="{StaticResource CapsuleButton}" Padding="6,4" Margin="0,0,4,0" Click="BtnSplitStar_Click" ToolTip="Оценка: 3 из 5">
+                                        <Button x:Name="BtnSplitStar3" Tag="3" Style="{StaticResource CapsuleButton}" Padding="4,5" Margin="0,0,4,0" HorizontalContentAlignment="Center" Click="BtnSplitStar_Click" ToolTip="Оценка: 3 из 5">
                                             <Path x:Name="PathSplitStar3" Data="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" Fill="#4B5563" Stretch="Uniform" Width="14" Height="14"/>
                                         </Button>
-                                        <Button x:Name="BtnSplitStar4" Tag="4" Style="{StaticResource CapsuleButton}" Padding="6,4" Margin="0,0,4,0" Click="BtnSplitStar_Click" ToolTip="Оценка: 4 из 5">
+                                        <Button x:Name="BtnSplitStar4" Tag="4" Style="{StaticResource CapsuleButton}" Padding="4,5" Margin="0,0,4,0" HorizontalContentAlignment="Center" Click="BtnSplitStar_Click" ToolTip="Оценка: 4 из 5">
                                             <Path x:Name="PathSplitStar4" Data="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" Fill="#4B5563" Stretch="Uniform" Width="14" Height="14"/>
                                         </Button>
-                                        <Button x:Name="BtnSplitStar5" Tag="5" Style="{StaticResource CapsuleButton}" Padding="6,4" Click="BtnSplitStar_Click" ToolTip="Оценка: 5 из 5">
+                                        <Button x:Name="BtnSplitStar5" Tag="5" Style="{StaticResource CapsuleButton}" Padding="4,5" HorizontalContentAlignment="Center" Click="BtnSplitStar_Click" ToolTip="Оценка: 5 из 5">
                                             <Path x:Name="PathSplitStar5" Data="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" Fill="#4B5563" Stretch="Uniform" Width="14" Height="14"/>
                                         </Button>
-                                    </StackPanel>
+                                    </UniformGrid>
 
                                     <!-- Completion Status -->
                                     <TextBlock Text="Статус прохождения:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"/>
@@ -3499,7 +3499,13 @@
 
                                     <!-- Personal Game Notes -->
                                     <TextBlock Text="Личные заметки:" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                                    <TextBox x:Name="TxtSplitNotes" Height="64" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Padding="8,6" Margin="0,0,0,10" Tag="Советы, пароли уровней, заметки..." TextChanged="TxtSplitNotes_TextChanged"/>
+                                    <TextBox x:Name="TxtSplitNotes" Height="74" HorizontalAlignment="Stretch" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Padding="10,8" Margin="0,0,0,8" Tag="Советы, пароли уровней, заметки..." TextChanged="TxtSplitNotes_TextChanged"/>
+                                    <Button x:Name="BtnSplitSaveNotes" Style="{StaticResource StormAccentButton}" HorizontalAlignment="Center" MinWidth="220" Height="32" Padding="14,0" Margin="0,0,0,10" Click="BtnSplitSaveNotes_Click" ToolTip="Сохранить заметку и статус прохождения">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                            <Path Data="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" Fill="#FFFFFF" Stretch="Uniform" Width="12" Height="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Сохранить заметку и статус" FontSize="11.5" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Button>
 
                                     <!-- Quick Utilities -->
                                     <Grid>
@@ -4226,7 +4232,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- Card 5: External Emulators & RetroArch .lpl Importer (2.6.0) -->
+                            <!-- Card 5: External Emulators & RetroArch .lpl Importer (2.6.1) -->
                             <Border Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="8" Padding="18" Margin="0,14,0,0">
                                 <StackPanel>
                                     <DockPanel LastChildFill="True" Margin="0,0,0,10">
@@ -5207,7 +5213,7 @@
                                 </StackPanel>
                             </Border>
 
-<!-- BdrMegaBezelOnlineHub (2.6.0) -->
+<!-- BdrMegaBezelOnlineHub (2.6.1) -->
                             <Border x:Name="BdrMegaBezelOnlineHub" Background="{DynamicResource ThemeSurface}" BorderBrush="{DynamicResource ThemeBorder}" BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="0,0,0,12">
                                 <StackPanel>
                                     <!-- Top DockPanel -->
@@ -6284,7 +6290,7 @@
         <Border x:Name="BottomFooterBorder" Grid.Row="4" Background="{DynamicResource ThemeBgHeader}" BorderBrush="{DynamicResource ThemeBorderSubtle}" BorderThickness="0,1,0,0" Padding="12,0">
             <DockPanel LastChildFill="True">
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                    <TextBlock Text="STORM RETROARCH 2.6.0" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                    <TextBlock Text="STORM RETROARCH 2.6.1" Foreground="{DynamicResource ThemeTextMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,14,0"/>
                     <TextBlock Text="100% LIBRETRO COMPATIBLE" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center"/>
                 </StackPanel>
                 <TextBlock x:Name="TxtFooterStatus" Text="Готово к работе" Foreground="{DynamicResource ThemeTextSecondary}" FontSize="11.5" VerticalAlignment="Center"/>
@@ -6382,7 +6388,7 @@
                     <DockPanel Margin="0,0,0,14">
                         <Image Source="app_icon.png" Width="44" Height="44" Margin="0,0,14,0" RenderOptions.BitmapScalingMode="HighQuality"/>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="STORM RETROARCH 2.6.0" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="18" FontWeight="Bold"/>
+                            <TextBlock Text="STORM RETROARCH 2.6.1" Foreground="{DynamicResource ThemeTextPrimary}" FontSize="18" FontWeight="Bold"/>
                             <TextBlock Text="STORM AURORA FLUID UNIFIED DESIGN SYSTEM" Foreground="{DynamicResource ThemeAccentGlow}" FontSize="11" FontWeight="SemiBold"/>
                         </StackPanel>
                     </DockPanel>

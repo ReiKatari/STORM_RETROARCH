@@ -45,12 +45,12 @@ class StormNativeBridge(
     @Volatile
     private var lastUpdateInfo: MobileUpdateInfo = MobileUpdateInfo(
         updateAvailable = false,
-        currentVersion = "2.6.0",
-        latestVersion = "2.6.0",
+        currentVersion = "2.6.1",
+        latestVersion = "2.6.1",
         apkDownloadUrl = "",
         releaseNotes = "",
         releasePageUrl = "https://github.com/ReiKatari/STORM_RETROARCH/releases",
-        statusMessage = "STORM RETROARCH 2.6.0"
+        statusMessage = "STORM RETROARCH 2.6.1"
     )
 
     @Volatile
@@ -150,7 +150,7 @@ class StormNativeBridge(
         includeSlowScans: Boolean = true
     ): JSONObject {
         val root = JSONObject()
-        root.put("version", "2.6.0")
+        root.put("version", "2.6.1")
         root.put("versionCode", 260)
         root.put("warming", !startupWarmDone)
         root.put("abi", MobileCoreRegistry.detectDeviceAbi())
@@ -1081,7 +1081,7 @@ class StormNativeBridge(
 
     @JavascriptInterface
     fun checkForUpdates() {
-        AutoUpdateHelper.checkForUpdateAsync("2.6.0") { info ->
+        AutoUpdateHelper.checkForUpdateAsync("2.6.1") { info ->
             lastUpdateInfo = info
             emitStormEvent("updateStatus", serializeUpdateInfo(info))
             emitToast(info.statusMessage)
@@ -1094,9 +1094,9 @@ class StormNativeBridge(
         if (!info.updateAvailable || info.apkDownloadUrl.isBlank()) {
             emitToast(
                 if (StormLocalization.currentLanguage == "ru") {
-                    "Установлена актуальная версия 2.6.0"
+                    "Установлена актуальная версия 2.6.1"
                 } else {
-                    "STORM RETROARCH 2.6.0 is up to date"
+                    "STORM RETROARCH 2.6.1 is up to date"
                 }
             )
             return

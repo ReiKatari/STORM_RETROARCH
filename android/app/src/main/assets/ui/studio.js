@@ -1,5 +1,5 @@
 /* ==========================================================================
-   STORM RETROARCH 2.6.0 - MOBILE STUDIO FRONTEND ENGINE (studio.js)
+   STORM RETROARCH 2.6.1 - MOBILE STUDIO FRONTEND ENGINE (studio.js)
    Hardware-Accelerated STORM AURORA FLUID Architecture
    12 Interactive Studio Modules + 120Hz Spring Choreography + Virtual Grid
    Zero Em-Dash, Zero Emojis, Single Vector Icon Mandate
@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "2.6.0";
+  const APP_VERSION = "2.6.1";
   const hasBridge = typeof window.StormBridge !== "undefined";
 
   /* ------------------------------------------------------------------------
@@ -597,7 +597,7 @@
       currentVersion: APP_VERSION,
       latestVersion: APP_VERSION,
       updateAvailable: false,
-      statusMessage: "Установлена актуальная версия 2.6.0"
+      statusMessage: "Установлена актуальная версия 2.6.1"
     },
     games: buildPreviewGames(),
     cores: buildDefaultCores252(),
@@ -1170,8 +1170,8 @@
             '</div>' +
           '</div>' +
         '</div>' +
-        '<div class="hero-actions-row">' +
-          '<button type="button" class="btn-3d btn-3d-primary" data-action="launch-game" data-game="' + esc(hero.id) + '" data-slot="-1">' +
+        '<div class="action-trio-grid" style="margin-bottom:0;">' +
+          '<button type="button" class="btn-3d btn-3d-primary btn-trio-hero" data-action="launch-game" data-game="' + esc(hero.id) + '" data-slot="-1">' +
             ico("play") + '<span>' + esc(tr("play")) + '</span>' +
           '</button>' +
           '<button type="button" class="btn-3d btn-3d-emerald" data-action="open-roulette">' +
@@ -1184,7 +1184,7 @@
       '</div>'
     ) : (
       '<div class="hero-spotlight-card stagger-card" style="--stagger-i:0;">' +
-        '<span class="hero-eyebrow">STORM RETROARCH 2.6.0</span>' +
+        '<span class="hero-eyebrow">STORM RETROARCH 2.6.1</span>' +
         '<h2 class="hero-game-title">' + (isRu() ? "Добро пожаловать в консоль-студию" : "Welcome to STORM Console Studio") + '</h2>' +
         '<p class="section-subtitle">' + (isRu() ? "20 флагманских ядер уже вшиты в APK и готовы к мгновенному офлайн-запуску. Укажите папку с играми или откройте файл ROM:" : "20 flagship cores are pre-bundled inside APK for instant offline play. Pick your ROM folder or open a file:") + '</p>' +
         '<div class="hero-actions-row">' +
@@ -2256,7 +2256,7 @@
             '</div>' +
 
             '<div class="toolbar-row">' +
-              '<button type="button" class="btn-3d btn-3d-primary" style="flex:1;" data-action="check-updates">' + ico("refresh") + '<span>' + (isRu() ? "Проверить обновления (2.6.0)" : "Check Updates (2.6.0)") + '</span></button>' +
+              '<button type="button" class="btn-3d btn-3d-primary" style="flex:1;" data-action="check-updates">' + ico("refresh") + '<span>' + (isRu() ? "Проверить обновления (2.6.1)" : "Check Updates (2.6.1)") + '</span></button>' +
               (state.updateInfo.updateAvailable ? (
                 '<button type="button" class="btn-3d btn-3d-emerald" data-action="install-update">' + ico("download") + '<span>' + (isRu() ? "Обновить" : "Update") + '</span></button>'
               ) : "") +
@@ -2318,7 +2318,7 @@
     if (!modal || !box) return;
     box.innerHTML =
       '<div class="section-head">' +
-        '<div><h3 class="section-title" id="studioHubTitle">' + (isRu() ? "Все 12 модулей STORM RETROARCH 2.6.0" : "All 12 STORM Studio Modules") + '</h3><p class="section-subtitle">' + (isRu() ? "Выберите нужный раздел консоли в одно касание" : "Jump to any console subsystem in 1 tap") + '</p></div>' +
+        '<div><h3 class="section-title" id="studioHubTitle">' + (isRu() ? "Все 12 модулей STORM RETROARCH 2.6.1" : "All 12 STORM Studio Modules") + '</h3><p class="section-subtitle">' + (isRu() ? "Выберите нужный раздел консоли в одно касание" : "Jump to any console subsystem in 1 tap") + '</p></div>' +
         '<button type="button" class="icon-btn-3d" data-action="close-modals" aria-label="Close">' + ico("close") + '</button>' +
       '</div>' +
       '<div class="quick-bento-grid">' +
@@ -2357,42 +2357,44 @@
         '<button type="button" class="icon-btn-3d" data-action="close-modals" aria-label="Close">' + ico("close") + '</button>' +
       '</div>' +
 
-      '<div class="toolbar-row" style="margin-bottom:12px;">' +
-        '<button type="button" class="btn-3d btn-3d-primary" style="flex:1;" data-action="launch-game" data-game="' + esc(g.id) + '" data-slot="-1">' + ico("play") + '<span>' + esc(tr("play")) + '</span></button>' +
+      '<div class="action-trio-grid">' +
+        '<button type="button" class="btn-3d btn-3d-primary btn-trio-hero" data-action="launch-game" data-game="' + esc(g.id) + '" data-slot="-1">' + ico("play") + '<span>' + esc(tr("play")) + '</span></button>' +
         '<button type="button" class="btn-3d btn-3d-emerald" data-action="jump-game-cheats" data-game="' + esc(g.id) + '">' + ico("shield") + '<span>' + (isRu() ? "Читы игры" : "Game Cheats") + '</span></button>' +
         '<button type="button" class="btn-3d btn-3d-secondary" data-action="open-core-options" data-core="' + esc(g.coreId) + '">' + ico("sliders") + '<span>' + (isRu() ? "Разрешение / ЦП" : "Core Opts") + '</span></button>' +
       '</div>' +
 
-      '<div class="glass-card" style="margin-bottom:12px;padding:12px;background:rgba(255,255,255,0.035);">' +
-        '<div class="toolbar-row" style="margin-bottom:10px;align-items:flex-end;">' +
-          '<div style="flex:1;min-width:170px;">' +
-            '<div class="toggle-title" style="margin-bottom:5px;">' + (isRu() ? "Статус прохождения (Playnite)" : "Completion Status") + '</div>' +
-            '<select id="inspectorStatusSelect" class="select-3d" data-game="' + esc(g.id) + '">' +
-              COMPLETION_STATUSES.map(function (st) {
-                return '<option value="' + esc(st.id) + '"' + (curStatus === st.id ? " selected" : "") + '>' + esc(statusLabel(st)) + '</option>';
-              }).join("") +
-            '</select>' +
+      '<div class="glass-card inspector-meta-card">' +
+        '<div class="inspector-field">' +
+          '<div class="toggle-title" style="margin-bottom:5px;">' + (isRu() ? "Статус прохождения" : "Completion Status") + '</div>' +
+          '<select id="inspectorStatusSelect" class="select-3d" data-game="' + esc(g.id) + '">' +
+            COMPLETION_STATUSES.map(function (st) {
+              return '<option value="' + esc(st.id) + '"' + (curStatus === st.id ? " selected" : "") + '>' + esc(statusLabel(st)) + '</option>';
+            }).join("") +
+          '</select>' +
+        '</div>' +
+
+        '<div class="inspector-field">' +
+          '<div class="inspector-label-row">' +
+            '<div class="toggle-title">' + (isRu() ? "Оценка игры" : "Star Rating") + '</div>' +
+            '<span class="badge-pill tabular" id="inspectorRatingBadge">' + (curRating > 0 ? curRating + " / 5" : (isRu() ? "Без оценки" : "Unrated")) + '</span>' +
           '</div>' +
-          '<div>' +
-            '<div class="toggle-title" style="margin-bottom:5px;">' + (isRu() ? "Оценка игры" : "Star Rating") + '</div>' +
-            '<div class="star-rating-row" id="inspectorStarRow">' +
-              [1, 2, 3, 4, 5].map(function (n) {
-                return '<button type="button" class="star-btn' + (n <= curRating ? " filled" : "") + '" data-action="set-game-rating" data-game="' + esc(g.id) + '" data-rating="' + n + '" aria-label="Rating ' + n + '">' + ico("star") + '</button>';
-              }).join("") +
-            '</div>' +
+          '<div class="star-rating-row" id="inspectorStarRow">' +
+            [1, 2, 3, 4, 5].map(function (n) {
+              return '<button type="button" class="star-btn' + (n <= curRating ? " filled" : "") + '" data-action="set-game-rating" data-game="' + esc(g.id) + '" data-rating="' + n + '" aria-label="Rating ' + n + '">' + ico("star") + '</button>';
+            }).join("") +
           '</div>' +
         '</div>' +
 
-        '<div style="margin-bottom:9px;">' +
-          '<div class="toggle-title" style="margin-bottom:4px;">' + (isRu() ? "Коллекция / тег" : "Collection Tag") + '</div>' +
-          '<input type="text" id="inspectorCollectionInput" class="input-well-3d" style="padding-left:12px;" data-game="' + esc(g.id) + '" value="' + esc(g.customCollection || "") + '" placeholder="' + (isRu() ? "Например: Классика JRPG, Пройти в дороге..." : "e.g. Top JRPGs, Travel Backlog...") + '">' +
+        '<div class="inspector-field">' +
+          '<div class="toggle-title" style="margin-bottom:5px;">' + (isRu() ? "Коллекция / тег" : "Collection Tag") + '</div>' +
+          '<input type="text" id="inspectorCollectionInput" class="input-well-3d" data-game="' + esc(g.id) + '" value="' + esc(g.customCollection || "") + '" placeholder="' + (isRu() ? "Например: Классика JRPG, Пройти в дороге..." : "e.g. Top JRPGs, Travel Backlog...") + '">' +
         '</div>' +
 
-        '<div>' +
-          '<div class="toggle-title" style="margin-bottom:4px;">' + (isRu() ? "Личные заметки к игре" : "Personal Notes") + '</div>' +
-          '<textarea id="inspectorNotesArea" class="textarea-3d" style="min-height:66px;" data-game="' + esc(g.id) + '" placeholder="' + (isRu() ? "Пароли, советы по боссам, порядок прохождения..." : "Boss notes, passwords, walkthrough hints...") + '">' + esc(g.userNotes || "") + '</textarea>' +
-          '<div class="toolbar-row" style="margin-top:8px;justify-content:flex-end;">' +
-            '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="save-game-notes" data-game="' + esc(g.id) + '">' + ico("save") + '<span>' + (isRu() ? "Сохранить заметку и статус" : "Save Notes & Status") + '</span></button>' +
+        '<div class="inspector-field">' +
+          '<div class="toggle-title" style="margin-bottom:5px;">' + (isRu() ? "Личные заметки к игре" : "Personal Notes") + '</div>' +
+          '<textarea id="inspectorNotesArea" class="textarea-well-3d notes-well-3d" rows="3" data-game="' + esc(g.id) + '" placeholder="' + (isRu() ? "Пароли, советы по боссам, порядок прохождения..." : "Boss notes, passwords, walkthrough hints...") + '">' + esc(g.userNotes || "") + '</textarea>' +
+          '<div class="inspector-save-row">' +
+            '<button type="button" class="btn-3d btn-3d-primary inspector-save-btn" data-action="save-game-notes" data-game="' + esc(g.id) + '">' + ico("save") + '<span>' + (isRu() ? "Сохранить заметку и статус" : "Save Notes & Status") + '</span></button>' +
           '</div>' +
         '</div>' +
       '</div>' +
@@ -2460,8 +2462,8 @@
             '<div class="poster-sub" id="rouletteGameSub">' + esc(firstSample.region) + ' | ' + esc(firstSample.coreId) + '</div>' +
           '</div>' +
         '</div>' +
-        '<div class="toolbar-row" style="width:100%;">' +
-          '<button type="button" class="btn-3d btn-3d-emerald" id="roulettePlayBtn" style="flex:1;" data-action="launch-game" data-game="' + esc(chosen.id) + '" data-slot="-1">' + ico("play") + '<span>' + (isRu() ? "Играть сейчас" : "Play Now") + '</span></button>' +
+        '<div class="action-trio-grid" style="margin-bottom:0;">' +
+          '<button type="button" class="btn-3d btn-3d-emerald btn-trio-hero" id="roulettePlayBtn" data-action="launch-game" data-game="' + esc(chosen.id) + '" data-slot="-1">' + ico("play") + '<span>' + (isRu() ? "Играть сейчас" : "Play Now") + '</span></button>' +
           '<button type="button" class="btn-3d btn-3d-secondary" data-action="inspect-game" data-game="' + esc(chosen.id) + '" id="rouletteInspectBtn">' + ico("sliders") + '<span>' + (isRu() ? "Карточка" : "Inspect") + '</span></button>' +
           '<button type="button" class="btn-3d btn-3d-primary" data-action="reroll-roulette">' + ico("shuffle") + '<span>' + (isRu() ? "Другая игра" : "Reroll") + '</span></button>' +
         '</div>' +
@@ -2540,7 +2542,7 @@
       { kind: "action", icon: "folder", title: ru ? "Сканировать папку с ROM" : "Scan ROM Folder", meta: state.storagePath, execType: "action", action: "quick-scan-storage" },
       { kind: "action", icon: "cpu", title: ru ? "Автосканер BIOS (MD5)" : "Auto-Scan BIOS (MD5)", meta: ru ? "Проверка системных прошивок" : "Verify system firmware hashes", execType: "action", action: "scan-bios-md5" },
       { kind: "action", icon: "archive", title: ru ? "Экспорт сохранений в ZIP" : "Export Saves Backup ZIP", meta: ru ? "Портативный перенос на ПК" : "Portable PC save transfer", execType: "action", action: "export-saves-zip" },
-      { kind: "action", icon: "refresh", title: ru ? "Проверить обновления (2.6.0)" : "Check Updates (2.6.0)", meta: "STORM RETROARCH", execType: "action", action: "check-updates" },
+      { kind: "action", icon: "refresh", title: ru ? "Проверить обновления (2.6.1)" : "Check Updates (2.6.1)", meta: "STORM RETROARCH", execType: "action", action: "check-updates" },
       { kind: "action", icon: "grid", title: ru ? "Все 12 модулей Студии" : "All 12 Studio Modules", meta: ru ? "Быстрый переход по разделам" : "Open 12-module launcher", execType: "hub" }
     ];
 
@@ -2679,7 +2681,7 @@
         window.StormBridge.exportSavesBackupZip();
       } else if (item.action === "check-updates") {
         if (hasBridge && window.StormBridge.checkForUpdates) window.StormBridge.checkForUpdates();
-        else showToast(isRu() ? "У вас установлена актуальная версия (2.6.0)" : "STORM RETROARCH 2.6.0 is up to date");
+        else showToast(isRu() ? "У вас установлена актуальная версия (2.6.1)" : "STORM RETROARCH 2.6.1 is up to date");
       }
     }
   }
@@ -3024,6 +3026,8 @@
         const r = Number(btn.getAttribute("data-rating") || 0);
         btn.classList.toggle("filled", r <= nextVal);
       });
+      const rBadge = document.getElementById("inspectorRatingBadge");
+      if (rBadge) rBadge.textContent = nextVal > 0 ? (nextVal + " / 5") : (isRu() ? "Без оценки" : "Unrated");
       if (state.activeTab === "library") updateLibraryResults();
       else if (state.activeTab === "dashboard") renderViewport();
       showToast((isRu() ? "Оценка игры: " : "Game rating: ") + nextVal + "/5");
@@ -3258,7 +3262,7 @@
       else showToast(isRu() ? "Полный доступ к /storage/emulated/0/STORM RETROARCH активен" : "Storage access active");
     } else if (act === "check-updates") {
       if (hasBridge && window.StormBridge.checkForUpdates) window.StormBridge.checkForUpdates();
-      else showToast(isRu() ? "У вас установлена актуальная версия (2.6.0)" : "STORM RETROARCH 2.6.0 is up to date");
+      else showToast(isRu() ? "У вас установлена актуальная версия (2.6.1)" : "STORM RETROARCH 2.6.1 is up to date");
     } else if (act === "install-update") {
       if (hasBridge && window.StormBridge.installUpdateApk) window.StormBridge.installUpdateApk();
     }

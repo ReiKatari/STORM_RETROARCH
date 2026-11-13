@@ -14,7 +14,7 @@ namespace StormRetroArch;
 
 public partial class MainWindow
 {
-    // ==================== 2.6.0 STATE & SUBSYSTEM CACHES ====================
+    // ==================== 2.6.1 STATE & SUBSYSTEM CACHES ====================
 
     private bool _shadersLoaded;
     private bool _savesLoaded;
@@ -44,7 +44,7 @@ public partial class MainWindow
         return brush;
     }
 
-    // ==================== 2.6.0 INITIALIZATION & BACKGROUND HYDRATION ====================
+    // ==================== 2.6.1 INITIALIZATION & BACKGROUND HYDRATION ====================
 
     private void InitStudio260()
     {
@@ -438,6 +438,18 @@ public partial class MainWindow
         if (_suppressSplitInspectorEvents || _selectedSplitGame == null) return;
         _selectedSplitGame.UserNotes = TxtSplitNotes?.Text ?? "";
         GameMetadataStore.UpdateFromRomItem(_selectedSplitGame);
+    }
+
+    private void BtnSplitSaveNotes_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedSplitGame == null) return;
+        _selectedSplitGame.UserNotes = TxtSplitNotes?.Text ?? "";
+        if (CmbSplitCompletionStatus?.SelectedItem is string st)
+            _selectedSplitGame.CompletionStatus = st;
+        GameMetadataStore.UpdateFromRomItem(_selectedSplitGame);
+        RefreshAllLibraryFiltersAndCounts();
+        RefreshPlayerAnalyticsDashboard();
+        ShowOsdToast("Заметка и статус игры сохранены");
     }
 
     private void BtnSplitCheats_Click(object sender, RoutedEventArgs e)
