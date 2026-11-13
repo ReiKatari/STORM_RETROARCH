@@ -37,14 +37,20 @@ class StormNativeBridge(
     private val cachedLibrary = CopyOnWriteArrayList<MobileRomItem>()
 
     @Volatile
+    private var startupWarmDone = false
+
+    @Volatile
+    private var cachedBiosItems: List<MobileBiosItem>? = null
+
+    @Volatile
     private var lastUpdateInfo: MobileUpdateInfo = MobileUpdateInfo(
         updateAvailable = false,
-        currentVersion = "2.5.0",
-        latestVersion = "2.5.0",
+        currentVersion = "2.6.0",
+        latestVersion = "2.6.0",
         apkDownloadUrl = "",
         releaseNotes = "",
         releasePageUrl = "https://github.com/ReiKatari/STORM_RETROARCH/releases",
-        statusMessage = "STORM RETROARCH 2.5.0"
+        statusMessage = "STORM RETROARCH 2.6.0"
     )
 
     @Volatile
@@ -54,6 +60,28 @@ class StormNativeBridge(
         MobileCoreRegistry.init(appCtx)
         MobileCheatAndBiosManager.initialize(appCtx)
         MobileControllerProfileManager.ensureProfilesLoaded(appCtx)
+        bgExecutor.execute { warmStartupCachesAsync() }
+    }
+
+    private fun warmStartupCachesAsync() {
+        try {
+            ensurePublicDirectoryStructure()
+            MobileCoreRegistry.init(appCtx)
+            MobileCoreRegistry.syncPublicCoresToExecutableDir(appCtx)
+
+            val games = MobileLibraryAndCoverEngine.scanLibraryDirectories(appCtx)
+            cachedLibrary.clear()
+            cachedLibrary.addAll(games)
+
+            val sysDir = MobileCheatAndBiosManager.getEffectiveSystemDir(appCtx)
+            cachedBiosItems = MobileCheatAndBiosManager.scanBiosCatalog(sysDir)
+
+            startupWarmDone = true
+            emitStormEvent("bootstrapUpdated", buildFullBootstrapJson(games))
+            fetchMissingCoversInBackground(games)
+        } catch (_: Throwable) {
+            startupWarmDone = true
+        }
     }
 
     fun emitStormEvent(eventType: String, payload: Any) {
@@ -95,7 +123,7 @@ class StormNativeBridge(
         val subDirs = listOf(
             "roms", "cores", "system", "saves", "states", "cheats",
             "thumbnails", "screenshots", "bezels", "shaders", "config",
-            "autoconfig", "patches", "backups", "updates"
+            "autoconfig", "patches", "backups", "updates", "playlists"
         )
         for (sub in subDirs) {
             try {
@@ -109,27 +137,22 @@ class StormNativeBridge(
 
     @JavascriptInterface
     fun getBootstrapJson(): String {
-        ensurePublicDirectoryStructure()
-        MobileCoreRegistry.init(appCtx)
-        MobileCoreRegistry.syncPublicCoresToExecutableDir(appCtx)
-
-        val games = MobileLibraryAndCoverEngine.scanLibraryDirectories(appCtx)
-        cachedLibrary.clear()
-        cachedLibrary.addAll(games)
-
-        // Kick off progressive cover fetching in background for any ROM without local cover
-        fetchMissingCoversInBackground(games)
-
-        return buildFullBootstrapJson(games).toString()
+        // Non-blocking immediate response so WebView first paint never stalls;
+        // background warmStartupCachesAsync() pushes bootstrapUpdated as soon as scans finish.
+        return buildFullBootstrapJson(cachedLibrary.toList(), includeSlowScans = startupWarmDone).toString()
     }
 
     @JavascriptInterface
     fun getAppInfo(): String = getBootstrapJson()
 
-    fun buildFullBootstrapJson(games: List<MobileRomItem> = cachedLibrary): JSONObject {
+    fun buildFullBootstrapJson(
+        games: List<MobileRomItem> = cachedLibrary,
+        includeSlowScans: Boolean = true
+    ): JSONObject {
         val root = JSONObject()
-        root.put("version", "2.5.0")
-        root.put("versionCode", 250)
+        root.put("version", "2.6.0")
+        root.put("versionCode", 260)
+        root.put("warming", !startupWarmDone)
         root.put("abi", MobileCoreRegistry.detectDeviceAbi())
         root.put("sdkInt", Build.VERSION.SDK_INT)
         root.put("storageGranted", hasAllFilesStorageAccess())
@@ -137,8 +160,8 @@ class StormNativeBridge(
         root.put("settings", loadStudioSettingsJson())
         root.put("games", serializeGamesArray(games))
         root.put("cores", serializeCoresCatalogArray())
-        root.put("bios", serializeBiosArray())
-        root.put("saves", serializeSaveSlotsOverview(games))
+        root.put("bios", if (includeSlowScans || cachedBiosItems != null) serializeBiosArray() else JSONArray())
+        root.put("saves", if (includeSlowScans) serializeSaveSlotsOverview(games) else JSONArray())
         root.put("controllers", serializeControllersArray())
         root.put("updateInfo", serializeUpdateInfo(lastUpdateInfo))
         return root
@@ -358,6 +381,22 @@ class StormNativeBridge(
     }
 
     @JavascriptInterface
+    fun saveGameMetadataJson(gameId: String, jsonPatch: String): String {
+        return try {
+            val patch = JSONObject(jsonPatch)
+            val rom = findRomByIdOrPath(gameId)
+            val saved = MobileLibraryAndCoverEngine.saveGameMetadataPatch(appCtx, rom, gameId, patch)
+            saved.toString()
+        } catch (t: Throwable) {
+            JSONObject()
+                .put("ok", false)
+                .put("gameId", gameId)
+                .put("error", t.message ?: "Invalid metadata patch")
+                .toString()
+        }
+    }
+
+    @JavascriptInterface
     fun launchGame(gameId: String) {
         launchGame(gameId, "", -1)
     }
@@ -458,6 +497,7 @@ class StormNativeBridge(
         rom.lastPlayedMs = System.currentTimeMillis()
         rom.assignedCoreId = core.id
         MobileLibraryAndCoverEngine.saveRomPreferenceState(appCtx, rom)
+        MobileLibraryAndCoverEngine.recordPlaySession(appCtx, rom, rom.id, 0L, countLaunch = true)
 
         val accentIdx = StormThemeEngine.ACCENTS.indexOfFirst { it.id == StormThemeEngine.currentAccent.id }
         mainHandler.post {
@@ -895,6 +935,7 @@ class StormNativeBridge(
             val res = MobileCheatAndBiosManager.scanAndImportBiosDirectory(appCtx, "")
             val imported = res.optInt("importedCount", 0)
             val ready = res.optInt("readyCount", 0)
+            cachedBiosItems = null
             emitStormEvent("biosUpdated", JSONObject().put("bios", serializeBiosArray()))
             emitToast(
                 if (StormLocalization.currentLanguage == "ru") {
@@ -1040,7 +1081,7 @@ class StormNativeBridge(
 
     @JavascriptInterface
     fun checkForUpdates() {
-        AutoUpdateHelper.checkForUpdateAsync("2.5.0") { info ->
+        AutoUpdateHelper.checkForUpdateAsync("2.6.0") { info ->
             lastUpdateInfo = info
             emitStormEvent("updateStatus", serializeUpdateInfo(info))
             emitToast(info.statusMessage)
@@ -1053,9 +1094,9 @@ class StormNativeBridge(
         if (!info.updateAvailable || info.apkDownloadUrl.isBlank()) {
             emitToast(
                 if (StormLocalization.currentLanguage == "ru") {
-                    "Установлена актуальная версия 2.5.0"
+                    "Установлена актуальная версия 2.6.0"
                 } else {
-                    "STORM RETROARCH 2.5.0 is up to date"
+                    "STORM RETROARCH 2.6.0 is up to date"
                 }
             )
             return
@@ -1141,6 +1182,7 @@ class StormNativeBridge(
         bgExecutor.execute {
             val summary = MobileCheatAndBiosManager.scanAndImportBiosDirectory(appCtx, uri.toString())
             val count = summary.optInt("importedCount", 0)
+            cachedBiosItems = null
             emitStormEvent("biosUpdated", JSONObject().put("bios", serializeBiosArray()))
             emitToast(
                 if (StormLocalization.currentLanguage == "ru") {
@@ -1155,6 +1197,7 @@ class StormNativeBridge(
     fun onBiosFilePicked(uri: Uri) {
         bgExecutor.execute {
             val ok = MobileCheatAndBiosManager.importBiosFile(appCtx, uri, null)
+            cachedBiosItems = null
             emitStormEvent("biosUpdated", JSONObject().put("bios", serializeBiosArray()))
             emitToast(if (ok) "BIOS OK" else "BIOS import failed")
         }
@@ -1204,6 +1247,8 @@ class StormNativeBridge(
                 val scanned = MobileLibraryAndCoverEngine.scanLibraryDirectories(appCtx)
                 cachedLibrary.clear()
                 cachedLibrary.addAll(scanned)
+                cachedBiosItems = null
+                startupWarmDone = true
                 emitStormEvent("bootstrapUpdated", buildFullBootstrapJson(scanned))
                 fetchMissingCoversInBackground(scanned)
             }
@@ -1240,6 +1285,14 @@ class StormNativeBridge(
                     .put("cover", coverUrl)
                     .put("coverUrl", coverUrl)
                     .put("coverPath", g.coverPath ?: "")
+                    .put("completionStatus", g.completionStatus)
+                    .put("starRating", g.starRating)
+                    .put("userNotes", g.userNotes)
+                    .put("customCollection", g.customCollection)
+                    .put("totalPlaySeconds", g.totalPlaySeconds)
+                    .put("playtimeMin", (g.totalPlaySeconds / 60L).toInt())
+                    .put("launchCount", g.launchCount)
+                    .put("lastPlayedIso", g.lastPlayedIso)
             )
         }
         return arr
@@ -1277,8 +1330,10 @@ class StormNativeBridge(
     }
 
     private fun serializeBiosArray(): JSONArray {
-        val sysDir = MobileCheatAndBiosManager.getEffectiveSystemDir(appCtx)
-        val scanned = MobileCheatAndBiosManager.scanBiosCatalog(sysDir)
+        val scanned = cachedBiosItems ?: run {
+            val sysDir = MobileCheatAndBiosManager.getEffectiveSystemDir(appCtx)
+            MobileCheatAndBiosManager.scanBiosCatalog(sysDir).also { cachedBiosItems = it }
+        }
         val arr = JSONArray()
         for (b in scanned) {
             val st = when {

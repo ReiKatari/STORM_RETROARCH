@@ -270,7 +270,7 @@ object MobileCheatAndBiosManager {
 
     fun unpackStarterCheatsIfNeeded(context: Context): Int {
         val targetRoot = getEffectiveCheatsRootDir(context)
-        val marker = File(targetRoot, ".starter_cheats_250.ok")
+        val marker = File(targetRoot, ".starter_cheats_260.ok")
         if (starterUnpackedSession && marker.exists()) return 0
 
         var extracted = 0
@@ -299,7 +299,7 @@ object MobileCheatAndBiosManager {
                     }
                 }
             }
-            marker.writeText("2.5.0", StandardCharsets.UTF_8)
+            marker.writeText("2.6.0", StandardCharsets.UTF_8)
             starterUnpackedSession = true
         } catch (_: Throwable) {
         }
@@ -1590,7 +1590,7 @@ object MobileCheatAndBiosManager {
 object AutoUpdateHelper {
 
     const val GITHUB_LATEST_RELEASE_API = "https://api.github.com/repos/ReiKatari/STORM_RETROARCH/releases/latest"
-    const val DEFAULT_CURRENT_VERSION = "2.5.0"
+    const val DEFAULT_CURRENT_VERSION = "2.6.0"
 
     private val updateExecutor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())

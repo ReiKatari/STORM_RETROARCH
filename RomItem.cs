@@ -92,8 +92,10 @@ public class RomItem : INotifyPropertyChanged
     }
 
     public string StarRatingDisplay => _starRating > 0
-        ? (new string('★', Math.Clamp(_starRating, 0, 5)) + new string('☆', 5 - Math.Clamp(_starRating, 0, 5)))
-        : "☆☆☆☆☆";
+        ? $"{Math.Clamp(_starRating, 0, 5)}/5"
+        : "0/5";
+
+    public bool HasStarRating => _starRating > 0;
 
     public string UserNotes
     {

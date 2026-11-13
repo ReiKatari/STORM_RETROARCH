@@ -9,6 +9,7 @@ import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import androidx.documentfile.provider.DocumentFile
 import org.json.JSONArray
+import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -19,7 +20,10 @@ import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.zip.ZipFile
@@ -39,7 +43,14 @@ data class MobileRomItem(
     var isFavorite: Boolean = false,
     var lastPlayedMs: Long = 0L,
     var coverPath: String? = null,
-    val id: String = MobileLibraryAndCoverEngine.computeRomId(filePath)
+    val id: String = MobileLibraryAndCoverEngine.computeRomId(filePath),
+    var completionStatus: String = "Не начато",
+    var starRating: Int = 0,
+    var userNotes: String = "",
+    var customCollection: String = "",
+    var totalPlaySeconds: Long = 0L,
+    var launchCount: Int = 0,
+    var lastPlayedIso: String = ""
 ) {
     val sizeFormatted: String
         get() {
@@ -608,7 +619,7 @@ object MobileLibraryAndCoverEngine {
 
         val existingCover = findCachedCoverFile(context, platformKey, cleanName, region)
 
-        return MobileRomItem(
+        val item = MobileRomItem(
             name = cleanName,
             rawNoIntroName = rawStem,
             filePath = file.absolutePath,
@@ -624,6 +635,8 @@ object MobileLibraryAndCoverEngine {
             coverPath = existingCover?.absolutePath,
             id = computeRomId(file.absolutePath)
         )
+        applyMetadataToRom(context, item)
+        return item
     }
 
     private fun normalizePathKey(file: File): String {
@@ -1191,5 +1204,221 @@ object MobileLibraryAndCoverEngine {
             sorted.map { it.absolutePath },
             sorted.first().parentFile
         )
+    }
+
+    // === Playnite-Grade Game Metadata Persistence (playlists/storm_game_metadata.json) ===
+
+    private val VALID_COMPLETION_STATUSES = setOf(
+        "Не начато", "Играю сейчас", "Пройдено", "Пройдено на 100%", "В планах", "Отложено"
+    )
+    private val metadataLock = Any()
+    @Volatile
+    private var metadataRootCache: JSONObject? = null
+
+    private fun formatIsoUtcNow(ms: Long = System.currentTimeMillis()): String {
+        val fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+        fmt.timeZone = TimeZone.getTimeZone("UTC")
+        return fmt.format(Date(ms))
+    }
+
+    private fun resolveMetadataFileForRead(context: Context): File {
+        val pubFile = File(File(MobileCoreRegistry.STORM_PUBLIC_ROOT, "playlists"), "storm_game_metadata.json")
+        if (pubFile.exists() && pubFile.isFile && pubFile.canRead()) return pubFile
+        return File(File(context.applicationContext.filesDir, "playlists"), "storm_game_metadata.json")
+    }
+
+    private fun resolveMetadataFileForWrite(context: Context): File {
+        val pubRoot = File(MobileCoreRegistry.STORM_PUBLIC_ROOT)
+        if (pubRoot.exists() && pubRoot.canWrite()) {
+            val dir = File(pubRoot, "playlists")
+            if (!dir.exists()) dir.mkdirs()
+            if (dir.exists() && dir.canWrite()) {
+                return File(dir, "storm_game_metadata.json")
+            }
+        }
+        val privDir = File(context.applicationContext.filesDir, "playlists")
+        if (!privDir.exists()) privDir.mkdirs()
+        return File(privDir, "storm_game_metadata.json")
+    }
+
+    private fun loadMetadataRootLocked(context: Context): JSONObject {
+        metadataRootCache?.let { return it }
+        val file = resolveMetadataFileForRead(context)
+        val parsed = if (file.exists() && file.isFile && file.length() > 0L) {
+            try {
+                val raw = file.readText(StandardCharsets.UTF_8)
+                val obj = JSONObject(raw)
+                // Support both direct { "<id>": {...} } map and { "games": { "<id>": {...} } } wrapper
+                obj.optJSONObject("games") ?: obj
+            } catch (_: Throwable) {
+                JSONObject()
+            }
+        } else {
+            JSONObject()
+        }
+        metadataRootCache = parsed
+        return parsed
+    }
+
+    private fun writeMetadataRootLocked(context: Context, root: JSONObject) {
+        metadataRootCache = root
+        val target = resolveMetadataFileForWrite(context)
+        try {
+            val tmp = File(target.parentFile, "storm_game_metadata.json.tmp")
+            tmp.writeText(root.toString(2), StandardCharsets.UTF_8)
+            if (!tmp.renameTo(target)) {
+                target.writeText(root.toString(2), StandardCharsets.UTF_8)
+                tmp.delete()
+            }
+        } catch (_: Throwable) {
+            try {
+                val fallback = File(File(context.applicationContext.filesDir, "playlists").apply { mkdirs() }, "storm_game_metadata.json")
+                fallback.writeText(root.toString(2), StandardCharsets.UTF_8)
+            } catch (_: Throwable) {
+            }
+        }
+    }
+
+    private fun findMetadataKeyLocked(root: JSONObject, rom: MobileRomItem?, fallbackId: String): String? {
+        if (rom != null) {
+            val candidates = listOf(
+                rom.id,
+                rom.filePath,
+                File(rom.filePath).name,
+                rom.rawNoIntroName
+            )
+            for (c in candidates) {
+                if (c.isNotBlank() && root.has(c)) return c
+            }
+        }
+        if (fallbackId.isNotBlank() && root.has(fallbackId)) return fallbackId
+        return null
+    }
+
+    fun applyMetadataToRom(context: Context, rom: MobileRomItem) {
+        synchronized(metadataLock) {
+            val root = loadMetadataRootLocked(context)
+            val key = findMetadataKeyLocked(root, rom, rom.id) ?: return
+            val entry = root.optJSONObject(key) ?: return
+            val status = entry.optString("completionStatus", "Не начато")
+            rom.completionStatus = if (VALID_COMPLETION_STATUSES.contains(status)) status else "Не начато"
+            rom.starRating = entry.optInt("starRating", 0).coerceIn(0, 5)
+            rom.userNotes = entry.optString("userNotes", "")
+            rom.customCollection = entry.optString("customCollection", "")
+            rom.totalPlaySeconds = max(0L, entry.optLong("totalPlaySeconds", 0L))
+            rom.launchCount = max(0, entry.optInt("launchCount", 0))
+            rom.lastPlayedIso = entry.optString("lastPlayedIso", "")
+        }
+    }
+
+    fun saveGameMetadataPatch(
+        context: Context,
+        rom: MobileRomItem?,
+        gameId: String,
+        patch: JSONObject
+    ): JSONObject {
+        synchronized(metadataLock) {
+            val root = loadMetadataRootLocked(context)
+            val key = findMetadataKeyLocked(root, rom, gameId) ?: rom?.id ?: gameId
+            val existing = root.optJSONObject(key) ?: JSONObject()
+
+            val curStatus = existing.optString("completionStatus", rom?.completionStatus ?: "Не начато")
+            val nextStatus = if (patch.has("completionStatus")) {
+                val cand = patch.optString("completionStatus", "Не начато").trim()
+                if (VALID_COMPLETION_STATUSES.contains(cand)) cand else "Не начато"
+            } else {
+                if (VALID_COMPLETION_STATUSES.contains(curStatus)) curStatus else "Не начато"
+            }
+
+            val nextRating = if (patch.has("starRating")) {
+                patch.optInt("starRating", 0).coerceIn(0, 5)
+            } else {
+                existing.optInt("starRating", rom?.starRating ?: 0).coerceIn(0, 5)
+            }
+
+            val nextNotes = if (patch.has("userNotes")) {
+                patch.optString("userNotes", "")
+            } else {
+                existing.optString("userNotes", rom?.userNotes ?: "")
+            }
+
+            val nextCollection = if (patch.has("customCollection")) {
+                patch.optString("customCollection", "").trim()
+            } else {
+                existing.optString("customCollection", rom?.customCollection ?: "")
+            }
+
+            val nextPlaySec = if (patch.has("totalPlaySeconds")) {
+                max(0L, patch.optLong("totalPlaySeconds", 0L))
+            } else {
+                max(0L, existing.optLong("totalPlaySeconds", rom?.totalPlaySeconds ?: 0L))
+            }
+
+            val nextLaunchCount = if (patch.has("launchCount")) {
+                max(0, patch.optInt("launchCount", 0))
+            } else {
+                max(0, existing.optInt("launchCount", rom?.launchCount ?: 0))
+            }
+
+            val nextLastPlayedIso = if (patch.has("lastPlayedIso")) {
+                patch.optString("lastPlayedIso", "")
+            } else {
+                existing.optString("lastPlayedIso", rom?.lastPlayedIso ?: "")
+            }
+
+            val updated = JSONObject()
+                .put("completionStatus", nextStatus)
+                .put("starRating", nextRating)
+                .put("userNotes", nextNotes)
+                .put("customCollection", nextCollection)
+                .put("totalPlaySeconds", nextPlaySec)
+                .put("launchCount", nextLaunchCount)
+                .put("lastPlayedIso", nextLastPlayedIso)
+
+            root.put(key, updated)
+            writeMetadataRootLocked(context, root)
+
+            if (rom != null) {
+                rom.completionStatus = nextStatus
+                rom.starRating = nextRating
+                rom.userNotes = nextNotes
+                rom.customCollection = nextCollection
+                rom.totalPlaySeconds = nextPlaySec
+                rom.launchCount = nextLaunchCount
+                rom.lastPlayedIso = nextLastPlayedIso
+            }
+
+            return JSONObject(updated.toString())
+                .put("ok", true)
+                .put("gameId", rom?.id ?: gameId)
+        }
+    }
+
+    fun recordPlaySession(
+        context: Context,
+        rom: MobileRomItem?,
+        gameIdOrPath: String,
+        addedSeconds: Long,
+        countLaunch: Boolean
+    ) {
+        val targetId = rom?.id ?: if (gameIdOrPath.isNotBlank()) computeRomId(gameIdOrPath) else ""
+        if (targetId.isBlank()) return
+        synchronized(metadataLock) {
+            val root = loadMetadataRootLocked(context)
+            val key = findMetadataKeyLocked(root, rom, targetId) ?: targetId
+            val existing = root.optJSONObject(key) ?: JSONObject()
+
+            val prevSec = max(0L, existing.optLong("totalPlaySeconds", rom?.totalPlaySeconds ?: 0L))
+            val prevCount = max(0, existing.optInt("launchCount", rom?.launchCount ?: 0))
+            val nextSec = prevSec + max(0L, addedSeconds)
+            val nextCount = if (countLaunch) prevCount + 1 else prevCount
+            val iso = formatIsoUtcNow()
+
+            val patch = JSONObject()
+                .put("totalPlaySeconds", nextSec)
+                .put("launchCount", nextCount)
+                .put("lastPlayedIso", iso)
+            saveGameMetadataPatch(context, rom, key, patch)
+        }
     }
 }

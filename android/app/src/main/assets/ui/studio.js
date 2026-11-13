@@ -1,13 +1,13 @@
 /* ==========================================================================
-   STORM RETROARCH 2.5.0 - MOBILE STUDIO FRONTEND ENGINE (studio.js)
+   STORM RETROARCH 2.6.0 - MOBILE STUDIO FRONTEND ENGINE (studio.js)
    Hardware-Accelerated STORM AURORA FLUID Architecture
-   12 Interactive Studio Modules + Full StormBridge Wiring + Preview Fallback
+   12 Interactive Studio Modules + 120Hz Spring Choreography + Virtual Grid
    Zero Em-Dash, Zero Emojis, Single Vector Icon Mandate
    ========================================================================== */
 (function () {
   "use strict";
 
-  const APP_VERSION = "2.5.0";
+  const APP_VERSION = "2.6.0";
   const hasBridge = typeof window.StormBridge !== "undefined";
 
   /* ------------------------------------------------------------------------
@@ -43,7 +43,11 @@
     list: '<svg class="ico" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><circle cx="4" cy="6" r="1"></circle><circle cx="4" cy="12" r="1"></circle><circle cx="4" cy="18" r="1"></circle></svg>',
     disc: '<svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="2.5"></circle></svg>',
     hash: '<svg class="ico" viewBox="0 0 24 24"><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line><line x1="10" y1="3" x2="8" y2="21"></line><line x1="16" y1="3" x2="14" y2="21"></line></svg>',
-    wifi: '<svg class="ico" viewBox="0 0 24 24"><path d="M5 12.5a10 10 0 0 1 14 0"></path><path d="M8.5 16a5 5 0 0 1 7 0"></path><circle cx="12" cy="19.5" r="1"></circle><path d="M2 9a15 15 0 0 1 20 0"></path></svg>'
+    wifi: '<svg class="ico" viewBox="0 0 24 24"><path d="M5 12.5a10 10 0 0 1 14 0"></path><path d="M8.5 16a5 5 0 0 1 7 0"></path><circle cx="12" cy="19.5" r="1"></circle><path d="M2 9a15 15 0 0 1 20 0"></path></svg>',
+    shuffle: '<svg class="ico" viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>',
+    chart: '<svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>',
+    command: '<svg class="ico" viewBox="0 0 24 24"><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"></path></svg>',
+    bookmark: '<svg class="ico" viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>'
   };
 
   function ico(name) {
@@ -217,6 +221,17 @@
     { id: "settings", key: "nav_settings", icon: "sliders", group: "sys", descRu: "9 тем, 13 акцентов, 11+ языков и память", descEn: "9 themes, 13 accents, languages & storage" }
   ];
 
+  const NAV_ORDER = STUDIO_MODULES.map(function (m) { return m.id; });
+
+  const COMPLETION_STATUSES = [
+    { id: "Не начато", en: "Not Started", cls: "status-none", color: "#64748B" },
+    { id: "Играю сейчас", en: "Playing", cls: "status-playing", color: "#06B6D4" },
+    { id: "Пройдено", en: "Completed", cls: "status-done", color: "#10B981" },
+    { id: "Пройдено на 100%", en: "100% Mastered", cls: "status-100", color: "#EAB308" },
+    { id: "В планах", en: "Plan to Play", cls: "status-planned", color: "#8B5CF6" },
+    { id: "Отложено", en: "On Hold", cls: "status-hold", color: "#F43F5E" }
+  ];
+
   /* ------------------------------------------------------------------------
      3. PROCEDURAL CONSOLE COVER POSTER GENERATOR (CRISP DATA-URI SVG)
      ------------------------------------------------------------------------ */
@@ -361,6 +376,13 @@
         coreId: "snes9x",
         favorite: true,
         playtimeMin: 860,
+        totalPlaySeconds: 51600,
+        launchCount: 14,
+        lastPlayedIso: "2026-11-12T18:20:00Z",
+        completionStatus: "Пройдено на 100%",
+        starRating: 5,
+        userNotes: "Все 13 концовок открыты в версии MOD RUS.",
+        customCollection: "JRPG Шедевры",
         sizeMb: "4.0 MB",
         filePath: "/storage/emulated/0/STORM RETROARCH/roms/snes/Chrono Trigger [MOD - RUS].sfc",
         cover: makePosterSvg("CHRONO TRIGGER", "RPG ШЕДЕВР • MOD RUS", "SUPER NINTENDO", "RUS", "#311058", "#0F2647", "#8B5CF6")
@@ -375,6 +397,13 @@
         coreId: "swanstation",
         favorite: true,
         playtimeMin: 515,
+        totalPlaySeconds: 30900,
+        launchCount: 9,
+        lastPlayedIso: "2026-11-11T21:10:00Z",
+        completionStatus: "Играю сейчас",
+        starRating: 5,
+        userNotes: "Leon A / Claire B - 2x PGXP SwanStation.",
+        customCollection: "Survival Horror",
         sizeMb: "618 MB",
         filePath: "/storage/emulated/0/STORM RETROARCH/roms/psx/Resident Evil 2.chd",
         cover: makePosterSvg("RESIDENT EVIL 2", "DUALSHOCK VER • CHD", "PLAYSTATION", "USA", "#4C0519", "#17132B", "#F43F5E")
@@ -389,6 +418,13 @@
         coreId: "genesis_plus_gx",
         favorite: true,
         playtimeMin: 340,
+        totalPlaySeconds: 20400,
+        launchCount: 11,
+        lastPlayedIso: "2026-11-10T16:40:00Z",
+        completionStatus: "Пройдено",
+        starRating: 5,
+        userNotes: "Собраны все 7 Гипер-Изумрудов.",
+        customCollection: "Sega 16-bit",
         sizeMb: "4.0 MB",
         filePath: "/storage/emulated/0/STORM RETROARCH/roms/md/Sonic 3 & Knuckles.md",
         cover: makePosterSvg("SONIC 3 & KNUCKLES", "LOCK-ON TECHNOLOGY", "SEGA GENESIS", "EUR", "#0C2D6B", "#091834", "#06B6D4")
@@ -403,6 +439,13 @@
         coreId: "mgba",
         favorite: false,
         playtimeMin: 275,
+        totalPlaySeconds: 16500,
+        launchCount: 6,
+        lastPlayedIso: "2026-11-08T14:05:00Z",
+        completionStatus: "Играю сейчас",
+        starRating: 4,
+        userNotes: "",
+        customCollection: "Metroidvania",
         sizeMb: "8.0 MB",
         filePath: "/storage/emulated/0/STORM RETROARCH/roms/gba/Castlevania Aria [RUS].gba",
         cover: makePosterSvg("ARIA OF SORROW", "CASTLEVANIA • VWF RUS", "GAME BOY ADVANCE", "RUS", "#3B0764", "#1E1B4B", "#D946EF")
@@ -417,6 +460,13 @@
         coreId: "ppsspp",
         favorite: false,
         playtimeMin: 420,
+        totalPlaySeconds: 25200,
+        launchCount: 5,
+        lastPlayedIso: "2026-11-05T19:30:00Z",
+        completionStatus: "В планах",
+        starRating: 4,
+        userNotes: "",
+        customCollection: "",
         sizeMb: "1.18 GB",
         filePath: "/storage/emulated/0/STORM RETROARCH/roms/psp/God of War Chains.iso",
         cover: makePosterSvg("GOD OF WAR", "CHAINS OF OLYMPUS", "SONY PSP", "EUR", "#451A03", "#1C1917", "#F59E0B")
@@ -431,6 +481,13 @@
         coreId: "flycast",
         favorite: false,
         playtimeMin: 195,
+        totalPlaySeconds: 11700,
+        launchCount: 4,
+        lastPlayedIso: "2026-11-02T12:00:00Z",
+        completionStatus: "Не начато",
+        starRating: 0,
+        userNotes: "",
+        customCollection: "Arcade Fighting",
         sizeMb: "742 MB",
         filePath: "/storage/emulated/0/STORM RETROARCH/roms/dc/SoulCalibur.chd",
         cover: makePosterSvg("SOULCALIBUR", "WEAPON FIGHTING 60HZ", "DREAMCAST", "JPN", "#064E3B", "#0F172A", "#10B981")
@@ -494,6 +551,8 @@
      ------------------------------------------------------------------------ */
   const state = {
     activeTab: "dashboard",
+    prevTab: "dashboard",
+    pendingViewDirection: "",
     settings: {
       theme: "MIDNIGHT",
       accent: "VIOLET",
@@ -538,7 +597,7 @@
       currentVersion: APP_VERSION,
       latestVersion: APP_VERSION,
       updateAvailable: false,
-      statusMessage: "Установлена актуальная версия 2.5.0"
+      statusMessage: "Установлена актуальная версия 2.6.0"
     },
     games: buildPreviewGames(),
     cores: buildDefaultCores252(),
@@ -567,6 +626,8 @@
     // View UI Filters
     libQuery: "",
     libPlatform: "all",
+    libStatusFilter: "all",
+    libAlphaFilter: "all",
     libCoreFilter: "all",
     libViewMode: "posters",
     libSort: "recent",
@@ -596,6 +657,11 @@
     guidePlatform: "PS1",
     inspectorGameId: null,
     coreModalId: null,
+    rouletteSpinTimer: null,
+    rouletteGameId: null,
+    omniboxQuery: "",
+    omniboxSelectedIdx: 0,
+    omniboxResults: [],
     coreOptionsDraft: {
       resolution: "2x (720p HD)",
       cpuOverclock: "100% (Штатная)",
@@ -685,6 +751,8 @@
       state.games = rawGames.map(function (g, i) {
         const plat = g.platform || g.platformDisplay || "ROM";
         const pKey = (g.platformKey || plat).toLowerCase();
+        const totalSec = Number(g.totalPlaySeconds || 0);
+        const playMin = Number(g.playtimeMin || Math.floor(totalSec / 60));
         return {
           id: g.id || g.filePath || ("rom_" + i),
           title: g.title || g.name || "Game",
@@ -694,7 +762,14 @@
           region: g.region || g.regionCode || (g.isRussianMod ? "RUS" : "WORLD"),
           coreId: g.coreId || g.assignedCoreId || "snes9x",
           favorite: Boolean(g.favorite || g.isFavorite),
-          playtimeMin: Number(g.playtimeMin || 0),
+          playtimeMin: playMin,
+          totalPlaySeconds: totalSec || playMin * 60,
+          launchCount: Number(g.launchCount || 0),
+          lastPlayedIso: g.lastPlayedIso || "",
+          completionStatus: g.completionStatus || "Не начато",
+          starRating: Math.max(0, Math.min(5, Number(g.starRating || 0))),
+          userNotes: g.userNotes || "",
+          customCollection: g.customCollection || "",
           sizeMb: g.sizeMb || (g.sizeBytes ? (g.sizeBytes / 1048576).toFixed(1) + " MB" : ""),
           filePath: g.filePath || "",
           cover: g.cover || g.coverUrl || g.coverPath || makePosterSvg((g.title || g.name || "GAME").slice(0, 18).toUpperCase(), plat, plat.toUpperCase(), g.regionCode || "ROM", "#24123A", "#0D0B18", "#8B5CF6")
@@ -753,7 +828,10 @@
     } else if (eventType === "coreProgress") {
       const target = state.cores.find(function (c) { return c.id === p.coreId; });
       if (target) target.progress = Number(p.percent || p.progress || 50);
-      if (state.activeTab === "cores") renderViewport();
+      if (state.activeTab === "cores") {
+        if (document.getElementById("coresResultsMount")) updateCoresResults();
+        else renderViewport();
+      }
     } else if (eventType === "coreInstalled") {
       const target = state.cores.find(function (c) { return c.id === (p.coreId || p.id); });
       if (target) { target.installed = true; target.progress = 0; }
@@ -787,10 +865,101 @@
   };
 
   /* ------------------------------------------------------------------------
-     8. NAVIGATION CHROME RENDERERS (RAIL + QUICK STRIP + BOTTOM DOCK + HUB)
+     8. NAVIGATION CHROME RENDERERS (RAIL + QUICK STRIP + BOTTOM DOCK + GLIDERS)
      ------------------------------------------------------------------------ */
+  let navChromeLang = null;
+  let activeChunkObservers = [];
+  const debounceTimers = {};
+
+  function scheduleDebounced(key, fn, delayMs) {
+    if (debounceTimers[key]) clearTimeout(debounceTimers[key]);
+    debounceTimers[key] = setTimeout(function () {
+      debounceTimers[key] = null;
+      fn();
+    }, delayMs == null ? 25 : delayMs);
+  }
+
+  function disconnectChunkObservers() {
+    while (activeChunkObservers.length > 0) {
+      try {
+        activeChunkObservers.pop().disconnect();
+      } catch (_) {}
+    }
+  }
+
+  function mountChunkedGrid(containerEl, items, renderItemHtmlFn, emptyHtml) {
+    if (!containerEl) return;
+    if (!items || items.length === 0) {
+      containerEl.innerHTML = emptyHtml || "";
+      return;
+    }
+    const BATCH = 48;
+    let offset = Math.min(BATCH, items.length);
+    const firstHtml = items.slice(0, offset).map(renderItemHtmlFn).join("");
+    const hasMore = offset < items.length;
+    containerEl.innerHTML = firstHtml + (hasMore ? '<div id="chunkSentinel" class="chunk-sentinel"></div>' : "");
+
+    if (!hasMore || typeof IntersectionObserver !== "function") {
+      if (hasMore) {
+        containerEl.innerHTML = items.map(renderItemHtmlFn).join("");
+      }
+      return;
+    }
+
+    const sentinel = containerEl.querySelector("#chunkSentinel");
+    if (!sentinel) return;
+
+    const obs = new IntersectionObserver(function (entries) {
+      for (let i = 0; i < entries.length; i++) {
+        if (!entries[i].isIntersecting) continue;
+        const nextEnd = Math.min(offset + BATCH, items.length);
+        const batchHtml = items.slice(offset, nextEnd).map(renderItemHtmlFn).join("");
+        offset = nextEnd;
+        sentinel.insertAdjacentHTML("beforebegin", batchHtml);
+        if (offset >= items.length) {
+          obs.disconnect();
+          if (sentinel.parentNode) sentinel.parentNode.removeChild(sentinel);
+        }
+        break;
+      }
+    }, { rootMargin: "360px 0px" });
+
+    obs.observe(sentinel);
+    activeChunkObservers.push(obs);
+  }
+
   function countInstalledCores() {
     return state.cores.filter(function (c) { return c.installed || c.bundled; }).length;
+  }
+
+  function positionNavGliders() {
+    requestAnimationFrame(function () {
+      const dock = document.getElementById("bottomGlassDock");
+      const dockGlider = document.getElementById("dockGlider");
+      if (dock && dockGlider) {
+        const activeDock = dock.querySelector(".dock-tab-btn.active");
+        if (activeDock && activeDock.offsetWidth > 0) {
+          dockGlider.style.width = activeDock.offsetWidth + "px";
+          dockGlider.style.transform = "translate3d(" + (activeDock.offsetLeft - 6) + "px, 0, 0)";
+          dockGlider.style.opacity = "1";
+        } else {
+          dockGlider.style.opacity = "0";
+        }
+      }
+
+      const railList = document.getElementById("railNavList");
+      const railGlider = document.getElementById("railGlider");
+      if (railList && railGlider) {
+        const activeRail = railList.querySelector(".nav-pill-3d.active");
+        if (activeRail && activeRail.offsetHeight > 0) {
+          railGlider.style.height = activeRail.offsetHeight + "px";
+          railGlider.style.transform = "translate3d(0, " + activeRail.offsetTop + "px, 0)";
+          railGlider.style.opacity = "1";
+        } else {
+          railGlider.style.opacity = "0";
+        }
+      }
+    });
   }
 
   function renderNavigationChrome() {
@@ -804,35 +973,56 @@
       railReady.textContent = readyCount + " " + (isRu() ? "готово" : "Ready");
     }
 
-    // 1. Landscape Console Rail (All 12 Modules)
+    const curLang = state.settings.language || "ru";
+    const needRebuild = navChromeLang !== curLang;
+    navChromeLang = curLang;
+
+    // 1. Landscape Console Rail (All 12 Modules) with sliding GPU glider
     const railList = document.getElementById("railNavList");
     if (railList) {
-      railList.innerHTML = STUDIO_MODULES.map(function (m) {
-        const active = state.activeTab === m.id ? " active" : "";
-        return (
-          '<button type="button" class="nav-pill-3d rail-mode' + active + '" data-nav="' + m.id + '">' +
-          ico(m.icon) +
-          '<span>' + esc(tr(m.key)) + '</span>' +
-          '</button>'
-        );
-      }).join("");
+      if (needRebuild || !railList.querySelector("#railGlider")) {
+        railList.classList.add("has-glider");
+        railList.innerHTML =
+          '<div class="rail-glider" id="railGlider" aria-hidden="true"></div>' +
+          STUDIO_MODULES.map(function (m) {
+            const active = state.activeTab === m.id ? " active" : "";
+            return (
+              '<button type="button" class="nav-pill-3d rail-mode' + active + '" data-nav="' + m.id + '">' +
+              ico(m.icon) +
+              '<span>' + esc(tr(m.key)) + '</span>' +
+              '</button>'
+            );
+          }).join("");
+      } else {
+        Array.prototype.forEach.call(railList.querySelectorAll("[data-nav]"), function (btn) {
+          btn.classList.toggle("active", btn.getAttribute("data-nav") === state.activeTab);
+        });
+      }
     }
 
     // 2. Portrait Quick-Module Horizontal Strip (All 12 Modules 1 Tap Away!)
     const strip = document.getElementById("quickModuleStrip");
     if (strip) {
-      strip.innerHTML = STUDIO_MODULES.map(function (m) {
-        const active = state.activeTab === m.id ? " active" : "";
-        return (
-          '<button type="button" role="tab" aria-selected="' + (state.activeTab === m.id) + '" class="nav-pill-3d' + active + '" data-nav="' + m.id + '">' +
-          ico(m.icon) +
-          '<span>' + esc(tr(m.key)) + '</span>' +
-          '</button>'
-        );
-      }).join("");
+      if (needRebuild || !strip.children.length) {
+        strip.innerHTML = STUDIO_MODULES.map(function (m) {
+          const active = state.activeTab === m.id ? " active" : "";
+          return (
+            '<button type="button" role="tab" aria-selected="' + (state.activeTab === m.id) + '" class="nav-pill-3d' + active + '" data-nav="' + m.id + '">' +
+            ico(m.icon) +
+            '<span>' + esc(tr(m.key)) + '</span>' +
+            '</button>'
+          );
+        }).join("");
+      } else {
+        Array.prototype.forEach.call(strip.querySelectorAll("[data-nav]"), function (btn) {
+          const isAct = btn.getAttribute("data-nav") === state.activeTab;
+          btn.classList.toggle("active", isAct);
+          btn.setAttribute("aria-selected", String(isAct));
+        });
+      }
     }
 
-    // 3. Portrait Floating Sculpted Glass 5-Tab Bottom Dock
+    // 3. Portrait Floating Sculpted Glass 5-Tab Bottom Dock with sliding GPU glider
     const dock = document.getElementById("bottomGlassDock");
     if (dock) {
       const dockItems = [
@@ -843,17 +1033,73 @@
         { id: "studio_hub", label: tr("nav_studio"), icon: "grid", action: "hub" }
       ];
       const inExtraStudio = ["dashboard", "library", "cores", "cheats"].indexOf(state.activeTab) === -1;
-      dock.innerHTML = dockItems.map(function (d) {
-        const isAct = d.action === "hub" ? inExtraStudio : state.activeTab === d.id;
-        return (
-          '<button type="button" class="dock-tab-btn' + (isAct ? " active" : "") + '" ' +
-          (d.action === "hub" ? 'data-action="open-studio-hub"' : 'data-nav="' + d.id + '"') + '>' +
-          ico(d.icon) +
-          '<span>' + esc(d.label) + '</span>' +
-          '</button>'
-        );
-      }).join("");
+      if (needRebuild || !dock.querySelector("#dockGlider")) {
+        dock.classList.add("has-glider");
+        dock.innerHTML =
+          '<div class="dock-glider" id="dockGlider" aria-hidden="true"></div>' +
+          dockItems.map(function (d) {
+            const isAct = d.action === "hub" ? inExtraStudio : state.activeTab === d.id;
+            return (
+              '<button type="button" class="dock-tab-btn' + (isAct ? " active" : "") + '" ' +
+              (d.action === "hub" ? 'data-action="open-studio-hub"' : 'data-nav="' + d.id + '"') + '>' +
+              ico(d.icon) +
+              '<span>' + esc(d.label) + '</span>' +
+              '</button>'
+            );
+          }).join("");
+      } else {
+        Array.prototype.forEach.call(dock.querySelectorAll(".dock-tab-btn"), function (btn) {
+          const navId = btn.getAttribute("data-nav");
+          const isAct = navId ? (state.activeTab === navId) : inExtraStudio;
+          btn.classList.toggle("active", isAct);
+        });
+      }
     }
+
+    positionNavGliders();
+  }
+
+  window.addEventListener("resize", positionNavGliders);
+
+  function formatPlaytime(totalSec) {
+    const mins = Math.max(0, Math.floor((Number(totalSec) || 0) / 60));
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (isRu()) return h > 0 ? (h + " ч " + m + " м") : (m + " м");
+    return h > 0 ? (h + "h " + m + "m") : (m + "m");
+  }
+
+  function statusMetaFor(statusStr) {
+    for (let i = 0; i < COMPLETION_STATUSES.length; i++) {
+      if (COMPLETION_STATUSES[i].id === statusStr) return COMPLETION_STATUSES[i];
+    }
+    return COMPLETION_STATUSES[0];
+  }
+
+  function statusLabel(statusObj) {
+    return isRu() ? statusObj.id : statusObj.en;
+  }
+
+  function persistGameMetadata(gameId, patch) {
+    const gm = state.games.find(function (x) { return x.id === gameId; });
+    if (gm) {
+      if (typeof patch.completionStatus === "string") gm.completionStatus = patch.completionStatus;
+      if (typeof patch.starRating === "number") gm.starRating = Math.max(0, Math.min(5, patch.starRating));
+      if (typeof patch.userNotes === "string") gm.userNotes = patch.userNotes;
+      if (typeof patch.customCollection === "string") gm.customCollection = patch.customCollection;
+    }
+    try {
+      if (hasBridge && typeof window.StormBridge.saveGameMetadataJson === "function") {
+        const resRaw = window.StormBridge.saveGameMetadataJson(gameId, JSON.stringify(patch));
+        const res = safeJsonParse(resRaw, null);
+        if (res && res.ok && gm) {
+          gm.completionStatus = res.completionStatus || gm.completionStatus;
+          if (typeof res.starRating === "number") gm.starRating = res.starRating;
+          if (typeof res.userNotes === "string") gm.userNotes = res.userNotes;
+          if (typeof res.customCollection === "string") gm.customCollection = res.customCollection;
+        }
+      }
+    } catch (_) {}
   }
 
   /* ------------------------------------------------------------------------
@@ -874,8 +1120,42 @@
     const readyCores = countInstalledCores();
     const verifiedBios = state.bios.filter(function (b) { return b.status !== "missing"; }).length;
 
+    // Player Statistics & Backlog Funnel Calculations
+    const totalPlaySec = state.games.reduce(function (acc, g) {
+      return acc + (Number(g.totalPlaySeconds) || (Number(g.playtimeMin) || 0) * 60);
+    }, 0);
+    const ratedGames = state.games.filter(function (g) { return Number(g.starRating) > 0; });
+    const avgRating = ratedGames.length > 0
+      ? (ratedGames.reduce(function (acc, g) { return acc + Number(g.starRating); }, 0) / ratedGames.length).toFixed(1)
+      : "0.0";
+
+    const statusCounts = {};
+    COMPLETION_STATUSES.forEach(function (st) { statusCounts[st.id] = 0; });
+    const platTotals = {};
+    state.games.forEach(function (g) {
+      const st = statusCounts.hasOwnProperty(g.completionStatus) ? g.completionStatus : "Не начато";
+      statusCounts[st]++;
+      platTotals[g.platform] = (platTotals[g.platform] || 0) + 1;
+    });
+    const topPlatforms = Object.keys(platTotals).sort(function (a, b) {
+      return platTotals[b] - platTotals[a];
+    }).slice(0, 3);
+    const totalGamesCount = Math.max(1, state.games.length);
+
+    const funnelSegmentsHtml = COMPLETION_STATUSES.map(function (st) {
+      const cnt = statusCounts[st.id] || 0;
+      if (cnt <= 0) return "";
+      const pct = ((cnt / totalGamesCount) * 100).toFixed(2);
+      return '<div class="funnel-segment" style="width:' + pct + '%;background:' + st.color + ';" title="' + esc(statusLabel(st) + ": " + cnt) + '"></div>';
+    }).join("");
+
+    const funnelLegendHtml = COMPLETION_STATUSES.map(function (st) {
+      const cnt = statusCounts[st.id] || 0;
+      return '<span class="funnel-legend-item"><span class="funnel-dot" style="background:' + st.color + ';"></span><span>' + esc(statusLabel(st)) + ': <strong class="tabular" style="color:#F8FAFC;">' + cnt + '</strong></span></span>';
+    }).join("");
+
     const heroBlock = hero ? (
-      '<div class="hero-spotlight-card">' +
+      '<div class="hero-spotlight-card stagger-card" style="--stagger-i:0;">' +
         '<div class="hero-main-flex">' +
           '<div class="hero-poster-frame">' +
             '<img src="' + esc(hero.cover) + '" alt="' + esc(hero.title) + '">' +
@@ -886,7 +1166,7 @@
             '<div class="hero-badges-row">' +
               '<span class="badge-pill badge-accent">' + esc(hero.platform) + '</span>' +
               '<span class="badge-pill badge-emerald">' + esc(hero.region) + '</span>' +
-              '<span class="badge-pill tabular">' + esc(hero.coreId) + ' • ' + Math.round(hero.playtimeMin / 60) + ' ч</span>' +
+              '<span class="badge-pill tabular">' + esc(hero.coreId) + ' • ' + formatPlaytime(hero.totalPlaySeconds || hero.playtimeMin * 60) + '</span>' +
             '</div>' +
           '</div>' +
         '</div>' +
@@ -894,8 +1174,8 @@
           '<button type="button" class="btn-3d btn-3d-primary" data-action="launch-game" data-game="' + esc(hero.id) + '" data-slot="-1">' +
             ico("play") + '<span>' + esc(tr("play")) + '</span>' +
           '</button>' +
-          '<button type="button" class="btn-3d btn-3d-emerald" data-action="launch-game" data-game="' + esc(hero.id) + '" data-slot="1">' +
-            ico("save") + '<span>' + esc(tr("quick_state")) + '</span>' +
+          '<button type="button" class="btn-3d btn-3d-emerald" data-action="open-roulette">' +
+            ico("shuffle") + '<span>' + (isRu() ? "Случайная игра" : "Random Game") + '</span>' +
           '</button>' +
           '<button type="button" class="btn-3d btn-3d-secondary" data-action="inspect-game" data-game="' + esc(hero.id) + '">' +
             ico("sliders") + '<span>' + esc(tr("game_options")) + '</span>' +
@@ -903,8 +1183,8 @@
         '</div>' +
       '</div>'
     ) : (
-      '<div class="hero-spotlight-card">' +
-        '<span class="hero-eyebrow">STORM RETROARCH 2.5.0</span>' +
+      '<div class="hero-spotlight-card stagger-card" style="--stagger-i:0;">' +
+        '<span class="hero-eyebrow">STORM RETROARCH 2.6.0</span>' +
         '<h2 class="hero-game-title">' + (isRu() ? "Добро пожаловать в консоль-студию" : "Welcome to STORM Console Studio") + '</h2>' +
         '<p class="section-subtitle">' + (isRu() ? "20 флагманских ядер уже вшиты в APK и готовы к мгновенному офлайн-запуску. Укажите папку с играми или откройте файл ROM:" : "20 flagship cores are pre-bundled inside APK for instant offline play. Pick your ROM folder or open a file:") + '</p>' +
         '<div class="hero-actions-row">' +
@@ -915,7 +1195,7 @@
       '</div>'
     );
 
-    const recentCards = state.games.map(function (g) {
+    const recentCards = state.games.slice(0, 18).map(function (g) {
       return (
         '<div class="recent-poster-card" data-action="inspect-game" data-game="' + esc(g.id) + '" tabindex="0">' +
           '<div class="recent-poster-art"><img src="' + esc(g.cover) + '" alt="' + esc(g.title) + '"></div>' +
@@ -929,25 +1209,25 @@
       '<div class="dashboard-top-bento">' +
         heroBlock +
         '<div class="telemetry-grid">' +
-          '<button type="button" class="telemetry-card" data-nav="library">' +
+          '<button type="button" class="telemetry-card stagger-card" style="--stagger-i:1;" data-nav="library">' +
             '<div class="telemetry-top">' + ico("gamepad") + '<span class="badge-pill badge-accent">ROM</span></div>' +
             '<div class="telemetry-val">' + state.games.length + '</div>' +
             '<div class="telemetry-label">' + esc(tr("stat_games")) + '</div>' +
             '<div class="telemetry-sub">' + (isRu() ? "Постеры, фильтры и слоты" : "Boxart, filters & slots") + '</div>' +
           '</button>' +
-          '<button type="button" class="telemetry-card" data-nav="cores">' +
+          '<button type="button" class="telemetry-card stagger-card" style="--stagger-i:2;" data-nav="cores">' +
             '<div class="telemetry-top">' + ico("cpu") + '<span class="badge-pill badge-emerald">APK + CDN</span></div>' +
-            '<div class="telemetry-val">' + readyCores + ' / 252</div>' +
+            '<div class="telemetry-val">' + readyCores + ' / ' + state.cores.length + '</div>' +
             '<div class="telemetry-label">' + esc(tr("stat_cores")) + '</div>' +
-            '<div class="telemetry-sub">' + (isRu() ? "20 вшито • 252 доступно" : "20 bundled • 252 online") + '</div>' +
+            '<div class="telemetry-sub">' + (isRu() ? "20 вшито • " + state.cores.length + " доступно" : "20 bundled • " + state.cores.length + " online") + '</div>' +
           '</button>' +
-          '<button type="button" class="telemetry-card" data-nav="cheats">' +
+          '<button type="button" class="telemetry-card stagger-card" style="--stagger-i:3;" data-nav="cheats">' +
             '<div class="telemetry-top">' + ico("shield") + '<span class="badge-pill badge-amber">76 SYS</span></div>' +
             '<div class="telemetry-val">26 797</div>' +
             '<div class="telemetry-label">' + esc(tr("stat_cheats")) + '</div>' +
             '<div class="telemetry-sub">' + (isRu() ? "База кодов + ОЗУ сканер" : "Libretro DB + RAM scanner") + '</div>' +
           '</button>' +
-          '<button type="button" class="telemetry-card" data-nav="bios">' +
+          '<button type="button" class="telemetry-card stagger-card" style="--stagger-i:4;" data-nav="bios">' +
             '<div class="telemetry-top">' + ico("chip") + '<span class="badge-pill badge-emerald">120 Hz</span></div>' +
             '<div class="telemetry-val">' + verifiedBios + ' / ' + state.bios.length + '</div>' +
             '<div class="telemetry-label">' + esc(tr("stat_bios")) + '</div>' +
@@ -956,7 +1236,30 @@
         '</div>' +
       '</div>' +
 
-      '<div class="glass-card" style="margin-bottom:12px;">' +
+      '<div class="glass-card stats-funnel-card stagger-card" style="--stagger-i:5;">' +
+        '<div class="section-head">' +
+          '<div class="section-title-cluster">' +
+            '<div class="section-icon-badge">' + ico("chart") + '</div>' +
+            '<div>' +
+              '<h3 class="section-title">' + (isRu() ? "Статистика игрока и воронка бэклога" : "Player Statistics & Backlog Funnel") + '</h3>' +
+              '<p class="section-subtitle">' + (isRu() ? "Топ платформ: " : "Top platforms: ") + esc(topPlatforms.join(", ") || "-") + '</p>' +
+            '</div>' +
+          '</div>' +
+          '<button type="button" class="btn-3d btn-3d-emerald btn-3d-sm" data-action="open-roulette">' +
+            ico("shuffle") + '<span>' + (isRu() ? "Рулетка игр" : "Game Roulette") + '</span>' +
+          '</button>' +
+        '</div>' +
+        '<div class="stats-mini-grid">' +
+          '<div class="stats-mini-box"><div class="stats-mini-val">' + esc(formatPlaytime(totalPlaySec)) + '</div><div class="stats-mini-lbl">' + (isRu() ? "Общее время в играх" : "Total Playtime") + '</div></div>' +
+          '<div class="stats-mini-box"><div class="stats-mini-val">' + (statusCounts["Пройдено"] + statusCounts["Пройдено на 100%"]) + ' / ' + state.games.length + '</div><div class="stats-mini-lbl">' + (isRu() ? "Пройдено игр" : "Completed Games") + '</div></div>' +
+          '<div class="stats-mini-box"><div class="stats-mini-val">' + statusCounts["Играю сейчас"] + '</div><div class="stats-mini-lbl">' + (isRu() ? "Играю сейчас" : "Playing Now") + '</div></div>' +
+          '<div class="stats-mini-box"><div class="stats-mini-val">' + avgRating + ' / 5.0</div><div class="stats-mini-lbl">' + (isRu() ? "Средний рейтинг (" + ratedGames.length + ")" : "Avg Rating (" + ratedGames.length + ")") + '</div></div>' +
+        '</div>' +
+        '<div class="funnel-bar-track">' + funnelSegmentsHtml + '</div>' +
+        '<div class="funnel-legend-grid">' + funnelLegendHtml + '</div>' +
+      '</div>' +
+
+      '<div class="glass-card stagger-card" style="margin-bottom:12px;--stagger-i:6;">' +
         '<div class="section-head">' +
           '<div class="section-title-cluster">' +
             '<div class="section-icon-badge">' + ico("folder") + '</div>' +
@@ -977,7 +1280,7 @@
         ) : "") +
       '</div>' +
 
-      '<div class="glass-card">' +
+      '<div class="glass-card stagger-card" style="--stagger-i:7;">' +
         '<div class="section-head">' +
           '<div class="section-title-cluster">' +
             '<div class="section-icon-badge">' + ico("bolt") + '</div>' +
@@ -988,24 +1291,115 @@
           '</div>' +
         '</div>' +
         '<div class="quick-bento-grid">' +
-          '<button type="button" class="bento-tool-tile" data-nav="cores"><div class="bento-tile-head">' + ico("download") + '<span>' + (isRu() ? "Пакетная установка ядер" : "Batch Core Packs") + '</span></div><div class="bento-tile-desc">' + (isRu() ? "Базовый 15, 3D Консоли и Аркады в 1 касание" : "Install Essential 15, 3D Consoles & Arcade packs") + '</div></button>' +
-          '<button type="button" class="bento-tool-tile" data-nav="bios"><div class="bento-tile-head">' + ico("chip") + '<span>' + (isRu() ? "Автосканер BIOS и MD5" : "Auto BIOS MD5 Scanner") + '</span></div><div class="bento-tile-desc">' + (isRu() ? "Проверка прошивок PS1, PS2, DC, Saturn, NDS" : "Verify PS1, PS2, DC, Saturn & NDS firmware") + '</div></button>' +
-          '<button type="button" class="bento-tool-tile" data-nav="saves"><div class="bento-tile-head">' + ico("save") + '<span>' + (isRu() ? "Синхронизация сейвов с ПК" : "PC Save ZIP Sync") + '</span></div><div class="bento-tile-desc">' + (isRu() ? "Экспорт и импорт всех .srm и стейтов в .ZIP" : "1-tap .ZIP backup & restore of .srm and states") + '</div></button>' +
-          '<button type="button" class="bento-tool-tile" data-nav="cheats"><div class="bento-tile-head">' + ico("shield") + '<span>' + (isRu() ? "Конструктор читов и ОЗУ" : "Cheat Builder & RAM Scan") + '</span></div><div class="bento-tile-desc">' + (isRu() ? "GameGenie/ActionReplay + живой поиск 8/16/32 бит" : "Custom codes + live 8/16/32-bit RAM finder") + '</div></button>' +
-          '<button type="button" class="bento-tool-tile" data-nav="controls"><div class="bento-tile-head">' + ico("dpad") + '<span>' + (isRu() ? "3D Сенсорный геймпад" : "3D Touch Gamepad Studio") + '</span></div><div class="bento-tile-desc">' + (isRu() ? "6 раскладок, гироскоп, турбо-огонь и макросы" : "6 layouts, gyro stick, turbo fire & macros") + '</div></button>' +
-          '<button type="button" class="bento-tool-tile" data-nav="graphics"><div class="bento-tile-head">' + ico("display") + '<span>' + (isRu() ? "Рамки и ЭЛТ шейдеры" : "Bezels & CRT Shaders") + '</span></div><div class="bento-tile-desc">' + (isRu() ? "CRT Royale, Trinitron, 1x-8x HD и Mega Bezel" : "CRT Royale, Trinitron, 1x-8x upscale & Bezels") + '</div></button>' +
+          '<button type="button" class="bento-tool-tile stagger-card" style="--stagger-i:0;" data-nav="cores"><div class="bento-tile-head">' + ico("download") + '<span>' + (isRu() ? "Пакетная установка ядер" : "Batch Core Packs") + '</span></div><div class="bento-tile-desc">' + (isRu() ? "Базовый 15, 3D Консоли и Аркады в 1 касание" : "Install Essential 15, 3D Consoles & Arcade packs") + '</div></button>' +
+          '<button type="button" class="bento-tool-tile stagger-card" style="--stagger-i:1;" data-nav="bios"><div class="bento-tile-head">' + ico("chip") + '<span>' + (isRu() ? "Автосканер BIOS и MD5" : "Auto BIOS MD5 Scanner") + '</span></div><div class="bento-tile-desc">' + (isRu() ? "Проверка прошивок PS1, PS2, DC, Saturn, NDS" : "Verify PS1, PS2, DC, Saturn & NDS firmware") + '</div></button>' +
+          '<button type="button" class="bento-tool-tile stagger-card" style="--stagger-i:2;" data-nav="saves"><div class="bento-tile-head">' + ico("save") + '<span>' + (isRu() ? "Синхронизация сейвов с ПК" : "PC Save ZIP Sync") + '</span></div><div class="bento-tile-desc">' + (isRu() ? "Экспорт и импорт всех .srm и стейтов в .ZIP" : "1-tap .ZIP backup & restore of .srm and states") + '</div></button>' +
+          '<button type="button" class="bento-tool-tile stagger-card" style="--stagger-i:3;" data-nav="cheats"><div class="bento-tile-head">' + ico("shield") + '<span>' + (isRu() ? "Конструктор читов и ОЗУ" : "Cheat Builder & RAM Scan") + '</span></div><div class="bento-tile-desc">' + (isRu() ? "GameGenie/ActionReplay + живой поиск 8/16/32 бит" : "Custom codes + live 8/16/32-bit RAM finder") + '</div></button>' +
+          '<button type="button" class="bento-tool-tile stagger-card" style="--stagger-i:4;" data-nav="controls"><div class="bento-tile-head">' + ico("dpad") + '<span>' + (isRu() ? "3D Сенсорный геймпад" : "3D Touch Gamepad Studio") + '</span></div><div class="bento-tile-desc">' + (isRu() ? "6 раскладок, гироскоп, турбо-огонь и макросы" : "6 layouts, gyro stick, turbo fire & macros") + '</div></button>' +
+          '<button type="button" class="bento-tool-tile stagger-card" style="--stagger-i:5;" data-nav="graphics"><div class="bento-tile-head">' + ico("display") + '<span>' + (isRu() ? "Рамки и ЭЛТ шейдеры" : "Bezels & CRT Shaders") + '</span></div><div class="bento-tile-desc">' + (isRu() ? "CRT Royale, Trinitron, 1x-8x HD и Mega Bezel" : "CRT Royale, Trinitron, 1x-8x upscale & Bezels") + '</div></button>' +
         '</div>' +
       '</div>'
     );
+  }
+
+  function getFilteredSortedGames() {
+    const selectedPlatGames = state.games.filter(function (g) {
+      if (state.libPlatform === "fav") return g.favorite;
+      if (state.libPlatform !== "all") return g.platform === state.libPlatform;
+      return true;
+    });
+
+    const q = state.libQuery.trim().toLowerCase();
+    const alpha = state.libAlphaFilter || "all";
+    return selectedPlatGames.filter(function (g) {
+      if (state.libCoreFilter !== "all" && g.coreId !== state.libCoreFilter) return false;
+      if (state.libStatusFilter !== "all" && g.completionStatus !== state.libStatusFilter) return false;
+      if (alpha !== "all") {
+        const ch = (g.title || "").trim().charAt(0).toUpperCase();
+        if (alpha === "#") {
+          if (/[A-ZА-ЯЁ]/.test(ch)) return false;
+        } else if (ch !== alpha) {
+          return false;
+        }
+      }
+      if (!q) return true;
+      return (g.title + " " + g.subtitle + " " + g.platform + " " + g.region + " " + (g.customCollection || "")).toLowerCase().indexOf(q) >= 0;
+    }).slice().sort(function (a, b) {
+      if (state.libSort === "az") return a.title.localeCompare(b.title);
+      if (state.libSort === "platform") return a.platform.localeCompare(b.platform);
+      if (state.libSort === "playtime") return (b.totalPlaySeconds || b.playtimeMin * 60) - (a.totalPlaySeconds || a.playtimeMin * 60);
+      if (state.libSort === "rating") return (b.starRating || 0) - (a.starRating || 0);
+      return 0;
+    });
+  }
+
+  function renderGameCardHtml(g) {
+    const coreObj = state.cores.find(function (c) { return c.id === g.coreId; });
+    const coreReady = coreObj ? (coreObj.installed || coreObj.bundled) : true;
+    const cardModeCls = state.libViewMode === "tiles" ? "tile-card" : "poster-card";
+    const stMeta = statusMetaFor(g.completionStatus);
+    const showStatus = g.completionStatus && g.completionStatus !== "Не начато";
+    const statusShort = g.completionStatus === "Пройдено на 100%" ? "100%" : statusLabel(stMeta);
+    const ratingVal = Number(g.starRating || 0);
+
+    return (
+      '<article class="game-card ' + cardModeCls + '">' +
+        '<div class="game-art-box" data-action="inspect-game" data-game="' + esc(g.id) + '">' +
+          '<img src="' + esc(g.cover) + '" alt="' + esc(g.title) + '" loading="lazy">' +
+          '<div class="game-art-top-badges">' +
+            '<span class="badge-pill ' + (g.region === "RUS" ? "badge-emerald" : "badge-accent") + '">' + esc(g.region) + '</span>' +
+            '<div class="fav-corner-wrap">' +
+              '<button type="button" class="icon-btn-3d' + (g.favorite ? " active-fav" : "") + '" data-action="toggle-fav" data-game="' + esc(g.id) + '" aria-label="Favorite">' +
+                ico("star") +
+              '</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="game-card-body">' +
+          '<h4 class="game-card-title" data-action="inspect-game" data-game="' + esc(g.id) + '">' + esc(g.title) + '</h4>' +
+          '<div class="game-card-meta">' +
+            '<span class="ready-dot" style="background:' + (coreReady ? "#34D399" : "#F59E0B") + '"></span>' +
+            '<span>' + esc(g.platform) + ' • ' + esc(g.coreId) + '</span>' +
+          '</div>' +
+          ((showStatus || ratingVal > 0) ? (
+            '<div class="game-status-row">' +
+              (showStatus ? '<span class="game-status-badge ' + stMeta.cls + '">' + esc(statusShort) + '</span>' : "") +
+              (ratingVal > 0 ? '<span class="game-status-badge">' + ico("star") + '<span>' + ratingVal + '</span></span>' : "") +
+            '</div>'
+          ) : "") +
+          '<div class="toolbar-row" style="margin-top:auto;">' +
+            '<button type="button" class="btn-3d btn-3d-primary btn-3d-sm" style="flex:1;" data-action="launch-game" data-game="' + esc(g.id) + '" data-slot="-1">' +
+              ico("play") + '<span>' + esc(tr("play")) + '</span>' +
+            '</button>' +
+            '<button type="button" class="icon-btn-3d" data-action="inspect-game" data-game="' + esc(g.id) + '" aria-label="Inspector">' +
+              ico("sliders") +
+            '</button>' +
+          '</div>' +
+        '</div>' +
+      '</article>'
+    );
+  }
+
+  function updateLibraryResults() {
+    const mount = document.getElementById("libraryResultsMount");
+    if (!mount) return;
+    mount.className = "library-grid view-" + esc(state.libViewMode);
+    const filtered = getFilteredSortedGames();
+    const emptyHtml = '<p class="section-subtitle">' + (isRu() ? "Игры по текущему фильтру не найдены." : "No games match the active filter.") + '</p>';
+    mountChunkedGrid(mount, filtered, renderGameCardHtml, emptyHtml);
   }
 
   function renderLibrary() {
     // Dynamic Platform Counts (ONLY platforms present in library!)
     const platMap = {};
     let favCount = 0;
+    const statusCounts = { all: state.games.length };
+    COMPLETION_STATUSES.forEach(function (st) { statusCounts[st.id] = 0; });
     state.games.forEach(function (g) {
       if (g.favorite) favCount++;
       platMap[g.platform] = (platMap[g.platform] || 0) + 1;
+      const stKey = statusCounts.hasOwnProperty(g.completionStatus) ? g.completionStatus : "Не начато";
+      statusCounts[stKey]++;
     });
 
     const selectedPlatGames = state.games.filter(function (g) {
@@ -1014,23 +1408,10 @@
       return true;
     });
 
-    // Strict Platform-Filtered Core Selector
     const sampleKey = selectedPlatGames[0] ? selectedPlatGames[0].platformKey : "all";
     const allowedCores = (state.libPlatform !== "all" && state.libPlatform !== "fav")
       ? coresForPlatform(sampleKey, state.libPlatform)
       : state.cores.filter(function (c) { return c.installed || c.bundled; });
-
-    const q = state.libQuery.trim().toLowerCase();
-    const filtered = selectedPlatGames.filter(function (g) {
-      if (state.libCoreFilter !== "all" && g.coreId !== state.libCoreFilter) return false;
-      if (!q) return true;
-      return (g.title + " " + g.subtitle + " " + g.platform + " " + g.region).toLowerCase().indexOf(q) >= 0;
-    }).slice().sort(function (a, b) {
-      if (state.libSort === "az") return a.title.localeCompare(b.title);
-      if (state.libSort === "platform") return a.platform.localeCompare(b.platform);
-      if (state.libSort === "playtime") return b.playtimeMin - a.playtimeMin;
-      return 0;
-    });
 
     const chipsHtml =
       '<button type="button" class="chip-3d' + (state.libPlatform === "all" ? " active" : "") + '" data-lib-plat="all"><span>' + esc(tr("all")) + '</span><span class="chip-count">' + state.games.length + '</span></button>' +
@@ -1040,39 +1421,19 @@
         return '<button type="button" class="chip-3d' + act + '" data-lib-plat="' + esc(plat) + '"><span>' + esc(plat) + '</span><span class="chip-count">' + platMap[plat] + '</span></button>';
       }).join("");
 
-    const cardsHtml = filtered.map(function (g) {
-      const coreObj = state.cores.find(function (c) { return c.id === g.coreId; });
-      const coreReady = coreObj ? (coreObj.installed || coreObj.bundled) : true;
-      return (
-        '<article class="game-card">' +
-          '<div class="game-art-box" data-action="inspect-game" data-game="' + esc(g.id) + '">' +
-            '<img src="' + esc(g.cover) + '" alt="' + esc(g.title) + '">' +
-            '<div class="game-art-top-badges">' +
-              '<span class="badge-pill ' + (g.region === "RUS" ? "badge-emerald" : "badge-accent") + '">' + esc(g.region) + '</span>' +
-              '<div class="fav-corner-wrap">' +
-                '<button type="button" class="icon-btn-3d' + (g.favorite ? " active-fav" : "") + '" data-action="toggle-fav" data-game="' + esc(g.id) + '" aria-label="Favorite">' +
-                  ico("star") +
-                '</button>' +
-              '</div>' +
-            '</div>' +
-          '</div>' +
-          '<div class="game-card-body">' +
-            '<h4 class="game-card-title" data-action="inspect-game" data-game="' + esc(g.id) + '">' + esc(g.title) + '</h4>' +
-            '<div class="game-card-meta">' +
-              '<span class="ready-dot" style="background:' + (coreReady ? "#34D399" : "#F59E0B") + '"></span>' +
-              '<span>' + esc(g.platform) + ' • ' + esc(g.coreId) + '</span>' +
-            '</div>' +
-            '<div class="toolbar-row" style="margin-top:auto;">' +
-              '<button type="button" class="btn-3d btn-3d-primary btn-3d-sm" style="flex:1;" data-action="launch-game" data-game="' + esc(g.id) + '" data-slot="-1">' +
-                ico("play") + '<span>' + esc(tr("play")) + '</span>' +
-              '</button>' +
-              '<button type="button" class="icon-btn-3d" data-action="inspect-game" data-game="' + esc(g.id) + '" aria-label="Inspector">' +
-                ico("sliders") +
-              '</button>' +
-            '</div>' +
-          '</div>' +
-        '</article>'
-      );
+    const statusChipsHtml =
+      '<button type="button" class="chip-3d' + (state.libStatusFilter === "all" ? " active" : "") + '" data-lib-status="all"><span>' + (isRu() ? "Статус: Все" : "Status: All") + '</span><span class="chip-count">' + state.games.length + '</span></button>' +
+      ["Играю сейчас", "Пройдено", "Пройдено на 100%", "В планах", "Отложено", "Не начато"].map(function (stId) {
+        const stMeta = statusMetaFor(stId);
+        const act = state.libStatusFilter === stId ? " active" : "";
+        return '<button type="button" class="chip-3d' + act + '" data-lib-status="' + esc(stId) + '"><span>' + esc(statusLabel(stMeta)) + '</span><span class="chip-count">' + (statusCounts[stId] || 0) + '</span></button>';
+      }).join("");
+
+    const alphaChars = ["all", "#", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "А", "Б", "В", "Г", "Д", "Е", "Ж", "З", "И", "К", "Л", "М", "Н", "О", "П", "Р", "С", "Т", "У", "Ф", "Х", "Ц", "Ч", "Ш", "Э", "Ю", "Я"];
+    const alphaHtml = alphaChars.map(function (ch) {
+      const act = state.libAlphaFilter === ch ? " active" : "";
+      const lbl = ch === "all" ? (isRu() ? "Все" : "All") : ch;
+      return '<button type="button" class="alpha-btn' + act + '" data-lib-alpha="' + esc(ch) + '">' + esc(lbl) + '</button>';
     }).join("");
 
     return (
@@ -1083,12 +1444,15 @@
               '<span class="input-lead-ico">' + ico("search") + '</span>' +
               '<input type="search" id="libSearchInput" class="input-well-3d" value="' + esc(state.libQuery) + '" placeholder="' + esc(tr("search_games")) + '">' +
             '</div>' +
+            '<button type="button" class="btn-3d btn-3d-emerald btn-3d-sm" data-action="open-roulette">' + ico("shuffle") + '<span>' + (isRu() ? "Случайная игра" : "Random") + '</span></button>' +
             '<button type="button" class="btn-3d btn-3d-primary btn-3d-sm" data-action="pick-rom-folder">' + ico("folder") + '<span>' + esc(tr("add_folder")) + '</span></button>' +
             '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="pick-single-rom">' + ico("file") + '<span>' + esc(tr("open_rom")) + '</span></button>' +
             '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="refresh-covers">' + ico("refresh") + '<span>' + esc(tr("covers")) + '</span></button>' +
           '</div>' +
 
-          '<div class="chips-scroll-row">' + chipsHtml + '</div>' +
+          '<div class="chips-scroll-row" id="libPlatformChips">' + chipsHtml + '</div>' +
+          '<div class="chips-scroll-row" id="libStatusChips">' + statusChipsHtml + '</div>' +
+          '<div class="alpha-strip" id="libAlphaStrip" aria-label="Alphabet Quick Jump">' + alphaHtml + '</div>' +
 
           '<div class="toolbar-row" style="justify-content:space-between;">' +
             '<div class="seg-group-3d">' +
@@ -1109,18 +1473,17 @@
                 '<option value="az"' + (state.libSort === "az" ? " selected" : "") + '>' + (isRu() ? "По алфавиту A-Z" : "Sort: A-Z") + '</option>' +
                 '<option value="platform"' + (state.libSort === "platform" ? " selected" : "") + '>' + (isRu() ? "По платформе" : "Sort: Platform") + '</option>' +
                 '<option value="playtime"' + (state.libSort === "playtime" ? " selected" : "") + '>' + (isRu() ? "По времени в игре" : "Sort: Playtime") + '</option>' +
+                '<option value="rating"' + (state.libSort === "rating" ? " selected" : "") + '>' + (isRu() ? "По рейтингу" : "Sort: Rating") + '</option>' +
               '</select>' +
               '<div style="display:flex;align-items:center;gap:8px;min-width:155px;">' +
-                '<span class="badge-pill tabular">' + state.libZoom + '%</span>' +
+                '<span class="badge-pill tabular" id="libZoomLabel">' + state.libZoom + '%</span>' +
                 '<input type="range" id="libZoomSlider" class="range-3d" min="75" max="140" step="5" value="' + state.libZoom + '">' +
               '</div>' +
             '</div>' +
           '</div>' +
         '</div>' +
 
-        '<div class="library-grid view-' + esc(state.libViewMode) + '">' +
-          (cardsHtml || '<p class="section-subtitle">' + (isRu() ? "Игры по текущему фильтру не найдены." : "No games match the active filter.") + '</p>') +
-        '</div>' +
+        '<div id="libraryResultsMount" class="library-grid view-' + esc(state.libViewMode) + '"></div>' +
       '</div>'
     );
   }
@@ -1128,11 +1491,46 @@
   /* ------------------------------------------------------------------------
      10. MODULE VIEW RENDERERS (3..12)
      ------------------------------------------------------------------------ */
-  function renderCores() {
-    const platSet = {};
-    state.cores.forEach(function (c) { platSet[c.platform] = true; });
-    const q = state.coresQuery.trim().toLowerCase();
+  function renderCoreCardHtml(c) {
+    const statusBadge = c.bundled
+      ? '<span class="badge-pill badge-emerald">' + (isRu() ? "Вшито в APK" : "Pre-Bundled") + '</span>'
+      : (c.installed
+          ? '<span class="badge-pill badge-accent">' + (isRu() ? "Установлено" : "Installed") + '</span>'
+          : '<span class="badge-pill">' + (isRu() ? "Облако CDN" : "Cloud CDN") + '</span>');
 
+    return (
+      '<div class="core-card" data-core-card="' + esc(c.id) + '">' +
+        '<div>' +
+          '<div class="toolbar-row" style="justify-content:space-between;margin-bottom:6px;">' +
+            '<span class="badge-pill badge-accent">' + esc(c.platform) + '</span>' +
+            statusBadge +
+          '</div>' +
+          '<div style="font-weight:800;font-size:0.90rem;color:#F8FAFC;">' + esc(c.displayName) + '</div>' +
+          '<div class="mono-code" style="font-size:0.70rem;color:var(--text-secondary);margin-top:3px;">' + esc(c.soName) + '</div>' +
+        '</div>' +
+        (c.progress > 0 && c.progress < 100 ? (
+          '<div>' +
+            '<div class="progress-track-3d"><div class="progress-fill-gpu" style="--p:' + (c.progress / 100).toFixed(2) + ';"></div></div>' +
+            '<div class="tabular" style="font-size:0.70rem;color:var(--text-secondary);margin-top:3px;">' + c.progress + '% CDN</div>' +
+          '</div>'
+        ) : "") +
+        '<div class="toolbar-row">' +
+          (c.installed || c.bundled ? (
+            '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" style="flex:1;" data-action="open-core-options" data-core="' + esc(c.id) + '">' + ico("sliders") + '<span>' + (isRu() ? "Опции ядра" : "Core Options") + '</span></button>' +
+            (!c.bundled ? '<button type="button" class="icon-btn-3d" data-action="delete-core" data-core="' + esc(c.id) + '" aria-label="Delete">' + ico("trash") + '</button>' : "")
+          ) : (
+            '<button type="button" class="btn-3d btn-3d-primary btn-3d-sm" style="flex:1;" data-action="download-core" data-core="' + esc(c.id) + '">' + ico("download") + '<span>' + (isRu() ? "Скачать ядро" : "Download") + '</span></button>' +
+            '<button type="button" class="icon-btn-3d" data-action="open-core-options" data-core="' + esc(c.id) + '" aria-label="Options">' + ico("sliders") + '</button>'
+          )) +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function updateCoresResults() {
+    const mount = document.getElementById("coresResultsMount");
+    if (!mount) return;
+    const q = state.coresQuery.trim().toLowerCase();
     const filtered = state.cores.filter(function (c) {
       if (state.coresFilter === "installed" && !(c.installed || c.bundled)) return false;
       if (state.coresFilter === "recommended" && !c.recommended) return false;
@@ -1140,8 +1538,13 @@
       if (!q) return true;
       return (c.displayName + " " + c.id + " " + c.platform).toLowerCase().indexOf(q) >= 0;
     });
+    const emptyHtml = '<p class="section-subtitle">' + (isRu() ? "Ядра по текущему запросу не найдены." : "No cores match the current filter.") + '</p>';
+    mountChunkedGrid(mount, filtered, renderCoreCardHtml, emptyHtml);
+  }
 
-    const visibleList = state.coresShowAll ? filtered : filtered.slice(0, 36);
+  function renderCores() {
+    const platSet = {};
+    state.cores.forEach(function (c) { platSet[c.platform] = true; });
     const installedCount = countInstalledCores();
 
     return (
@@ -1150,7 +1553,7 @@
           '<div class="section-title-cluster">' +
             '<div class="section-icon-badge">' + ico("cpu") + '</div>' +
             '<div>' +
-              '<h3 class="section-title">' + (isRu() ? "20 флагманских ядер вшиты в APK + 252 ядра в облаке" : "20 Pre-Bundled APK Cores + 252 Official Android Cores") + '</h3>' +
+              '<h3 class="section-title">' + (isRu() ? "20 флагманских ядер вшиты в APK + " + state.cores.length + " ядра в облаке" : "20 Pre-Bundled APK Cores + " + state.cores.length + " Official Android Cores") + '</h3>' +
               '<p class="section-subtitle">' + (isRu() ? "Мгновенный офлайн-старт и отказоустойчивая загрузка с двух зеркал: STORM CDN + Libretro Buildbot" : "Instant offline play + resilient Dual-Mirror Downloader: STORM CDN + Libretro Buildbot") + '</p>' +
             '</div>' +
           '</div>' +
@@ -1177,62 +1580,106 @@
           '</select>' +
         '</div>' +
 
-        '<div class="chips-scroll-row" style="margin-top:9px;">' +
-          '<button type="button" class="chip-3d' + (state.coresFilter === "all" ? " active" : "") + '" data-core-filter="all"><span>' + (isRu() ? "Все 252" : "All 252") + '</span><span class="chip-count">' + state.cores.length + '</span></button>' +
+        '<div class="chips-scroll-row" id="coresFilterChips" style="margin-top:9px;">' +
+          '<button type="button" class="chip-3d' + (state.coresFilter === "all" ? " active" : "") + '" data-core-filter="all"><span>' + (isRu() ? "Все " + state.cores.length : "All " + state.cores.length) + '</span><span class="chip-count">' + state.cores.length + '</span></button>' +
           '<button type="button" class="chip-3d' + (state.coresFilter === "installed" ? " active" : "") + '" data-core-filter="installed"><span>' + (isRu() ? "Вшитые и установленные" : "Bundled & Installed") + '</span><span class="chip-count">' + installedCount + '</span></button>' +
           '<button type="button" class="chip-3d' + (state.coresFilter === "recommended" ? " active" : "") + '" data-core-filter="recommended"><span>' + (isRu() ? "Рекомендуемые" : "Recommended") + '</span></button>' +
         '</div>' +
       '</div>' +
 
-      '<div class="cores-grid">' +
-        visibleList.map(function (c) {
-          const statusBadge = c.bundled
-            ? '<span class="badge-pill badge-emerald">' + (isRu() ? "Вшито в APK" : "Pre-Bundled") + '</span>'
-            : (c.installed
-                ? '<span class="badge-pill badge-accent">' + (isRu() ? "Установлено" : "Installed") + '</span>'
-                : '<span class="badge-pill">' + (isRu() ? "Облако CDN" : "Cloud CDN") + '</span>');
-
-          return (
-            '<div class="core-card">' +
-              '<div>' +
-                '<div class="toolbar-row" style="justify-content:space-between;margin-bottom:6px;">' +
-                  '<span class="badge-pill badge-accent">' + esc(c.platform) + '</span>' +
-                  statusBadge +
-                '</div>' +
-                '<div style="font-weight:800;font-size:0.90rem;color:#F8FAFC;">' + esc(c.displayName) + '</div>' +
-                '<div class="mono-code" style="font-size:0.70rem;color:var(--text-secondary);margin-top:3px;">' + esc(c.soName) + '</div>' +
-              '</div>' +
-              (c.progress > 0 && c.progress < 100 ? (
-                '<div>' +
-                  '<div class="progress-track-3d"><div class="progress-fill-gpu" style="--p:' + (c.progress / 100).toFixed(2) + ';"></div></div>' +
-                  '<div class="tabular" style="font-size:0.70rem;color:var(--text-secondary);margin-top:3px;">' + c.progress + '% CDN</div>' +
-                '</div>'
-              ) : "") +
-              '<div class="toolbar-row">' +
-                (c.installed || c.bundled ? (
-                  '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" style="flex:1;" data-action="open-core-options" data-core="' + esc(c.id) + '">' + ico("sliders") + '<span>' + (isRu() ? "Опции ядра" : "Core Options") + '</span></button>' +
-                  (!c.bundled ? '<button type="button" class="icon-btn-3d" data-action="delete-core" data-core="' + esc(c.id) + '" aria-label="Delete">' + ico("trash") + '</button>' : "")
-                ) : (
-                  '<button type="button" class="btn-3d btn-3d-primary btn-3d-sm" style="flex:1;" data-action="download-core" data-core="' + esc(c.id) + '">' + ico("download") + '<span>' + (isRu() ? "Скачать ядро" : "Download") + '</span></button>' +
-                  '<button type="button" class="icon-btn-3d" data-action="open-core-options" data-core="' + esc(c.id) + '" aria-label="Options">' + ico("sliders") + '</button>'
-                )) +
-              '</div>' +
-            '</div>'
-          );
-        }).join("") +
-      '</div>' +
-
-      (filtered.length > visibleList.length ? (
-        '<div style="margin-top:12px;text-align:center;">' +
-          '<button type="button" class="btn-3d btn-3d-secondary" data-action="show-all-cores">' + ico("plus") + '<span>' + (isRu() ? "Показать все " + filtered.length + " ядер" : "Show all " + filtered.length + " cores") + '</span></button>' +
-        '</div>'
-      ) : "")
+      '<div id="coresResultsMount" class="cores-grid"></div>'
     );
   }
 
-  function renderCheats() {
+  function updateCheatsResults() {
+    const mount = document.getElementById("cheatsResultsMount");
+    if (!mount) return;
     const selectedMeta = state.cheatResults.find(function (x) { return x.id === state.selectedCheatGameId; }) || state.cheatResults[0] || { id: "custom", title: "Chrono Trigger (SNES)", system: "SNES" };
 
+    mount.innerHTML =
+      '<div class="glass-card">' +
+        '<div class="section-title" style="font-size:0.92rem;margin-bottom:9px;">' + (isRu() ? "Найденные профили читов" : "Matched Game Profiles") + '</div>' +
+        '<div class="cheats-list-scroll" id="cheatsListMount"></div>' +
+      '</div>' +
+
+      '<div class="glass-card">' +
+        '<div class="section-head">' +
+          '<div>' +
+            '<h4 class="section-title">' + esc(selectedMeta.title) + '</h4>' +
+            '<p class="section-subtitle">' + esc(selectedMeta.system) + ' • GameGenie / ActionReplay / RAW</p>' +
+          '</div>' +
+          '<div class="toolbar-row">' +
+            '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="cheats-enable-all">' + ico("check") + '<span>' + (isRu() ? "Включить все" : "Enable All") + '</span></button>' +
+            '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="cheats-disable-all">' + ico("close") + '<span>' + (isRu() ? "Отключить все" : "Disable All") + '</span></button>' +
+            '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="toggle-custom-cheat">' + ico("plus") + '<span>' + (isRu() ? "Конструктор своего чита" : "Custom Cheat") + '</span></button>' +
+            '<button type="button" class="btn-3d btn-3d-primary btn-3d-sm" data-action="save-game-cheats">' + ico("save") + '<span>' + (isRu() ? "Сохранить читы" : "Save Cheats") + '</span></button>' +
+          '</div>' +
+        '</div>' +
+
+        (state.showCustomCheatForm ? (
+          '<div class="glass-card" style="margin-bottom:10px;background:rgba(0,0,0,0.32);">' +
+            '<div class="toolbar-row" style="margin-bottom:8px;">' +
+              '<input type="text" id="newCheatDesc" class="input-well-3d" placeholder="' + (isRu() ? "Описание (напр. 99 жизней / Макс. золото)" : "Cheat description") + '">' +
+            '</div>' +
+            '<div class="toolbar-row">' +
+              '<input type="text" id="newCheatCode" class="input-well-3d mono-code" placeholder="' + (isRu() ? "Код GameGenie / ActionReplay / RAW (напр. 8009C796 00C8)" : "RAW / ActionReplay code") + '">' +
+              '<button type="button" class="btn-3d btn-3d-emerald btn-3d-sm" data-action="append-custom-cheat">' + ico("plus") + '<span>' + (isRu() ? "Добавить" : "Add") + '</span></button>' +
+            '</div>' +
+          '</div>'
+        ) : "") +
+
+        '<div style="display:flex;flex-direction:column;gap:8px;">' +
+          state.activeCheatEntries.map(function (c, i) {
+            return (
+              '<div class="toggle-row-3d">' +
+                '<div class="toggle-meta">' +
+                  '<div class="toggle-title">' + esc(c.description) + '</div>' +
+                  '<div class="toggle-desc mono-code">' + esc(c.code) + '</div>' +
+                '</div>' +
+                '<button type="button" role="switch" aria-checked="' + Boolean(c.enabled) + '" class="switch-3d" data-action="toggle-cheat-entry" data-idx="' + i + '"><span class="switch-track"><span class="switch-thumb"></span></span></button>' +
+              '</div>'
+            );
+          }).join("") +
+        '</div>' +
+
+        '<div class="glass-card" style="margin-top:12px;background:rgba(139,92,246,0.09);">' +
+          '<div class="section-head" style="margin-bottom:8px;">' +
+            '<div class="section-title-cluster">' +
+              '<div class="section-icon-badge">' + ico("cpu") + '</div>' +
+              '<div>' +
+                '<div class="toggle-title">' + (isRu() ? "Живой сканер ОЗУ (8 / 16 / 32-бит) в быстром меню игры" : "Live Gameplay RAM Scanner (8 / 16 / 32-bit)") + '</div>' +
+                '<div class="toggle-desc">' + (isRu() ? "Ищите жизни, патроны и деньги прямо во время геймплея через Быстрое меню (L3+R3) и замораживайте адреса памяти" : "Search HP, ammo & gold directly inside gameplay Quick Menu (L3+R3) and freeze addresses") + '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="toolbar-row">' +
+            '<div class="seg-group-3d">' +
+              ["8", "16", "32"].map(function (b) {
+                return '<button type="button" class="seg-btn-3d' + (state.ramBits === b ? " active" : "") + '" data-ram-bits="' + b + '"><span>' + b + '-bit</span></button>';
+              }).join("") +
+            '</div>' +
+            '<select id="ramCompareSelect" class="select-3d" style="max-width:240px;">' +
+              '<option value="exact"' + (state.ramCompare === "exact" ? " selected" : "") + '>' + (isRu() ? "Режим: Точное значение" : "Mode: Exact Value") + '</option>' +
+              '<option value="decreased"' + (state.ramCompare === "decreased" ? " selected" : "") + '>' + (isRu() ? "Уменьшилось (урон/патроны)" : "Decreased Value") + '</option>' +
+              '<option value="increased"' + (state.ramCompare === "increased" ? " selected" : "") + '>' + (isRu() ? "Увеличилось (опыт/золото)" : "Increased Value") + '</option>' +
+            '</select>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    const listMount = document.getElementById("cheatsListMount");
+    mountChunkedGrid(listMount, state.cheatResults, function (item) {
+      const act = item.id === selectedMeta.id ? " active" : "";
+      return (
+        '<button type="button" class="cheat-game-item cheat-game-row' + act + '" data-action="select-cheat-game" data-id="' + esc(item.id) + '" data-sys="' + esc(item.system) + '" data-title="' + esc(item.title) + '">' +
+          '<div><div style="font-weight:800;font-size:0.83rem;">' + esc(item.title) + '</div><div style="font-size:0.70rem;color:var(--text-secondary);">' + esc(item.system) + '</div></div>' +
+          '<span class="badge-pill badge-accent">' + (item.count || 5) + '</span>' +
+        '</button>'
+      );
+    }, '<p class="section-subtitle">' + (isRu() ? "Профили читов не найдены." : "No cheat profiles found.") + '</p>');
+  }
+
+  function renderCheats() {
     return (
       '<div class="glass-card" style="margin-bottom:12px;">' +
         '<div class="section-head">' +
@@ -1264,87 +1711,7 @@
         '</div>' +
       '</div>' +
 
-      '<div class="two-col-studio">' +
-        '<div class="glass-card">' +
-          '<div class="section-title" style="font-size:0.92rem;margin-bottom:9px;">' + (isRu() ? "Найденные профили читов" : "Matched Game Profiles") + '</div>' +
-          '<div class="cheats-list-scroll">' +
-            state.cheatResults.map(function (item) {
-              const act = item.id === selectedMeta.id ? " active" : "";
-              return (
-                '<button type="button" class="cheat-game-item' + act + '" data-action="select-cheat-game" data-id="' + esc(item.id) + '" data-sys="' + esc(item.system) + '" data-title="' + esc(item.title) + '">' +
-                  '<div><div style="font-weight:800;font-size:0.83rem;">' + esc(item.title) + '</div><div style="font-size:0.70rem;color:var(--text-secondary);">' + esc(item.system) + '</div></div>' +
-                  '<span class="badge-pill badge-accent">' + (item.count || 5) + '</span>' +
-                '</button>'
-              );
-            }).join("") +
-          '</div>' +
-        '</div>' +
-
-        '<div class="glass-card">' +
-          '<div class="section-head">' +
-            '<div>' +
-              '<h4 class="section-title">' + esc(selectedMeta.title) + '</h4>' +
-              '<p class="section-subtitle">' + esc(selectedMeta.system) + ' • GameGenie / ActionReplay / RAW</p>' +
-            '</div>' +
-            '<div class="toolbar-row">' +
-              '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="cheats-enable-all">' + ico("check") + '<span>' + (isRu() ? "Включить все" : "Enable All") + '</span></button>' +
-              '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="cheats-disable-all">' + ico("close") + '<span>' + (isRu() ? "Отключить все" : "Disable All") + '</span></button>' +
-              '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="toggle-custom-cheat">' + ico("plus") + '<span>' + (isRu() ? "Конструктор своего чита" : "Custom Cheat") + '</span></button>' +
-              '<button type="button" class="btn-3d btn-3d-primary btn-3d-sm" data-action="save-game-cheats">' + ico("save") + '<span>' + (isRu() ? "Сохранить читы" : "Save Cheats") + '</span></button>' +
-            '</div>' +
-          '</div>' +
-
-          (state.showCustomCheatForm ? (
-            '<div class="glass-card" style="margin-bottom:10px;background:rgba(0,0,0,0.32);">' +
-              '<div class="toolbar-row" style="margin-bottom:8px;">' +
-                '<input type="text" id="newCheatDesc" class="input-well-3d" placeholder="' + (isRu() ? "Описание (напр. 99 жизней / Макс. золото)" : "Cheat description") + '">' +
-              '</div>' +
-              '<div class="toolbar-row">' +
-                '<input type="text" id="newCheatCode" class="input-well-3d mono-code" placeholder="' + (isRu() ? "Код GameGenie / ActionReplay / RAW (напр. 8009C796 00C8)" : "RAW / ActionReplay code") + '">' +
-                '<button type="button" class="btn-3d btn-3d-emerald btn-3d-sm" data-action="append-custom-cheat">' + ico("plus") + '<span>' + (isRu() ? "Добавить" : "Add") + '</span></button>' +
-              '</div>' +
-            '</div>'
-          ) : "") +
-
-          '<div style="display:flex;flex-direction:column;gap:8px;">' +
-            state.activeCheatEntries.map(function (c, i) {
-              return (
-                '<div class="toggle-row-3d">' +
-                  '<div class="toggle-meta">' +
-                    '<div class="toggle-title">' + esc(c.description) + '</div>' +
-                    '<div class="toggle-desc mono-code">' + esc(c.code) + '</div>' +
-                  '</div>' +
-                  '<button type="button" role="switch" aria-checked="' + Boolean(c.enabled) + '" class="switch-3d" data-action="toggle-cheat-entry" data-idx="' + i + '"><span class="switch-track"><span class="switch-thumb"></span></span></button>' +
-                '</div>'
-              );
-            }).join("") +
-          '</div>' +
-
-          '<div class="glass-card" style="margin-top:12px;background:rgba(139,92,246,0.09);">' +
-            '<div class="section-head" style="margin-bottom:8px;">' +
-              '<div class="section-title-cluster">' +
-                '<div class="section-icon-badge">' + ico("cpu") + '</div>' +
-                '<div>' +
-                  '<div class="toggle-title">' + (isRu() ? "Живой сканер ОЗУ (8 / 16 / 32-бит) в быстром меню игры" : "Live Gameplay RAM Scanner (8 / 16 / 32-bit)") + '</div>' +
-                  '<div class="toggle-desc">' + (isRu() ? "Ищите жизни, патроны и деньги прямо во время геймплея через Быстрое меню (L3+R3) и замораживайте адреса памяти" : "Search HP, ammo & gold directly inside gameplay Quick Menu (L3+R3) and freeze addresses") + '</div>' +
-                '</div>' +
-              '</div>' +
-            '</div>' +
-            '<div class="toolbar-row">' +
-              '<div class="seg-group-3d">' +
-                ["8", "16", "32"].map(function (b) {
-                  return '<button type="button" class="seg-btn-3d' + (state.ramBits === b ? " active" : "") + '" data-ram-bits="' + b + '"><span>' + b + '-bit</span></button>';
-                }).join("") +
-              '</div>' +
-              '<select id="ramCompareSelect" class="select-3d" style="max-width:240px;">' +
-                '<option value="exact"' + (state.ramCompare === "exact" ? " selected" : "") + '>' + (isRu() ? "Режим: Точное значение" : "Mode: Exact Value") + '</option>' +
-                '<option value="decreased"' + (state.ramCompare === "decreased" ? " selected" : "") + '>' + (isRu() ? "Уменьшилось (урон/патроны)" : "Decreased Value") + '</option>' +
-                '<option value="increased"' + (state.ramCompare === "increased" ? " selected" : "") + '>' + (isRu() ? "Увеличилось (опыт/золото)" : "Increased Value") + '</option>' +
-              '</select>' +
-            '</div>' +
-          '</div>' +
-        '</div>' +
-      '</div>'
+      '<div id="cheatsResultsMount" class="two-col-studio"></div>'
     );
   }
 
@@ -1889,7 +2256,7 @@
             '</div>' +
 
             '<div class="toolbar-row">' +
-              '<button type="button" class="btn-3d btn-3d-primary" style="flex:1;" data-action="check-updates">' + ico("refresh") + '<span>' + (isRu() ? "Проверить обновления (2.5.0)" : "Check Updates (2.5.0)") + '</span></button>' +
+              '<button type="button" class="btn-3d btn-3d-primary" style="flex:1;" data-action="check-updates">' + ico("refresh") + '<span>' + (isRu() ? "Проверить обновления (2.6.0)" : "Check Updates (2.6.0)") + '</span></button>' +
               (state.updateInfo.updateAvailable ? (
                 '<button type="button" class="btn-3d btn-3d-emerald" data-action="install-update">' + ico("download") + '<span>' + (isRu() ? "Обновить" : "Update") + '</span></button>'
               ) : "") +
@@ -1903,6 +2270,8 @@
   function renderViewport() {
     const vp = document.getElementById("studioViewport");
     if (!vp) return;
+    disconnectChunkObservers();
+
     const map = {
       dashboard: renderDashboard,
       library: renderLibrary,
@@ -1918,7 +2287,20 @@
       settings: renderSettings
     };
     const fn = map[state.activeTab] || renderDashboard;
+
+    const dir = state.pendingViewDirection;
+    state.pendingViewDirection = null;
+    vp.classList.remove("view-enter-up", "view-enter-down");
     vp.innerHTML = fn();
+
+    if (dir === "up" || dir === "down") {
+      void vp.offsetWidth;
+      vp.classList.add(dir === "up" ? "view-enter-up" : "view-enter-down");
+    }
+
+    if (state.activeTab === "library") updateLibraryResults();
+    else if (state.activeTab === "cores") updateCoresResults();
+    else if (state.activeTab === "cheats") updateCheatsResults();
   }
 
   function renderShellAndView() {
@@ -1928,7 +2310,7 @@
   }
 
   /* ------------------------------------------------------------------------
-     11. MODALS: STUDIO 12-MODULE BENTO HUB, GAME INSPECTOR, CORE OPTIONS
+     11. MODALS: STUDIO 12-MODULE BENTO HUB, GAME INSPECTOR, ROULETTE, OMNIBOX
      ------------------------------------------------------------------------ */
   function openStudioHubModal() {
     const modal = document.getElementById("studioHubModal");
@@ -1936,13 +2318,13 @@
     if (!modal || !box) return;
     box.innerHTML =
       '<div class="section-head">' +
-        '<div><h3 class="section-title" id="studioHubTitle">' + (isRu() ? "Все 12 модулей STORM RETROARCH 2.5.0" : "All 12 STORM Studio Modules") + '</h3><p class="section-subtitle">' + (isRu() ? "Выберите нужный раздел консоли в одно касание" : "Jump to any console subsystem in 1 tap") + '</p></div>' +
+        '<div><h3 class="section-title" id="studioHubTitle">' + (isRu() ? "Все 12 модулей STORM RETROARCH 2.6.0" : "All 12 STORM Studio Modules") + '</h3><p class="section-subtitle">' + (isRu() ? "Выберите нужный раздел консоли в одно касание" : "Jump to any console subsystem in 1 tap") + '</p></div>' +
         '<button type="button" class="icon-btn-3d" data-action="close-modals" aria-label="Close">' + ico("close") + '</button>' +
       '</div>' +
       '<div class="quick-bento-grid">' +
-        STUDIO_MODULES.map(function (m) {
+        STUDIO_MODULES.map(function (m, idx) {
           return (
-            '<button type="button" class="bento-tool-tile" data-nav="' + m.id + '">' +
+            '<button type="button" class="bento-tool-tile stagger-card" style="--stagger-i:' + Math.min(idx, 8) + ';" data-nav="' + m.id + '">' +
               '<div class="bento-tile-head">' + ico(m.icon) + '<span>' + esc(tr(m.key)) + '</span></div>' +
               '<div class="bento-tile-desc">' + esc(isRu() ? m.descRu : m.descEn) + '</div>' +
             '</button>'
@@ -1959,12 +2341,18 @@
     const modal = document.getElementById("gameInspectorModal");
     const box = document.getElementById("gameInspectorContent");
     const validCores = coresForPlatform(g.platformKey, g.platform);
+    const curStatus = g.completionStatus || "Не начато";
+    const curRating = Number(g.starRating || 0);
+    const playLabel = formatPlaytime(g.totalPlaySeconds || (g.playtimeMin || 0) * 60);
 
     box.innerHTML =
       '<div class="section-head">' +
         '<div style="display:flex;gap:12px;align-items:center;">' +
           '<img src="' + esc(g.cover) + '" alt="" style="width:62px;height:84px;border-radius:10px;object-fit:cover;">' +
-          '<div><h3 class="section-title" id="inspectorGameTitle">' + esc(g.title) + '</h3><p class="section-subtitle">' + esc(g.platform) + ' • ' + esc(g.region) + ' • ' + esc(g.sizeMb) + '</p></div>' +
+          '<div>' +
+            '<h3 class="section-title" id="inspectorGameTitle">' + esc(g.title) + '</h3>' +
+            '<p class="section-subtitle">' + esc(g.platform) + ' | ' + esc(g.region) + (g.sizeMb ? ' | ' + esc(g.sizeMb) : '') + ' | ' + esc(playLabel) + '</p>' +
+          '</div>' +
         '</div>' +
         '<button type="button" class="icon-btn-3d" data-action="close-modals" aria-label="Close">' + ico("close") + '</button>' +
       '</div>' +
@@ -1973,6 +2361,40 @@
         '<button type="button" class="btn-3d btn-3d-primary" style="flex:1;" data-action="launch-game" data-game="' + esc(g.id) + '" data-slot="-1">' + ico("play") + '<span>' + esc(tr("play")) + '</span></button>' +
         '<button type="button" class="btn-3d btn-3d-emerald" data-action="jump-game-cheats" data-game="' + esc(g.id) + '">' + ico("shield") + '<span>' + (isRu() ? "Читы игры" : "Game Cheats") + '</span></button>' +
         '<button type="button" class="btn-3d btn-3d-secondary" data-action="open-core-options" data-core="' + esc(g.coreId) + '">' + ico("sliders") + '<span>' + (isRu() ? "Разрешение / ЦП" : "Core Opts") + '</span></button>' +
+      '</div>' +
+
+      '<div class="glass-card" style="margin-bottom:12px;padding:12px;background:rgba(255,255,255,0.035);">' +
+        '<div class="toolbar-row" style="margin-bottom:10px;align-items:flex-end;">' +
+          '<div style="flex:1;min-width:170px;">' +
+            '<div class="toggle-title" style="margin-bottom:5px;">' + (isRu() ? "Статус прохождения (Playnite)" : "Completion Status") + '</div>' +
+            '<select id="inspectorStatusSelect" class="select-3d" data-game="' + esc(g.id) + '">' +
+              COMPLETION_STATUSES.map(function (st) {
+                return '<option value="' + esc(st.id) + '"' + (curStatus === st.id ? " selected" : "") + '>' + esc(statusLabel(st)) + '</option>';
+              }).join("") +
+            '</select>' +
+          '</div>' +
+          '<div>' +
+            '<div class="toggle-title" style="margin-bottom:5px;">' + (isRu() ? "Оценка игры" : "Star Rating") + '</div>' +
+            '<div class="star-rating-row" id="inspectorStarRow">' +
+              [1, 2, 3, 4, 5].map(function (n) {
+                return '<button type="button" class="star-btn' + (n <= curRating ? " filled" : "") + '" data-action="set-game-rating" data-game="' + esc(g.id) + '" data-rating="' + n + '" aria-label="Rating ' + n + '">' + ico("star") + '</button>';
+              }).join("") +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+
+        '<div style="margin-bottom:9px;">' +
+          '<div class="toggle-title" style="margin-bottom:4px;">' + (isRu() ? "Коллекция / тег" : "Collection Tag") + '</div>' +
+          '<input type="text" id="inspectorCollectionInput" class="input-well-3d" style="padding-left:12px;" data-game="' + esc(g.id) + '" value="' + esc(g.customCollection || "") + '" placeholder="' + (isRu() ? "Например: Классика JRPG, Пройти в дороге..." : "e.g. Top JRPGs, Travel Backlog...") + '">' +
+        '</div>' +
+
+        '<div>' +
+          '<div class="toggle-title" style="margin-bottom:4px;">' + (isRu() ? "Личные заметки к игре" : "Personal Notes") + '</div>' +
+          '<textarea id="inspectorNotesArea" class="textarea-3d" style="min-height:66px;" data-game="' + esc(g.id) + '" placeholder="' + (isRu() ? "Пароли, советы по боссам, порядок прохождения..." : "Boss notes, passwords, walkthrough hints...") + '">' + esc(g.userNotes || "") + '</textarea>' +
+          '<div class="toolbar-row" style="margin-top:8px;justify-content:flex-end;">' +
+            '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="save-game-notes" data-game="' + esc(g.id) + '">' + ico("save") + '<span>' + (isRu() ? "Сохранить заметку и статус" : "Save Notes & Status") + '</span></button>' +
+          '</div>' +
+        '</div>' +
       '</div>' +
 
       '<div style="margin-bottom:12px;">' +
@@ -1997,6 +2419,312 @@
       '</div>';
 
     modal.hidden = false;
+  }
+
+  function openRandomRouletteModal() {
+    const pool = state.games && state.games.length ? state.games : [];
+    if (!pool.length) {
+      showToast(isRu() ? "Добавьте игры в библиотеку для рулетки" : "Add games to your library first");
+      return;
+    }
+    if (state.rouletteSpinTimer) {
+      clearTimeout(state.rouletteSpinTimer);
+      state.rouletteSpinTimer = null;
+    }
+
+    const modal = document.getElementById("randomRouletteModal");
+    const box = document.getElementById("randomRouletteContent");
+    if (!modal || !box) return;
+
+    const chosen = pool[Math.floor(Math.random() * pool.length)];
+    state.rouletteGameId = chosen.id;
+
+    const firstSample = pool[Math.floor(Math.random() * pool.length)];
+    box.innerHTML =
+      '<div class="section-head">' +
+        '<div class="section-title-cluster">' +
+          '<div class="section-icon-badge">' + ico("shuffle") + '</div>' +
+          '<div>' +
+            '<h3 class="section-title" id="rouletteModalTitle">' + (isRu() ? "Рулетка: Случайная игра" : "Random Game Roulette") + '</h3>' +
+            '<p class="section-subtitle">' + (isRu() ? "Подбор случайного релиза из коллекции (" + pool.length + ")" : "Picking a surprise title from " + pool.length + " games") + '</p>' +
+          '</div>' +
+        '</div>' +
+        '<button type="button" class="icon-btn-3d" data-action="close-modals" aria-label="Close">' + ico("close") + '</button>' +
+      '</div>' +
+      '<div class="roulette-stage">' +
+        '<div class="roulette-reel-card spinning" id="rouletteReelCard">' +
+          '<div class="roulette-cover-box"><img id="rouletteCoverImg" src="' + esc(firstSample.cover) + '" alt=""></div>' +
+          '<div style="min-width:0;flex:1;">' +
+            '<div class="badge-pill badge-accent" id="roulettePlatPill">' + esc(firstSample.platform) + '</div>' +
+            '<div class="poster-title" id="rouletteGameTitle" style="margin-top:6px;font-size:1.02rem;">' + esc(firstSample.title) + '</div>' +
+            '<div class="poster-sub" id="rouletteGameSub">' + esc(firstSample.region) + ' | ' + esc(firstSample.coreId) + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="toolbar-row" style="width:100%;">' +
+          '<button type="button" class="btn-3d btn-3d-emerald" id="roulettePlayBtn" style="flex:1;" data-action="launch-game" data-game="' + esc(chosen.id) + '" data-slot="-1">' + ico("play") + '<span>' + (isRu() ? "Играть сейчас" : "Play Now") + '</span></button>' +
+          '<button type="button" class="btn-3d btn-3d-secondary" data-action="inspect-game" data-game="' + esc(chosen.id) + '" id="rouletteInspectBtn">' + ico("sliders") + '<span>' + (isRu() ? "Карточка" : "Inspect") + '</span></button>' +
+          '<button type="button" class="btn-3d btn-3d-primary" data-action="reroll-roulette">' + ico("shuffle") + '<span>' + (isRu() ? "Другая игра" : "Reroll") + '</span></button>' +
+        '</div>' +
+      '</div>';
+
+    modal.hidden = false;
+
+    const delays = [55, 65, 80, 100, 130, 170, 210];
+    let step = 0;
+
+    function tickSpin() {
+      const card = document.getElementById("rouletteReelCard");
+      if (!card || modal.hidden) return;
+      if (step < delays.length) {
+        const sample = pool.length > 1
+          ? pool[Math.floor(Math.random() * pool.length)]
+          : chosen;
+        const img = document.getElementById("rouletteCoverImg");
+        const ttl = document.getElementById("rouletteGameTitle");
+        const sub = document.getElementById("rouletteGameSub");
+        const pill = document.getElementById("roulettePlatPill");
+        if (img) img.src = sample.cover;
+        if (ttl) ttl.textContent = sample.title;
+        if (sub) sub.textContent = sample.region + " | " + sample.coreId;
+        if (pill) pill.textContent = sample.platform;
+        const wait = delays[step++];
+        state.rouletteSpinTimer = setTimeout(tickSpin, wait);
+      } else {
+        const img = document.getElementById("rouletteCoverImg");
+        const ttl = document.getElementById("rouletteGameTitle");
+        const sub = document.getElementById("rouletteGameSub");
+        const pill = document.getElementById("roulettePlatPill");
+        const playBtn = document.getElementById("roulettePlayBtn");
+        const inspBtn = document.getElementById("rouletteInspectBtn");
+        if (img) img.src = chosen.cover;
+        if (ttl) ttl.textContent = chosen.title;
+        if (sub) sub.textContent = chosen.region + " | " + chosen.coreId;
+        if (pill) pill.textContent = chosen.platform;
+        if (playBtn) playBtn.setAttribute("data-game", chosen.id);
+        if (inspBtn) inspBtn.setAttribute("data-game", chosen.id);
+        card.classList.remove("spinning");
+        card.classList.add("locked");
+        haptic("success");
+        state.rouletteSpinTimer = null;
+      }
+    }
+
+    state.rouletteSpinTimer = setTimeout(tickSpin, 50);
+  }
+
+  function fuzzyScore(query, targetText) {
+    if (!query) return 1;
+    const q = query.toLowerCase().trim();
+    const t = String(targetText || "").toLowerCase();
+    if (!q) return 1;
+    const exactIdx = t.indexOf(q);
+    if (exactIdx === 0) return 1000 - t.length;
+    if (exactIdx > 0) return 600 - exactIdx;
+    let qi = 0;
+    let score = 0;
+    for (let ti = 0; ti < t.length && qi < q.length; ti++) {
+      if (t[ti] === q[qi]) {
+        score += 12;
+        qi++;
+      }
+    }
+    return qi === q.length ? score : 0;
+  }
+
+  function buildOmniboxMatches(query) {
+    const results = [];
+    const ru = isRu();
+
+    const actions = [
+      { kind: "action", icon: "shuffle", title: ru ? "Случайная игра (Рулетка)" : "Random Game Roulette", meta: ru ? "Быстрый запуск случайной игры" : "Pick & boot a random game", execType: "roulette" },
+      { kind: "action", icon: "folder", title: ru ? "Сканировать папку с ROM" : "Scan ROM Folder", meta: state.storagePath, execType: "action", action: "quick-scan-storage" },
+      { kind: "action", icon: "cpu", title: ru ? "Автосканер BIOS (MD5)" : "Auto-Scan BIOS (MD5)", meta: ru ? "Проверка системных прошивок" : "Verify system firmware hashes", execType: "action", action: "scan-bios-md5" },
+      { kind: "action", icon: "archive", title: ru ? "Экспорт сохранений в ZIP" : "Export Saves Backup ZIP", meta: ru ? "Портативный перенос на ПК" : "Portable PC save transfer", execType: "action", action: "export-saves-zip" },
+      { kind: "action", icon: "refresh", title: ru ? "Проверить обновления (2.6.0)" : "Check Updates (2.6.0)", meta: "STORM RETROARCH", execType: "action", action: "check-updates" },
+      { kind: "action", icon: "grid", title: ru ? "Все 12 модулей Студии" : "All 12 Studio Modules", meta: ru ? "Быстрый переход по разделам" : "Open 12-module launcher", execType: "hub" }
+    ];
+
+    actions.forEach(function (a) {
+      const sc = fuzzyScore(query, a.title + " " + a.meta);
+      if (sc > 0) results.push(Object.assign({ score: sc + 20 }, a));
+    });
+
+    state.games.forEach(function (g) {
+      const sc = fuzzyScore(query, g.title + " " + g.platform + " " + g.region + " " + (g.customCollection || ""));
+      if (sc > 0) {
+        results.push({
+          kind: "game",
+          icon: "gamepad",
+          title: g.title,
+          meta: g.platform + " | " + g.region + " | " + g.coreId,
+          execType: "game",
+          gameId: g.id,
+          score: sc + 40
+        });
+      }
+    });
+
+    state.cores.forEach(function (c) {
+      const sc = fuzzyScore(query, c.displayName + " " + c.id + " " + c.platform);
+      if (sc > 0) {
+        results.push({
+          kind: "core",
+          icon: "cpu",
+          title: c.displayName,
+          meta: c.platform + (c.installed || c.bundled ? (ru ? " | Готово" : " | Ready") : (ru ? " | Можно скачать" : " | Downloadable")),
+          execType: "core",
+          coreId: c.id,
+          score: sc
+        });
+      }
+    });
+
+    STUDIO_MODULES.forEach(function (m) {
+      const lbl = tr(m.key);
+      const sc = fuzzyScore(query, lbl + " " + m.id + " " + (ru ? m.descRu : m.descEn));
+      if (sc > 0) {
+        results.push({
+          kind: "module",
+          icon: m.icon,
+          title: lbl,
+          meta: ru ? m.descRu : m.descEn,
+          execType: "nav",
+          tab: m.id,
+          score: sc + 10
+        });
+      }
+    });
+
+    THEMES.forEach(function (th) {
+      const sc = fuzzyScore(query, (ru ? "Тема " : "Theme ") + th.label + " " + th.id);
+      if (sc > 0) {
+        results.push({
+          kind: "theme",
+          icon: "palette",
+          title: (ru ? "Тема: " : "Theme: ") + th.label,
+          meta: th.id,
+          execType: "theme",
+          themeId: th.id,
+          score: sc - 5
+        });
+      }
+    });
+
+    results.sort(function (a, b) { return b.score - a.score; });
+    return results.slice(0, 28);
+  }
+
+  function renderOmniboxResults() {
+    const mount = document.getElementById("omniboxResults");
+    if (!mount) return;
+    const matches = buildOmniboxMatches(state.omniboxQuery);
+    state.omniboxResults = matches;
+    if (state.omniboxSelectedIdx >= matches.length) state.omniboxSelectedIdx = Math.max(0, matches.length - 1);
+
+    if (!matches.length) {
+      mount.innerHTML = '<div class="section-subtitle" style="padding:12px 4px;">' + (isRu() ? "Ничего не найдено по запросу." : "No matching games, cores, or actions.") + '</div>';
+      return;
+    }
+
+    const kindNames = isRu()
+      ? { game: "Игры", core: "Ядра", action: "Действия Студии", module: "Разделы", theme: "Темы" }
+      : { game: "Games", core: "Cores", action: "Studio Actions", module: "Modules", theme: "Themes" };
+
+    mount.innerHTML = matches.map(function (item, idx) {
+      const sel = idx === state.omniboxSelectedIdx ? " selected" : "";
+      return (
+        '<button type="button" class="omnibox-item' + sel + '" data-action="omnibox-exec" data-idx="' + idx + '">' +
+          '<div class="omnibox-item-left">' +
+            ico(item.icon) +
+            '<div style="min-width:0;">' +
+              '<div class="omnibox-item-title">' + esc(item.title) + '</div>' +
+              '<div class="omnibox-item-meta">' + esc(item.meta) + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<span class="badge-pill badge-accent">' + esc(kindNames[item.kind] || item.kind) + '</span>' +
+        '</button>'
+      );
+    }).join("");
+  }
+
+  function executeOmniboxItem(idx) {
+    const item = state.omniboxResults[idx];
+    if (!item) return;
+    closeAllModals();
+    if (item.execType === "roulette") {
+      openRandomRouletteModal();
+    } else if (item.execType === "hub") {
+      openStudioHubModal();
+    } else if (item.execType === "game") {
+      openGameInspector(item.gameId);
+    } else if (item.execType === "core") {
+      navigateToTab("cores");
+      state.coresQuery = item.coreId;
+      renderShellAndView();
+    } else if (item.execType === "nav") {
+      navigateToTab(item.tab);
+      renderShellAndView();
+    } else if (item.execType === "theme") {
+      saveSettingsPatch({ theme: item.themeId });
+      renderShellAndView();
+      showToast((isRu() ? "Применена тема: " : "Theme applied: ") + item.themeId);
+    } else if (item.execType === "action") {
+      const fake = document.querySelector('[data-action="' + item.action + '"]');
+      if (fake) fake.click();
+      else if (item.action === "quick-scan-storage" && hasBridge && window.StormBridge.scanPath) {
+        window.StormBridge.scanPath(state.storagePath);
+      } else if (item.action === "scan-bios-md5" && hasBridge && window.StormBridge.scanBiosFolder) {
+        window.StormBridge.scanBiosFolder();
+      } else if (item.action === "export-saves-zip" && hasBridge && window.StormBridge.exportSavesBackupZip) {
+        window.StormBridge.exportSavesBackupZip();
+      } else if (item.action === "check-updates") {
+        if (hasBridge && window.StormBridge.checkForUpdates) window.StormBridge.checkForUpdates();
+        else showToast(isRu() ? "У вас установлена актуальная версия (2.6.0)" : "STORM RETROARCH 2.6.0 is up to date");
+      }
+    }
+  }
+
+  function openCommandOmniboxModal() {
+    const modal = document.getElementById("commandOmniboxModal");
+    const box = document.getElementById("commandOmniboxContent");
+    if (!modal || !box) return;
+    state.omniboxQuery = "";
+    state.omniboxSelectedIdx = 0;
+
+    box.innerHTML =
+      '<div class="section-head" style="margin-bottom:10px;">' +
+        '<div class="section-title-cluster">' +
+          '<div class="section-icon-badge">' + ico("command") + '</div>' +
+          '<div>' +
+            '<h3 class="section-title" id="omniboxModalTitle">' + (isRu() ? "Быстрый поиск и команды" : "Global Command Omnibox") + '</h3>' +
+            '<p class="section-subtitle">' + (isRu() ? "Игры, 252 ядра, действия, темы и разделы" : "Instant fuzzy search across games, 252 cores, actions & themes") + '</p>' +
+          '</div>' +
+        '</div>' +
+        '<button type="button" class="icon-btn-3d" data-action="close-modals" aria-label="Close">' + ico("close") + '</button>' +
+      '</div>' +
+      '<div class="input-well-wrap">' +
+        '<span class="input-lead-ico">' + ico("search") + '</span>' +
+        '<input type="search" id="omniboxInput" class="input-well-3d" value="" placeholder="' + (isRu() ? "Введите название игры, ядра, темы или команды..." : "Search games, cores, themes or commands...") + '">' +
+      '</div>' +
+      '<div id="omniboxResults" class="omnibox-results"></div>';
+
+    modal.hidden = false;
+    renderOmniboxResults();
+    const inp = document.getElementById("omniboxInput");
+    if (inp) setTimeout(function () { inp.focus(); }, 20);
+  }
+
+  function navigateToTab(nextTab) {
+    if (!nextTab) return;
+    const prevIdx = NAV_ORDER.indexOf(state.activeTab);
+    const nextIdx = NAV_ORDER.indexOf(nextTab);
+    if (prevIdx >= 0 && nextIdx >= 0 && prevIdx !== nextIdx) {
+      state.pendingViewDirection = nextIdx > prevIdx ? "up" : "down";
+    } else {
+      state.pendingViewDirection = null;
+    }
+    state.prevTab = state.activeTab;
+    state.activeTab = nextTab;
   }
 
   function openCoreOptionsModal(coreId) {
@@ -2030,11 +2758,27 @@
   }
 
   function closeAllModals() {
-    ["studioHubModal", "gameInspectorModal", "coreOptionsModal"].forEach(function (id) {
+    if (state.rouletteSpinTimer) {
+      clearTimeout(state.rouletteSpinTimer);
+      state.rouletteSpinTimer = null;
+    }
+    ["studioHubModal", "gameInspectorModal", "coreOptionsModal", "randomRouletteModal", "commandOmniboxModal"].forEach(function (id) {
       const m = document.getElementById(id);
       if (m) m.hidden = true;
     });
   }
+
+  window.handleAndroidBack = function () {
+    const ids = ["commandOmniboxModal", "randomRouletteModal", "coreOptionsModal", "gameInspectorModal", "studioHubModal"];
+    for (let i = 0; i < ids.length; i++) {
+      const m = document.getElementById(ids[i]);
+      if (m && !m.hidden) {
+        closeAllModals();
+        return true;
+      }
+    }
+    return false;
+  };
 
   /* ------------------------------------------------------------------------
      12. UNIFIED EVENT DELEGATION & BRIDGE ACTIONS
@@ -2071,7 +2815,7 @@
     const navBtn = e.target.closest("[data-nav]");
     if (navBtn) {
       haptic("tap");
-      state.activeTab = navBtn.getAttribute("data-nav");
+      navigateToTab(navBtn.getAttribute("data-nav"));
       closeAllModals();
       renderShellAndView();
       return;
@@ -2082,7 +2826,34 @@
       haptic("tap");
       state.libPlatform = libPlat.getAttribute("data-lib-plat");
       state.libCoreFilter = "all";
-      renderViewport();
+      Array.prototype.forEach.call(document.querySelectorAll("[data-lib-plat]"), function (el) {
+        el.classList.toggle("active", el.getAttribute("data-lib-plat") === state.libPlatform);
+      });
+      const coreSel = document.getElementById("libCoreSelect");
+      if (coreSel) coreSel.value = "all";
+      updateLibraryResults();
+      return;
+    }
+
+    const libStatus = e.target.closest("[data-lib-status]");
+    if (libStatus) {
+      haptic("tap");
+      state.libStatusFilter = libStatus.getAttribute("data-lib-status");
+      Array.prototype.forEach.call(document.querySelectorAll("[data-lib-status]"), function (el) {
+        el.classList.toggle("active", el.getAttribute("data-lib-status") === state.libStatusFilter);
+      });
+      updateLibraryResults();
+      return;
+    }
+
+    const libAlpha = e.target.closest("[data-lib-alpha]");
+    if (libAlpha) {
+      haptic("tap");
+      state.libAlphaFilter = libAlpha.getAttribute("data-lib-alpha");
+      Array.prototype.forEach.call(document.querySelectorAll("[data-lib-alpha]"), function (el) {
+        el.classList.toggle("active", el.getAttribute("data-lib-alpha") === state.libAlphaFilter);
+      });
+      updateLibraryResults();
       return;
     }
 
@@ -2090,7 +2861,10 @@
     if (libView) {
       haptic("tap");
       state.libViewMode = libView.getAttribute("data-lib-view");
-      renderViewport();
+      Array.prototype.forEach.call(document.querySelectorAll("[data-lib-view]"), function (el) {
+        el.classList.toggle("active", el.getAttribute("data-lib-view") === state.libViewMode);
+      });
+      updateLibraryResults();
       return;
     }
 
@@ -2098,7 +2872,10 @@
     if (coreFilter) {
       haptic("tap");
       state.coresFilter = coreFilter.getAttribute("data-core-filter");
-      renderViewport();
+      Array.prototype.forEach.call(document.querySelectorAll("[data-core-filter]"), function (el) {
+        el.classList.toggle("active", el.getAttribute("data-core-filter") === state.coresFilter);
+      });
+      updateCoresResults();
       return;
     }
 
@@ -2106,8 +2883,11 @@
     if (cheatScope) {
       haptic("tap");
       state.cheatsLibraryOnly = cheatScope.getAttribute("data-cheat-scope") === "lib";
+      Array.prototype.forEach.call(document.querySelectorAll("[data-cheat-scope]"), function (el) {
+        el.classList.toggle("active", (el.getAttribute("data-cheat-scope") === "lib") === state.cheatsLibraryOnly);
+      });
       runCheatSearch();
-      renderViewport();
+      updateCheatsResults();
       return;
     }
 
@@ -2229,10 +3009,38 @@
     if (act === "open-studio-hub") openStudioHubModal();
     else if (act === "close-modals") closeAllModals();
     else if (act === "quick-search") {
-      state.activeTab = "library";
-      renderShellAndView();
-      const inp = document.getElementById("libSearchInput");
-      if (inp) inp.focus();
+      openCommandOmniboxModal();
+    } else if (act === "open-roulette" || act === "reroll-roulette") {
+      openRandomRouletteModal();
+    } else if (act === "omnibox-exec") {
+      executeOmniboxItem(Number(actEl.getAttribute("data-idx") || 0));
+    } else if (act === "set-game-rating") {
+      const gid = actEl.getAttribute("data-game");
+      const val = Number(actEl.getAttribute("data-rating") || 0);
+      const gm = state.games.find(function (x) { return x.id === gid; });
+      const nextVal = (gm && gm.starRating === val) ? 0 : val;
+      persistGameMetadata(gid, { starRating: nextVal });
+      Array.prototype.forEach.call(document.querySelectorAll("#inspectorStarRow .star-btn"), function (btn) {
+        const r = Number(btn.getAttribute("data-rating") || 0);
+        btn.classList.toggle("filled", r <= nextVal);
+      });
+      if (state.activeTab === "library") updateLibraryResults();
+      else if (state.activeTab === "dashboard") renderViewport();
+      showToast((isRu() ? "Оценка игры: " : "Game rating: ") + nextVal + "/5");
+    } else if (act === "save-game-notes") {
+      const gid = actEl.getAttribute("data-game");
+      const notesEl = document.getElementById("inspectorNotesArea");
+      const colEl = document.getElementById("inspectorCollectionInput");
+      const stEl = document.getElementById("inspectorStatusSelect");
+      const patch = {
+        userNotes: notesEl ? notesEl.value : "",
+        customCollection: colEl ? colEl.value.trim() : "",
+        completionStatus: stEl ? stEl.value : "Не начато"
+      };
+      persistGameMetadata(gid, patch);
+      if (state.activeTab === "library") updateLibraryResults();
+      else if (state.activeTab === "dashboard") renderViewport();
+      showToast(isRu() ? "Заметки и статус игры сохранены" : "Game notes & status saved");
     } else if (act === "pick-rom-folder") {
       if (hasBridge && window.StormBridge.pickRomFolder) window.StormBridge.pickRomFolder();
       else showToast(isRu() ? "Открыт системный выбор папки с ROM" : "Opening Android ROM folder picker");
@@ -2250,7 +3058,8 @@
       const gm = state.games.find(function (x) { return x.id === gid; });
       if (gm) gm.favorite = !gm.favorite;
       if (hasBridge && window.StormBridge.toggleFavorite) window.StormBridge.toggleFavorite(gid);
-      renderViewport();
+      if (state.activeTab === "library") updateLibraryResults();
+      else renderViewport();
     } else if (act === "inspect-game") {
       openGameInspector(actEl.getAttribute("data-game"));
     } else if (act === "launch-game") {
@@ -2266,7 +3075,7 @@
     } else if (act === "jump-game-cheats") {
       const gid = actEl.getAttribute("data-game");
       closeAllModals();
-      state.activeTab = "cheats";
+      navigateToTab("cheats");
       state.selectedCheatGameId = gid;
       if (PREVIEW_CHEAT_CODES[gid]) {
         state.activeCheatEntries = PREVIEW_CHEAT_CODES[gid].map(function (c) { return Object.assign({}, c); });
@@ -2280,7 +3089,8 @@
         const cObj = state.cores.find(function (x) { return x.id === cid; });
         if (cObj) {
           cObj.progress = 55;
-          renderViewport();
+          if (state.activeTab === "cores") updateCoresResults();
+          else renderViewport();
           setTimeout(function () {
             cObj.progress = 0;
             cObj.installed = true;
@@ -2308,7 +3118,7 @@
       renderShellAndView();
     } else if (act === "show-all-cores") {
       state.coresShowAll = true;
-      renderViewport();
+      updateCoresResults();
     } else if (act === "open-core-options") {
       openCoreOptionsModal(actEl.getAttribute("data-core"));
     } else if (act === "save-core-options") {
@@ -2341,20 +3151,20 @@
       } else {
         state.activeCheatEntries = (PREVIEW_CHEAT_CODES[cid] || PREVIEW_CHEAT_CODES.chrono_trigger_ru).map(function (c) { return Object.assign({}, c); });
       }
-      renderViewport();
+      updateCheatsResults();
     } else if (act === "toggle-cheat-entry") {
       const idx = Number(actEl.getAttribute("data-idx"));
       if (state.activeCheatEntries[idx]) {
         state.activeCheatEntries[idx].enabled = !state.activeCheatEntries[idx].enabled;
-        renderViewport();
+        updateCheatsResults();
       }
     } else if (act === "cheats-enable-all" || act === "cheats-disable-all") {
       const flag = act === "cheats-enable-all";
       state.activeCheatEntries.forEach(function (c) { c.enabled = flag; });
-      renderViewport();
+      updateCheatsResults();
     } else if (act === "toggle-custom-cheat") {
       state.showCustomCheatForm = !state.showCustomCheatForm;
-      renderViewport();
+      updateCheatsResults();
     } else if (act === "append-custom-cheat") {
       const descEl = document.getElementById("newCheatDesc");
       const codeEl = document.getElementById("newCheatCode");
@@ -2364,7 +3174,7 @@
         state.activeCheatEntries.unshift({ index: state.activeCheatEntries.length, description: dVal, code: cVal, enabled: true });
         state.showCustomCheatForm = false;
         showToast(isRu() ? "Собственный чит-код добавлен" : "Custom cheat added");
-        renderViewport();
+        updateCheatsResults();
       }
     } else if (act === "save-game-cheats") {
       const sel = state.cheatResults.find(function (x) { return x.id === state.selectedCheatGameId; }) || { id: "game", title: "Game", system: "SNES" };
@@ -2448,7 +3258,7 @@
       else showToast(isRu() ? "Полный доступ к /storage/emulated/0/STORM RETROARCH активен" : "Storage access active");
     } else if (act === "check-updates") {
       if (hasBridge && window.StormBridge.checkForUpdates) window.StormBridge.checkForUpdates();
-      else showToast(isRu() ? "У вас установлена актуальная версия (2.5.0)" : "STORM RETROARCH 2.5.0 is up to date");
+      else showToast(isRu() ? "У вас установлена актуальная версия (2.6.0)" : "STORM RETROARCH 2.6.0 is up to date");
     } else if (act === "install-update") {
       if (hasBridge && window.StormBridge.installUpdateApk) window.StormBridge.installUpdateApk();
     }
@@ -2459,24 +3269,25 @@
     if (!t) return;
     if (t.id === "libSearchInput") {
       state.libQuery = t.value;
-      renderViewport();
-      const inp = document.getElementById("libSearchInput");
-      if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+      scheduleDebounced("libSearch", updateLibraryResults, 25);
     } else if (t.id === "libZoomSlider") {
       state.libZoom = Number(t.value);
       applyVisualTokens();
-      renderViewport();
+      const lbl = document.getElementById("libZoomLabel");
+      if (lbl) lbl.textContent = state.libZoom + "%";
     } else if (t.id === "coresSearchInput") {
       state.coresQuery = t.value;
-      renderViewport();
-      const inp = document.getElementById("coresSearchInput");
-      if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+      scheduleDebounced("coresSearch", updateCoresResults, 25);
     } else if (t.id === "cheatsSearchInput") {
       state.cheatsQuery = t.value;
-      runCheatSearch();
-      renderViewport();
-      const inp = document.getElementById("cheatsSearchInput");
-      if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+      scheduleDebounced("cheatsSearch", function () {
+        runCheatSearch();
+        updateCheatsResults();
+      }, 25);
+    } else if (t.id === "omniboxInput") {
+      state.omniboxQuery = t.value;
+      state.omniboxSelectedIdx = 0;
+      renderOmniboxResults();
     } else if (t.hasAttribute("data-eq-band")) {
       const bi = Number(t.getAttribute("data-eq-band"));
       state.settings.eqBands[bi] = Number(t.value);
@@ -2503,10 +3314,10 @@
   document.addEventListener("change", function (e) {
     const t = e.target;
     if (!t) return;
-    if (t.id === "libCoreSelect") { state.libCoreFilter = t.value; renderViewport(); }
-    else if (t.id === "libSortSelect") { state.libSort = t.value; renderViewport(); }
-    else if (t.id === "coresPlatSelect") { state.coresPlatform = t.value; renderViewport(); }
-    else if (t.id === "cheatsSysSelect") { state.cheatsSystem = t.value; runCheatSearch(); renderViewport(); }
+    if (t.id === "libCoreSelect") { state.libCoreFilter = t.value; updateLibraryResults(); }
+    else if (t.id === "libSortSelect") { state.libSort = t.value; updateLibraryResults(); }
+    else if (t.id === "coresPlatSelect") { state.coresPlatform = t.value; updateCoresResults(); }
+    else if (t.id === "cheatsSysSelect") { state.cheatsSystem = t.value; runCheatSearch(); updateCheatsResults(); }
     else if (t.id === "ramCompareSelect") { state.ramCompare = t.value; }
     else if (t.id === "gfxBackendSelect") { saveSettingsPatch({ videoBackend: t.value }); renderViewport(); }
     else if (t.id === "gfxScaleSelect") { saveSettingsPatch({ internalScale: t.value }); }
@@ -2516,13 +3327,26 @@
     else if (t.id === "ctrlHapticSelect") { saveSettingsPatch({ hapticStrength: t.value }); }
     else if (t.id === "ctrlTurboSelect") { saveSettingsPatch({ turboHz: t.value }); renderViewport(); }
     else if (t.id === "fontFamilySelect") { saveSettingsPatch({ font: t.value }); renderShellAndView(); }
-    else if (t.id === "inspectorCoreSelect") {
+    else if (t.id === "inspectorStatusSelect") {
+      const gid = t.getAttribute("data-game");
+      persistGameMetadata(gid, { completionStatus: t.value });
+      if (state.activeTab === "library") updateLibraryResults();
+      else if (state.activeTab === "dashboard") renderViewport();
+      showToast((isRu() ? "Статус: " : "Status: ") + t.value);
+    } else if (t.id === "inspectorNotesArea") {
+      const gid = t.getAttribute("data-game");
+      persistGameMetadata(gid, { userNotes: t.value });
+    } else if (t.id === "inspectorCollectionInput") {
+      const gid = t.getAttribute("data-game");
+      persistGameMetadata(gid, { customCollection: t.value.trim() });
+    } else if (t.id === "inspectorCoreSelect") {
       const gid = t.getAttribute("data-game");
       const gm = state.games.find(function (x) { return x.id === gid; });
       if (gm) gm.coreId = t.value;
       if (hasBridge && window.StormBridge.setPreferredCore) window.StormBridge.setPreferredCore(gid, t.value);
       showToast((isRu() ? "Назначено ядро: " : "Assigned core: ") + t.value);
-      renderViewport();
+      if (state.activeTab === "library") updateLibraryResults();
+      else renderViewport();
     }
   });
 
@@ -2532,7 +3356,7 @@
   function cycleModule(delta) {
     const idx = STUDIO_MODULES.findIndex(function (m) { return m.id === state.activeTab; });
     const next = (idx + delta + STUDIO_MODULES.length) % STUDIO_MODULES.length;
-    state.activeTab = STUDIO_MODULES[next].id;
+    navigateToTab(STUDIO_MODULES[next].id);
     closeAllModals();
     haptic("tap");
     renderShellAndView();
@@ -2567,6 +3391,29 @@
     if (e.key === "Escape") {
       closeAllModals();
       return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      openCommandOmniboxModal();
+      return;
+    }
+    const omniModal = document.getElementById("commandOmniboxModal");
+    if (omniModal && !omniModal.hidden && state.omniboxResults.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        state.omniboxSelectedIdx = (state.omniboxSelectedIdx + 1) % state.omniboxResults.length;
+        renderOmniboxResults();
+        return;
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        state.omniboxSelectedIdx = (state.omniboxSelectedIdx - 1 + state.omniboxResults.length) % state.omniboxResults.length;
+        renderOmniboxResults();
+        return;
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        executeOmniboxItem(state.omniboxSelectedIdx);
+        return;
+      }
     }
     const tag = (e.target && e.target.tagName) || "";
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;

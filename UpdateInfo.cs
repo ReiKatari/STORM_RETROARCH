@@ -5,7 +5,7 @@ namespace StormRetroArch;
 public class UpdateInfo
 {
     public Version Version { get; set; } = new(2, 4, 0);
-    public string VersionString { get; set; } = "2.5.0";
+    public string VersionString { get; set; } = "2.6.0";
     public string Title { get; set; } = "";
     public string Changelog { get; set; } = "";
     public string SetupDownloadUrl { get; set; } = "";

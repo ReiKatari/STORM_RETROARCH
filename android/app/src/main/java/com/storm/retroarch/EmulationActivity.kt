@@ -24,6 +24,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.text.InputType
@@ -146,6 +147,8 @@ class EmulationActivity : Activity() {
     // Active quick studio overlay
     private var quickDrawerDialog: Dialog? = null
     private var lastAppliedSurfaceHeight = -1
+    private var activeSessionStartElapsedMs = 0L
+    private var gameIdExtra: String = ""
 
     private val gyroSensorListener = object : SensorEventListener {
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
@@ -246,6 +249,7 @@ class EmulationActivity : Activity() {
 
         intent?.let { inp ->
             romPath = inp.getStringExtra(EXTRA_ROM_PATH) ?: ""
+            gameIdExtra = inp.getStringExtra("game_id") ?: ""
             romName = inp.getStringExtra(EXTRA_ROM_NAME)?.takeIf { it.isNotBlank() }
                 ?: File(romPath).nameWithoutExtension.ifBlank { "Game" }
             platformName = inp.getStringExtra(EXTRA_PLATFORM) ?: "SNES"
@@ -1387,7 +1391,7 @@ class EmulationActivity : Activity() {
         val measuredFps = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetMeasuredFps() else 60.0
         val frameMs = if (measuredFps > 1.0) 1000.0 / measuredFps else 16.7
         val telemetryPill = TextView(this).apply {
-            text = String.format(Locale.US, "STORM RETROARCH 2.5.0  |  %.1f FPS  |  %.1f ms", measuredFps, frameMs)
+            text = String.format(Locale.US, "STORM RETROARCH 2.6.0  |  %.1f FPS  |  %.1f ms", measuredFps, frameMs)
             fontFeatureSettings = "tnum"
             setTextColor(StormThemeEngine.lighten(accent, 0.25f))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f)
@@ -2427,7 +2431,25 @@ class EmulationActivity : Activity() {
         }
     }
 
+    private fun flushPlaytimeDelta() {
+        val started = activeSessionStartElapsedMs
+        if (started > 0L) {
+            activeSessionStartElapsedMs = 0L
+            val deltaSec = ((SystemClock.elapsedRealtime() - started) / 1000L).coerceIn(0L, 86400L)
+            if (deltaSec > 0L && (gameIdExtra.isNotBlank() || romPath.isNotBlank())) {
+                MobileLibraryAndCoverEngine.recordPlaySession(
+                    context = this,
+                    rom = null,
+                    gameIdOrPath = gameIdExtra.ifBlank { romPath },
+                    addedSeconds = deltaSec,
+                    countLaunch = false
+                )
+            }
+        }
+    }
+
     private fun finishAndSave() {
+        flushPlaytimeDelta()
         flushSramSafe()
         emuRunning = false
         finish()
@@ -2441,6 +2463,7 @@ class EmulationActivity : Activity() {
     }
 
     override fun onPause() {
+        flushPlaytimeDelta()
         touchOverlay.releaseAllInputs()
         flushSramSafe()
         emuPaused = true
@@ -2453,12 +2476,16 @@ class EmulationActivity : Activity() {
         applyImmersiveSystemBars()
         if (quickDrawerDialog?.isShowing != true && !touchOverlay.isEditMode) {
             emuPaused = false
+            if (activeSessionStartElapsedMs == 0L) {
+                activeSessionStartElapsedMs = SystemClock.elapsedRealtime()
+            }
         }
         updateGyroRegistration()
         syncViewportBoundsWithHandheldDeck()
     }
 
     override fun onDestroy() {
+        flushPlaytimeDelta()
         mainHandler.removeCallbacks(fpsHudUpdater)
         if (gyroRegistered) {
             sensorManager?.unregisterListener(gyroSensorListener)

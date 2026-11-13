@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 
@@ -82,7 +84,11 @@ public static class AnalyticalSpringEngine
         public FrameworkElement Element { get; }
         public AnalyticalSpring1D OpacitySpring;
         public AnalyticalSpring1D TransformSpring;
+        public AnalyticalSpring1D ScaleSpring;
+        public ScaleTransform? ScaleT { get; }
+        public TranslateTransform? TransT { get; }
         public bool IsModalPop { get; }
+        public bool IsDirectionalView { get; }
 
         public ActiveAnimation(FrameworkElement element, AnalyticalSpring1D opacitySpring, AnalyticalSpring1D transformSpring, bool isModalPop)
         {
@@ -90,6 +96,23 @@ public static class AnalyticalSpringEngine
             OpacitySpring = opacitySpring;
             TransformSpring = transformSpring;
             IsModalPop = isModalPop;
+        }
+
+        public ActiveAnimation(
+            FrameworkElement element,
+            AnalyticalSpring1D opacitySpring,
+            AnalyticalSpring1D transformSpring,
+            AnalyticalSpring1D scaleSpring,
+            ScaleTransform scaleT,
+            TranslateTransform transT)
+        {
+            Element = element;
+            OpacitySpring = opacitySpring;
+            TransformSpring = transformSpring;
+            ScaleSpring = scaleSpring;
+            ScaleT = scaleT;
+            TransT = transT;
+            IsDirectionalView = true;
         }
     }
 
@@ -268,10 +291,23 @@ public static class AnalyticalSpringEngine
 
             bool opActive = anim.OpacitySpring.Step(dtSeconds);
             bool trActive = anim.TransformSpring.Step(dtSeconds);
+            bool scActive = anim.IsDirectionalView && anim.ScaleSpring.Step(dtSeconds);
 
             element.Opacity = Math.Clamp(anim.OpacitySpring.Position, 0.0, 1.0);
 
-            if (anim.IsModalPop)
+            if (anim.IsDirectionalView)
+            {
+                if (anim.ScaleT != null)
+                {
+                    anim.ScaleT.ScaleX = anim.ScaleSpring.Position;
+                    anim.ScaleT.ScaleY = anim.ScaleSpring.Position;
+                }
+                if (anim.TransT != null)
+                {
+                    anim.TransT.Y = anim.TransformSpring.Position;
+                }
+            }
+            else if (anim.IsModalPop)
             {
                 if (element.RenderTransform is ScaleTransform st)
                 {
@@ -287,7 +323,7 @@ public static class AnalyticalSpringEngine
                 }
             }
 
-            if (!opActive && !trActive)
+            if (!opActive && !trActive && !scActive)
             {
                 toRemove ??= new List<FrameworkElement>();
                 toRemove.Add(element);
@@ -311,7 +347,19 @@ public static class AnalyticalSpringEngine
         {
             var anim = kvp.Value;
             anim.Element.Opacity = 1.0;
-            if (anim.IsModalPop && anim.Element.RenderTransform is ScaleTransform st)
+            if (anim.IsDirectionalView)
+            {
+                if (anim.ScaleT != null)
+                {
+                    anim.ScaleT.ScaleX = 1.0;
+                    anim.ScaleT.ScaleY = 1.0;
+                }
+                if (anim.TransT != null)
+                {
+                    anim.TransT.Y = 0.0;
+                }
+            }
+            else if (anim.IsModalPop && anim.Element.RenderTransform is ScaleTransform st)
             {
                 st.ScaleX = 1.0;
                 st.ScaleY = 1.0;
@@ -777,6 +825,226 @@ public static class AnalyticalSpringEngine
 
         ActiveAnimations[viewRoot] = new ActiveAnimation(viewRoot, opacitySpring, ySpring, false);
         CheckHookState();
+    }
+
+    /// <summary>
+    /// 2.6.0 Directional Spring Choreography: glides Y (direction * 18px -> 0), Scale (0.986 -> 1.0),
+    /// and Opacity (0.15 -> 1.0) at 60-120 FPS, preserving in-flight velocity on rapid tab switches.
+    /// </summary>
+    public static void AnimateDirectionalViewTransition(FrameworkElement viewRoot, int direction)
+    {
+        if (viewRoot == null) return;
+
+        int dir = direction == 0 ? 1 : Math.Sign(direction);
+        viewRoot.RenderTransformOrigin = new Point(0.5, 0.5);
+
+        ScaleTransform st;
+        TranslateTransform tt;
+        if (viewRoot.RenderTransform is TransformGroup tg &&
+            tg.Children.OfType<ScaleTransform>().FirstOrDefault() is ScaleTransform existingSt &&
+            tg.Children.OfType<TranslateTransform>().FirstOrDefault() is TranslateTransform existingTt)
+        {
+            st = existingSt;
+            tt = existingTt;
+        }
+        else
+        {
+            st = new ScaleTransform(1.0, 1.0);
+            tt = new TranslateTransform(0.0, 0.0);
+            var group = new TransformGroup();
+            group.Children.Add(st);
+            group.Children.Add(tt);
+            viewRoot.RenderTransform = group;
+        }
+
+        if (SettingsManager.Current == null || !SettingsManager.Current.EnableUiAnimations)
+        {
+            viewRoot.Opacity = 1.0;
+            st.ScaleX = 1.0;
+            st.ScaleY = 1.0;
+            tt.Y = 0.0;
+            ActiveAnimations.Remove(viewRoot);
+            CheckHookState();
+            return;
+        }
+
+        float startOpacity = 0.15f;
+        float startY = dir * 18.0f;
+        float startScale = 0.986f;
+        float opacityVel = 0f;
+        float yVel = 0f;
+        float scaleVel = 0f;
+
+        if (ActiveAnimations.TryGetValue(viewRoot, out var existing))
+        {
+            opacityVel = existing.OpacitySpring.Velocity;
+            yVel = existing.TransformSpring.Velocity;
+            scaleVel = existing.IsDirectionalView ? existing.ScaleSpring.Velocity : 0f;
+            startOpacity = (float)viewRoot.Opacity;
+            startY = dir * 18.0f;
+            startScale = (float)st.ScaleX;
+        }
+        else
+        {
+            viewRoot.Opacity = startOpacity;
+            st.ScaleX = startScale;
+            st.ScaleY = startScale;
+        }
+
+        tt.Y = startY;
+
+        const float stiffness = 380f;
+        const float damping = 32f;
+
+        var opacitySpring = new AnalyticalSpring1D(startOpacity, 1.0f, stiffness, damping) { Velocity = opacityVel };
+        var ySpring = new AnalyticalSpring1D(startY, 0.0f, stiffness, damping) { Velocity = yVel };
+        var scaleSpring = new AnalyticalSpring1D(startScale, 1.0f, stiffness, damping) { Velocity = scaleVel };
+
+        ActiveAnimations[viewRoot] = new ActiveAnimation(viewRoot, opacitySpring, ySpring, scaleSpring, st, tt);
+        CheckHookState();
+    }
+
+    private class PressSpringItem
+    {
+        public Button Button { get; }
+        public ScaleTransform ScaleT { get; }
+        public AnalyticalSpring1D ScaleSpring;
+
+        public PressSpringItem(Button button, ScaleTransform scaleT)
+        {
+            Button = button;
+            ScaleT = scaleT;
+            ScaleSpring = new AnalyticalSpring1D((float)scaleT.ScaleX, 1.0f, 620f, 34f);
+        }
+    }
+
+    private static readonly ConditionalWeakTable<Button, PressSpringItem> AttachedPressButtons = new();
+    private static readonly Dictionary<Button, PressSpringItem> ActivePressSprings = new();
+    private static bool _isPressHooked = false;
+    private static long _lastPressTickTimestamp = 0;
+
+    /// <summary>
+    /// Attaches tactile 3D spring press physics (stiffness=620, damping=34, scale 0.965 <-> 1.0)
+    /// cleanly without duplicating listeners.
+    /// </summary>
+    public static void AttachTactileButtonPress(Button btn)
+    {
+        if (btn == null) return;
+        if (AttachedPressButtons.TryGetValue(btn, out _)) return;
+
+        btn.RenderTransformOrigin = new Point(0.5, 0.5);
+
+        ScaleTransform st;
+        if (btn.RenderTransform is ScaleTransform existingScale)
+        {
+            st = existingScale;
+        }
+        else if (btn.RenderTransform is TransformGroup tg)
+        {
+            if (tg.Children.OfType<ScaleTransform>().FirstOrDefault() is ScaleTransform groupScale)
+            {
+                st = groupScale;
+            }
+            else
+            {
+                st = new ScaleTransform(1.0, 1.0);
+                tg.Children.Insert(0, st);
+            }
+        }
+        else if (btn.RenderTransform is Transform existingOther && existingOther != Transform.Identity)
+        {
+            st = new ScaleTransform(1.0, 1.0);
+            var group = new TransformGroup();
+            group.Children.Add(st);
+            group.Children.Add(existingOther);
+            btn.RenderTransform = group;
+        }
+        else
+        {
+            st = new ScaleTransform(1.0, 1.0);
+            var group = new TransformGroup();
+            group.Children.Add(st);
+            group.Children.Add(new TranslateTransform(0.0, 0.0));
+            btn.RenderTransform = group;
+        }
+
+        var item = new PressSpringItem(btn, st);
+        AttachedPressButtons.Add(btn, item);
+
+        void TriggerScale(float target)
+        {
+            if (SettingsManager.Current == null || !SettingsManager.Current.EnableUiAnimations)
+            {
+                st.ScaleX = 1.0;
+                st.ScaleY = 1.0;
+                ActivePressSprings.Remove(btn);
+                CheckPressHookState();
+                return;
+            }
+
+            item.ScaleSpring.Target = target;
+            ActivePressSprings[btn] = item;
+            CheckPressHookState();
+        }
+
+        btn.PreviewMouseLeftButtonDown += (_, _) => TriggerScale(0.965f);
+        btn.PreviewMouseLeftButtonUp += (_, _) => TriggerScale(1.0f);
+        btn.MouseLeave += (_, _) => TriggerScale(1.0f);
+    }
+
+    private static void CheckPressHookState()
+    {
+        if (ActivePressSprings.Count > 0 && !_isPressHooked)
+        {
+            _lastPressTickTimestamp = Stopwatch.GetTimestamp();
+            CompositionTarget.Rendering += OnPressRendering;
+            _isPressHooked = true;
+        }
+        else if (ActivePressSprings.Count == 0 && _isPressHooked)
+        {
+            CompositionTarget.Rendering -= OnPressRendering;
+            _isPressHooked = false;
+        }
+    }
+
+    private static void OnPressRendering(object? sender, EventArgs e)
+    {
+        if (ActivePressSprings.Count == 0)
+        {
+            CheckPressHookState();
+            return;
+        }
+
+        long currentTick = Stopwatch.GetTimestamp();
+        double dt = (double)(currentTick - _lastPressTickTimestamp) / Stopwatch.Frequency;
+        _lastPressTickTimestamp = currentTick;
+
+        float dtSeconds = (float)Math.Clamp(dt, 0.001, 0.05);
+        List<Button>? toRemove = null;
+
+        foreach (var kvp in ActivePressSprings)
+        {
+            var item = kvp.Value;
+            bool active = item.ScaleSpring.Step(dtSeconds);
+            item.ScaleT.ScaleX = item.ScaleSpring.Position;
+            item.ScaleT.ScaleY = item.ScaleSpring.Position;
+
+            if (!active)
+            {
+                toRemove ??= new List<Button>();
+                toRemove.Add(item.Button);
+            }
+        }
+
+        if (toRemove != null)
+        {
+            foreach (var b in toRemove)
+            {
+                ActivePressSprings.Remove(b);
+            }
+        }
+
+        CheckPressHookState();
     }
 
 }

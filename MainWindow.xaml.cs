@@ -28,12 +28,12 @@ public class BoolToStarConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        return value is true ? "★ Избранное" : "☆ В избранное";
+        return value is true ? "В избранном" : "В избранное";
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        return value?.ToString()?.StartsWith("★") == true;
+        return value?.ToString()?.StartsWith("") == true;
     }
 }
 
@@ -116,8 +116,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     // Subsystem Collections
     private List<CoreProfileItem> _allCoreProfiles = new();
     private CoreProfileItem? _selectedCoreProfile;
-    private readonly ObservableCollection<CoreOptionItem> _currentCoreOptions = new();
-    private readonly ObservableCollection<CoreOptionItem> _filteredCoreOptions = new();
+    private readonly BulkObservableCollection<CoreOptionItem> _currentCoreOptions = new();
+    private readonly BulkObservableCollection<CoreOptionItem> _filteredCoreOptions = new();
     private string _selectedCoreOptionCategory = "Все параметры";
     private string _coreOptionSearchQuery = "";
 
@@ -137,53 +137,53 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private DispatcherTimer? _livePadTesterTimer;
     private int _selectedRemapPlayerIndex = 1;
-    private readonly ObservableCollection<RemapButtonBinding> _currentRemapBindings = new();
+    private readonly BulkObservableCollection<RemapButtonBinding> _currentRemapBindings = new();
 
-    private readonly ObservableCollection<CheevosGameSupportItem> _allAchievements = new();
-    private readonly ObservableCollection<CheevosGameSupportItem> _filteredAchievements = new();
+    private readonly BulkObservableCollection<CheevosGameSupportItem> _allAchievements = new();
+    private readonly BulkObservableCollection<CheevosGameSupportItem> _filteredAchievements = new();
     
     private readonly List<string> _selectedM3uFiles = new();
 
     // Collections
-    private readonly ObservableCollection<RomItem> _allGames = new();
-    private readonly ObservableCollection<RomItem> _filteredGames = new();
-    private readonly ObservableCollection<RomItem> _favorites = new();
-    private readonly ObservableCollection<RomItem> _history = new();
-    private readonly ObservableCollection<CoreInfo> _cores = new();
+    private readonly BulkObservableCollection<RomItem> _allGames = new();
+    private readonly BulkObservableCollection<RomItem> _filteredGames = new();
+    private readonly BulkObservableCollection<RomItem> _favorites = new();
+    private readonly BulkObservableCollection<RomItem> _history = new();
+    private readonly BulkObservableCollection<CoreInfo> _cores = new();
 
     // 1.6.0 Fast Navigation & Command Palette Collections
     private readonly List<CommandPaletteItem> _allPaletteItems = new();
-    private readonly ObservableCollection<CommandPaletteItem> _filteredPaletteItems = new();
+    private readonly BulkObservableCollection<CommandPaletteItem> _filteredPaletteItems = new();
     private readonly DispatcherTimer _searchDebounceTimer;
     private string _selectedChipPlatform = "Все платформы";
 
     // Extended Feature Collections: Shaders, Saves, BIOS, Cheats, Netplay
-    private readonly ObservableCollection<ShaderPresetItem> _allShaders = new();
-    private readonly ObservableCollection<ShaderPresetItem> _filteredShaders = new();
+    private readonly BulkObservableCollection<ShaderPresetItem> _allShaders = new();
+    private readonly BulkObservableCollection<ShaderPresetItem> _filteredShaders = new();
     private string _selectedShaderCategory = "Все категории";
 
-    private readonly ObservableCollection<SaveEntryItem> _allSaves = new();
-    private readonly ObservableCollection<SaveEntryItem> _filteredSaves = new();
+    private readonly BulkObservableCollection<SaveEntryItem> _allSaves = new();
+    private readonly BulkObservableCollection<SaveEntryItem> _filteredSaves = new();
     private string _selectedSaveFilter = "Все сохранения";
 
-    private readonly ObservableCollection<BiosInfoItem> _allBios = new();
-    private readonly ObservableCollection<BiosInfoItem> _filteredBios = new();
+    private readonly BulkObservableCollection<BiosInfoItem> _allBios = new();
+    private readonly BulkObservableCollection<BiosInfoItem> _filteredBios = new();
     private string _selectedBiosFilter = "Все файлы";
 
-    private readonly ObservableCollection<CheatFileItem> _allCheatFiles = new();
-    private readonly ObservableCollection<CheatFileItem> _filteredCheatFiles = new();
-    private readonly ObservableCollection<CheatItem> _selectedCheats = new();
+    private readonly BulkObservableCollection<CheatFileItem> _allCheatFiles = new();
+    private readonly BulkObservableCollection<CheatFileItem> _filteredCheatFiles = new();
+    private readonly BulkObservableCollection<CheatItem> _selectedCheats = new();
     private CheatFileItem? _selectedCheatFile;
 
-    private readonly ObservableCollection<NetplayRoomItem> _netplayLobby = new();
+    private readonly BulkObservableCollection<NetplayRoomItem> _netplayLobby = new();
 
-    private readonly ObservableCollection<BezelPresetItem> _allBezels = new();
-    private readonly ObservableCollection<BezelPresetItem> _filteredBezels = new();
+    private readonly BulkObservableCollection<BezelPresetItem> _allBezels = new();
+    private readonly BulkObservableCollection<BezelPresetItem> _filteredBezels = new();
     private string _selectedBezelPlatform = "Все рамки";
     private string _selectedCoreManufacturer = "Все ядра (350+)";
 
     private List<SettingItem> _allSettings = new();
-    private readonly ObservableCollection<SettingItem> _filteredSettings = new();
+    private readonly BulkObservableCollection<SettingItem> _filteredSettings = new();
 
     private StormTrayService? _trayService;
     private UpdateInfo? _pendingUpdate;
@@ -304,8 +304,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         CmbStateSlot.SelectionChanged += CmbStateSlot_SelectionChanged;
         SettingItem.SettingChanged += OnLiveSettingChanged;
 
-        // 1.6.0 Debounced Search Timer (120ms)
-        _searchDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(90) };
+        // 2.6.0 Instant Debounced Search Timer (35ms)
+        _searchDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(35) };
         _searchDebounceTimer.Tick += (s, e) =>
         {
             _searchDebounceTimer.Stop();
@@ -330,7 +330,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }));
         };
 
-        // 2.5.0 Multi-Device Input Engine & Controller Hotkey Studio
+        // 2.6.0 Multi-Device Input Engine & Controller Hotkey Studio
         DeviceInputProfileEngine.Initialize();
         DeviceInputProfileEngine.OnDeviceProfileActivated += (dev, msg) =>
         {
@@ -496,7 +496,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         catch { }
     }
 
-    private void Window_Loaded(object sender, RoutedEventArgs e)
+    private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
         try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "run.log"), "Loaded start: " + string.Join(" ", Environment.GetCommandLineArgs()) + "\n"); } catch { }
         // Setup Win32 UIPI Bypass
@@ -504,7 +504,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         IntPtr hwnd = helper.Handle;
         try
         {
-            SetWindowText(hwnd, Title ?? "STORM RETROARCH 1.6.0");
+            SetWindowText(hwnd, Title ?? "STORM RETROARCH 2.6.0");
             ChangeWindowMessageFilterEx(hwnd, WM_DROPFILES, MSGFLT_ALLOW, IntPtr.Zero);
             ChangeWindowMessageFilterEx(hwnd, WM_COPYDATA, MSGFLT_ALLOW, IntPtr.Zero);
             ChangeWindowMessageFilterEx(hwnd, WM_COPYGLOBALDATA, MSGFLT_ALLOW, IntPtr.Zero);
@@ -567,14 +567,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         LoadRemapBindings(1);
-        LoadAchievements();
-
-        LoadShaders();
-        LoadSaves();
-        LoadBios();
-        LoadCheats();
-        RefreshLobby();
-        LoadBezels();
 
         // Load Settings and Real retroarch.cfg
         SettingsManager.Load();
@@ -589,9 +581,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         // Populate Cores (All Catalog)
         PopulateCoresList("Все ядра (350+)");
 
-        // Populate Filters
-        PopulateFilters();
-
         // Update Paths Display
         TxtConfigPathDisplay.Text = $"Файл: {RetroArchConfigManager.ConfigFilePath}";
         TxtScreenshotsDirDisplay.Text = $"Папка: {RetroArchConfigManager.GetString("screenshot_directory", Path.Combine(CoreManager.AppDir, "screenshots"))}";
@@ -599,14 +588,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         // Initialize System Tray
         _trayService = new StormTrayService(this);
 
-        // Refresh Library first, then Load Playlists (History & Favorites) & Cheats for Library Games
+        // Refresh Library first, then Load Playlists (History & Favorites) & Populate Filters once
         LoadLibraryFromPlaylist();
         LoadPlaylists();
         InitPlatformDefaultCoreSelectors();
-        UpdatePlatformFilterChips();
         UpdateDashboardRecentGames();
         InitCommandPaletteItems();
-        LoadCheats();
         PopulateFilters();
         ApplyGamesFilter();
         UpdateStats();
@@ -644,14 +631,24 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SyncQuickSettingsCheckboxes();
 
         _isLoaded = true;
-        LogCheckpoint("Before InitStudio200"); InitStudio200(); InitStudio210(); InitStudio220Subsystem(); InitStudio230Subsystem(); LogCheckpoint("After InitStudio220");
+        LogCheckpoint("Before InitStudio200"); InitStudio200(); InitStudio210(); InitStudio220Subsystem(); InitStudio230Subsystem(); InitStudio260(); LogCheckpoint("After InitStudio260");
+
+        // 2.6.0 Non-blocking background subsystem warmup (shaders, saves, BIOS, cheats, bezels, achievements, external emus)
+        if (Environment.GetCommandLineArgs().Any(a => a.StartsWith("--screenshot", StringComparison.OrdinalIgnoreCase)))
+            {
+                await HydrateSubsystemsInBackgroundAsync();
+            }
+            else
+            {
+                _ = HydrateSubsystemsInBackgroundAsync();
+            }
 
         ForceForegroundWindow(hwnd);
 
         // Check for updates if enabled
         if (SettingsManager.Current.CheckUpdatesOnStartup)
         {
-            Task.Run(async () =>
+            _ = Task.Run(async () =>
             {
                 await Task.Delay(1200);
                 await UpdateManager.CheckForUpdatesAsync(silent: true);
@@ -740,7 +737,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 bool isCheats = cmdArgs[i].Equals("--screenshot-cheats", StringComparison.OrdinalIgnoreCase);
                 string shotPath = cmdArgs[i + 1];
 
-                Dispatcher.BeginInvoke(new Action(async () =>
+                _ = Dispatcher.BeginInvoke(new Action(async () =>
                 {
                     try
                     {
@@ -2075,6 +2072,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _activeNavView = "MainMenu";
             ViewMainMenu.Visibility = Visibility.Visible;
             SyncPerformanceControls();
+            RefreshPlayerAnalyticsDashboard();
             if (DashboardCardsGrid != null) AnalyticalSpringEngine.AnimateStaggeredChildren(DashboardCardsGrid);
         }
         else if (btn == NavBtnSettings)
@@ -2143,26 +2141,26 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ViewShaders.Visibility = Visibility.Visible;
             SyncShaderStudioControls();
             RefreshShaderLivePreview();
-            LoadShaders();
+            if (!_shadersLoaded) LoadShaders(forceReload: false);
             if (ItemsShaders != null) AnalyticalSpringEngine.AnimateStaggeredChildren(ItemsShaders);
         }
         else if (btn == NavBtnSaves)
         {
             _activeNavView = "Saves";
             ViewSaves.Visibility = Visibility.Visible;
-            LoadSaves();
+            if (!_savesLoaded) LoadSaves(forceReload: false);
         }
         else if (btn == NavBtnBios)
         {
             _activeNavView = "Bios";
             ViewBios.Visibility = Visibility.Visible;
-            LoadBios();
+            if (!_biosLoaded) LoadBios(forceReload: false);
         }
         else if (btn == NavBtnCheats)
         {
             _activeNavView = "Cheats";
             ViewCheats.Visibility = Visibility.Visible;
-            LoadCheats();
+            if (!_cheatsLoaded) LoadCheats(forceReload: false);
             UpdateRamScannerUi();
         }
         else if (btn == NavBtnBezels)
@@ -2170,7 +2168,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _activeNavView = "Bezels";
             ViewBezels.Visibility = Visibility.Visible;
             SyncBezelControls();
-            LoadBezels();
+            if (!_bezelsLoaded) LoadBezels(forceReload: false);
             if (ItemsBezels != null) AnalyticalSpringEngine.AnimateStaggeredChildren(ItemsBezels);
         }
         else if (btn == NavBtnCoreOptions)
@@ -2192,7 +2190,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _activeNavView = "Achievements";
             ViewAchievements.Visibility = Visibility.Visible;
-            LoadAchievements();
+            if (!_achievementsLoaded) LoadAchievements(forceReload: false);
         }
         else if (btn == NavBtnStreamAi)
         {
@@ -2238,9 +2236,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             "AiWalkthrough" => ViewAiWalkthrough,
             _ => null
         };
+        int newNavIndex = GetSidebarNavIndex(btn);
+        int navDirection = newNavIndex >= _previousNavIndex ? 1 : -1;
+        _previousNavIndex = newNavIndex;
+
         if (activePanel is FrameworkElement fe)
         {
-            AnalyticalSpringEngine.AnimateViewTransition(fe);
+            AnalyticalSpringEngine.AnimateDirectionalViewTransition(fe, navDirection);
         }
         else if (activePanel != null)
         {
@@ -2251,6 +2253,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void BtnViewMode_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button btn) return;
+
+        int prevMode = (int)_currentViewMode;
 
         BtnViewBento.Tag = null;
         BtnViewOzone.Tag = null;
@@ -2263,6 +2267,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         else if (btn == BtnViewCompact) _currentViewMode = ViewDisplayMode.Compact;
 
         UpdateViewModeLayout();
+
+        if (_activeNavView == "Library")
+        {
+            int dir = (int)_currentViewMode >= prevMode ? 1 : -1;
+            FrameworkElement? libContainer = _currentViewMode switch
+            {
+                ViewDisplayMode.Ozone => LvGames,
+                ViewDisplayMode.Compact => GamesIconsScroll,
+                _ => IcGamesBento
+            };
+            if (libContainer != null)
+            {
+                AnalyticalSpringEngine.AnimateDirectionalViewTransition(libContainer, dir);
+            }
+        }
     }
 
     private void UpdateViewModeLayout()
@@ -2365,8 +2384,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void ApplySettingsFilter()
     {
         string query = TxtSearch.Text.Trim().ToLowerInvariant();
+        var filtered = new List<SettingItem>(_allSettings.Count);
 
-        _filteredSettings.Clear();
         foreach (var item in _allSettings)
         {
             bool matchesCat = (_selectedSettingsCategory == "all") ||
@@ -2383,8 +2402,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (!matchesQuery) continue;
             }
 
-            _filteredSettings.Add(item);
+            filtered.Add(item);
         }
+
+        _filteredSettings.ReplaceAll(filtered);
     }
 
     private void BtnBrowseSettingDir_Click(object sender, RoutedEventArgs e)
@@ -2684,7 +2705,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             ShowNotification("STORM RETROARCH", $"Ошибка сканирования папки: {ex.Message}");
         }
-    }
+    
+            RefreshPlayerAnalyticsDashboard();
+            InitCommandPaletteItems();
+        }
 
     private RomItem? AddRomFileInternal(string filePath)
     {
@@ -2958,7 +2982,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (!match) continue;
             }
 
-            // 2.0.0 / 2.5.0 Smart Collections filter
+            // 2.0.0 / 2.6.0 Smart Collections filter
             if (_selectedSmartCollection == "Избранное")
             {
                 if (!g.IsFavorite) continue;
@@ -2987,6 +3011,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             {
                 if (!Is3dOrCdConsoleGame(g)) continue;
             }
+            else if (_selectedSmartCollection is "Играю сейчас" or "Пройдено" or "Пройдено на 100%" or "В планах")
+            {
+                if (!string.Equals(g.CompletionStatus, _selectedSmartCollection, StringComparison.OrdinalIgnoreCase))
+                    continue;
+            }
+
+            if (!MatchesAlphabetFilter(g))
+                continue;
 
             if (platform != "Все платформы" && !string.Equals(g.Platform, platform, StringComparison.OrdinalIgnoreCase))
                 continue;
@@ -3023,10 +3055,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _ => matchingGames.OrderBy(g => g.Name)
         };
 
-        _filteredGames.Clear();
-        foreach (var item in sorted)
+        _filteredGames.ReplaceAll(sorted);
+
+        if (_selectedSplitGame == null || !_filteredGames.Contains(_selectedSplitGame))
         {
-            _filteredGames.Add(item);
+            SelectGameInSplitInspector(_filteredGames.FirstOrDefault());
         }
 
         if (EmptyStateBorder != null) EmptyStateBorder.Visibility = _filteredGames.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -3158,7 +3191,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (LvGames.SelectedItem is RomItem item)
         {
-            _ = StartGameInViewportAsync(item);
+            _ = LaunchGameSmartAsync(item);
         }
     }
 
@@ -3166,7 +3199,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (LvFavorites.SelectedItem is RomItem item)
         {
-            _ = StartGameInViewportAsync(item);
+            _ = LaunchGameSmartAsync(item);
         }
     }
 
@@ -3174,7 +3207,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (LvHistory.SelectedItem is RomItem item)
         {
-            _ = StartGameInViewportAsync(item);
+            _ = LaunchGameSmartAsync(item);
         }
     }
 
@@ -3182,7 +3215,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (sender is Button b && b.DataContext is RomItem item)
         {
-            await StartGameInViewportAsync(item);
+            await LaunchGameSmartAsync(item);
         }
     }
 
@@ -3222,7 +3255,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             {
                 if (!_favorites.Any(f => f.FilePath.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase)))
                     _favorites.Add(item);
-                ShowOsdToast($"Игра «{item.Name}» добавлена в Избранное ★");
+                ShowOsdToast($"Игра «{item.Name}» добавлена в Избранное");
             }
             else
             {
@@ -3827,7 +3860,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void PopulateCoresList(string filter)
     {
         _selectedCoreManufacturer = filter;
-        _cores.Clear();
 
         IEnumerable<CoreInfo> baseList;
 
@@ -3873,7 +3905,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         else if (_coreStatusFilter == "Available")
             baseList = baseList.Where(c => !c.IsInstalled);
 
-        foreach (var c in baseList) _cores.Add(c);
+        _cores.ReplaceAll(baseList);
         RefreshCoresUi();
     }
 
@@ -3940,18 +3972,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     // ==================== SHADERS & VIDEO FILTERS ====================
 
-    private void LoadShaders()
+    private void LoadShaders(bool forceReload = true)
     {
+        if (_shadersLoaded && !forceReload) return;
         var shaders = ShaderManager.GetAllShaders();
-        _allShaders.Clear();
-        foreach (var s in shaders) _allShaders.Add(s);
+        _allShaders.ReplaceAll(shaders);
+        _shadersLoaded = true;
         ApplyShadersFilter();
     }
 
     private void ApplyShadersFilter()
     {
         string query = TxtSearchShaders?.Text?.Trim().ToLowerInvariant() ?? "";
-        _filteredShaders.Clear();
+        var filtered = new List<ShaderPresetItem>(_allShaders.Count);
 
         foreach (var s in _allShaders)
         {
@@ -3960,9 +3993,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             if (matchCat && matchQuery)
             {
-                _filteredShaders.Add(s);
+                filtered.Add(s);
             }
         }
+
+        _filteredShaders.ReplaceAll(filtered);
     }
 
     private void TxtSearchShaders_TextChanged(object sender, TextChangedEventArgs e) => ApplyShadersFilter();
@@ -4021,18 +4056,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     // ==================== SAVES & SAVESTATES ====================
 
-    private void LoadSaves()
+    private void LoadSaves(bool forceReload = true)
     {
+        if (_savesLoaded && !forceReload) return;
         var saves = SaveManager.ScanSavesAndStates();
-        _allSaves.Clear();
-        foreach (var s in saves) _allSaves.Add(s);
+        _allSaves.ReplaceAll(saves);
+        _savesLoaded = true;
         ApplySavesFilter();
     }
 
     private void ApplySavesFilter()
     {
         string query = TxtSearchSaves?.Text?.Trim().ToLowerInvariant() ?? "";
-        _filteredSaves.Clear();
+        var filtered = new List<SaveEntryItem>(_allSaves.Count);
 
         foreach (var s in _allSaves)
         {
@@ -4047,9 +4083,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             if (matchType && matchQuery)
             {
-                _filteredSaves.Add(s);
+                filtered.Add(s);
             }
         }
+
+        _filteredSaves.ReplaceAll(filtered);
     }
 
     private void TxtSearchSaves_TextChanged(object sender, TextChangedEventArgs e) => ApplySavesFilter();
@@ -4230,17 +4268,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     // ==================== SYSTEM & BIOS INSPECTOR ====================
 
-    private void LoadBios()
+    private void LoadBios(bool forceReload = true)
     {
+        if (_biosLoaded && !forceReload) return;
         var list = BiosManager.InspectSystemDirectory();
-        _allBios.Clear();
-        int installedCount = 0;
-
-        foreach (var b in list)
-        {
-            _allBios.Add(b);
-            if (b.IsInstalled) installedCount++;
-        }
+        _allBios.ReplaceAll(list);
+        _biosLoaded = true;
+        int installedCount = list.Count(b => b.IsInstalled);
 
         TxtBiosStats.Text = $"Всего в базе: {list.Count} | Установлено: {installedCount} | Отсутствует: {list.Count - installedCount}";
         ApplyBiosFilter();
@@ -4249,7 +4283,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void ApplyBiosFilter()
     {
         string query = TxtSearchBios?.Text?.Trim().ToLowerInvariant() ?? "";
-        _filteredBios.Clear();
+        var filtered = new List<BiosInfoItem>(_allBios.Count);
 
         foreach (var b in _allBios)
         {
@@ -4271,9 +4305,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
             if (matchStatus && matchQuery)
             {
-                _filteredBios.Add(b);
+                filtered.Add(b);
             }
         }
+
+        _filteredBios.ReplaceAll(filtered);
     }
 
     private void TxtSearchBios_TextChanged(object sender, TextChangedEventArgs e) => ApplyBiosFilter();
@@ -4335,13 +4371,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     // ==================== CHEAT MANAGER ====================
 
-    private void LoadCheats()
+    private void LoadCheats(bool forceReload = true)
     {
+        if (_cheatsLoaded && !forceReload) return;
         CheatManager.CleanupDuplicateAndSampleCheats(_allGames);
         var files = CheatManager.ScanCheats(_allGames);
         _allCheatFilesMaster = files;
-        _allCheatFiles.Clear();
-        foreach (var f in files) _allCheatFiles.Add(f);
+        _allCheatFiles.ReplaceAll(files);
+        _cheatsLoaded = true;
 
         if (BtnCheatsFilterAll != null)
             BtnCheatsFilterAll.Content = $"Все читы ({_allCheatFilesMaster.Count:N0})";
@@ -4526,8 +4563,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ? $"Профиль тренера ОЗУ ({item.Platform}) - сохранится в {Path.GetFileName(item.FilePath)}"
             : item.FilePath;
 
-        _selectedCheats.Clear();
-        foreach (var c in item.Cheats) _selectedCheats.Add(c);
+        _selectedCheats.ReplaceAll(item.Cheats);
     }
 
     private void BtnAddCheatRow_Click(object sender, RoutedEventArgs e)
@@ -4609,9 +4645,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private async void RefreshLobby()
     {
-        _netplayLobby.Clear();
         var rooms = await FetchLobbyRoomsAsync();
-        foreach (var r in rooms) _netplayLobby.Add(r);
+        _netplayLobby.ReplaceAll(rooms);
     }
 
     private void BtnRefreshLobby_Click(object sender, RoutedEventArgs e) => RefreshLobby();
@@ -4967,19 +5002,20 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
 
 
-private void LoadBezels()
+private void LoadBezels(bool forceReload = true)
     {
+        if (_bezelsLoaded && !forceReload) return;
         BezelManager.EnsureBuiltinBezels();
         var bezels = BezelManager.ScanBezels();
-        _allBezels.Clear();
-        foreach (var b in bezels) _allBezels.Add(b);
+        _allBezels.ReplaceAll(bezels);
+        _bezelsLoaded = true;
         ApplyBezelsFilter();
     }
 
     private void ApplyBezelsFilter()
     {
         string query = TxtSearchBezels?.Text?.Trim().ToLowerInvariant() ?? "";
-        _filteredBezels.Clear();
+        var filtered = new List<BezelPresetItem>(_allBezels.Count);
 
         foreach (var b in _allBezels)
         {
@@ -5001,9 +5037,11 @@ private void LoadBezels()
 
             if (matchPlatform && matchQuery)
             {
-                _filteredBezels.Add(b);
+                filtered.Add(b);
             }
         }
+
+        _filteredBezels.ReplaceAll(filtered);
     }
 
     private void TxtSearchBezels_TextChanged(object sender, TextChangedEventArgs e) => ApplyBezelsFilter();
@@ -5097,17 +5135,17 @@ private void LoadBezels()
         _selectedCoreProfile = _allCoreProfiles.FirstOrDefault(p => p.CoreName.Equals(coreName, StringComparison.OrdinalIgnoreCase)) ??
                                _allCoreProfiles.FirstOrDefault();
 
-        _currentCoreOptions.Clear();
         if (_selectedCoreProfile != null)
         {
             if (TxtSelectedCoreProfileName != null) TxtSelectedCoreProfileName.Text = _selectedCoreProfile.DisplayName;
             if (TxtSelectedCorePlatform != null) TxtSelectedCorePlatform.Text = _selectedCoreProfile.Platform;
 
             CoreOptionsAndOverridesManager.LoadCoreOptionsFromDisk(_selectedCoreProfile.CoreName, _selectedCoreProfile.Options);
-            foreach (var opt in _selectedCoreProfile.Options)
-            {
-                _currentCoreOptions.Add(opt);
-            }
+            _currentCoreOptions.ReplaceAll(_selectedCoreProfile.Options);
+        }
+        else
+        {
+            _currentCoreOptions.Clear();
         }
         ApplyCoreOptionsFilter();
     }
@@ -5122,9 +5160,9 @@ private void LoadBezels()
 
     private void ApplyCoreOptionsFilter()
     {
-        _filteredCoreOptions.Clear();
         string q = _coreOptionSearchQuery;
         bool catAll = _selectedCoreOptionCategory == "Все параметры";
+        var filtered = new List<CoreOptionItem>(_currentCoreOptions.Count);
 
         foreach (var opt in _currentCoreOptions)
         {
@@ -5135,9 +5173,11 @@ private void LoadBezels()
                           (opt.Key != null && opt.Key.ToLowerInvariant().Contains(q));
             if (matchCat && matchQ)
             {
-                _filteredCoreOptions.Add(opt);
+                filtered.Add(opt);
             }
         }
+
+        _filteredCoreOptions.ReplaceAll(filtered);
     }
 
     private void BtnCoreOptionCategory_Click(object sender, RoutedEventArgs e)
@@ -5218,8 +5258,7 @@ private void LoadBezels()
     {
         _selectedRemapPlayerIndex = playerIndex;
         var bindings = InputRemapManager.CreateDefaultBindings(playerIndex);
-        _currentRemapBindings.Clear();
-        foreach (var b in bindings) _currentRemapBindings.Add(b);
+        _currentRemapBindings.ReplaceAll(bindings);
         UpdateControllerPreview();
     }
 
@@ -5326,8 +5365,9 @@ private void LoadBezels()
 
     // ==================== RETROACHIEVEMENTS STUDIO ====================
 
-    private void LoadAchievements()
+    private void LoadAchievements(bool forceReload = true)
     {
+        if (_achievementsLoaded && !forceReload) return;
         TxtCheevosUsername.Text = AchievementsManager.Username;
         TxtCheevosToken.Text = string.IsNullOrEmpty(AchievementsManager.Token) ? AchievementsManager.Password : AchievementsManager.Token;
 
@@ -5339,9 +5379,10 @@ private void LoadBezels()
         ChkCheevosAutoScreenshot.IsChecked = AchievementsManager.AutoScreenshot;
         ChkCheevosTestUnofficial.IsChecked = AchievementsManager.TestUnofficial;
 
-        _filteredAchievements.Clear();
         var scanned = AchievementsManager.ScanLibraryGamesForCheevos(_allGames);
-        foreach (var item in scanned) _filteredAchievements.Add(item);
+        _allAchievements.ReplaceAll(scanned);
+        _filteredAchievements.ReplaceAll(scanned);
+        _achievementsLoaded = true;
         TxtCheevosLibraryCount.Text = $"{_filteredAchievements.Count} игр в библиотеке";
         ItemsCheevosLibrary.ItemsSource = _filteredAchievements;
     }
@@ -6265,9 +6306,13 @@ private void LoadBezels()
 
     private async void GameCard_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ClickCount == 2 && sender is FrameworkElement fe && fe.DataContext is RomItem item)
+        if (sender is FrameworkElement fe && fe.DataContext is RomItem item)
         {
-            await StartGameInViewportAsync(item);
+            SelectGameInSplitInspector(item);
+            if (e.ClickCount == 2)
+            {
+                await LaunchGameSmartAsync(item);
+            }
         }
     }
 
@@ -6864,6 +6909,9 @@ private void LoadBezels()
             };
 
             bool migrated = false;
+            var existingPaths = new HashSet<string>(_allGames.Select(g => g.FilePath), StringComparer.OrdinalIgnoreCase);
+            var batchItems = new List<RomItem>();
+
             foreach (var file in candidateFiles.Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 if (!File.Exists(file)) continue;
@@ -6875,17 +6923,40 @@ private void LoadBezels()
                     {
                         foreach (var p in paths)
                         {
-                            if (File.Exists(p))
+                            if (!File.Exists(p) || !existingPaths.Add(p)) continue;
+
+                            try
                             {
-                                int before = _allGames.Count;
-                                AddRomFile(p);
-                                if (_allGames.Count > before && !file.Equals(candidateFiles[0], StringComparison.OrdinalIgnoreCase))
+                                var fi = new FileInfo(p);
+                                var (platform, coreDll, coreName) = CoreManager.IdentifyRom(p);
+                                var item = new RomItem
+                                {
+                                    FilePath = p,
+                                    Extension = fi.Extension.ToLowerInvariant(),
+                                    Platform = platform,
+                                    CoreDll = coreDll,
+                                    CoreDisplayName = coreName,
+                                    FileSizeBytes = fi.Length,
+                                    IsCoreInstalled = CoreManager.IsCoreInstalled(coreDll),
+                                    StatusText = CoreManager.IsCoreInstalled(coreDll) ? "Готово к запуску" : "Требуется ядро"
+                                };
+                                item.ParseAndUpdateFromFileName(fi.Name);
+                                GameMetadataStore.ApplyToRomItem(item);
+                                batchItems.Add(item);
+
+                                if (!file.Equals(candidateFiles[0], StringComparison.OrdinalIgnoreCase))
                                     migrated = true;
                             }
+                            catch { }
                         }
                     }
                 }
                 catch { }
+            }
+
+            if (batchItems.Count > 0)
+            {
+                _allGames.AddRange(batchItems);
             }
 
             if (migrated) SaveLibraryToPlaylist();
@@ -7842,34 +7913,41 @@ private void LoadBezels()
                 BadgeBgBrush = new SolidColorBrush(Color.FromArgb(40, 245, 158, 11)),
                 BadgeBorderBrush = new SolidColorBrush(Color.FromRgb(245, 158, 11)),
                 Game = game,
-                ExecuteAction = async () => await StartGameInViewportAsync(game)
+                ExecuteAction = async () => await LaunchGameSmartAsync(game)
             });
         }
+
+        AppendStudio260CommandPaletteItems();
     }
 
     private void FilterCommandPalette(string query)
     {
-        _filteredPaletteItems.Clear();
-        string q = query.Trim().ToLowerInvariant();
+        string q = query.Trim();
 
         if (string.IsNullOrEmpty(q))
         {
-            // Show first 15 games + all sections + all commands
-            foreach (var item in _allPaletteItems.Where(i => i.Category != "Игра"))
-                _filteredPaletteItems.Add(item);
-            foreach (var item in _allPaletteItems.Where(i => i.Category == "Игра").Take(25))
-                _filteredPaletteItems.Add(item);
+            var defaults = _allPaletteItems.Where(i => i.Category != "Игра").Take(25)
+                .Concat(_allPaletteItems.Where(i => i.Category == "Игра").Take(20));
+            _filteredPaletteItems.ReplaceAll(defaults);
         }
         else
         {
-            var matches = _allPaletteItems.Where(i =>
-                i.Title.ToLowerInvariant().Contains(q) ||
-                i.Subtitle.ToLowerInvariant().Contains(q) ||
-                i.Category.ToLowerInvariant().Contains(q)
-            ).Take(40);
+            var scored = _allPaletteItems
+                .Select(item =>
+                {
+                    int titleScore = ComputeFuzzyScore(item.Title, q);
+                    int subScore = ComputeFuzzyScore(item.Subtitle, q) / 2;
+                    int catScore = ComputeFuzzyScore(item.Category, q) / 3;
+                    int best = Math.Max(titleScore, Math.Max(subScore, catScore));
+                    return (Item: item, Score: best);
+                })
+                .Where(x => x.Score > 0)
+                .OrderByDescending(x => x.Score)
+                .ThenBy(x => x.Item.Title.Length)
+                .Take(40)
+                .Select(x => x.Item);
 
-            foreach (var m in matches)
-                _filteredPaletteItems.Add(m);
+            _filteredPaletteItems.ReplaceAll(scored);
         }
 
         if (LstCommandPaletteResults != null && _filteredPaletteItems.Count > 0)
@@ -8108,7 +8186,7 @@ private void LoadBezels()
         {
             if (!_favorites.Any(f => f.FilePath.Equals(game.FilePath, StringComparison.OrdinalIgnoreCase)))
                 _favorites.Add(game);
-            ShowOsdToast($"Игра «{game.Name}» добавлена в Избранное ★");
+            ShowOsdToast($"Игра «{game.Name}» добавлена в Избранное");
         }
         else
         {
@@ -8550,15 +8628,17 @@ private void LoadBezels()
 
     private void UpdateStarRatingVisuals(int rating)
     {
-        var stars = new[] { BtnStar1, BtnStar2, BtnStar3, BtnStar4, BtnStar5 };
-        for (int i = 0; i < stars.Length; i++)
+        var starPaths = new[] { PathGameHubStar1, PathGameHubStar2, PathGameHubStar3, PathGameHubStar4, PathGameHubStar5 };
+        for (int i = 0; i < starPaths.Length; i++)
         {
-            if (stars[i] != null)
+            if (starPaths[i] != null)
             {
-                stars[i].Foreground = (i < rating)
-                    ? new SolidColorBrush(Color.FromRgb(0xFD, 0xE0, 0x47))
-                    : new SolidColorBrush(Color.FromRgb(0x4B, 0x55, 0x63));
+                starPaths[i].Fill = (i < rating) ? ActiveStarFill : MutedStarFill;
             }
+        }
+        if (_activeGameHubItem != null && _selectedSplitGame == _activeGameHubItem)
+        {
+            UpdateSplitStarVisuals(rating);
         }
     }
 
@@ -8781,6 +8861,11 @@ private void LoadBezels()
         else if (e.Key == Key.F)
         {
             BtnBigBoxFavorite_Click(sender, e);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.R)
+        {
+            BtnBigBoxRandom_Click(sender, e);
             e.Handled = true;
         }
         else if (e.Key == Key.Escape || e.Key == Key.F10)
@@ -9649,11 +9734,19 @@ private void LoadBezels()
         int cd3dCount = _allGames.Count(Is3dOrCdConsoleGame);
         int dosCount = _allGames.Count(IsDosOrPcComputerGame);
         int recentCount = _allGames.Count(g => g.LaunchCount > 0 || g.TotalPlaySeconds > 0 || g.LastPlayed != null || _history.Any(h => h.FilePath == g.FilePath));
+        int playingCount = _allGames.Count(g => string.Equals(g.CompletionStatus, "Играю сейчас", StringComparison.OrdinalIgnoreCase));
+        int completedCount = _allGames.Count(g => string.Equals(g.CompletionStatus, "Пройдено", StringComparison.OrdinalIgnoreCase));
+        int completed100Count = _allGames.Count(g => string.Equals(g.CompletionStatus, "Пройдено на 100%", StringComparison.OrdinalIgnoreCase));
+        int plannedCount = _allGames.Count(g => string.Equals(g.CompletionStatus, "В планах", StringComparison.OrdinalIgnoreCase));
 
         var items = new (string Name, int Count)[]
         {
             ("Все игры", allCount),
             ("Избранное", favCount),
+            ("Играю сейчас", playingCount),
+            ("Пройдено", completedCount),
+            ("Пройдено на 100%", completed100Count),
+            ("В планах", plannedCount),
             ("Русские переводы", rusCount),
             ("Классика 8/16-бит", classicCount),
             ("3D и CD", cd3dCount),

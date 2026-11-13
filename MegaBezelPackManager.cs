@@ -63,7 +63,7 @@ public static class MegaBezelPackManager
     {
         try
         {
-            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("STORM-RETROARCH/2.5.0 (MegaBezelManager; contact@stormgamesworld.ru)");
+            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("STORM-RETROARCH/2.6.0 (MegaBezelManager; contact@stormgamesworld.ru)");
         }
         catch { }
     }
