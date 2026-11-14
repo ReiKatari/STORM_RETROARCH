@@ -1,5 +1,5 @@
 /* ==========================================================================
-   STORM RETROARCH 2.7.4 - MOBILE STUDIO FRONTEND ENGINE (studio.js)
+   STORM RETROARCH 2.7.5 - MOBILE STUDIO FRONTEND ENGINE (studio.js)
    Hardware-Accelerated STORM AURORA FLUID Architecture
    12 Interactive Studio Modules + 120Hz Spring Choreography + Virtual Grid
    Zero Em-Dash, Zero Emojis, Single Vector Icon Mandate
@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "2.7.4";
+  const APP_VERSION = "2.7.5";
   const hasBridge = typeof window.StormBridge !== "undefined";
 
   /* ------------------------------------------------------------------------
@@ -643,7 +643,7 @@
       currentVersion: APP_VERSION,
       latestVersion: APP_VERSION,
       updateAvailable: false,
-      statusMessage: "Установлена актуальная версия 2.7.4"
+      statusMessage: "Установлена актуальная версия 2.7.5"
     },
     games: buildPreviewGames(),
     cores: buildDefaultCores252(),
@@ -660,9 +660,14 @@
       { gameId: "sonic3_knuckles", gameTitle: "Sonic 3 & Knuckles", platform: "Sega Genesis", coreId: "genesis_plus_gx", slot: 2, type: "State #2 + .SRM", date: "10 ноя, 19:04", size: "192 KB" }
     ],
     controllers: [
-      { descriptor: "054C:0CE6_DualSense", name: "Sony DualSense Wireless Controller", port: 1, type: "Bluetooth HID" },
-      { descriptor: "28DE:11FF_Handheld", name: "Gamesir / Backbone USB-C Pad", port: 2, type: "USB Direct" }
+      { descriptor: "054C:0CE6_DualSense", profileKey: "054C:0CE6_Sony_DualSense_Wireless_Controller", name: "Sony DualSense Wireless Controller", port: 0, type: "DualSense/DualShock", vidPid: "054C:0CE6" }
     ],
+    portAssignments: { "0": "auto", "1": "auto", "2": "auto", "3": "auto", "4": "auto", "5": "auto", "6": "auto", "7": "auto" },
+    selectedCtrlProfileKey: "",
+    ctrlSubTab: "buttons",
+    captureTarget: null,
+    bindWizardQueue: [],
+    ctrlLastCapturedLabel: "",
     controllerMap: {
       A: "Крест / B", B: "Круг / A", X: "Квадрат / Y", Y: "Треугольник / X",
       L1: "L1 Бампер", R1: "R1 Бампер", L2: "L2 Курок", R2: "R2 Курок",
@@ -878,10 +883,101 @@
 
     if (Array.isArray(data.watchedFolders)) state.watchedFolders = data.watchedFolders;
     if (Array.isArray(data.saves)) state.saves = data.saves;
-    if (Array.isArray(data.controllers)) state.controllers = data.controllers;
+    if (Array.isArray(data.controllers)) {
+      state.controllers = data.controllers;
+      if (state.controllers.length > 0) {
+        const exists = state.controllers.some(function (c) {
+          return (c.profileKey || c.descriptor) === state.selectedCtrlProfileKey;
+        });
+        if (!exists) {
+          state.selectedCtrlProfileKey = state.controllers[0].profileKey || state.controllers[0].descriptor || "";
+        }
+      } else {
+        state.selectedCtrlProfileKey = "";
+      }
+    }
+    if (data.portAssignments && typeof data.portAssignments === "object") {
+      state.portAssignments = data.portAssignments;
+    }
     if (data.updateInfo) Object.assign(state.updateInfo, data.updateInfo);
     applyVisualTokens();
   }
+
+  function stopControllerCapture() {
+    state.captureTarget = null;
+    state.bindWizardQueue = [];
+    if (hasBridge && window.StormBridge.setControllerCaptureMode) {
+      window.StormBridge.setControllerCaptureMode(false);
+    }
+  }
+
+  function advanceBindWizardOrStop() {
+    if (Array.isArray(state.bindWizardQueue) && state.bindWizardQueue.length > 0) {
+      state.captureTarget = state.bindWizardQueue.shift();
+      if (hasBridge && window.StormBridge.setControllerCaptureMode) {
+        window.StormBridge.setControllerCaptureMode(true);
+      }
+    } else {
+      stopControllerCapture();
+    }
+  }
+
+  window.onStormControllerInputCaptured = function (payloadRaw) {
+    const payload = safeJsonParse(payloadRaw, payloadRaw || {});
+    if (!payload || payload.kind === "cancel") {
+      stopControllerCapture();
+      renderViewport();
+      return;
+    }
+    const target = state.captureTarget;
+    if (!target) {
+      stopControllerCapture();
+      return;
+    }
+
+    if (target.kind === "axis" && payload.kind !== "axis") {
+      showToast(isRu() ? "Сдвиньте нужную ось или нажмите педаль" : "Move an analog stick or pedal axis");
+      return;
+    }
+    if ((target.kind === "button" || target.kind === "hotkey") && payload.kind !== "button") {
+      showToast(isRu() ? "Нажмите физическую кнопку контроллера" : "Press a physical button");
+      return;
+    }
+
+    let ok = false;
+    const pKey = target.profileKey;
+    if (target.kind === "button") {
+      if (hasBridge && window.StormBridge.updateControllerButtonBindingJson) {
+        ok = window.StormBridge.updateControllerButtonBindingJson(pKey, target.key, Number(payload.keyCode || 0));
+      } else {
+        ok = true;
+      }
+      state.ctrlLastCapturedLabel = target.key + " -> " + (payload.display || payload.keyCode);
+    } else if (target.kind === "hotkey") {
+      if (hasBridge && window.StormBridge.updateControllerHotkeyBindingJson) {
+        ok = window.StormBridge.updateControllerHotkeyBindingJson(pKey, target.key, Number(payload.keyCode || 0));
+      } else {
+        ok = true;
+      }
+      state.ctrlLastCapturedLabel = target.label + " -> " + (payload.display || payload.keyCode);
+    } else if (target.kind === "axis") {
+      if (hasBridge && window.StormBridge.updateControllerAxisBindingJson) {
+        ok = window.StormBridge.updateControllerAxisBindingJson(pKey, target.key, Number(payload.axisCode));
+      } else {
+        ok = true;
+      }
+      state.ctrlLastCapturedLabel = target.key + " -> " + (payload.display || payload.axisCode);
+    }
+
+    if (ok) {
+      advanceBindWizardOrStop();
+      if (hasBridge && window.StormBridge.getControllersStateJson) {
+        const refreshed = safeJsonParse(window.StormBridge.getControllersStateJson(), null);
+        if (refreshed) ingestBootstrap(refreshed);
+      }
+      renderViewport();
+    }
+  };
 
   window.onStormEvent = function (eventType, payloadRaw) {
     const p = safeJsonParse(payloadRaw, payloadRaw || {});
@@ -1255,7 +1351,7 @@
       '</div>'
     ) : (
       '<div class="hero-spotlight-card stagger-card" style="--stagger-i:0;">' +
-        '<span class="hero-eyebrow">STORM RETROARCH 2.7.4</span>' +
+        '<span class="hero-eyebrow">STORM RETROARCH 2.7.5</span>' +
         '<h2 class="hero-game-title">' + (isRu() ? "Добро пожаловать в консоль-студию" : "Welcome to STORM Console Studio") + '</h2>' +
         '<p class="section-subtitle">' + (isRu() ? "20 флагманских ядер уже вшиты в APK и готовы к мгновенному офлайн-запуску. Укажите папку с играми или откройте файл ROM:" : "20 flagship cores are pre-bundled inside APK for instant offline play. Pick your ROM folder or open a file:") + '</p>' +
         '<div class="hero-actions-row">' +
@@ -2534,36 +2630,215 @@
           '</div>' +
         '</div>' +
 
-        '<div class="glass-card" style="display:flex;flex-direction:column;gap:11px;">' +
+        '<div class="glass-card" style="display:flex;flex-direction:column;gap:12px;">' +
           '<div class="section-head" style="margin-bottom:2px;">' +
-            '<div><h3 class="section-title">' + (isRu() ? "Физические Bluetooth / USB Геймпады и Хоткеи" : "Physical Controllers & Hotkey Combos") + '</h3><p class="section-subtitle">Backbone, Razer Kishi, Gamesir, DualSense, Xbox</p></div>' +
-            '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="refresh-controllers">' + ico("refresh") + '<span>' + (isRu() ? "Обновить" : "Scan Pads") + '</span></button>' +
+            '<div class="section-title-cluster">' +
+              '<div class="section-icon-badge">' + ico("gamepad") + '</div>' +
+              '<div><h3 class="section-title">' + (isRu() ? "Универсальный центр контроллеров" : "Universal Controller Studio") + '</h3><p class="section-subtitle">Flydigi APEX 5 EVA, Рули, HOTAS, Аркадные стики, DualSense, Xbox</p></div>' +
+            '</div>' +
+            '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="refresh-controllers">' + ico("refresh") + '<span>' + (isRu() ? "Сканировать" : "Scan Pads") + '</span></button>' +
           '</div>' +
 
-          '<div style="display:flex;flex-direction:column;gap:6px;">' +
-            state.controllers.map(function (pad) {
-              return '<div class="toggle-row-3d"><div class="toggle-meta"><div class="toggle-title">' + esc(pad.name) + '</div><div class="toggle-desc">' + esc(pad.type || "HID") + ' • Port #' + (pad.port || pad.playerPort || 1) + '</div></div><span class="badge-pill badge-emerald">Active</span></div>';
-            }).join("") +
-          '</div>' +
+          (function () {
+            const pads = Array.isArray(state.controllers) ? state.controllers : [];
+            if (pads.length === 0) {
+              return '<div class="toggle-row-3d"><div class="toggle-meta"><div class="toggle-title">' + (isRu() ? "Физические контроллеры не найдены" : "No physical controllers detected") + '</div><div class="toggle-desc">' + (isRu() ? "Подключите Flydigi APEX 5 EVA, Xbox, DualSense, руль, HOTAS или аркадный стик по USB-C / Bluetooth" : "Connect Flydigi, Xbox, DualSense, Wheel, HOTAS or Arcade Stick via USB-C / Bluetooth") + '</div></div></div>';
+            }
+            const activeCtrl = pads.find(function (c) { return (c.profileKey || c.descriptor) === state.selectedCtrlProfileKey; }) || pads[0];
+            const activePKey = activeCtrl.profileKey || activeCtrl.descriptor || "";
+            const prof = activeCtrl.profile || {};
+            const btnNames = prof.buttonNames || {};
+            const axisNames = prof.axisNames || {};
+            const hkNames = prof.hotkeyNames || {};
 
-          '<div class="toggle-title">' + (isRu() ? "Переназначение кнопок (нажмите для записи)" : "Interactive Button Remapper") + '</div>' +
-          '<div class="telemetry-grid">' +
-            Object.keys(state.controllerMap).map(function (btnKey) {
-              const listening = state.listeningBindKey === btnKey;
+            const devCardsHtml = '<div style="display:flex;flex-direction:column;gap:8px;">' + pads.map(function (pad) {
+              const pk = pad.profileKey || pad.descriptor || "";
+              const isSel = pk === activePKey;
+              const pNum = typeof pad.port === "number" ? pad.port : -1;
+              const portBadge = pNum >= 0
+                ? '<span class="badge-pill badge-emerald tabular">Port #' + (pNum + 1) + '</span>'
+                : '<span class="badge-pill">' + (isRu() ? "Откл." : "Off") + '</span>';
               return (
-                '<button type="button" class="btn-3d ' + (listening ? "btn-3d-primary" : "btn-3d-secondary") + ' btn-3d-sm" data-action="remap-btn" data-key="' + btnKey + '">' +
-                  '<span>' + btnKey + ': ' + (listening ? (isRu() ? "Нажмите..." : "Press...") : esc(state.controllerMap[btnKey])) + '</span>' +
-                '</button>'
+                '<div class="ctrl-device-card' + (isSel ? " selected" : "") + '" data-action="select-ctrl-profile" data-profile-key="' + esc(pk) + '">' +
+                  '<div class="toggle-meta" style="min-width:0;">' +
+                    '<div class="toggle-title">' + esc(pad.name) + '</div>' +
+                    '<div class="toggle-desc">' + esc(pad.type || "HID") + (pad.vidPid ? " | VID:PID " + esc(pad.vidPid) : "") + '</div>' +
+                  '</div>' +
+                  portBadge +
+                '</div>'
               );
-            }).join("") +
-          '</div>' +
+            }).join("") + '</div>';
 
-          '<div class="toggle-title" style="margin-top:4px;">' + (isRu() ? "Глобальные комбинации хоткеев" : "Global Hotkey Combos") + '</div>' +
-          '<div style="display:flex;flex-direction:column;gap:6px;font-size:0.78rem;">' +
-            '<div class="toggle-row-3d"><span>' + (isRu() ? "Быстрое меню студии в игре" : "In-Game Quick Menu") + '</span><span class="badge-pill badge-accent mono-code">L3 + R3</span></div>' +
-            '<div class="toggle-row-3d"><span>' + (isRu() ? "Быстрое сохранение / загрузка" : "Quick Save / Load") + '</span><span class="badge-pill mono-code">Select + R1 / L1</span></div>' +
-            '<div class="toggle-row-3d"><span>' + (isRu() ? "Ускорение 2x / Перемотка назад" : "Fast-Forward 2x / Rewind") + '</span><span class="badge-pill mono-code">Select + R2 / L2</span></div>' +
-          '</div>' +
+            const toolbarHtml =
+              '<div class="toolbar-row" style="gap:8px;flex-wrap:wrap;">' +
+                '<select id="ctrlProfileSelect" class="select-3d" style="flex:1 1 200px;">' +
+                  pads.map(function (c) {
+                    const pk = c.profileKey || c.descriptor || "";
+                    return '<option value="' + esc(pk) + '"' + (pk === activePKey ? " selected" : "") + '>' + esc(c.name) + ' (' + esc(c.type || "HID") + ')</option>';
+                  }).join("") +
+                '</select>' +
+                '<button type="button" class="btn-3d btn-3d-primary btn-3d-sm" data-action="start-bind-wizard" data-profile-key="' + esc(activePKey) + '">' + ico("zap") + '<span>' + (isRu() ? "Мастер настройки" : "Bind Wizard") + '</span></button>' +
+                '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="reset-ctrl-profile" data-profile-key="' + esc(activePKey) + '">' + ico("refresh") + '<span>' + (isRu() ? "Сброс" : "Reset") + '</span></button>' +
+              '</div>';
+
+            const captureBannerHtml = state.captureTarget
+              ? '<div class="ctrl-capture-banner">' +
+                  '<span>' + (isRu() ? "Ожидание ввода для: " : "Waiting for input: ") + esc(state.captureTarget.label) + (state.bindWizardQueue.length > 0 ? " (" + (isRu() ? "осталось " : "remaining ") + (state.bindWizardQueue.length + 1) + ")" : "") + '</span>' +
+                  '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="cancel-ctrl-capture">' + (isRu() ? "Отмена" : "Cancel") + '</button>' +
+                '</div>'
+              : (state.ctrlLastCapturedLabel
+                  ? '<div style="font-size:0.75rem;color:var(--text-secondary);">' + (isRu() ? "Назначено: " : "Assigned: ") + esc(state.ctrlLastCapturedLabel) + '</div>'
+                  : "");
+
+            const subTabs = [
+              { id: "buttons", ru: "Кнопки (16)", en: "Buttons (16)" },
+              { id: "axes", ru: "Оси и педали", en: "Axes & Pedals" },
+              { id: "hotkeys", ru: "Хоткеи", en: "Hotkeys" },
+              { id: "ports", ru: "Игроки 1-8", en: "Ports 1-8" }
+            ];
+            const subTabsHtml =
+              '<div class="ctrl-subtabs">' +
+                subTabs.map(function (st) {
+                  const act = state.ctrlSubTab === st.id;
+                  return '<button type="button" class="ctrl-subtab-btn' + (act ? " active" : "") + '" data-action="switch-ctrl-subtab" data-subtab="' + st.id + '">' + (isRu() ? st.ru : st.en) + '</button>';
+                }).join("") +
+              '</div>';
+
+            let bodyHtml = "";
+            if (state.ctrlSubTab === "buttons") {
+              const btnList = [
+                { key: "UP", ru: "Крестовина Вверх", en: "D-Pad Up" },
+                { key: "DOWN", ru: "Крестовина Вниз", en: "D-Pad Down" },
+                { key: "LEFT", ru: "Крестовина Влево", en: "D-Pad Left" },
+                { key: "RIGHT", ru: "Крестовина Вправо", en: "D-Pad Right" },
+                { key: "B", ru: "B (Юг / Крест)", en: "B (South / Cross)" },
+                { key: "A", ru: "A (Восток / Круг)", en: "A (East / Circle)" },
+                { key: "Y", ru: "Y (Запад / Квадрат)", en: "Y (West / Square)" },
+                { key: "X", ru: "X (Север / Треуг.)", en: "X (North / Triangle)" },
+                { key: "L1", ru: "L1 / LB", en: "L1 / LB" },
+                { key: "R1", ru: "R1 / RB", en: "R1 / RB" },
+                { key: "L2", ru: "L2 / LT", en: "L2 / LT" },
+                { key: "R2", ru: "R2 / RT", en: "R2 / RT" },
+                { key: "SELECT", ru: "SELECT / BACK", en: "SELECT / BACK" },
+                { key: "START", ru: "START / OPTIONS", en: "START / OPTIONS" },
+                { key: "L3", ru: "L3 (Нажатие стика)", en: "L3 (Stick Click)" },
+                { key: "R3", ru: "R3 (Нажатие стика)", en: "R3 (Stick Click)" }
+              ];
+              bodyHtml = '<div class="ctrl-bind-grid">' + btnList.map(function (b) {
+                const isListening = state.captureTarget && state.captureTarget.kind === "button" && state.captureTarget.key === b.key;
+                const val = btnNames[b.key] || "Unbound";
+                return (
+                  '<div class="ctrl-bind-row' + (isListening ? " listening" : "") + '">' +
+                    '<div class="ctrl-bind-meta"><div class="ctrl-bind-name">' + (isRu() ? b.ru : b.en) + '</div><div class="ctrl-bind-val mono-code">' + (isListening ? (isRu() ? "Нажмите..." : "Press...") : esc(val)) + '</div></div>' +
+                    '<div class="ctrl-bind-actions">' +
+                      '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="capture-ctrl-btn" data-profile-key="' + esc(activePKey) + '" data-key="' + b.key + '" data-label="' + esc(isRu() ? b.ru : b.en) + '">' + (isRu() ? "Задать" : "Bind") + '</button>' +
+                      '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="clear-ctrl-btn" data-profile-key="' + esc(activePKey) + '" data-key="' + b.key + '" title="Clear">X</button>' +
+                    '</div>' +
+                  '</div>'
+                );
+              }).join("") + '</div>';
+            } else if (state.ctrlSubTab === "axes") {
+              const axisList = [
+                { key: "LS_X", ru: "Левый стик / Руль X", en: "Left Stick / Wheel X" },
+                { key: "LS_Y", ru: "Левый стик / Тангаж Y", en: "Left Stick / Pitch Y" },
+                { key: "RS_X", ru: "Правый стик / Обзор X", en: "Right Stick / Look X" },
+                { key: "RS_Y", ru: "Правый стик / РУД Y", en: "Right Stick / Throttle Y" },
+                { key: "L2_AXIS", ru: "Аналог L2 / Педаль тормоза", en: "L2 Analog / Brake Pedal" },
+                { key: "R2_AXIS", ru: "Аналог R2 / Педаль газа", en: "R2 Analog / Gas Pedal" }
+              ];
+              const analogDzPct = Math.round((typeof prof.analogDeadzone === "number" ? prof.analogDeadzone : 0.18) * 100);
+              const steerDzPct = Math.round((typeof prof.steeringDeadzone === "number" ? prof.steeringDeadzone : 0.04) * 100);
+              const trigThrPct = Math.round((typeof prof.triggerThreshold === "number" ? prof.triggerThreshold : 0.25) * 100);
+
+              bodyHtml =
+                '<div class="ctrl-bind-grid">' + axisList.map(function (a) {
+                  const isListening = state.captureTarget && state.captureTarget.kind === "axis" && state.captureTarget.key === a.key;
+                  const val = axisNames[a.key] || "Auto";
+                  return (
+                    '<div class="ctrl-bind-row' + (isListening ? " listening" : "") + '">' +
+                      '<div class="ctrl-bind-meta"><div class="ctrl-bind-name">' + (isRu() ? a.ru : a.en) + '</div><div class="ctrl-bind-val mono-code">' + (isListening ? (isRu() ? "Сдвиньте ось..." : "Move axis...") : esc(val)) + '</div></div>' +
+                      '<div class="ctrl-bind-actions">' +
+                        '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="capture-ctrl-axis" data-profile-key="' + esc(activePKey) + '" data-key="' + a.key + '" data-label="' + esc(isRu() ? a.ru : a.en) + '">' + (isRu() ? "Ось" : "Axis") + '</button>' +
+                        '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="clear-ctrl-axis" data-profile-key="' + esc(activePKey) + '" data-key="' + a.key + '" title="Clear">X</button>' +
+                      '</div>' +
+                    '</div>'
+                  );
+                }).join("") + '</div>' +
+                '<div style="display:flex;flex-direction:column;gap:8px;margin-top:6px;">' +
+                  '<div><div style="display:flex;justify-content:space-between;"><span class="toggle-title">' + (isRu() ? "Мёртвая зона стиков" : "Stick Deadzone") + '</span><span class="badge-pill tabular">' + analogDzPct + '%</span></div>' +
+                    '<input type="range" id="ctrlAnalogDzSlider" class="range-3d" data-profile-key="' + esc(activePKey) + '" min="2" max="50" value="' + analogDzPct + '">' +
+                  '</div>' +
+                  '<div><div style="display:flex;justify-content:space-between;"><span class="toggle-title">' + (isRu() ? "Мёртвая зона руля / штурвала" : "Steering / Flight Deadzone") + '</span><span class="badge-pill tabular">' + steerDzPct + '%</span></div>' +
+                    '<input type="range" id="ctrlSteeringDzSlider" class="range-3d" data-profile-key="' + esc(activePKey) + '" min="0" max="30" value="' + steerDzPct + '">' +
+                  '</div>' +
+                  '<div><div style="display:flex;justify-content:space-between;"><span class="toggle-title">' + (isRu() ? "Порог курков L2/R2 и педалей" : "Trigger / Pedal Threshold") + '</span><span class="badge-pill tabular">' + trigThrPct + '%</span></div>' +
+                    '<input type="range" id="ctrlTriggerThrSlider" class="range-3d" data-profile-key="' + esc(activePKey) + '" min="5" max="90" value="' + trigThrPct + '">' +
+                  '</div>' +
+                '</div>';
+            } else if (state.ctrlSubTab === "hotkeys") {
+              const curChord = prof.chordModifier || (prof.requireSelectForHotkeys ? "SELECT" : "NONE");
+              const chordOptions = [
+                { id: "NONE", ru: "Без модификатора (прямое нажатие)", en: "No modifier (Direct press)" },
+                { id: "SELECT", ru: "Аккорд: удерживать SELECT / BACK", en: "Chord: Hold SELECT / BACK" },
+                { id: "MODE", ru: "Аккорд: удерживать GUIDE / HOME", en: "Chord: Hold GUIDE / HOME" },
+                { id: "L3", ru: "Аккорд: удерживать L3 (Левый стик)", en: "Chord: Hold L3" }
+              ];
+              const hkList = [
+                { key: "Quick Menu Drawer", ru: "Быстрое меню в игре", en: "In-Game Quick Menu" },
+                { key: "Quick Save", ru: "Быстрое сохранение", en: "Quick Save State" },
+                { key: "Quick Load", ru: "Быстрая загрузка", en: "Quick Load State" },
+                { key: "Rewind", ru: "Перемотка назад (удерж.)", en: "Rewind (Hold)" },
+                { key: "Fast-Forward", ru: "Турбо-скорость игры", en: "Fast-Forward Toggle" },
+                { key: "Screenshot", ru: "Скриншот игры", en: "Capture Screenshot" },
+                { key: "Pause / Resume", ru: "Пауза / Продолжить", en: "Pause / Resume" },
+                { key: "Reset Core", ru: "Перезапуск игры / ядра", en: "Reset Core" },
+                { key: "Next Save Slot", ru: "Следующий слот (+1)", en: "Next Save Slot" },
+                { key: "Prev Save Slot", ru: "Предыдущий слот (-1)", en: "Prev Save Slot" },
+                { key: "Audio Mute", ru: "Отключить звук (Mute)", en: "Toggle Audio Mute" },
+                { key: "Next Shader", ru: "Переключить шейдер / CRT", en: "Cycle Video Shader" }
+              ];
+              bodyHtml =
+                '<div class="toolbar-row"><select id="ctrlChordModifierSelect" class="select-3d" data-profile-key="' + esc(activePKey) + '" style="flex:1;">' +
+                  chordOptions.map(function (co) {
+                    return '<option value="' + co.id + '"' + (curChord === co.id ? " selected" : "") + '>' + (isRu() ? co.ru : co.en) + '</option>';
+                  }).join("") +
+                '</select></div>' +
+                '<div class="ctrl-bind-grid">' + hkList.map(function (h) {
+                  const isListening = state.captureTarget && state.captureTarget.kind === "hotkey" && state.captureTarget.key === h.key;
+                  const val = hkNames[h.key] || "Unbound";
+                  return (
+                    '<div class="ctrl-bind-row' + (isListening ? " listening" : "") + '">' +
+                      '<div class="ctrl-bind-meta"><div class="ctrl-bind-name">' + (isRu() ? h.ru : h.en) + '</div><div class="ctrl-bind-val mono-code">' + (isListening ? (isRu() ? "Нажмите..." : "Press...") : esc(val)) + '</div></div>' +
+                      '<div class="ctrl-bind-actions">' +
+                        '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="capture-ctrl-hotkey" data-profile-key="' + esc(activePKey) + '" data-key="' + esc(h.key) + '" data-label="' + esc(isRu() ? h.ru : h.en) + '">' + (isRu() ? "Задать" : "Bind") + '</button>' +
+                        '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="clear-ctrl-hotkey" data-profile-key="' + esc(activePKey) + '" data-key="' + esc(h.key) + '" title="Clear">X</button>' +
+                      '</div>' +
+                    '</div>'
+                  );
+                }).join("") + '</div>';
+            } else {
+              const pa = state.portAssignments || {};
+              bodyHtml = '<div style="display:flex;flex-direction:column;gap:8px;">' + [0, 1, 2, 3, 4, 5, 6, 7].map(function (pIdx) {
+                const curRule = pa[String(pIdx)] || "auto";
+                return (
+                  '<div class="port-router-row">' +
+                    '<span class="toggle-title tabular">' + (isRu() ? "Игрок #" : "Player Port #") + (pIdx + 1) + '</span>' +
+                    '<select class="select-3d ctrl-port-select" data-port="' + pIdx + '" style="min-width:210px;flex:1;">' +
+                      '<option value="auto"' + (curRule === "auto" ? " selected" : "") + '>' + (isRu() ? "Автоназначение по порядку" : "Auto-assign by order") + '</option>' +
+                      '<option value="none"' + (curRule === "none" ? " selected" : "") + '>' + (isRu() ? "Отключён (Пусто)" : "Disabled / Empty") + '</option>' +
+                      pads.map(function (c) {
+                        const val = c.descriptor || c.profileKey;
+                        const sel = curRule === val || curRule === c.profileKey;
+                        return '<option value="' + esc(val) + '"' + (sel ? " selected" : "") + '>' + esc(c.name) + ' [' + esc(c.type || "HID") + ']</option>';
+                      }).join("") +
+                    '</select>' +
+                  '</div>'
+                );
+              }).join("") + '</div>';
+            }
+
+            return devCardsHtml + toolbarHtml + captureBannerHtml + subTabsHtml + bodyHtml;
+          })() +
         '</div>' +
       '</div>'
     );
@@ -3175,7 +3450,7 @@
             '</div>' +
 
             '<div class="toolbar-row">' +
-              '<button type="button" class="btn-3d btn-3d-primary" style="flex:1;" data-action="check-updates">' + ico("refresh") + '<span>' + (isRu() ? "Проверить обновления (2.7.4)" : "Check Updates (2.7.4)") + '</span></button>' +
+              '<button type="button" class="btn-3d btn-3d-primary" style="flex:1;" data-action="check-updates">' + ico("refresh") + '<span>' + (isRu() ? "Проверить обновления (2.7.5)" : "Check Updates (2.7.5)") + '</span></button>' +
               (state.updateInfo.updateAvailable ? (
                 '<button type="button" class="btn-3d btn-3d-emerald" data-action="install-update">' + ico("download") + '<span>' + (isRu() ? "Обновить" : "Update") + '</span></button>'
               ) : "") +
@@ -3239,7 +3514,7 @@
     if (!modal || !box) return;
     box.innerHTML =
       '<div class="section-head">' +
-        '<div><h3 class="section-title" id="studioHubTitle">' + (isRu() ? "Все 12 модулей STORM RETROARCH 2.7.4" : "All 12 STORM Studio Modules") + '</h3><p class="section-subtitle">' + (isRu() ? "Выберите нужный раздел консоли в одно касание" : "Jump to any console subsystem in 1 tap") + '</p></div>' +
+        '<div><h3 class="section-title" id="studioHubTitle">' + (isRu() ? "Все 12 модулей STORM RETROARCH 2.7.5" : "All 12 STORM Studio Modules") + '</h3><p class="section-subtitle">' + (isRu() ? "Выберите нужный раздел консоли в одно касание" : "Jump to any console subsystem in 1 tap") + '</p></div>' +
         '<button type="button" class="icon-btn-3d" data-action="close-modals" aria-label="Close">' + ico("close") + '</button>' +
       '</div>' +
       '<div class="quick-bento-grid">' +
@@ -3477,7 +3752,7 @@
       { kind: "action", icon: "folder", title: ru ? "Сканировать папку с ROM" : "Scan ROM Folder", meta: state.storagePath, execType: "action", action: "quick-scan-storage" },
       { kind: "action", icon: "cpu", title: ru ? "Автосканер BIOS (MD5)" : "Auto-Scan BIOS (MD5)", meta: ru ? "Проверка системных прошивок" : "Verify system firmware hashes", execType: "action", action: "scan-bios-md5" },
       { kind: "action", icon: "archive", title: ru ? "Экспорт сохранений в ZIP" : "Export Saves Backup ZIP", meta: ru ? "Портативный перенос на ПК" : "Portable PC save transfer", execType: "action", action: "export-saves-zip" },
-      { kind: "action", icon: "refresh", title: ru ? "Проверить обновления (2.7.4)" : "Check Updates (2.7.4)", meta: "STORM RETROARCH", execType: "action", action: "check-updates" },
+      { kind: "action", icon: "refresh", title: ru ? "Проверить обновления (2.7.5)" : "Check Updates (2.7.5)", meta: "STORM RETROARCH", execType: "action", action: "check-updates" },
       { kind: "action", icon: "grid", title: ru ? "Все 12 модулей Студии" : "All 12 Studio Modules", meta: ru ? "Быстрый переход по разделам" : "Open 12-module launcher", execType: "hub" }
     ];
 
@@ -3616,7 +3891,7 @@
         window.StormBridge.exportSavesBackupZip();
       } else if (item.action === "check-updates") {
         if (hasBridge && window.StormBridge.checkForUpdates) window.StormBridge.checkForUpdates();
-        else showToast(isRu() ? "У вас установлена актуальная версия (2.7.4)" : "STORM RETROARCH 2.7.4 is up to date");
+        else showToast(isRu() ? "У вас установлена актуальная версия (2.7.5)" : "STORM RETROARCH 2.7.5 is up to date");
       }
     }
   }
@@ -4663,11 +4938,75 @@
         renderViewport();
       }
     } else if (act === "refresh-controllers") {
-      if (hasBridge && window.StormBridge.refreshControllersJson) {
+      if (hasBridge && window.StormBridge.getControllersStateJson) {
+        const st = safeJsonParse(window.StormBridge.getControllersStateJson(), null);
+        if (st) ingestBootstrap(st);
+      } else if (hasBridge && window.StormBridge.refreshControllersJson) {
         const pads = safeJsonParse(window.StormBridge.refreshControllersJson(), null);
-        if (Array.isArray(pads)) state.controllers = pads;
+        if (Array.isArray(pads)) ingestBootstrap({ controllers: pads });
       }
-      showToast(isRu() ? "Список Bluetooth / USB контроллеров обновлён" : "Controllers refreshed");
+      showToast(isRu() ? "Список USB / Bluetooth контроллеров обновлён" : "Controllers refreshed");
+      renderViewport();
+    } else if (act === "select-ctrl-profile") {
+      state.selectedCtrlProfileKey = actEl.getAttribute("data-profile-key") || "";
+      stopControllerCapture();
+      renderViewport();
+    } else if (act === "switch-ctrl-subtab") {
+      state.ctrlSubTab = actEl.getAttribute("data-subtab") || "buttons";
+      stopControllerCapture();
+      renderViewport();
+    } else if (act === "start-bind-wizard") {
+      const pKey = actEl.getAttribute("data-profile-key") || state.selectedCtrlProfileKey;
+      const order = [
+        ["UP", "Крестовина Вверх"], ["DOWN", "Крестовина Вниз"], ["LEFT", "Крестовина Влево"], ["RIGHT", "Крестовина Вправо"],
+        ["B", "Кнопка B (Юг)"], ["A", "Кнопка A (Восток)"], ["Y", "Кнопка Y (Запад)"], ["X", "Кнопка X (Север)"],
+        ["L1", "L1 / LB"], ["R1", "R1 / RB"], ["L2", "L2 / LT"], ["R2", "R2 / RT"],
+        ["SELECT", "SELECT / BACK"], ["START", "START / OPTIONS"], ["L3", "L3 (Стик)"], ["R3", "R3 (Стик)"]
+      ];
+      state.bindWizardQueue = order.map(function (it) {
+        return { kind: "button", key: it[0], profileKey: pKey, label: it[1] };
+      });
+      state.ctrlSubTab = "buttons";
+      advanceBindWizardOrStop();
+      renderViewport();
+    } else if (act === "cancel-ctrl-capture") {
+      stopControllerCapture();
+      renderViewport();
+    } else if (act === "reset-ctrl-profile") {
+      const pKey = actEl.getAttribute("data-profile-key") || state.selectedCtrlProfileKey;
+      stopControllerCapture();
+      if (hasBridge && window.StormBridge.resetControllerProfileJson) {
+        window.StormBridge.resetControllerProfileJson(pKey);
+        const st = safeJsonParse(window.StormBridge.getControllersStateJson(), null);
+        if (st) ingestBootstrap(st);
+      }
+      showToast(isRu() ? "Профиль контроллера сброшен к настройкам по умолчанию" : "Controller profile reset");
+      renderViewport();
+    } else if (act === "capture-ctrl-btn" || act === "capture-ctrl-axis" || act === "capture-ctrl-hotkey") {
+      const kind = act === "capture-ctrl-axis" ? "axis" : (act === "capture-ctrl-hotkey" ? "hotkey" : "button");
+      const pKey = actEl.getAttribute("data-profile-key") || state.selectedCtrlProfileKey;
+      const key = actEl.getAttribute("data-key");
+      const label = actEl.getAttribute("data-label") || key;
+      state.bindWizardQueue = [];
+      state.captureTarget = { kind: kind, key: key, profileKey: pKey, label: label };
+      if (hasBridge && window.StormBridge.setControllerCaptureMode) {
+        window.StormBridge.setControllerCaptureMode(true);
+      }
+      renderViewport();
+    } else if (act === "clear-ctrl-btn" || act === "clear-ctrl-axis" || act === "clear-ctrl-hotkey") {
+      const pKey = actEl.getAttribute("data-profile-key") || state.selectedCtrlProfileKey;
+      const key = actEl.getAttribute("data-key");
+      if (hasBridge) {
+        if (act === "clear-ctrl-btn" && window.StormBridge.updateControllerButtonBindingJson) {
+          window.StormBridge.updateControllerButtonBindingJson(pKey, key, 0);
+        } else if (act === "clear-ctrl-axis" && window.StormBridge.updateControllerAxisBindingJson) {
+          window.StormBridge.updateControllerAxisBindingJson(pKey, key, -1);
+        } else if (act === "clear-ctrl-hotkey" && window.StormBridge.updateControllerHotkeyBindingJson) {
+          window.StormBridge.updateControllerHotkeyBindingJson(pKey, key, 0);
+        }
+        const st = safeJsonParse(window.StormBridge.getControllersStateJson(), null);
+        if (st) ingestBootstrap(st);
+      }
       renderViewport();
     } else if (act === "remap-btn") {
       state.listeningBindKey = actEl.getAttribute("data-key");
@@ -4726,7 +5065,7 @@
       else showToast(isRu() ? "Полный доступ к /storage/emulated/0/STORM RETROARCH активен" : "Storage access active");
     } else if (act === "check-updates") {
       if (hasBridge && window.StormBridge.checkForUpdates) window.StormBridge.checkForUpdates();
-      else showToast(isRu() ? "У вас установлена актуальная версия (2.7.4)" : "STORM RETROARCH 2.7.4 is up to date");
+      else showToast(isRu() ? "У вас установлена актуальная версия (2.7.5)" : "STORM RETROARCH 2.7.5 is up to date");
     } else if (act === "install-update") {
       if (hasBridge && window.StormBridge.installUpdateApk) window.StormBridge.installUpdateApk();
     }
@@ -4776,6 +5115,23 @@
     } else if (t.id === "uiScaleSlider") {
       saveSettingsPatch({ uiScale: Number(t.value) });
       renderViewport();
+    } else if (t.id === "ctrlAnalogDzSlider" || t.id === "ctrlSteeringDzSlider" || t.id === "ctrlTriggerThrSlider") {
+      const pKey = t.getAttribute("data-profile-key") || state.selectedCtrlProfileKey;
+      const pct = Number(t.value);
+      const val = pct / 100;
+      const field = t.id === "ctrlAnalogDzSlider" ? "analogDeadzone" : (t.id === "ctrlSteeringDzSlider" ? "steeringDeadzone" : "triggerThreshold");
+      const ctrl = state.controllers.find(function (c) { return (c.profileKey || c.descriptor) === pKey; });
+      if (ctrl && ctrl.profile) ctrl.profile[field] = val;
+      if (t.previousElementSibling && t.previousElementSibling.lastElementChild) {
+        t.previousElementSibling.lastElementChild.textContent = pct + "%";
+      }
+      scheduleDebounced("ctrlTuning", function () {
+        if (hasBridge && window.StormBridge.updateControllerTuningJson) {
+          const patch = {};
+          patch[field] = val;
+          window.StormBridge.updateControllerTuningJson(pKey, JSON.stringify(patch));
+        }
+      }, 90);
     }
   });
 
@@ -4790,6 +5146,33 @@
     }
     const t = e.target;
     if (!t) return;
+    if (t.id === "ctrlProfileSelect") {
+      state.selectedCtrlProfileKey = t.value;
+      stopControllerCapture();
+      renderViewport();
+      return;
+    }
+    if (t.id === "ctrlChordModifierSelect") {
+      const pKey = t.getAttribute("data-profile-key") || state.selectedCtrlProfileKey;
+      if (hasBridge && window.StormBridge.updateControllerTuningJson) {
+        window.StormBridge.updateControllerTuningJson(pKey, JSON.stringify({ chordModifier: t.value }));
+        const st = safeJsonParse(window.StormBridge.getControllersStateJson(), null);
+        if (st) ingestBootstrap(st);
+      }
+      renderViewport();
+      return;
+    }
+    if (t.classList && t.classList.contains("ctrl-port-select")) {
+      const pIdx = Number(t.getAttribute("data-port"));
+      state.portAssignments[String(pIdx)] = t.value;
+      if (hasBridge && window.StormBridge.setPortAssignmentJson) {
+        window.StormBridge.setPortAssignmentJson(pIdx, t.value);
+        const st = safeJsonParse(window.StormBridge.getControllersStateJson(), null);
+        if (st) ingestBootstrap(st);
+      }
+      renderViewport();
+      return;
+    }
     if (t.id === "libCoreSelect") { state.libCoreFilter = t.value; updateLibraryResults(); }
     else if (t.id === "libSortSelect") { state.libSort = t.value; updateLibraryResults(); }
     else if (t.id === "coresPlatSelect") { state.coresPlatform = t.value; updateCoresResults(); }
@@ -4871,6 +5254,11 @@
       if (e.key === "ArrowRight") { e.preventDefault(); stepMediaLightbox(1); return; }
     }
     if (e.key === "Escape") {
+      if (state.captureTarget) {
+        stopControllerCapture();
+        renderViewport();
+        return;
+      }
       closeAllModals();
       return;
     }

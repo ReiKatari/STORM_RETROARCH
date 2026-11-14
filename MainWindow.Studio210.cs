@@ -17,7 +17,7 @@ namespace StormRetroArch;
 
 /// <summary>
 /// Phase 2 Modular UI, Unified Multi-Device & Hotkey Studio, Ergonomic HUD,
-/// Controller Overlay, Frozen Brush Cache and Startup Optimizations for STORM RETROARCH 2.7.4.
+/// Controller Overlay, Frozen Brush Cache and Startup Optimizations for STORM RETROARCH 2.7.5.
 /// </summary>
 public partial class MainWindow
 {
@@ -55,7 +55,7 @@ public partial class MainWindow
         });
     }
 
-    // ==================== 2. PHASE 2.6.1 STATE & FIELDS ====================
+    // ==================== 2. PHASE 2.7.5 STATE & FIELDS ====================
     private readonly DispatcherTimer _hotplugToastTimer = new();
     private readonly DispatcherTimer _physicalCaptureTimer = new();
 
@@ -65,6 +65,11 @@ public partial class MainWindow
     private string _lastOverlayArtSignature = "";
 
     private bool _isCapturingGamepadChord;
+    private bool _isCapturingPhysicalPadInput;
+    private bool _suppressInputUiSync;
+    private List<string> _wizardCaptureQueue = new();
+    private int _wizardCaptureIndex = -1;
+    private bool _wizardCaptureForKeyboard;
 
     // ==================== 3. INITIALIZATION ====================
     public void InitStudio210()
@@ -83,10 +88,10 @@ public partial class MainWindow
         _physicalCaptureTimer.Interval = TimeSpan.FromMilliseconds(30);
         _physicalCaptureTimer.Tick += PhysicalCaptureTimer_Tick;
 
-        // 3. Subscribe to Device Engine Events
+        // 3. Subscribe to Device Engine & Theme Events
         DeviceInputProfileEngine.OnDeviceProfileActivated += (dev, msg) =>
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.BeginInvoke(new Action(() =>
             {
                 string devName = dev?.DisplayName ?? "Игровой контроллер";
                 if (TxtTopActiveDeviceName != null) TxtTopActiveDeviceName.Text = devName;
@@ -94,12 +99,31 @@ public partial class MainWindow
                 if (TxtOverlayDeviceName != null) TxtOverlayDeviceName.Text = devName;
 
                 ShowDeviceHotplugToast(devName, msg ?? "Профиль устройства активирован");
-            });
+            }));
         };
 
         DeviceInputProfileEngine.OnDevicesChanged += () =>
         {
-            Dispatcher.Invoke(PopulateDeviceProfilesDropdown);
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                PopulateDeviceProfilesDropdown();
+                PopulatePortDeviceAssignDropdown();
+                if (ViewInputRemap?.Visibility == Visibility.Visible)
+                {
+                    LoadRemapBindings(_selectedRemapPlayerIndex);
+                }
+            }));
+        };
+
+        ThemeManager.ThemeChanged += () =>
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (ViewInputRemap?.Visibility == Visibility.Visible)
+                {
+                    RebuildHotkeyStudioList();
+                }
+            }));
         };
 
         // 4. Populate Dropdowns
@@ -107,14 +131,18 @@ public partial class MainWindow
         PopulateControllerStylesDropdown();
         PopulateCoreScopeDropdown();
         PopulateGamepadChordModifierDropdown();
+        PopulatePortDeviceAssignDropdown();
 
         // 5. Build Hotkeys Studio UI
         RebuildHotkeyStudioList();
 
         // 6. Set Initial Active Device Pill
-        if (TxtTopActiveDeviceName != null && _selectedDeviceProfile != null)
+        if (TxtTopActiveDeviceName != null)
         {
-            TxtTopActiveDeviceName.Text = _selectedDeviceProfile.DisplayName;
+            var port0 = DeviceInputProfileEngine.GetPort(0);
+            TxtTopActiveDeviceName.Text = port0.IsConnected && !port0.IsKeyboardVirtual
+                ? port0.DisplayName
+                : (_selectedDeviceProfile?.DisplayName ?? "Клавиатура ПК");
         }
 
         LogCheckpoint("InitStudio210 complete");
@@ -125,67 +153,125 @@ public partial class MainWindow
     {
         if (CmbActiveDeviceProfile == null) return;
 
-        CmbActiveDeviceProfile.Items.Clear();
-        if (CmbOverlayQuickDevice != null) CmbOverlayQuickDevice.Items.Clear();
-        if (CmbQuickMenuDeviceProfile != null) CmbQuickMenuDeviceProfile.Items.Clear();
-
-        var profiles = DeviceInputProfileEngine.GetAllStoredProfiles();
-        if (profiles.Count == 0)
+        string prevSelected = _selectedDeviceProfile?.DeviceId ?? "";
+        _suppressInputUiSync = true;
+        try
         {
-            DeviceInputProfileEngine.Initialize();
-            profiles = DeviceInputProfileEngine.GetAllStoredProfiles();
-        }
+            CmbActiveDeviceProfile.Items.Clear();
+            if (CmbOverlayQuickDevice != null) CmbOverlayQuickDevice.Items.Clear();
+            if (CmbQuickMenuDeviceProfile != null) CmbQuickMenuDeviceProfile.Items.Clear();
 
-        foreach (var p in profiles)
-        {
-            CmbActiveDeviceProfile.Items.Add(p.DisplayName);
-            if (CmbOverlayQuickDevice != null) CmbOverlayQuickDevice.Items.Add(p.DisplayName);
-            if (CmbQuickMenuDeviceProfile != null) CmbQuickMenuDeviceProfile.Items.Add(p.DisplayName);
-        }
+            var profiles = DeviceInputProfileEngine.GetAllStoredProfiles();
+            if (profiles.Count == 0)
+            {
+                DeviceInputProfileEngine.Initialize();
+                profiles = DeviceInputProfileEngine.GetAllStoredProfiles();
+            }
 
-        if (CmbActiveDeviceProfile.Items.Count > 0)
-        {
-            CmbActiveDeviceProfile.SelectedIndex = 0;
-            if (CmbOverlayQuickDevice != null) CmbOverlayQuickDevice.SelectedIndex = 0;
-            if (CmbQuickMenuDeviceProfile != null) CmbQuickMenuDeviceProfile.SelectedIndex = 0;
+            int matchIdx = 0;
+            for (int i = 0; i < profiles.Count; i++)
+            {
+                var p = profiles[i];
+                CmbActiveDeviceProfile.Items.Add(p.DisplayName);
+                if (CmbOverlayQuickDevice != null) CmbOverlayQuickDevice.Items.Add(p.DisplayName);
+                if (CmbQuickMenuDeviceProfile != null) CmbQuickMenuDeviceProfile.Items.Add(p.DisplayName);
+                if (!string.IsNullOrEmpty(prevSelected) && p.DeviceId.Equals(prevSelected, StringComparison.OrdinalIgnoreCase))
+                {
+                    matchIdx = i;
+                }
+            }
+
+            if (CmbActiveDeviceProfile.Items.Count > 0)
+            {
+                // Prefer the primary port connected device on first init if no prior selection
+                if (string.IsNullOrEmpty(prevSelected))
+                {
+                    var p0 = DeviceInputProfileEngine.GetPort(Math.Max(0, _selectedRemapPlayerIndex - 1));
+                    if (p0.Profile != null)
+                    {
+                        int p0Idx = profiles.FindIndex(x => x.DeviceId.Equals(p0.Profile.DeviceId, StringComparison.OrdinalIgnoreCase));
+                        if (p0Idx >= 0) matchIdx = p0Idx;
+                    }
+                }
+                CmbActiveDeviceProfile.SelectedIndex = matchIdx;
+                _selectedDeviceProfile = profiles[matchIdx];
+                if (CmbOverlayQuickDevice != null && matchIdx < CmbOverlayQuickDevice.Items.Count) CmbOverlayQuickDevice.SelectedIndex = matchIdx;
+                if (CmbQuickMenuDeviceProfile != null && matchIdx < CmbQuickMenuDeviceProfile.Items.Count) CmbQuickMenuDeviceProfile.SelectedIndex = matchIdx;
+            }
         }
+        finally
+        {
+            _suppressInputUiSync = false;
+        }
+        ApplyActiveDeviceProfileToUI();
     }
 
     private void PopulateControllerStylesDropdown()
     {
         if (CmbControllerStyle == null) return;
-        CmbControllerStyle.Items.Clear();
-        foreach (var p in ControllerArtRenderer.PlatformProfiles)
+        _suppressInputUiSync = true;
+        try
         {
-            CmbControllerStyle.Items.Add(p);
+            CmbControllerStyle.Items.Clear();
+            foreach (var p in ControllerArtRenderer.PlatformProfiles)
+            {
+                CmbControllerStyle.Items.Add(p);
+            }
+            if (CmbControllerStyle.Items.Count > 0) CmbControllerStyle.SelectedIndex = 0;
         }
-        if (CmbControllerStyle.Items.Count > 0) CmbControllerStyle.SelectedIndex = 0;
+        finally
+        {
+            _suppressInputUiSync = false;
+        }
     }
 
     private void PopulateCoreScopeDropdown()
     {
         if (CmbDeviceCoreScope == null) return;
-        CmbDeviceCoreScope.Items.Clear();
-        CmbDeviceCoreScope.Items.Add("Глобально (все ядра)");
-        CmbDeviceCoreScope.Items.Add("Ядро: FCEUmm (NES)");
-        CmbDeviceCoreScope.Items.Add("Ядро: FBNeo (Аркады)");
-        CmbDeviceCoreScope.Items.Add("Ядро: DOSBox-Pure (MS-DOS)");
-        CmbDeviceCoreScope.Items.Add("Ядро: Mupen64Plus-Next (N64)");
-        CmbDeviceCoreScope.Items.Add("Ядро: PCSX-ReARMed (PS1)");
-        CmbDeviceCoreScope.Items.Add("Ядро: Genesis Plus GX (Sega)");
-        CmbDeviceCoreScope.Items.Add("Ядро: Snes9x (SNES)");
-        CmbDeviceCoreScope.SelectedIndex = 0;
+        _suppressInputUiSync = true;
+        try
+        {
+            CmbDeviceCoreScope.Items.Clear();
+            CmbDeviceCoreScope.Items.Add("Глобально (все ядра)");
+            CmbDeviceCoreScope.Items.Add("Ядро: FCEUmm (NES)");
+            CmbDeviceCoreScope.Items.Add("Ядро: FBNeo (Аркады)");
+            CmbDeviceCoreScope.Items.Add("Ядро: DOSBox-Pure (MS-DOS)");
+            CmbDeviceCoreScope.Items.Add("Ядро: Mupen64Plus-Next (N64)");
+            CmbDeviceCoreScope.Items.Add("Ядро: PCSX-ReARMed (PS1)");
+            CmbDeviceCoreScope.Items.Add("Ядро: Genesis Plus GX (Sega)");
+            CmbDeviceCoreScope.Items.Add("Ядро: Snes9x (SNES)");
+            CmbDeviceCoreScope.SelectedIndex = 0;
+        }
+        finally
+        {
+            _suppressInputUiSync = false;
+        }
     }
 
     private void PopulateGamepadChordModifierDropdown()
     {
         if (CmbGamepadChordModifier == null) return;
-        CmbGamepadChordModifier.Items.Clear();
-        CmbGamepadChordModifier.Items.Add("Select / Back (Стандарт)");
-        CmbGamepadChordModifier.Items.Add("Guide / Home");
-        CmbGamepadChordModifier.Items.Add("L3 (Левый стик)");
-        CmbGamepadChordModifier.Items.Add("Одиночная кнопка (без аккорда)");
-        CmbGamepadChordModifier.SelectedIndex = 0;
+        _suppressInputUiSync = true;
+        try
+        {
+            CmbGamepadChordModifier.Items.Clear();
+            CmbGamepadChordModifier.Items.Add("Select / Back (Стандарт)");
+            CmbGamepadChordModifier.Items.Add("Guide / Home");
+            CmbGamepadChordModifier.Items.Add("L3 (Левый стик)");
+            CmbGamepadChordModifier.Items.Add("Одиночная кнопка (без аккорда)");
+            string mod = SettingsManager.Current?.GamepadChordModifier ?? "SelectOrBack";
+            CmbGamepadChordModifier.SelectedIndex = mod switch
+            {
+                "GuideOrHome" => 1,
+                "L3" => 2,
+                "SingleButton" => 3,
+                _ => 0
+            };
+        }
+        finally
+        {
+            _suppressInputUiSync = false;
+        }
     }
 
     public void SelectDeviceProfileByName(string profileName)
@@ -200,13 +286,21 @@ public partial class MainWindow
             _selectedDeviceProfile = match;
             if (CmbActiveDeviceProfile != null)
             {
-                for (int i = 0; i < CmbActiveDeviceProfile.Items.Count; i++)
+                _suppressInputUiSync = true;
+                try
                 {
-                    if (CmbActiveDeviceProfile.Items[i]?.ToString()?.Contains(profileName, StringComparison.OrdinalIgnoreCase) == true)
+                    for (int i = 0; i < CmbActiveDeviceProfile.Items.Count; i++)
                     {
-                        CmbActiveDeviceProfile.SelectedIndex = i;
-                        break;
+                        if (CmbActiveDeviceProfile.Items[i]?.ToString()?.Contains(profileName, StringComparison.OrdinalIgnoreCase) == true)
+                        {
+                            CmbActiveDeviceProfile.SelectedIndex = i;
+                            break;
+                        }
                     }
+                }
+                finally
+                {
+                    _suppressInputUiSync = false;
                 }
             }
             ApplyActiveDeviceProfileToUI();
@@ -217,48 +311,90 @@ public partial class MainWindow
     {
         if (_selectedDeviceProfile == null) return;
 
-        // 1. Update Conn Badge
-        if (TxtDeviceConnBadge != null)
+        _suppressInputUiSync = true;
+        try
         {
-            TxtDeviceConnBadge.Text = _selectedDeviceProfile.AutoLoadOnConnect
-                ? "Активен • Автопрофиль"
-                : "Сохранённый профиль";
-        }
+            var connectedMatches = DeviceInputProfileEngine.GetConnectedDevices()
+                .Where(d => d.Profile?.DeviceId.Equals(_selectedDeviceProfile.DeviceId, StringComparison.OrdinalIgnoreCase) == true
+                         || (d.VendorId == _selectedDeviceProfile.VendorId && d.ProductId == _selectedDeviceProfile.ProductId && _selectedDeviceProfile.VendorId != 0))
+                .ToList();
+            var liveDev = connectedMatches.FirstOrDefault();
 
-        // 2. Sync Style Dropdown
-        if (CmbControllerStyle != null)
-        {
-            int targetIdx = (int)_selectedDeviceProfile.FormFactor;
-            if (targetIdx >= 0 && targetIdx < CmbControllerStyle.Items.Count)
+            // 1. Update Conn Badge & dot
+            if (TxtDeviceConnBadge != null)
             {
-                CmbControllerStyle.SelectedIndex = targetIdx;
+                TxtDeviceConnBadge.Text = liveDev != null
+                    ? $"Подключён • {(liveDev.IsXInput ? "XInput" : "WinMM/HID")} • Порт {liveDev.PortIndex + 1}"
+                    : (_selectedDeviceProfile.AutoLoadOnConnect ? "Автопрофиль (оффлайн)" : "Сохранённый профиль");
             }
-        }
+            if (DotDeviceStatus != null)
+            {
+                DotDeviceStatus.Background = GetFrozenBrush(liveDev != null ? "#10B981" : "#F59E0B");
+            }
 
-        // 3. Update Hardware Info Readout
-        if (TxtDeviceHardwareInfo != null)
+            if (ChkDeviceAutoLoad != null)
+            {
+                ChkDeviceAutoLoad.IsChecked = _selectedDeviceProfile.AutoLoadOnConnect;
+            }
+
+            // 2. Sync Style Dropdown
+            if (CmbControllerStyle != null)
+            {
+                string styleTarget = ControllerArtRenderer.FormFactorToProfileName(_selectedDeviceProfile.FormFactor);
+                int targetIdx = -1;
+                for (int i = 0; i < CmbControllerStyle.Items.Count; i++)
+                {
+                    if (string.Equals(CmbControllerStyle.Items[i]?.ToString(), styleTarget, StringComparison.OrdinalIgnoreCase))
+                    {
+                        targetIdx = i;
+                        break;
+                    }
+                }
+                if (targetIdx < 0) targetIdx = Math.Clamp((int)_selectedDeviceProfile.FormFactor, 0, Math.Max(0, CmbControllerStyle.Items.Count - 1));
+                if (targetIdx >= 0 && targetIdx < CmbControllerStyle.Items.Count)
+                {
+                    CmbControllerStyle.SelectedIndex = targetIdx;
+                }
+            }
+
+            // 3. Update Hardware Info Readout
+            if (TxtDeviceHardwareInfo != null)
+            {
+                string extra = liveDev != null && !string.IsNullOrWhiteSpace(liveDev.AutoconfigSource)
+                    ? $" • {liveDev.AutoconfigSource}"
+                    : "";
+                string caps = liveDev != null && liveDev.AxisCount > 0
+                    ? $" • Осей: {liveDev.AxisCount}, Кнопок: {liveDev.ButtonCount}"
+                    : "";
+                TxtDeviceHardwareInfo.Text = $"VID: 0x{_selectedDeviceProfile.VendorId:X4} • PID: 0x{_selectedDeviceProfile.ProductId:X4} • {_selectedDeviceProfile.FormFactor}{caps}{extra}";
+            }
+
+            // 4. Update Sliders
+            var layer = _activeCoreScope == "Global"
+                ? _selectedDeviceProfile.GlobalLayer
+                : (_selectedDeviceProfile.CoreLayers.TryGetValue(_activeCoreScope, out var cl) ? cl : _selectedDeviceProfile.GlobalLayer);
+
+            if (SliderAnalogDeadzone != null) SliderAnalogDeadzone.Value = Math.Clamp(layer.AnalogDeadzonePercent, 5, 40);
+            if (TxtAnalogDeadzoneVal != null) TxtAnalogDeadzoneVal.Text = $"{layer.AnalogDeadzonePercent}%";
+
+            if (SliderSteeringDeadzone != null) SliderSteeringDeadzone.Value = Math.Clamp(layer.SteeringDeadzonePercent, 0, 25);
+            if (TxtSteeringDeadzoneVal != null) TxtSteeringDeadzoneVal.Text = $"{layer.SteeringDeadzonePercent}%";
+
+            if (SliderTriggerThreshold != null) SliderTriggerThreshold.Value = Math.Clamp(layer.TriggerThresholdPercent, 5, 50);
+            if (TxtTriggerThresholdVal != null) TxtTriggerThresholdVal.Text = $"{layer.TriggerThresholdPercent}%";
+
+            // 5. Update Realistic Controller Image Preview (Change-Only)
+            UpdateControllerPreviewChangeOnly(_selectedDeviceProfile.FormFactor.ToString(), _selectedRemapPlayerIndex, null);
+
+            // 6. Update Top Pill & In-Game Badges
+            if (TxtTopActiveDeviceName != null) TxtTopActiveDeviceName.Text = _selectedDeviceProfile.DisplayName;
+            if (TxtHudActiveDeviceBadge != null) TxtHudActiveDeviceBadge.Text = _selectedDeviceProfile.DisplayName;
+            if (TxtOverlayDeviceName != null) TxtOverlayDeviceName.Text = _selectedDeviceProfile.DisplayName;
+        }
+        finally
         {
-            TxtDeviceHardwareInfo.Text = $"VID: 0x{_selectedDeviceProfile.VendorId:X4} • PID: 0x{_selectedDeviceProfile.ProductId:X4} • Форм-фактор: {_selectedDeviceProfile.FormFactor}";
+            _suppressInputUiSync = false;
         }
-
-        // 4. Update Sliders
-        var layer = _activeCoreScope == "Global"
-            ? _selectedDeviceProfile.GlobalLayer
-            : (_selectedDeviceProfile.CoreLayers.TryGetValue(_activeCoreScope, out var cl) ? cl : _selectedDeviceProfile.GlobalLayer);
-
-        if (SliderAnalogDeadzone != null) SliderAnalogDeadzone.Value = layer.AnalogDeadzonePercent;
-        if (TxtAnalogDeadzoneVal != null) TxtAnalogDeadzoneVal.Text = $"{layer.AnalogDeadzonePercent}%";
-
-        if (SliderTriggerThreshold != null) SliderTriggerThreshold.Value = layer.TriggerThresholdPercent;
-        if (TxtTriggerThresholdVal != null) TxtTriggerThresholdVal.Text = $"{layer.TriggerThresholdPercent}%";
-
-        // 5. Update Realistic Controller Image Preview (Change-Only)
-        UpdateControllerPreviewChangeOnly(_selectedDeviceProfile.FormFactor.ToString(), _selectedRemapPlayerIndex, null);
-
-        // 6. Update Top Pill & In-Game Badges
-        if (TxtTopActiveDeviceName != null) TxtTopActiveDeviceName.Text = _selectedDeviceProfile.DisplayName;
-        if (TxtHudActiveDeviceBadge != null) TxtHudActiveDeviceBadge.Text = _selectedDeviceProfile.DisplayName;
-        if (TxtOverlayDeviceName != null) TxtOverlayDeviceName.Text = _selectedDeviceProfile.DisplayName;
     }
 
     // ==================== 5. CHANGE-ONLY CONTROLLER ART REDRAW ====================
@@ -326,22 +462,23 @@ public partial class MainWindow
         PnlHotkeyCategoriesHost.Children.Clear();
         var allBindings = HotkeyManager.GetAllBindings();
         var conflicts = HotkeyManager.FindConflicts();
+        bool isLightTheme = ThemeManager.CurrentPalette.IsLight;
 
         // Update Conflict Status Badge
         if (TxtHotkeyConflictStatus != null && BdrHotkeyConflictStatus != null)
         {
             if (conflicts.Count == 0)
             {
-                TxtHotkeyConflictStatus.Text = "Конфликтов нет (18 действий)";
-                TxtHotkeyConflictStatus.Foreground = GetFrozenBrush("#34D399");
-                BdrHotkeyConflictStatus.Background = GetFrozenBrush("#1A10B981");
+                TxtHotkeyConflictStatus.Text = $"Конфликтов нет ({allBindings.Count} действий)";
+                TxtHotkeyConflictStatus.SetResourceReference(TextBlock.ForegroundProperty, "ThemeTextPrimary");
+                BdrHotkeyConflictStatus.Background = GetFrozenBrush(isLightTheme ? "#1810B981" : "#1A10B981");
                 BdrHotkeyConflictStatus.BorderBrush = GetFrozenBrush("#10B981");
             }
             else
             {
                 TxtHotkeyConflictStatus.Text = $"Конфликты: {conflicts.Count} пересечений";
-                TxtHotkeyConflictStatus.Foreground = GetFrozenBrush("#F59E0B");
-                BdrHotkeyConflictStatus.Background = GetFrozenBrush("#1AF59E0B");
+                TxtHotkeyConflictStatus.SetResourceReference(TextBlock.ForegroundProperty, "ThemeTextPrimary");
+                BdrHotkeyConflictStatus.Background = GetFrozenBrush("#2AF59E0B");
                 BdrHotkeyConflictStatus.BorderBrush = GetFrozenBrush("#F59E0B");
             }
         }
@@ -353,13 +490,13 @@ public partial class MainWindow
         {
             var cardBorder = new Border
             {
-                Background = GetFrozenBrush("#12111E"),
-                BorderBrush = GetFrozenBrush("#252033"),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(10),
                 Padding = new Thickness(14, 10, 14, 10),
                 Margin = new Thickness(0, 0, 0, 10)
             };
+            cardBorder.SetResourceReference(Border.BackgroundProperty, "ThemeSurface");
+            cardBorder.SetResourceReference(Border.BorderBrushProperty, "ThemeBorder");
 
             var stack = new StackPanel();
 
@@ -368,11 +505,11 @@ public partial class MainWindow
             var catTitle = new TextBlock
             {
                 Text = group.Key.ToUpperInvariant(),
-                Foreground = GetFrozenBrush("#38BDF8"),
                 FontSize = 11,
                 FontWeight = FontWeights.Bold,
                 VerticalAlignment = VerticalAlignment.Center
             };
+            catTitle.SetResourceReference(TextBlock.ForegroundProperty, isLightTheme ? "ThemeAccent" : "ThemeAccentGlow");
             headerDock.Children.Add(catTitle);
             stack.Children.Add(headerDock);
 
@@ -381,89 +518,105 @@ public partial class MainWindow
             {
                 var rowBorder = new Border
                 {
-                    Background = GetFrozenBrush("#0D0B16"),
-                    BorderBrush = GetFrozenBrush("#1E1B2A"),
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(7),
-                    Margin = new Thickness(0, 0, 0, 5),
-                    Padding = new Thickness(10, 6, 10, 6)
+                    Margin = new Thickness(0, 0, 0, 6),
+                    Padding = new Thickness(10, 7, 10, 7)
                 };
+                rowBorder.SetResourceReference(Border.BackgroundProperty, "ThemeBgInput");
+                rowBorder.SetResourceReference(Border.BorderBrushProperty, "ThemeBorderSubtle");
 
                 var rowDock = new DockPanel { LastChildFill = true };
 
-                // Right controls: [Key Pill + Btn] + [Pad Chord Pill + Btn] + [Reset Btn]
-                var rightStack = new StackPanel
+                // Right controls: [Key Pill + Btn] + [Pad Chord Pill + Btn + Unbind] + [Reset Btn]
+                var rightWrap = new WrapPanel
                 {
                     Orientation = Orientation.Horizontal,
                     VerticalAlignment = VerticalAlignment.Center
                 };
-                DockPanel.SetDock(rightStack, Dock.Right);
+                DockPanel.SetDock(rightWrap, Dock.Right);
 
                 // Keyboard Pill
                 var keyPill = new Border
                 {
-                    Background = GetFrozenBrush("#1A8B5CF6"),
-                    BorderBrush = GetFrozenBrush("#668B5CF6"),
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(5),
-                    Padding = new Thickness(8, 2, 8, 2),
-                    Margin = new Thickness(0, 0, 4, 0),
+                    Padding = new Thickness(8, 3, 8, 3),
+                    Margin = new Thickness(0, 2, 4, 2),
                     VerticalAlignment = VerticalAlignment.Center
                 };
+                keyPill.SetResourceReference(Border.BackgroundProperty, "ThemeAccentSoft");
+                keyPill.SetResourceReference(Border.BorderBrushProperty, "ThemeAccent");
                 var keyText = new TextBlock
                 {
                     Text = item.KeyBadgeText,
-                    Foreground = GetFrozenBrush("#C4B5FD"),
                     FontSize = 11,
                     FontWeight = FontWeights.Bold
                 };
+                keyText.SetResourceReference(TextBlock.ForegroundProperty, "ThemeTextPrimary");
                 keyPill.Child = keyText;
-                rightStack.Children.Add(keyPill);
+                rightWrap.Children.Add(keyPill);
 
                 var btnAssignKey = new Button
                 {
                     Content = "Клавиша",
                     Style = (Style)FindResource("StormSecondaryButton"),
-                    Padding = new Thickness(7, 3, 7, 3),
+                    Padding = new Thickness(8, 3, 8, 3),
                     FontSize = 10.5,
-                    Margin = new Thickness(0, 0, 10, 0),
+                    Margin = new Thickness(0, 2, 10, 2),
                     Tag = item
                 };
                 btnAssignKey.Click += BtnAssignHotkeyKey_Click;
-                rightStack.Children.Add(btnAssignKey);
+                rightWrap.Children.Add(btnAssignKey);
 
                 // Gamepad Chord Pill
+                bool hasPad = !string.IsNullOrWhiteSpace(item.GamepadChord) && !item.GamepadChord.Equals("None", StringComparison.OrdinalIgnoreCase);
                 var padPill = new Border
                 {
-                    Background = GetFrozenBrush("#1A10B981"),
-                    BorderBrush = GetFrozenBrush("#6610B981"),
+                    Background = GetFrozenBrush(hasPad ? (isLightTheme ? "#1810B981" : "#1A10B981") : "#1464748B"),
+                    BorderBrush = GetFrozenBrush(hasPad ? "#10B981" : "#64748B"),
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(5),
-                    Padding = new Thickness(8, 2, 8, 2),
-                    Margin = new Thickness(0, 0, 4, 0),
+                    Padding = new Thickness(8, 3, 8, 3),
+                    Margin = new Thickness(0, 2, 4, 2),
                     VerticalAlignment = VerticalAlignment.Center
                 };
                 var padText = new TextBlock
                 {
                     Text = item.GamepadBadgeText,
-                    Foreground = GetFrozenBrush("#34D399"),
                     FontSize = 11,
                     FontWeight = FontWeights.Bold
                 };
+                padText.SetResourceReference(TextBlock.ForegroundProperty, hasPad ? "ThemeTextPrimary" : "ThemeTextMuted");
                 padPill.Child = padText;
-                rightStack.Children.Add(padPill);
+                rightWrap.Children.Add(padPill);
 
                 var btnAssignPad = new Button
                 {
                     Content = "Геймпад",
                     Style = (Style)FindResource("StormSecondaryButton"),
-                    Padding = new Thickness(7, 3, 7, 3),
+                    Padding = new Thickness(8, 3, 8, 3),
                     FontSize = 10.5,
-                    Margin = new Thickness(0, 0, 8, 0),
+                    Margin = new Thickness(0, 2, 4, 2),
                     Tag = item
                 };
                 btnAssignPad.Click += BtnAssignHotkeyPad_Click;
-                rightStack.Children.Add(btnAssignPad);
+                rightWrap.Children.Add(btnAssignPad);
+
+                if (hasPad)
+                {
+                    var btnClearPad = new Button
+                    {
+                        Content = "Снять",
+                        Style = (Style)FindResource("StormGhostButton"),
+                        Padding = new Thickness(6, 3, 6, 3),
+                        FontSize = 10,
+                        Margin = new Thickness(0, 2, 6, 2),
+                        Tag = item
+                    };
+                    btnClearPad.Click += BtnClearHotkeyPad_Click;
+                    rightWrap.Children.Add(btnClearPad);
+                }
 
                 // Reset Button
                 var btnReset = new Button
@@ -472,33 +625,36 @@ public partial class MainWindow
                     Style = (Style)FindResource("StormGhostButton"),
                     Padding = new Thickness(6, 3, 6, 3),
                     FontSize = 10,
+                    Margin = new Thickness(0, 2, 0, 2),
                     Tag = item
                 };
                 btnReset.Click += BtnResetHotkeyItem_Click;
-                rightStack.Children.Add(btnReset);
+                rightWrap.Children.Add(btnReset);
 
-                rowDock.Children.Add(rightStack);
+                rowDock.Children.Add(rightWrap);
 
                 // Left: Title + Subtitle
                 var leftStack = new StackPanel
                 {
                     VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(0, 0, 8, 0)
+                    Margin = new Thickness(0, 0, 10, 0)
                 };
                 var titleText = new TextBlock
                 {
                     Text = item.Title,
-                    Foreground = GetFrozenBrush("#EDE9FE"),
                     FontSize = 12,
-                    FontWeight = FontWeights.Bold
+                    FontWeight = FontWeights.Bold,
+                    TextWrapping = TextWrapping.Wrap
                 };
+                titleText.SetResourceReference(TextBlock.ForegroundProperty, "ThemeTextPrimary");
                 var descText = new TextBlock
                 {
                     Text = item.Description,
-                    Foreground = GetFrozenBrush("#94A3B8"),
-                    FontSize = 10,
-                    Margin = new Thickness(0, 1, 0, 0)
+                    FontSize = 10.5,
+                    Margin = new Thickness(0, 1, 0, 0),
+                    TextWrapping = TextWrapping.Wrap
                 };
+                descText.SetResourceReference(TextBlock.ForegroundProperty, "ThemeTextSecondary");
                 leftStack.Children.Add(titleText);
                 leftStack.Children.Add(descText);
 
@@ -522,17 +678,63 @@ public partial class MainWindow
     }
 
     // ==================== 8. DUAL PHYSICAL + KEYBOARD CAPTURE ====================
+    private string GetChordPrefixForSettings()
+    {
+        string mod = SettingsManager.Current?.GamepadChordModifier ?? "SelectOrBack";
+        return mod switch
+        {
+            "GuideOrHome" => "Guide + ",
+            "L3" => "L3 + ",
+            "SingleButton" => "",
+            _ => "Select + "
+        };
+    }
+
+    private void CmbGamepadChordModifier_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressInputUiSync || CmbGamepadChordModifier == null) return;
+        string mode = CmbGamepadChordModifier.SelectedIndex switch
+        {
+            1 => "GuideOrHome",
+            2 => "L3",
+            3 => "SingleButton",
+            _ => "SelectOrBack"
+        };
+        SettingsManager.Current.GamepadChordModifier = mode;
+        SettingsManager.Save();
+
+        // Refresh existing chord displays to reflect new modifier label
+        string newPrefix = GetChordPrefixForSettings();
+        foreach (var item in HotkeyManager.GetAllBindings())
+        {
+            if (string.IsNullOrWhiteSpace(item.GamepadChord) || item.GamepadChord.Equals("None", StringComparison.OrdinalIgnoreCase))
+                continue;
+            int plusIdx = item.GamepadChord.LastIndexOf('+');
+            string triggerName = plusIdx >= 0 ? item.GamepadChord[(plusIdx + 1)..].Trim() : item.GamepadChord.Trim();
+            string updatedChord = string.IsNullOrEmpty(newPrefix) ? triggerName : $"{newPrefix}{triggerName}";
+            HotkeyManager.SetGamepadBinding(item.ActionId, null, updatedChord);
+        }
+
+        DeviceInputProfileEngine.ApplyCompiledMapsToNativeHost();
+        RebuildHotkeyStudioList();
+        ShowDeviceHotplugToast("Модификатор аккорда", $"Установлен режим: {CmbGamepadChordModifier.SelectedItem}");
+    }
+
     private void BtnAssignHotkeyKey_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button btn && btn.Tag is HotkeyBindingItem item)
         {
+            _isCapturingGamepadButton = false;
+            _isCapturingPhysicalPadInput = false;
+            _physicalCaptureTimer.Stop();
+
             _capturingHotkeyActionId = item.ActionId;
             _isCapturingGamepadChord = false;
 
             if (BadgeHotkeyCapture != null) BadgeHotkeyCapture.Visibility = Visibility.Visible;
             if (TxtHotkeyCaptureStatus != null)
             {
-                TxtHotkeyCaptureStatus.Text = $"Нажмите клавишу клавиатуры для «{item.Title}» (ESC - отмена)...";
+                TxtHotkeyCaptureStatus.Text = $"Нажмите клавишу или комбинацию (Ctrl/Alt/Shift + клавиша) для «{item.Title}» (ESC - отмена)...";
             }
         }
     }
@@ -541,16 +743,30 @@ public partial class MainWindow
     {
         if (sender is Button btn && btn.Tag is HotkeyBindingItem item)
         {
+            _isCapturingGamepadButton = false;
+            _isCapturingPhysicalPadInput = false;
             _capturingHotkeyActionId = item.ActionId;
             _isCapturingGamepadChord = true;
 
             if (BadgeHotkeyCapture != null) BadgeHotkeyCapture.Visibility = Visibility.Visible;
             if (TxtHotkeyCaptureStatus != null)
             {
-                TxtHotkeyCaptureStatus.Text = $"Нажмите кнопку на контроллере для «{item.Title}» (ESC - отмена)...";
+                TxtHotkeyCaptureStatus.Text = $"Нажмите кнопку, курок или направление на контроллере/руле для «{item.Title}» (ESC - отмена)...";
             }
 
+            DeviceInputProfileEngine.BeginInputCaptureSnapshot();
             _physicalCaptureTimer.Start();
+        }
+    }
+
+    private void BtnClearHotkeyPad_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is HotkeyBindingItem item)
+        {
+            HotkeyManager.ClearGamepadBinding(item.ActionId);
+            DeviceInputProfileEngine.ApplyCompiledMapsToNativeHost();
+            RebuildHotkeyStudioList();
+            ShowDeviceHotplugToast("Горячие клавиши", $"Привязка геймпада для «{item.Title}» снята");
         }
     }
 
@@ -559,54 +775,91 @@ public partial class MainWindow
         if (sender is Button btn && btn.Tag is HotkeyBindingItem item)
         {
             HotkeyManager.ResetActionToDefault(item.ActionId);
+            DeviceInputProfileEngine.ApplyCompiledMapsToNativeHost();
             RebuildHotkeyStudioList();
         }
     }
 
+    private (DeviceInputProfile Profile, BindingLayer Layer) GetPortEditingProfileAndLayer(int portIndex)
+    {
+        var portDev = DeviceInputProfileEngine.GetPort(portIndex);
+        DeviceInputProfile? profile = portDev.Profile;
+        if (profile == null)
+        {
+            if (_selectedDeviceProfile != null)
+            {
+                profile = _selectedDeviceProfile;
+            }
+            else
+            {
+                profile = DeviceInputProfileEngine.GetOrCreateProfile($"PORT_{portIndex + 1}_GENERIC", $"Игрок {portIndex + 1} (Универсальный)", 0, 0);
+            }
+        }
+        var layer = GetSelectedEditingLayer(profile);
+        return (profile, layer);
+    }
+
     private void PhysicalCaptureTimer_Tick(object? sender, EventArgs e)
     {
-        var input = DeviceInputProfileEngine.PollAnyPhysicalInputForCapture();
+        int? preferredPort = (!string.IsNullOrEmpty(_capturingHotkeyActionId) && _isCapturingGamepadChord)
+            ? null
+            : Math.Max(0, _selectedRemapPlayerIndex - 1);
+
+        var input = DeviceInputProfileEngine.PollAnyPhysicalInputForCapture(preferredPort);
         if (input == null) return;
 
         _physicalCaptureTimer.Stop();
 
         if (!string.IsNullOrEmpty(_capturingHotkeyActionId) && _isCapturingGamepadChord)
         {
-            string chord = $"Select + {input.DisplayLabel}";
-            HotkeyManager.SetGamepadBinding(_capturingHotkeyActionId, chord);
+            string prefix = GetChordPrefixForSettings();
+            string chord = string.IsNullOrEmpty(prefix) ? input.DisplayLabel : $"{prefix}{input.DisplayLabel}";
+            HotkeyManager.SetGamepadBinding(_capturingHotkeyActionId, input, chord);
+            DeviceInputProfileEngine.ApplyCompiledMapsToNativeHost();
             _capturingHotkeyActionId = null;
             _isCapturingGamepadChord = false;
 
             if (BadgeHotkeyCapture != null) BadgeHotkeyCapture.Visibility = Visibility.Collapsed;
             RebuildHotkeyStudioList();
-            ShowDeviceHotplugToast("Горячие клавиши", $"Привязан геймпад: {chord}");
+            ShowDeviceHotplugToast("Горячие клавиши", $"Привязано к контроллеру: {chord}");
         }
-        else if (!string.IsNullOrEmpty(_capturingButtonName))
+        else if (_isCapturingGamepadButton && _isCapturingPhysicalPadInput && !string.IsNullOrEmpty(_capturingButtonName))
         {
-            var binding = _currentRemapBindings.FirstOrDefault(b => b.ButtonName.Equals(_capturingButtonName, StringComparison.OrdinalIgnoreCase));
+            int portIdx = Math.Max(0, _selectedRemapPlayerIndex - 1);
+            int retroId = ButtonNameToRetroId(_capturingButtonName);
+
+            var binding = _allPortRemapBindings.FirstOrDefault(b => b.ButtonName.Equals(_capturingButtonName, StringComparison.OrdinalIgnoreCase))
+                       ?? _currentRemapBindings.FirstOrDefault(b => b.ButtonName.Equals(_capturingButtonName, StringComparison.OrdinalIgnoreCase));
             if (binding != null)
             {
-                binding.BoundKey = input.DisplayLabel;
+                binding.BoundBtn = input.DisplayLabel;
             }
-            if (_selectedDeviceProfile != null)
+
+            if (retroId >= 0)
             {
-                int retroId = ButtonNameToRetroId(_capturingButtonName);
-                if (retroId >= 0)
+                var (profile, layer) = GetPortEditingProfileAndLayer(portIdx);
+                if (retroId >= 100)
                 {
-                    var layer = GetSelectedEditingLayer(_selectedDeviceProfile);
-                    layer.JoypadBindings[retroId] = input;
-                    DeviceInputProfileEngine.SaveProfile(_selectedDeviceProfile);
-                    DeviceInputProfileEngine.ApplyCompiledMapsToNativeHost();
+                    layer.AnalogBindings[retroId] = input;
                 }
+                else
+                {
+                    layer.JoypadBindings[retroId] = input;
+                }
+                DeviceInputProfileEngine.SaveProfile(profile);
+                DeviceInputProfileEngine.ApplyCompiledMapsToNativeHost();
             }
+
             if (TxtGamepadCaptureStatus != null)
             {
-                TxtGamepadCaptureStatus.Text = $"Захвачено с устройства: [{_capturingButtonName.ToUpperInvariant()}] -> {input.DisplayLabel}";
-                TxtGamepadCaptureStatus.Foreground = GetFrozenBrush("#6EE7B7");
+                TxtGamepadCaptureStatus.Text = $"Порт {portIdx + 1}: [{_capturingButtonName.ToUpperInvariant()}] -> {input.DisplayLabel}";
             }
-            ShowDeviceHotplugToast("Назначение кнопки", $"Кнопка {_capturingButtonName.ToUpperInvariant()} -> {input.DisplayLabel}");
+            ShowDeviceHotplugToast($"Порт {portIdx + 1}", $"{_capturingButtonName.ToUpperInvariant()} -> {input.DisplayLabel}");
             _isCapturingGamepadButton = false;
+            _isCapturingPhysicalPadInput = false;
             _capturingButtonName = "";
+
+            AdvanceBindWizardIfActive();
         }
     }
 
@@ -618,14 +871,14 @@ public partial class MainWindow
 
     private void CmbActiveDeviceProfile_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (CmbActiveDeviceProfile?.SelectedItem == null) return;
+        if (_suppressInputUiSync || CmbActiveDeviceProfile?.SelectedItem == null) return;
         string selName = CmbActiveDeviceProfile.SelectedItem.ToString() ?? "";
         SelectDeviceProfileByName(selName);
     }
 
     private void CmbControllerStyle_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (CmbControllerStyle?.SelectedItem == null) return;
+        if (_suppressInputUiSync || CmbControllerStyle?.SelectedItem == null) return;
         string styleName = CmbControllerStyle.SelectedItem.ToString() ?? "";
         if (_selectedDeviceProfile != null)
         {
@@ -636,7 +889,7 @@ public partial class MainWindow
 
     private void CmbDeviceCoreScope_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (CmbDeviceCoreScope?.SelectedItem == null) return;
+        if (_suppressInputUiSync || CmbDeviceCoreScope?.SelectedItem == null) return;
         string scopeStr = CmbDeviceCoreScope.SelectedItem.ToString() ?? "Global";
 
         if (scopeStr.StartsWith("Глобально", StringComparison.OrdinalIgnoreCase))
@@ -666,14 +919,32 @@ public partial class MainWindow
         {
             TxtOverlayCoreBadge.Text = _activeCoreScope == "Global" ? "Слой: Глобально" : $"Слой: {_activeCoreScope}";
         }
+
+        ApplyActiveDeviceProfileToUI();
+        LoadRemapBindings(_selectedRemapPlayerIndex);
+    }
+
+    private void ChkDeviceAutoLoad_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedDeviceProfile == null || ChkDeviceAutoLoad == null) return;
+        _selectedDeviceProfile.AutoLoadOnConnect = ChkDeviceAutoLoad.IsChecked == true;
+        DeviceInputProfileEngine.SaveProfile(_selectedDeviceProfile);
+        ApplyActiveDeviceProfileToUI();
+        ShowOsdToast(_selectedDeviceProfile.AutoLoadOnConnect ? "Автопрофиль включён" : "Автопрофиль выключен");
     }
 
     private void BtnSaveDeviceLayer_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedDeviceProfile == null) return;
-        DeviceInputProfileEngine.SaveProfile(_selectedDeviceProfile);
+        int portIdx = Math.Max(0, _selectedRemapPlayerIndex - 1);
+        var (profile, layer) = GetPortEditingProfileAndLayer(portIdx);
+        SaveRemapListIntoPortAndProfile(portIdx, profile, layer);
+        DeviceInputProfileEngine.SaveProfile(profile);
+        if (_selectedDeviceProfile != null && !ReferenceEquals(_selectedDeviceProfile, profile))
+        {
+            DeviceInputProfileEngine.SaveProfile(_selectedDeviceProfile);
+        }
         DeviceInputProfileEngine.ApplyCompiledMapsToNativeHost();
-        ShowOsdToast($"Профиль «{_selectedDeviceProfile.DisplayName}» успешно сохранён!");
+        ShowOsdToast($"Профиль «{profile.DisplayName}» и назначения Порта {_selectedRemapPlayerIndex} сохранены!");
     }
 
     private void BtnCloneDeviceProfile_Click(object sender, RoutedEventArgs e)
@@ -682,6 +953,7 @@ public partial class MainWindow
         string newName = $"{_selectedDeviceProfile.DisplayName} (Копия)";
         string newId = $"{_selectedDeviceProfile.DeviceId}_COPY_{DateTime.UtcNow.Ticks % 10000}";
         var clone = DeviceInputProfileEngine.CreateDefaultProfileForFormFactor(newId, newName, _selectedDeviceProfile.FormFactor, _selectedDeviceProfile.VendorId, _selectedDeviceProfile.ProductId);
+        clone.GlobalLayer = _selectedDeviceProfile.GlobalLayer.Clone();
         DeviceInputProfileEngine.SaveProfile(clone);
         PopulateDeviceProfilesDropdown();
         SelectDeviceProfileByName(newName);
@@ -692,12 +964,15 @@ public partial class MainWindow
     {
         DeviceInputProfileEngine.PollDevicesAndHotplug();
         PopulateDeviceProfilesDropdown();
-        ShowOsdToast("Порты устройств ввода обновлены");
+        PopulatePortDeviceAssignDropdown();
+        LoadRemapBindings(_selectedRemapPlayerIndex);
+        ShowOsdToast("Порты устройств ввода (XInput, WinMM/HID, рули, HOTAS) обновлены");
     }
 
     private void BtnResetAllHotkeys_Click(object sender, RoutedEventArgs e)
     {
         HotkeyManager.ResetAllToDefaults();
+        DeviceInputProfileEngine.ApplyCompiledMapsToNativeHost();
         RebuildHotkeyStudioList();
         ShowOsdToast("Все горячие клавиши сброшены на стандартные!");
     }
@@ -931,6 +1206,10 @@ public partial class MainWindow
         "up" => 4, "down" => 5, "left" => 6, "right" => 7,
         "a" => 8, "x" => 9, "l" or "l1" or "lb" => 10, "r" or "r1" or "rb" => 11,
         "l2" or "lt" => 12, "r2" or "rt" => 13, "l3" => 14, "r3" => 15,
+        "l_x_minus" => 100, "l_x_plus" => 101,
+        "l_y_minus" => 102, "l_y_plus" => 103,
+        "r_x_minus" => 104, "r_x_plus" => 105,
+        "r_y_minus" => 106, "r_y_plus" => 107,
         _ => -1
     };
 }

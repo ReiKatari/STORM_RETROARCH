@@ -35,6 +35,7 @@ object NativeLibretroBridge {
     // Libretro Analog Indices & Axis IDs
     const val RETRO_DEVICE_INDEX_ANALOG_LEFT = 0
     const val RETRO_DEVICE_INDEX_ANALOG_RIGHT = 1
+    const val RETRO_DEVICE_INDEX_ANALOG_BUTTON = 2
     const val RETRO_DEVICE_ID_ANALOG_X = 0
     const val RETRO_DEVICE_ID_ANALOG_Y = 1
 

@@ -239,6 +239,118 @@ public static class HotkeyManager
         SettingsManager.Save();
     }
 
+    public static void SetGamepadBinding(string actionId, PhysicalInputBinding? binding, string displayChord)
+    {
+        if (string.IsNullOrWhiteSpace(actionId)) return;
+        string normId = NormalizeActionId(actionId);
+
+        SettingsManager.Current.CustomHotkeys ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        SettingsManager.Current.CustomHotkeys[normId + "_pad"] = displayChord;
+        if (binding != null && binding.Type != PhysicalInputType.None)
+            SettingsManager.Current.CustomHotkeys[normId + "_padbind"] = SerializePhysicalBinding(binding);
+        else
+            SettingsManager.Current.CustomHotkeys.Remove(normId + "_padbind");
+        SettingsManager.Save();
+    }
+
+    public static void ClearGamepadBinding(string actionId)
+    {
+        if (string.IsNullOrWhiteSpace(actionId)) return;
+        string normId = NormalizeActionId(actionId);
+        SettingsManager.Current.CustomHotkeys ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        SettingsManager.Current.CustomHotkeys[normId + "_pad"] = "None";
+        SettingsManager.Current.CustomHotkeys.Remove(normId + "_padbind");
+        SettingsManager.Save();
+    }
+
+    public static PhysicalInputBinding? ResolveGamepadTriggerBinding(string actionId, out bool requiresModifier)
+    {
+        requiresModifier = !string.Equals(SettingsManager.Current?.GamepadChordModifier, "SingleButton", StringComparison.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(actionId)) return null;
+        string normId = NormalizeActionId(actionId);
+
+        var custom = SettingsManager.Current?.CustomHotkeys;
+        if (custom != null && custom.TryGetValue(normId + "_padbind", out var raw) &&
+            TryDeserializePhysicalBinding(raw, out var parsed))
+        {
+            if (custom.TryGetValue(normId + "_pad", out var disp) && !string.IsNullOrWhiteSpace(disp))
+            {
+                if (disp.Equals("None", StringComparison.OrdinalIgnoreCase)) return null;
+                if (!disp.Contains('+', StringComparison.Ordinal)) requiresModifier = false;
+            }
+            return parsed;
+        }
+
+        string chordLabel = GetGamepadChord(normId);
+        if (string.IsNullOrWhiteSpace(chordLabel) || chordLabel.Equals("None", StringComparison.OrdinalIgnoreCase) || chordLabel == "-")
+            return null;
+
+        return ParseChordDisplayToPhysicalBinding(chordLabel, ref requiresModifier);
+    }
+
+    public static string SerializePhysicalBinding(PhysicalInputBinding b)
+    {
+        return $"{(int)b.Type}|{b.Code}|{b.Parameter}|{b.DisplayLabel}";
+    }
+
+    public static bool TryDeserializePhysicalBinding(string raw, out PhysicalInputBinding binding)
+    {
+        binding = new PhysicalInputBinding();
+        if (string.IsNullOrWhiteSpace(raw)) return false;
+        var parts = raw.Split('|', 4);
+        if (parts.Length < 3) return false;
+        if (!int.TryParse(parts[0], out int tInt) || !Enum.IsDefined(typeof(PhysicalInputType), tInt)) return false;
+        if (!int.TryParse(parts[1], out int code)) return false;
+        if (!int.TryParse(parts[2], out int param)) return false;
+        string label = parts.Length > 3 ? parts[3] : "";
+        binding = new PhysicalInputBinding((PhysicalInputType)tInt, code, param, label);
+        return binding.Type != PhysicalInputType.None;
+    }
+
+    public static PhysicalInputBinding? ParseChordDisplayToPhysicalBinding(string chord, ref bool requiresModifier)
+    {
+        if (string.IsNullOrWhiteSpace(chord) || chord.Equals("None", StringComparison.OrdinalIgnoreCase)) return null;
+        string part = chord.Trim();
+        int plus = part.LastIndexOf('+');
+        if (plus >= 0)
+        {
+            requiresModifier = true;
+            part = part[(plus + 1)..].Trim();
+        }
+        else if (!part.Equals("Select", StringComparison.OrdinalIgnoreCase) && !part.Equals("Guide", StringComparison.OrdinalIgnoreCase))
+        {
+            // Keep global setting if no prefix was explicit
+        }
+
+        string u = part.ToUpperInvariant();
+        if (u == "A" || u == "КНОПКА A") return new PhysicalInputBinding(PhysicalInputType.XInputButton, 0x1000, 0, "Кнопка A");
+        if (u == "B" || u == "КНОПКА B") return new PhysicalInputBinding(PhysicalInputType.XInputButton, 0x2000, 0, "Кнопка B");
+        if (u == "X" || u == "КНОПКА X") return new PhysicalInputBinding(PhysicalInputType.XInputButton, 0x4000, 0, "Кнопка X");
+        if (u == "Y" || u == "КНОПКА Y") return new PhysicalInputBinding(PhysicalInputType.XInputButton, 0x8000, 0, "Кнопка Y");
+        if (u == "START") return new PhysicalInputBinding(PhysicalInputType.XInputButton, 0x0010, 0, "Start");
+        if (u == "BACK" || u == "SELECT" || u == "BACK / SELECT") return new PhysicalInputBinding(PhysicalInputType.XInputButton, 0x0020, 0, "Back / Select");
+        if (u == "LB" || u == "L1" || u == "БАМПЕР LB") return new PhysicalInputBinding(PhysicalInputType.XInputButton, 0x0100, 0, "Бампер LB");
+        if (u == "RB" || u == "R1" || u == "БАМПЕР RB") return new PhysicalInputBinding(PhysicalInputType.XInputButton, 0x0200, 0, "Бампер RB");
+        if (u == "L3" || u == "ЛЕВЫЙ СТИК L3") return new PhysicalInputBinding(PhysicalInputType.XInputButton, 0x0040, 0, "Левый стик L3");
+        if (u == "R3" || u == "ПРАВЫЙ СТИК R3") return new PhysicalInputBinding(PhysicalInputType.XInputButton, 0x0080, 0, "Правый стик R3");
+        if (u == "GUIDE" || u == "HOME" || u == "GUIDE / HOME") return new PhysicalInputBinding(PhysicalInputType.XInputButton, 0x0400, 0, "Guide / Home");
+        if (u == "LT" || u == "L2" || u == "ТРИГГЕР LT" || u == "ЛЕВЫЙ ТРИГГЕР LT") return new PhysicalInputBinding(PhysicalInputType.XInputTrigger, 0, 12, "Триггер LT");
+        if (u == "RT" || u == "R2" || u == "ТРИГГЕР RT" || u == "ПРАВЫЙ ТРИГГЕР RT") return new PhysicalInputBinding(PhysicalInputType.XInputTrigger, 1, 12, "Триггер RT");
+        if (u == "DPADUP" || u == "D-PAD ВВЕРХ") return new PhysicalInputBinding(PhysicalInputType.XInputButton, 0x0001, 0, "D-Pad Вверх");
+        if (u == "DPADDOWN" || u == "D-PAD ВНИЗ") return new PhysicalInputBinding(PhysicalInputType.XInputButton, 0x0002, 0, "D-Pad Вниз");
+        if (u == "DPADLEFT" || u == "D-PAD ВЛЕВО") return new PhysicalInputBinding(PhysicalInputType.XInputButton, 0x0004, 0, "D-Pad Влево");
+        if (u == "DPADRIGHT" || u == "D-PAD ВПРАВО") return new PhysicalInputBinding(PhysicalInputType.XInputButton, 0x0008, 0, "D-Pad Вправо");
+
+        if (u.StartsWith("КНОПКА ") && int.TryParse(u[7..].Trim(), out int wb) && wb >= 1 && wb <= 32)
+            return new PhysicalInputBinding(PhysicalInputType.WinMmButton, wb - 1, 0, part);
+        if (u == "POV ВВЕРХ") return new PhysicalInputBinding(PhysicalInputType.WinMmPovHat, 0, 0, "POV Вверх");
+        if (u == "POV ВПРАВО") return new PhysicalInputBinding(PhysicalInputType.WinMmPovHat, 0, 9000, "POV Вправо");
+        if (u == "POV ВНИЗ") return new PhysicalInputBinding(PhysicalInputType.WinMmPovHat, 0, 18000, "POV Вниз");
+        if (u == "POV ВЛЕВО") return new PhysicalInputBinding(PhysicalInputType.WinMmPovHat, 0, 27000, "POV Влево");
+
+        return null;
+    }
+
     public static void ResetActionToDefault(string actionId)
     {
         if (string.IsNullOrWhiteSpace(actionId)) return;
@@ -247,6 +359,7 @@ public static class HotkeyManager
         {
             SettingsManager.Current.CustomHotkeys.Remove(normId);
             SettingsManager.Current.CustomHotkeys.Remove(normId + "_pad");
+            SettingsManager.Current.CustomHotkeys.Remove(normId + "_padbind");
             SettingsManager.Save();
         }
     }

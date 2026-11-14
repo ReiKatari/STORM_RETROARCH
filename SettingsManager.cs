@@ -135,6 +135,11 @@ public class UserSettings
     public bool AutoDownloadMissingCoreOnLaunch { get; set; } = true;
     public bool UniversalBezelForAllCores { get; set; } = true;
     public string ActiveMegaBezelSlangp { get; set; } = "";
+
+    // 2.7.5 Universal Hardware Autoconfig, Multi-Player Port Routing and Hotkey Chords
+    public Dictionary<int, string> PortDeviceAssignments { get; set; } = new() { [0] = "auto" };
+    public Dictionary<int, Dictionary<int, string>> PlayerKeyboardBindings { get; set; } = new();
+    public string GamepadChordModifier { get; set; } = "SelectOrBack";
 }
 
 public static class SettingsManager

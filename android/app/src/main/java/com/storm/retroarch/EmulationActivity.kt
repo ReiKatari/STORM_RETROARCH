@@ -59,6 +59,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import org.json.JSONArray
 import org.json.JSONObject
@@ -121,6 +122,7 @@ class EmulationActivity : Activity() {
     @Volatile private var highRefresh120Hz = true
     @Volatile private var audioGainDb = 0f
     @Volatile private var audioGainLinear = 1.0f
+    @Volatile private var audioMuted = false
     @Volatile private var frameSkip = 0
     @Volatile private var activeSaveSlot = 0
 
@@ -130,7 +132,8 @@ class EmulationActivity : Activity() {
 
     // Physical controller live state
     private var selectButtonHeld = false
-    private var prevMotionBitmask = 0
+    private val heldKeyCodesByDevice = ConcurrentHashMap<Int, MutableSet<Int>>()
+    private val prevMotionBitmaskByPort = IntArray(MobileControllerProfileManager.MAX_PORTS)
 
     // Gyroscope Tilt-to-Stick sensor state
     private var sensorManager: SensorManager? = null
@@ -469,8 +472,12 @@ class EmulationActivity : Activity() {
     private fun updateAudioGain(db: Float) {
         audioGainDb = db.coerceIn(-24f, 12f)
         audioGainLinear = 10.0.pow((audioGainDb / 20.0)).toFloat()
+        applyEffectiveAudioVolume()
+    }
+
+    private fun applyEffectiveAudioVolume() {
         try {
-            audioTrack?.setVolume(audioGainLinear.coerceIn(0f, 1f))
+            audioTrack?.setVolume(if (audioMuted) 0f else audioGainLinear.coerceIn(0f, 1f))
         } catch (_: Throwable) {
         }
     }
@@ -1006,7 +1013,9 @@ class EmulationActivity : Activity() {
                                 audioResidualCount = 0
                                 audioResidualOffset = 0
                             }
-                            if (audioGainLinear > 1.02f) {
+                            if (audioMuted) {
+                                java.util.Arrays.fill(audioBuf, 0, pulled, 0.toShort())
+                            } else if (audioGainLinear > 1.02f) {
                                 val g = audioGainLinear
                                 for (i in 0 until pulled) {
                                     audioBuf[i] = (audioBuf[i] * g).roundToInt().coerceIn(-32768, 32767).toShort()
@@ -1111,7 +1120,7 @@ class EmulationActivity : Activity() {
             }
 
             audioTrack = builder.build().also {
-                it.setVolume(audioGainLinear.coerceIn(0f, 1f))
+                it.setVolume(if (audioMuted) 0f else audioGainLinear.coerceIn(0f, 1f))
                 it.play()
             }
         } catch (_: Throwable) {
@@ -1220,7 +1229,42 @@ class EmulationActivity : Activity() {
 
     // === Physical Controller & Keyboard Routing ===
 
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val dev = event.device
+        if (isExternalGamepadDevice(dev) && (event.keyCode == KeyEvent.KEYCODE_BACK || event.keyCode == KeyEvent.KEYCODE_ESCAPE)) {
+            val mappedId = MobileControllerProfileManager.mapKeyEventToRetroPadId(dev, event.keyCode, this)
+            val heldSet = heldKeyCodesByDevice[event.deviceId] ?: emptySet()
+            val mappedHotkey = MobileControllerProfileManager.mapKeyEventToHotkey(dev, event.keyCode, selectButtonHeld, this, heldSet)
+            if (mappedId != null || mappedHotkey != null) {
+                return if (event.action == KeyEvent.ACTION_DOWN) onKeyDown(event.keyCode, event) else onKeyUp(event.keyCode, event)
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        val isGamepadEvent = isExternalGamepadDevice(event.device)
+        val port = if (isGamepadEvent) MobileControllerProfileManager.resolvePortForDevice(event.device, this) else 0
+
+        if (isGamepadEvent && (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE)) {
+            if (port < 0) return false
+            val heldSet = heldKeyCodesByDevice.computeIfAbsent(event.deviceId) { ConcurrentHashMap.newKeySet() }
+            if (event.repeatCount == 0) {
+                heldSet.add(keyCode)
+                val hotkey = MobileControllerProfileManager.mapKeyEventToHotkey(event.device, keyCode, selectButtonHeld, this, heldSet)
+                if (hotkey != null) {
+                    executeHotkeyAction(hotkey, pressed = true)
+                    return true
+                }
+            }
+            val mappedBack = MobileControllerProfileManager.mapKeyEventToRetroPadId(event.device, keyCode, this)
+            if (mappedBack != null && coreLoadedOk && NativeLibretroBridge.isLibraryLoaded) {
+                if (port == 0) touchOverlay.setPhysicalControllerActive(true)
+                NativeLibretroBridge.nativeSetButton(port, mappedBack, true)
+                return true
+            }
+        }
+
         if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) {
             if (touchOverlay.isEditMode) {
                 touchOverlay.isEditMode = false
@@ -1234,21 +1278,24 @@ class EmulationActivity : Activity() {
             return true
         }
 
-        val isGamepadEvent = isExternalGamepadDevice(event.device)
         if (isGamepadEvent) {
-            touchOverlay.setPhysicalControllerActive(true)
+            if (port < 0) return false
+            if (port == 0) touchOverlay.setPhysicalControllerActive(true)
         }
 
+        val heldSet = heldKeyCodesByDevice.computeIfAbsent(event.deviceId) { ConcurrentHashMap.newKeySet() }
         if (keyCode == KeyEvent.KEYCODE_BUTTON_SELECT) {
             selectButtonHeld = true
         }
 
         if (event.repeatCount == 0) {
+            heldSet.add(keyCode)
             val hotkey = MobileControllerProfileManager.mapKeyEventToHotkey(
                 event.device,
                 keyCode,
                 selectButtonHeld,
-                this
+                this,
+                heldSet
             )
             if (hotkey != null) {
                 executeHotkeyAction(hotkey, pressed = true)
@@ -1258,34 +1305,53 @@ class EmulationActivity : Activity() {
 
         val retroId = MobileControllerProfileManager.mapKeyEventToRetroPadId(event.device, keyCode, this)
         if (retroId != null && coreLoadedOk && NativeLibretroBridge.isLibraryLoaded) {
-            NativeLibretroBridge.nativeSetButton(0, retroId, true)
+            NativeLibretroBridge.nativeSetButton(port, retroId, true)
             return true
         }
         return super.onKeyDown(keyCode, event)
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        val isGamepadEvent = isExternalGamepadDevice(event.device)
+        val port = if (isGamepadEvent) MobileControllerProfileManager.resolvePortForDevice(event.device, this) else 0
+        val heldSet = heldKeyCodesByDevice[event.deviceId]
+
+        if (isGamepadEvent && (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE)) {
+            heldSet?.remove(keyCode)
+            val mappedBack = MobileControllerProfileManager.mapKeyEventToRetroPadId(event.device, keyCode, this)
+            if (mappedBack != null && port >= 0 && coreLoadedOk && NativeLibretroBridge.isLibraryLoaded) {
+                NativeLibretroBridge.nativeSetButton(port, mappedBack, false)
+                return true
+            }
+            return true
+        }
+
         if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) {
+            heldSet?.remove(keyCode)
             return true
         }
         if (keyCode == KeyEvent.KEYCODE_BUTTON_SELECT) {
             selectButtonHeld = false
         }
 
+        val snapshotHeld = heldSet?.toSet() ?: emptySet()
         val hotkey = MobileControllerProfileManager.mapKeyEventToHotkey(
             event.device,
             keyCode,
             selectButtonHeld,
-            this
+            this,
+            snapshotHeld
         )
+        heldSet?.remove(keyCode)
         if (hotkey == MobileControllerProfileManager.HOTKEY_REWIND) {
             rewindHeld = false
             return true
         }
 
+        if (isGamepadEvent && port < 0) return false
         val retroId = MobileControllerProfileManager.mapKeyEventToRetroPadId(event.device, keyCode, this)
         if (retroId != null && coreLoadedOk && NativeLibretroBridge.isLibraryLoaded) {
-            NativeLibretroBridge.nativeSetButton(0, retroId, false)
+            NativeLibretroBridge.nativeSetButton(port, retroId, false)
             return true
         }
         return super.onKeyUp(keyCode, event)
@@ -1303,16 +1369,16 @@ class EmulationActivity : Activity() {
             return super.onGenericMotionEvent(event)
         }
 
-        val mask = MobileControllerProfileManager.extractMotionRetroPadBitmask(event, this)
-        val hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X)
-        val hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y)
-        val lx = event.getAxisValue(MotionEvent.AXIS_X)
-        val ly = event.getAxisValue(MotionEvent.AXIS_Y)
-        val rx = event.getAxisValue(MotionEvent.AXIS_Z)
-        val ry = event.getAxisValue(MotionEvent.AXIS_RZ)
+        val port = MobileControllerProfileManager.resolvePortForDevice(event.device, this)
+        if (port !in 0 until MobileControllerProfileManager.MAX_PORTS) {
+            return false
+        }
 
-        if (mask != 0 || abs(lx) > 0.2f || abs(ly) > 0.2f || abs(rx) > 0.2f || abs(ry) > 0.2f || abs(hatX) > 0.2f || abs(hatY) > 0.2f) {
-            touchOverlay.setPhysicalControllerActive(true)
+        val mask = MobileControllerProfileManager.extractMotionRetroPadBitmask(event, this)
+        val axes = MobileControllerProfileManager.extractAnalogAxesState(event, this)
+
+        if (mask != 0 || axes.lx != 0 || axes.ly != 0 || axes.rx != 0 || axes.ry != 0 || axes.l2 > 2000 || axes.r2 > 2000) {
+            if (port == 0) touchOverlay.setPhysicalControllerActive(true)
         }
 
         val digitalIds = intArrayOf(
@@ -1323,23 +1389,23 @@ class EmulationActivity : Activity() {
             MobileControllerProfileManager.RETRO_ID_L2,
             MobileControllerProfileManager.RETRO_ID_R2
         )
+        val prevMask = prevMotionBitmaskByPort[port]
         for (id in digitalIds) {
             val bit = 1 shl id
-            val wasDown = (prevMotionBitmask and bit) != 0
+            val wasDown = (prevMask and bit) != 0
             val nowDown = (mask and bit) != 0
             if (wasDown != nowDown) {
-                NativeLibretroBridge.nativeSetButton(0, id, nowDown)
+                NativeLibretroBridge.nativeSetButton(port, id, nowDown)
             }
         }
-        prevMotionBitmask = mask
+        prevMotionBitmaskByPort[port] = mask
 
-        val deadzone = event.device?.let { MobileControllerProfileManager.getOrCreateProfile(it, this).analogDeadzone } ?: 0.18f
-        fun scaleAxis(v: Float): Int = if (abs(v) < deadzone) 0 else (v.coerceIn(-1f, 1f) * 32767f).roundToInt()
-
-        NativeLibretroBridge.nativeSetAnalog(0, NativeLibretroBridge.RETRO_DEVICE_INDEX_ANALOG_LEFT, NativeLibretroBridge.RETRO_DEVICE_ID_ANALOG_X, scaleAxis(lx))
-        NativeLibretroBridge.nativeSetAnalog(0, NativeLibretroBridge.RETRO_DEVICE_INDEX_ANALOG_LEFT, NativeLibretroBridge.RETRO_DEVICE_ID_ANALOG_Y, scaleAxis(ly))
-        NativeLibretroBridge.nativeSetAnalog(0, NativeLibretroBridge.RETRO_DEVICE_INDEX_ANALOG_RIGHT, NativeLibretroBridge.RETRO_DEVICE_ID_ANALOG_X, scaleAxis(rx))
-        NativeLibretroBridge.nativeSetAnalog(0, NativeLibretroBridge.RETRO_DEVICE_INDEX_ANALOG_RIGHT, NativeLibretroBridge.RETRO_DEVICE_ID_ANALOG_Y, scaleAxis(ry))
+        NativeLibretroBridge.nativeSetAnalog(port, NativeLibretroBridge.RETRO_DEVICE_INDEX_ANALOG_LEFT, NativeLibretroBridge.RETRO_DEVICE_ID_ANALOG_X, axes.lx)
+        NativeLibretroBridge.nativeSetAnalog(port, NativeLibretroBridge.RETRO_DEVICE_INDEX_ANALOG_LEFT, NativeLibretroBridge.RETRO_DEVICE_ID_ANALOG_Y, axes.ly)
+        NativeLibretroBridge.nativeSetAnalog(port, NativeLibretroBridge.RETRO_DEVICE_INDEX_ANALOG_RIGHT, NativeLibretroBridge.RETRO_DEVICE_ID_ANALOG_X, axes.rx)
+        NativeLibretroBridge.nativeSetAnalog(port, NativeLibretroBridge.RETRO_DEVICE_INDEX_ANALOG_RIGHT, NativeLibretroBridge.RETRO_DEVICE_ID_ANALOG_Y, axes.ry)
+        NativeLibretroBridge.nativeSetAnalog(port, NativeLibretroBridge.RETRO_DEVICE_INDEX_ANALOG_BUTTON, NativeLibretroBridge.RETRO_DEVICE_ID_JOYPAD_L2, axes.l2)
+        NativeLibretroBridge.nativeSetAnalog(port, NativeLibretroBridge.RETRO_DEVICE_INDEX_ANALOG_BUTTON, NativeLibretroBridge.RETRO_DEVICE_ID_JOYPAD_R2, axes.r2)
         return true
     }
 
@@ -1358,6 +1424,45 @@ class EmulationActivity : Activity() {
             MobileControllerProfileManager.HOTKEY_FAST_FORWARD -> if (pressed) cycleFastForwardSpeed()
             MobileControllerProfileManager.HOTKEY_QUICK_MENU -> if (pressed) showInGameQuickDrawer()
             MobileControllerProfileManager.HOTKEY_SCREENSHOT -> if (pressed) captureScreenshotToGallery()
+            MobileControllerProfileManager.HOTKEY_PAUSE -> if (pressed) {
+                emuPaused = !emuPaused
+                Toast.makeText(this, if (emuPaused) "Пауза" else "Игра продолжена", Toast.LENGTH_SHORT).show()
+            }
+            MobileControllerProfileManager.HOTKEY_RESET -> if (pressed && coreLoadedOk && NativeLibretroBridge.isLibraryLoaded) {
+                NativeLibretroBridge.nativeReset()
+                Toast.makeText(this, "Ядро перезапущено", Toast.LENGTH_SHORT).show()
+            }
+            MobileControllerProfileManager.HOTKEY_SLOT_NEXT -> if (pressed) {
+                activeSaveSlot = (activeSaveSlot + 1) % 10
+                Toast.makeText(this, "Слот #$activeSaveSlot", Toast.LENGTH_SHORT).show()
+            }
+            MobileControllerProfileManager.HOTKEY_SLOT_PREV -> if (pressed) {
+                activeSaveSlot = (activeSaveSlot + 9) % 10
+                Toast.makeText(this, "Слот #$activeSaveSlot", Toast.LENGTH_SHORT).show()
+            }
+            MobileControllerProfileManager.HOTKEY_MUTE -> if (pressed) {
+                audioMuted = !audioMuted
+                applyEffectiveAudioVolume()
+                Toast.makeText(this, if (audioMuted) "Звук выключен" else "Звук включен", Toast.LENGTH_SHORT).show()
+            }
+            MobileControllerProfileManager.HOTKEY_SHADER_NEXT -> if (pressed && NativeLibretroBridge.isLibraryLoaded) {
+                val modes = listOf(
+                    NativeLibretroBridge.SHADER_NONE to "Нет",
+                    NativeLibretroBridge.SHADER_SCANLINES_SUBTLE to "Сканлайны",
+                    NativeLibretroBridge.SHADER_CRT_ROYALE to "CRT Royale",
+                    NativeLibretroBridge.SHADER_CRT_GEOM to "CRT Geom",
+                    NativeLibretroBridge.SHADER_CRT_LOTTES to "CRT Lottes",
+                    NativeLibretroBridge.SHADER_LCD_GRID to "LCD Сетка",
+                    NativeLibretroBridge.SHADER_SMOOTH_SOFT to "Сглаживание",
+                    NativeLibretroBridge.SHADER_VHS_NTSC to "VHS / NTSC"
+                )
+                val cur = NativeLibretroBridge.nativeGetShaderMode()
+                val idx = modes.indexOfFirst { it.first == cur }.let { if (it < 0) 0 else (it + 1) % modes.size }
+                val next = modes[idx]
+                NativeLibretroBridge.nativeSetShaderMode(next.first)
+                persistShaderMode(next.first)
+                Toast.makeText(this, "Шейдер: ${next.second}", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -1574,7 +1679,7 @@ fun showInGameQuickDrawer() {
         val measuredFps = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetMeasuredFps() else 60.0
         val frameMs = if (measuredFps > 1.0) 1000.0 / measuredFps else 16.7
         val telemetryPill = TextView(this).apply {
-            text = String.format(Locale.US, "STORM RETROARCH 2.7.4  |  %.1f FPS  |  %.1f ms", measuredFps, frameMs)
+            text = String.format(Locale.US, "STORM RETROARCH 2.7.5  |  %.1f FPS  |  %.1f ms", measuredFps, frameMs)
             fontFeatureSettings = "tnum"
             setTextColor(StormThemeEngine.lighten(accent, 0.25f))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f)
@@ -2186,7 +2291,7 @@ fun showInGameQuickDrawer() {
                         val idConn = URL("https://retroachievements.org/dorequest.php?r=gameid&m=$md5Str").openConnection() as HttpURLConnection
                         idConn.connectTimeout = 3500
                         idConn.readTimeout = 3500
-                        idConn.setRequestProperty("User-Agent", "STORM-RETROARCH/2.7.4")
+                        idConn.setRequestProperty("User-Agent", "STORM-RETROARCH/2.7.5")
                         if (idConn.responseCode in 200..299) {
                             val idText = idConn.inputStream.bufferedReader().readText()
                             try {
@@ -2203,7 +2308,7 @@ fun showInGameQuickDrawer() {
                         val progConn = URL("https://retroachievements.org/API/API_GetGameInfoAndUserProgress.php?u=$encU&y=$encT&g=$raGameId").openConnection() as HttpURLConnection
                         progConn.connectTimeout = 4000
                         progConn.readTimeout = 4000
-                        progConn.setRequestProperty("User-Agent", "STORM-RETROARCH/2.7.4")
+                        progConn.setRequestProperty("User-Agent", "STORM-RETROARCH/2.7.5")
                         if (progConn.responseCode in 200..299) {
                             val respJson = JSONObject(progConn.inputStream.bufferedReader().readText())
                             val achMap = respJson.optJSONObject("Achievements")

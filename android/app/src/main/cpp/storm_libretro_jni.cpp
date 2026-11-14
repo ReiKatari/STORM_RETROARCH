@@ -762,7 +762,7 @@ void pushAudioStereoSamples(const int16_t* samples, size_t stereoFrames) {
 // ==================== INPUT & RUMBLE STATE ====================
 
 std::atomic<uint32_t> g_joypadButtons[MAX_PORTS]{};
-std::atomic<int16_t> g_analogAxes[MAX_PORTS][4][2]{};
+std::atomic<int16_t> g_analogAxes[MAX_PORTS][4][16]{};
 std::atomic<int16_t> g_pointerX{0};
 std::atomic<int16_t> g_pointerY{0};
 std::atomic<bool> g_pointerPressed{false};
@@ -1373,7 +1373,7 @@ int16_t RETRO_CALLCONV inputStateCallback(unsigned port, unsigned device, unsign
     }
 
     if (baseDevice == RETRO_DEVICE_ANALOG) {
-        if (index < 4u && id < 2u) {
+        if ((index < 2u && id < 2u) || (index == 2u && id < 16u)) {
             return g_analogAxes[port][index][id].load(std::memory_order_relaxed);
         }
         return 0;
@@ -1483,6 +1483,12 @@ void unloadCoreInternalLocked() {
         g_audioCount = 0;
     }
     for (int i = 0; i < MAX_PORTS; ++i) {
+        g_joypadButtons[i].store(0, std::memory_order_relaxed);
+        for (int idx = 0; idx < 4; ++idx) {
+            for (int aid = 0; aid < 16; ++aid) {
+                g_analogAxes[i][idx][aid].store(0, std::memory_order_relaxed);
+            }
+        }
         g_rumbleStrong[i].store(0, std::memory_order_relaxed);
         g_rumbleWeak[i].store(0, std::memory_order_relaxed);
     }
@@ -1695,7 +1701,7 @@ Java_com_storm_retroarch_NativeLibretroBridge_nativeSetButton(
 JNIEXPORT void JNICALL
 Java_com_storm_retroarch_NativeLibretroBridge_nativeSetAnalog(
     JNIEnv* /*env*/, jclass /*clazz*/, jint port, jint index, jint id, jint value) {
-    if (port < 0 || port >= MAX_PORTS || index < 0 || index >= 4 || id < 0 || id >= 2) return;
+    if (port < 0 || port >= MAX_PORTS || index < 0 || index >= 4 || id < 0 || id >= 16) return;
     int clamped = std::clamp(static_cast<int>(value), -32767, 32767);
     g_analogAxes[port][index][id].store(static_cast<int16_t>(clamped), std::memory_order_relaxed);
 }

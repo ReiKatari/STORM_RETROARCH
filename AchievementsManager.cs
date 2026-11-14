@@ -945,7 +945,7 @@ public static class AchievementsManager
     {
         try
         {
-            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("STORM-RETROARCH/2.7.4 (AchievementsManager; contact@stormgamesworld.ru)");
+            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("STORM-RETROARCH/2.7.5 (AchievementsManager; contact@stormgamesworld.ru)");
         }
         catch { }
         InitializeDefaultLiveRules();

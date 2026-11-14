@@ -11,6 +11,9 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
+import android.view.InputDevice
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
@@ -326,18 +329,103 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private val axisBaseline = HashMap<String, Float>()
+    private var lastAxisCaptureMs = 0L
+
     private fun registerLiveControllerListener() {
         try {
             controllerDeviceListener = MobileControllerProfileManager.registerControllerListener(this) {
                 if (::stormBridge.isInitialized) {
-                    stormBridge.emitStormEvent(
-                        "bootstrapUpdated",
-                        JSONObject().put("controllers", stormBridge.serializeControllersArray())
-                    )
+                    val payload = MobileControllerProfileManager.buildControllersPayloadJson(applicationContext)
+                    stormBridge.emitStormEvent("bootstrapUpdated", payload)
                 }
             }
         } catch (_: Throwable) {
         }
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (::stormBridge.isInitialized && stormBridge.captureModeActive) {
+            val kc = event.keyCode
+            if (kc == KeyEvent.KEYCODE_VOLUME_UP || kc == KeyEvent.KEYCODE_VOLUME_DOWN || kc == KeyEvent.KEYCODE_VOLUME_MUTE) {
+                return super.dispatchKeyEvent(event)
+            }
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                val src = event.source
+                val isGamepad = (src and InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD ||
+                    (src and InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK
+                if (kc == KeyEvent.KEYCODE_ESCAPE || (kc == KeyEvent.KEYCODE_BACK && !isGamepad)) {
+                    stormBridge.captureModeActive = false
+                    val cancelJson = JSONObject().put("kind", "cancel").toString()
+                    evaluateJsOnMain("window.onStormControllerInputCaptured && window.onStormControllerInputCaptured($cancelJson);")
+                    return true
+                }
+                val dev = event.device
+                val payload = JSONObject()
+                    .put("kind", "button")
+                    .put("keyCode", kc)
+                    .put("display", MobileControllerProfileManager.keyCodeToDisplayName(kc))
+                    .put("descriptor", dev?.descriptor ?: "")
+                    .put("deviceName", dev?.name ?: "Keyboard")
+                    .toString()
+                evaluateJsOnMain("window.onStormControllerInputCaptured && window.onStormControllerInputCaptured($payload);")
+            }
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        val dev = event.device
+        val src = event.source
+        val isJoystick = (src and InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK ||
+            (src and InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD
+        if (dev != null && isJoystick && event.action == MotionEvent.ACTION_MOVE && !MobileControllerProfileManager.isIgnoredSystemInputDevice(dev)) {
+            val capturing = ::stormBridge.isInitialized && stormBridge.captureModeActive
+            if (!capturing) {
+                for (range in dev.motionRanges) {
+                    if ((range.source and InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK ||
+                        (range.source and InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD
+                    ) {
+                        axisBaseline["${dev.id}:${range.axis}"] = event.getAxisValue(range.axis)
+                    }
+                }
+            } else {
+                var bestAxis = -1
+                var bestDelta = 0f
+                var bestVal = 0f
+                for (range in dev.motionRanges) {
+                    if ((range.source and InputDevice.SOURCE_JOYSTICK) != InputDevice.SOURCE_JOYSTICK &&
+                        (range.source and InputDevice.SOURCE_GAMEPAD) != InputDevice.SOURCE_GAMEPAD
+                    ) continue
+                    val ax = range.axis
+                    if (ax == MotionEvent.AXIS_HAT_X || ax == MotionEvent.AXIS_HAT_Y) continue
+                    val curVal = event.getAxisValue(ax)
+                    val base = axisBaseline["${dev.id}:$ax"] ?: 0f
+                    val delta = kotlin.math.abs(curVal - base)
+                    if (delta >= 0.50f && delta > bestDelta) {
+                        bestDelta = delta
+                        bestAxis = ax
+                        bestVal = curVal
+                    }
+                }
+                val now = System.currentTimeMillis()
+                if (bestAxis >= 0 && now - lastAxisCaptureMs >= 400L) {
+                    lastAxisCaptureMs = now
+                    val payload = JSONObject()
+                        .put("kind", "axis")
+                        .put("axisCode", bestAxis)
+                        .put("display", MobileControllerProfileManager.axisCodeToDisplayName(bestAxis))
+                        .put("value", bestVal.toDouble())
+                        .put("descriptor", dev.descriptor ?: "")
+                        .put("deviceName", dev.name ?: "Controller")
+                        .toString()
+                    evaluateJsOnMain("window.onStormControllerInputCaptured && window.onStormControllerInputCaptured($payload);")
+                }
+                return true
+            }
+        }
+        return super.dispatchGenericMotionEvent(event)
     }
 
     fun evaluateJsOnMain(script: String) {

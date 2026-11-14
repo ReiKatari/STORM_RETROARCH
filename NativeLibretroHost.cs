@@ -736,272 +736,230 @@ public partial class NativeLibretroHost
 
 
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-
     private delegate uint XInputGetStateDelegate(uint dwUserIndex, out XInputState pState);
 
-
-
     private static XInputGetStateDelegate? _xinputGetState;
+    private static XInputGetStateDelegate? _xinputGetStateEx;
+
+    [DllImport("kernel32.dll", EntryPoint = "GetProcAddress", SetLastError = true)]
+    private static extern IntPtr GetProcAddressByOrdinal(IntPtr hModule, IntPtr ordinal);
 
     [StructLayout(LayoutKind.Sequential)]
-
     public struct XInputVibration
-
     {
-
         public ushort wLeftMotorSpeed;
-
         public ushort wRightMotorSpeed;
-
     }
-
-
 
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-
     private delegate uint XInputSetStateDelegate(uint dwUserIndex, ref XInputVibration pVibration);
 
-
-
     private static XInputSetStateDelegate? _xinputSetState;
-
     private static readonly XInputVibration[] _currentVibrations = new XInputVibration[4];
 
-
-
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-
     [return: MarshalAs(UnmanagedType.I1)]
-
     private delegate bool RetroSetRumbleStateDelegate(uint port, int effect, ushort strength);
 
-
-
     private static readonly RetroSetRumbleStateDelegate _rumbleDelegate = OnSetRumbleState;
-
     private static readonly IntPtr _rumbleDelegatePtr = Marshal.GetFunctionPointerForDelegate(_rumbleDelegate);
 
-
+    private static bool TryGetXInputState(uint dwUserIndex, out XInputState state)
+    {
+        EnsureXInputInitialized();
+        if (_xinputGetStateEx != null)
+        {
+            return _xinputGetStateEx(dwUserIndex, out state) == 0;
+        }
+        if (_xinputGetState != null)
+        {
+            return _xinputGetState(dwUserIndex, out state) == 0;
+        }
+        state = default;
+        return false;
+    }
 
     private static bool OnSetRumbleState(uint port, int effect, ushort strength)
-
     {
-
         if (SettingsManager.Current != null && !SettingsManager.Current.RumbleEnabled) return true;
-
-        if (port >= 4) return false;
-
+        if (port >= 8) return false;
         EnsureXInputInitialized();
-
         if (_xinputSetState == null) return false;
 
+        uint targetXInput = port;
+        double scale = 1.0;
+        if (_instance.IsValueCreated)
+        {
+            var inst = _instance.Value;
+            var map = inst._compiledPorts[port];
+            if (map != null)
+            {
+                if (!map.IsXInput || map.XInputIndex >= 4) return false;
+                targetXInput = map.XInputIndex;
+                scale = Math.Clamp(map.RumbleStrengthPercent / 100.0, 0.0, 1.0);
+            }
+        }
+        if (targetXInput >= 4) return false;
 
+        ushort scaledStrength = (ushort)Math.Clamp((int)(strength * scale), 0, 65535);
+        if (effect == 0) _currentVibrations[targetXInput].wLeftMotorSpeed = scaledStrength;
+        else if (effect == 1) _currentVibrations[targetXInput].wRightMotorSpeed = scaledStrength;
 
-        if (effect == 0) _currentVibrations[port].wLeftMotorSpeed = strength;
-
-        else if (effect == 1) _currentVibrations[port].wRightMotorSpeed = strength;
-
-
-
-        _xinputSetState(port, ref _currentVibrations[port]);
-
+        _xinputSetState(targetXInput, ref _currentVibrations[targetXInput]);
         return true;
-
     }
-
-
 
     public static bool TriggerTestRumble(int port = 0, int durationMs = 350)
-
     {
-
         try
-
         {
-
             EnsureXInputInitialized();
+            if (_xinputSetState == null || port < 0 || port >= 8) return false;
 
-            if (_xinputSetState == null || port < 0 || port >= 4) return false;
+            var dev = DeviceInputProfileEngine.GetPort(port);
+            uint xIdx = dev.IsConnected ? (dev.IsXInput ? dev.XInputIndex : 99u) : (uint)port;
+            if (xIdx >= 4) return false;
 
             var vib = new XInputVibration { wLeftMotorSpeed = 38000, wRightMotorSpeed = 48000 };
-
-            uint res = _xinputSetState((uint)port, ref vib);
-
+            uint res = _xinputSetState(xIdx, ref vib);
             if (res != 0) return false;
 
-
-
             Task.Run(async () =>
-
             {
-
                 await Task.Delay(Math.Clamp(durationMs, 50, 2000));
-
                 var zeroVib = new XInputVibration { wLeftMotorSpeed = 0, wRightMotorSpeed = 0 };
-
-                _xinputSetState((uint)port, ref zeroVib);
-
+                _xinputSetState(xIdx, ref zeroVib);
             });
-
             return true;
-
         }
-
         catch
-
         {
-
             return false;
-
         }
-
     }
-
-
 
     public static GamepadLiveTelemetry PollGamepadTelemetry(int port = 0)
-
     {
-
-        EnsureXInputInitialized();
-
-        if (_xinputGetState == null || port < 0 || port >= 4)
-
-        {
-
+        if (port < 0 || port >= 8)
             return new GamepadLiveTelemetry(false, 0, 0, 0, 0, 0, 0, "Отключён");
 
-        }
-
-
-
-        uint res = _xinputGetState((uint)port, out var state);
-
-        if (res != 0)
-
-        {
-
+        var dev = DeviceInputProfileEngine.GetPort(port);
+        if (!dev.IsConnected)
             return new GamepadLiveTelemetry(false, 0, 0, 0, 0, 0, 0, "Отключён");
 
+        if (dev.IsKeyboardVirtual)
+        {
+            return new GamepadLiveTelemetry(true, 0, 0, 0, 0, 0, 0, "Клавиатура активна");
         }
 
+        if (dev.IsXInput && dev.XInputIndex < 4)
+        {
+            if (!TryGetXInputState(dev.XInputIndex, out var state))
+                return new GamepadLiveTelemetry(false, 0, 0, 0, 0, 0, 0, "Отключён");
 
+            var gp = state.Gamepad;
+            double lx = Math.Clamp(gp.sThumbLX / 32768.0, -1.0, 1.0);
+            double ly = Math.Clamp(gp.sThumbLY / 32768.0, -1.0, 1.0);
+            double rx = Math.Clamp(gp.sThumbRX / 32768.0, -1.0, 1.0);
+            double ry = Math.Clamp(gp.sThumbRY / 32768.0, -1.0, 1.0);
+            double lt = Math.Clamp(gp.bLeftTrigger / 255.0, 0.0, 1.0);
+            double rt = Math.Clamp(gp.bRightTrigger / 255.0, 0.0, 1.0);
 
-        var gp = state.Gamepad;
+            var pressedButtons = new List<string>();
+            if ((gp.wButtons & 0x1000) != 0) pressedButtons.Add("A");
+            if ((gp.wButtons & 0x2000) != 0) pressedButtons.Add("B");
+            if ((gp.wButtons & 0x4000) != 0) pressedButtons.Add("X");
+            if ((gp.wButtons & 0x8000) != 0) pressedButtons.Add("Y");
+            if ((gp.wButtons & 0x0100) != 0) pressedButtons.Add("LB");
+            if ((gp.wButtons & 0x0200) != 0) pressedButtons.Add("RB");
+            if ((gp.wButtons & 0x0010) != 0) pressedButtons.Add("Start");
+            if ((gp.wButtons & 0x0020) != 0) pressedButtons.Add("Back");
+            if ((gp.wButtons & 0x0040) != 0) pressedButtons.Add("L3");
+            if ((gp.wButtons & 0x0080) != 0) pressedButtons.Add("R3");
+            if ((gp.wButtons & 0x0400) != 0) pressedButtons.Add("Guide");
+            if ((gp.wButtons & 0x0001) != 0) pressedButtons.Add("D-Вверх");
+            if ((gp.wButtons & 0x0002) != 0) pressedButtons.Add("D-Вниз");
+            if ((gp.wButtons & 0x0004) != 0) pressedButtons.Add("D-Влево");
+            if ((gp.wButtons & 0x0008) != 0) pressedButtons.Add("D-Вправо");
+            if (lt > 0.15) pressedButtons.Add($"LT ({lt:P0})");
+            if (rt > 0.15) pressedButtons.Add($"RT ({rt:P0})");
 
-        double lx = Math.Clamp(gp.sThumbLX / 32768.0, -1.0, 1.0);
+            string activeBtn = pressedButtons.Count > 0 ? string.Join(", ", pressedButtons) : "Нейтраль";
+            return new GamepadLiveTelemetry(true, lx, ly, rx, ry, lt, rt, activeBtn);
+        }
 
-        double ly = Math.Clamp(gp.sThumbLY / 32768.0, -1.0, 1.0);
+        // WinMM DirectInput / Wheel / Flight Stick / Fight Stick telemetry
+        var joyInfo = new DeviceInputProfileEngine.JOYINFOEX
+        {
+            dwSize = (uint)Marshal.SizeOf<DeviceInputProfileEngine.JOYINFOEX>(),
+            dwFlags = DeviceInputProfileEngine.JOY_RETURNALL
+        };
+        if (DeviceInputProfileEngine.joyGetPosEx(dev.WinMmIndex, ref joyInfo) != DeviceInputProfileEngine.JOYERR_NOERROR)
+            return new GamepadLiveTelemetry(false, 0, 0, 0, 0, 0, 0, "Отключён");
 
-        double rx = Math.Clamp(gp.sThumbRX / 32768.0, -1.0, 1.0);
+        double NormAxis(uint val, int ax)
+        {
+            uint min = (ax < dev.AxisMin.Length && dev.AxisMax[ax] > dev.AxisMin[ax]) ? dev.AxisMin[ax] : 0u;
+            uint max = (ax < dev.AxisMax.Length && dev.AxisMax[ax] > dev.AxisMin[ax]) ? dev.AxisMax[ax] : 65535u;
+            return Math.Clamp(((val - min) / (double)(max - min)) * 2.0 - 1.0, -1.0, 1.0);
+        }
 
-        double ry = Math.Clamp(gp.sThumbRY / 32768.0, -1.0, 1.0);
+        double wlx = NormAxis(joyInfo.dwXpos, 0);
+        double wly = -NormAxis(joyInfo.dwYpos, 1);
+        double wrx = dev.AxisCount > 4 ? NormAxis(joyInfo.dwUpos, 4) : (dev.AxisCount > 3 ? NormAxis(joyInfo.dwRpos, 3) : 0.0);
+        double wry = dev.AxisCount > 3 ? -NormAxis(joyInfo.dwRpos, 3) : 0.0;
+        double wlt = dev.AxisCount > 2 ? Math.Clamp((NormAxis(joyInfo.dwZpos, 2) + 1.0) * 0.5, 0.0, 1.0) : 0.0;
+        double wrt = dev.AxisCount > 5 ? Math.Clamp((NormAxis(joyInfo.dwVpos, 5) + 1.0) * 0.5, 0.0, 1.0) : 0.0;
 
-        double lt = Math.Clamp(gp.bLeftTrigger / 255.0, 0.0, 1.0);
-
-        double rt = Math.Clamp(gp.bRightTrigger / 255.0, 0.0, 1.0);
-
-
-
-        var pressedButtons = new List<string>();
-
-        if ((gp.wButtons & 0x1000) != 0) pressedButtons.Add("A");
-
-        if ((gp.wButtons & 0x2000) != 0) pressedButtons.Add("B");
-
-        if ((gp.wButtons & 0x4000) != 0) pressedButtons.Add("X");
-
-        if ((gp.wButtons & 0x8000) != 0) pressedButtons.Add("Y");
-
-        if ((gp.wButtons & 0x0100) != 0) pressedButtons.Add("LB");
-
-        if ((gp.wButtons & 0x0200) != 0) pressedButtons.Add("RB");
-
-        if ((gp.wButtons & 0x0010) != 0) pressedButtons.Add("Start");
-
-        if ((gp.wButtons & 0x0020) != 0) pressedButtons.Add("Back");
-
-        if ((gp.wButtons & 0x0040) != 0) pressedButtons.Add("L3");
-
-        if ((gp.wButtons & 0x0080) != 0) pressedButtons.Add("R3");
-
-        if ((gp.wButtons & 0x0001) != 0) pressedButtons.Add("D-Вверх");
-
-        if ((gp.wButtons & 0x0002) != 0) pressedButtons.Add("D-Вниз");
-
-        if ((gp.wButtons & 0x0004) != 0) pressedButtons.Add("D-Влево");
-
-        if ((gp.wButtons & 0x0008) != 0) pressedButtons.Add("D-Вправо");
-
-        if (lt > 0.15) pressedButtons.Add($"LT ({lt:P0})");
-
-        if (rt > 0.15) pressedButtons.Add($"RT ({rt:P0})");
-
-
-
-        string activeBtn = pressedButtons.Count > 0 ? string.Join(", ", pressedButtons) : "Нейтраль";
-
-        return new GamepadLiveTelemetry(true, lx, ly, rx, ry, lt, rt, activeBtn);
-
+        var winBtns = new List<string>();
+        for (int bi = 0; bi < 32; bi++)
+        {
+            if ((joyInfo.dwButtons & (1u << bi)) != 0) winBtns.Add($"K{bi + 1}");
+        }
+        if (joyInfo.dwPOV != 0xFFFF && joyInfo.dwPOV <= 35900)
+        {
+            uint p = joyInfo.dwPOV;
+            if (p >= 31500 || p <= 4500) winBtns.Add("POV-Вверх");
+            else if (p <= 13500) winBtns.Add("POV-Вправо");
+            else if (p <= 22500) winBtns.Add("POV-Вниз");
+            else winBtns.Add("POV-Влево");
+        }
+        string winActive = winBtns.Count > 0 ? string.Join(", ", winBtns) : "Нейтраль";
+        return new GamepadLiveTelemetry(true, wlx, wly, wrx, wry, wlt, wrt, winActive);
     }
-
-
 
     private static bool _xinputInitialized = false;
 
-
-
     private static void EnsureXInputInitialized()
-
     {
-
         if (_xinputInitialized) return;
-
         _xinputInitialized = true;
 
-
-
-        string[] dlls = { "xinput1_4.dll", "xinput9_1_0.dll", "xinput1_3.dll" };
-
+        string[] dlls = { "xinput1_4.dll", "xinput1_3.dll", "xinput9_1_0.dll" };
         foreach (var dll in dlls)
-
         {
-
             if (NativeLibrary.TryLoad(dll, out var hDll))
-
             {
-
+                IntPtr pEx = GetProcAddressByOrdinal(hDll, (IntPtr)100);
+                if (pEx != IntPtr.Zero)
+                {
+                    _xinputGetStateEx = Marshal.GetDelegateForFunctionPointer<XInputGetStateDelegate>(pEx);
+                }
                 if (NativeLibrary.TryGetExport(hDll, "XInputGetState", out var pGetProc))
-
                 {
-
                     _xinputGetState = Marshal.GetDelegateForFunctionPointer<XInputGetStateDelegate>(pGetProc);
-
                 }
-
                 if (NativeLibrary.TryGetExport(hDll, "XInputSetState", out var pSetProc))
-
                 {
-
                     _xinputSetState = Marshal.GetDelegateForFunctionPointer<XInputSetStateDelegate>(pSetProc);
-
                 }
-
-                if (_xinputGetState != null)
-
+                if (_xinputGetStateEx != null || _xinputGetState != null)
                 {
-
                     break;
-
                 }
-
             }
-
         }
-
     }
-
-
 
     private readonly XInputState[] _xinputStates = new XInputState[4];
 
@@ -4582,101 +4540,68 @@ public partial class NativeLibretroHost
 
 
 
-        private static int KeyNameToVirtualKey(string keyName)
-
+    internal static int KeyNameToVirtualKey(string keyName)
     {
-
         if (string.IsNullOrWhiteSpace(keyName)) return 0;
-
         string k = keyName.Trim().ToLowerInvariant();
-
-        return k switch
-
+        if (k.Length > 4 && k.StartsWith("vk_"))
         {
-
+            if (int.TryParse(k[3..], System.Globalization.NumberStyles.HexNumber, null, out int hexVk))
+                return hexVk;
+        }
+        return k switch
+        {
             "a" => 0x41, "b" => 0x42, "c" => 0x43, "d" => 0x44, "e" => 0x45, "f" => 0x46,
-
             "g" => 0x47, "h" => 0x48, "i" => 0x49, "j" => 0x4A, "k" => 0x4B, "l" => 0x4C,
-
             "m" => 0x4D, "n" => 0x4E, "o" => 0x4F, "p" => 0x50, "q" => 0x51, "r" => 0x52,
-
             "s" => 0x53, "t" => 0x54, "u" => 0x55, "v" => 0x56, "w" => 0x57, "x" => 0x58,
-
             "y" => 0x59, "z" => 0x5A,
-
-            "0" => 0x30, "1" or "num1" => 0x31, "2" or "num2" => 0x32, "3" or "num3" => 0x33,
-
-            "4" or "num4" => 0x34, "5" or "num5" => 0x35, "6" or "num6" => 0x36, "7" or "num7" => 0x37,
-
-            "8" or "num8" => 0x38, "9" or "num9" => 0x39,
-
+            "0" or "d0" => 0x30, "1" or "d1" => 0x31, "2" or "d2" => 0x32, "3" or "d3" => 0x33,
+            "4" or "d4" => 0x34, "5" or "d5" => 0x35, "6" or "d6" => 0x36, "7" or "d7" => 0x37,
+            "8" or "d8" => 0x38, "9" or "d9" => 0x39,
+            "num0" or "numpad0" => 0x60, "num1" or "numpad1" => 0x61, "num2" or "numpad2" => 0x62,
+            "num3" or "numpad3" => 0x63, "num4" or "numpad4" => 0x64, "num5" or "numpad5" => 0x65,
+            "num6" or "numpad6" => 0x66, "num7" or "numpad7" => 0x67, "num8" or "numpad8" => 0x68,
+            "num9" or "numpad9" => 0x69,
+            "f1" => 0x70, "f2" => 0x71, "f3" => 0x72, "f4" => 0x73, "f5" => 0x74, "f6" => 0x75,
+            "f7" => 0x76, "f8" => 0x77, "f9" => 0x78, "f10" => 0x79, "f11" => 0x7A, "f12" => 0x7B,
             "up" => 0x26, "down" => 0x28, "left" => 0x25, "right" => 0x27,
-
             "enter" or "return" => 0x0D, "space" => 0x20,
-
-            "shift" or "lshift" => 0xA0, "rshift" => 0xA1,
-
-            "ctrl" or "lctrl" => 0xA2, "rctrl" => 0xA3,
-
-            "alt" or "lalt" => 0x12, "back" or "backspace" => 0x08,
-
-            "tab" => 0x09, "escape" => 0x1B,
-
+            "shift" or "lshift" or "leftshift" => 0xA0, "rshift" or "rightshift" => 0xA1,
+            "ctrl" or "lctrl" or "leftctrl" => 0xA2, "rctrl" or "rightctrl" => 0xA3,
+            "alt" or "lalt" or "leftalt" => 0x12, "ralt" or "rightalt" => 0xA5,
+            "back" or "backspace" => 0x08, "tab" => 0x09, "escape" => 0x1B,
+            "del" or "delete" => 0x2E, "insert" => 0x2D, "home" => 0x24, "end" => 0x23,
+            "pageup" => 0x21, "pagedown" => 0x22,
+            "comma" or "," => 0xBC, "period" or "." => 0xBE, "slash" or "/" => 0xBF,
+            "minus" or "-" => 0xBD, "equals" or "=" => 0xBB,
             _ => 0
-
         };
-
     }
 
-
-
     [StructLayout(LayoutKind.Sequential)]
-
     private struct POINT { public int X; public int Y; }
 
-
-
     [DllImport("user32.dll")]
-
     private static extern bool GetCursorPos(out POINT lpPoint);
 
-
-
     private volatile bool _isDosCore;
-
     private POINT _lastMousePt;
-
     private int _mouseDeltaX;
-
     private int _mouseDeltaY;
-
     private readonly bool[] _prevRetroKeyDown = new bool[320];
-
     private static readonly uint[] MonitoredRetroKeys = new uint[]
-
     {
-
         8, 9, 13, 27, 32, 44, 45, 46, 47,
-
         48, 49, 50, 51, 52, 53, 54, 55, 56, 57,
-
         59, 61, 91, 92, 93,
-
         97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109,
-
         110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 127,
-
         256, 257, 258, 259, 260, 261, 262, 263, 264, 265,
-
         273, 274, 275, 276, 277, 278, 279, 280, 281,
-
         282, 283, 284, 285, 286, 287, 288, 289, 290, 291, 292, 293,
-
         303, 304, 305, 306, 307, 308
-
     };
-
-
 
     public struct CompiledButtonBinding
     {
@@ -4690,24 +4615,32 @@ public partial class NativeLibretroHost
     {
         public int PortIndex;
         public bool IsXInput;
+        public bool IsKeyboardVirtual;
+        public InputDeviceFormFactor FormFactor = InputDeviceFormFactor.XboxGamepad;
         public uint XInputIndex;
         public uint WinMmIndex;
         public bool HasDevice;
+        public uint[] WinMmAxisMin = new uint[6];
+        public uint[] WinMmAxisMax = new uint[6];
         public readonly CompiledButtonBinding[] Buttons = new CompiledButtonBinding[16];
+        public readonly CompiledButtonBinding[] AnalogAxes = new CompiledButtonBinding[8];
+        public readonly int[] KeyboardFallbackVks = new int[16];
         public short Deadzone = 4915;
+        public short SteeringDeadzone = 1310;
         public byte TriggerThreshold = 30;
         public double Sensitivity = 1.0;
+        public int RumbleStrengthPercent = 100;
         public uint TurboMask = 0;
         public bool HasHotkeyEnable = false;
         public PhysicalInputBinding? HotkeyEnable = null;
-        public readonly Dictionary<string, PhysicalInputBinding> Hotkeys = new(StringComparer.OrdinalIgnoreCase);
+        public readonly Dictionary<string, (PhysicalInputBinding Binding, bool RequiresEnable)> Hotkeys = new(StringComparer.OrdinalIgnoreCase);
     }
 
     private readonly CompiledPortMap[] _compiledPorts = new CompiledPortMap[8];
     private readonly uint[] _portJoypadBitmask = new uint[8];
     private readonly short[,] _portAnalogAxes = new short[8, 6];
     private volatile bool _isFocusedThisFrame = false;
-    private uint _prevHotkeyChordMask = 0;
+    private readonly HashSet<string> _activeHotkeyChords = new(StringComparer.OrdinalIgnoreCase);
     private static readonly uint _currentProcessId = (uint)Environment.ProcessId;
     private readonly DeviceInputProfileEngine.JOYINFOEX[] _winMmStates = new DeviceInputProfileEngine.JOYINFOEX[8];
 
@@ -4715,42 +4648,100 @@ public partial class NativeLibretroHost
 
     public void RebuildCompiledInputMaps()
     {
+        string chordMode = SettingsManager.Current?.GamepadChordModifier ?? "SelectOrBack";
+        bool singleButtonGlobal = string.Equals(chordMode, "SingleButton", StringComparison.OrdinalIgnoreCase);
+
         for (int p = 0; p < 8; p++)
         {
             var map = _compiledPorts[p] ??= new CompiledPortMap { PortIndex = p };
             var dev = DeviceInputProfileEngine.GetPort(p);
 
             map.HasDevice = dev != null && dev.IsConnected;
-            map.IsXInput = dev?.IsXInput ?? (p < 4);
+            map.IsXInput = dev?.IsXInput ?? false;
+            map.IsKeyboardVirtual = dev?.IsKeyboardVirtual ?? false;
+            map.FormFactor = dev?.FormFactor ?? InputDeviceFormFactor.XboxGamepad;
             map.XInputIndex = dev?.XInputIndex ?? (uint)p;
             map.WinMmIndex = dev?.WinMmIndex ?? (uint)p;
+            if (dev != null)
+            {
+                Array.Copy(dev.AxisMin, map.WinMmAxisMin, Math.Min(6, dev.AxisMin.Length));
+                Array.Copy(dev.AxisMax, map.WinMmAxisMax, Math.Min(6, dev.AxisMax.Length));
+            }
 
             var layer = dev?.EffectiveLayer;
 
             int deadzonePct = layer?.AnalogDeadzonePercent ?? (SettingsManager.Current != null ? SettingsManager.Current.AnalogDeadzonePercent : 15);
-            map.Deadzone = (short)(32767 * Math.Clamp(deadzonePct, 5, 40) / 100);
+            map.Deadzone = (short)(32767 * Math.Clamp(deadzonePct, 2, 40) / 100);
+
+            int steerPct = layer?.SteeringDeadzonePercent ?? 4;
+            map.SteeringDeadzone = (short)(32767 * Math.Clamp(steerPct, 0, 25) / 100);
 
             int triggerPct = layer?.TriggerThresholdPercent ?? (SettingsManager.Current != null ? SettingsManager.Current.TriggerThresholdPercent : 12);
             map.TriggerThreshold = (byte)(255 * Math.Clamp(triggerPct, 5, 50) / 100);
 
             map.Sensitivity = layer?.AnalogSensitivity ?? 1.0;
+            map.RumbleStrengthPercent = layer?.RumbleStrengthPercent ?? 100;
             map.TurboMask = layer?.TurboButtonMask ?? 0;
 
-            map.HotkeyEnable = layer?.HotkeyEnableBinding;
-            map.HasHotkeyEnable = map.HotkeyEnable != null && map.HotkeyEnable.Type != PhysicalInputType.None;
+            if (singleButtonGlobal)
+            {
+                map.HotkeyEnable = null;
+                map.HasHotkeyEnable = false;
+            }
+            else if (string.Equals(chordMode, "GuideOrHome", StringComparison.OrdinalIgnoreCase))
+            {
+                map.HotkeyEnable = map.IsXInput
+                    ? new PhysicalInputBinding(PhysicalInputType.XInputButton, 0x0400, 0, "Guide / Home")
+                    : new PhysicalInputBinding(PhysicalInputType.WinMmButton, 12, 0, "Home");
+                map.HasHotkeyEnable = true;
+            }
+            else if (string.Equals(chordMode, "L3", StringComparison.OrdinalIgnoreCase))
+            {
+                map.HotkeyEnable = map.IsXInput
+                    ? new PhysicalInputBinding(PhysicalInputType.XInputButton, 0x0040, 0, "L3")
+                    : new PhysicalInputBinding(PhysicalInputType.WinMmButton, 10, 0, "L3");
+                map.HasHotkeyEnable = true;
+            }
+            else
+            {
+                map.HotkeyEnable = layer?.HotkeyEnableBinding ?? (map.IsXInput
+                    ? new PhysicalInputBinding(PhysicalInputType.XInputButton, 0x0020, 0, "Back / Select")
+                    : new PhysicalInputBinding(PhysicalInputType.WinMmButton, 8, 0, "Select"));
+                map.HasHotkeyEnable = map.HotkeyEnable != null && map.HotkeyEnable.Type != PhysicalInputType.None;
+            }
 
             map.Hotkeys.Clear();
             if (layer != null)
             {
                 foreach (var (k, v) in layer.DeviceHotkeys)
                 {
-                    map.Hotkeys[k] = v;
+                    if (v != null && v.Type != PhysicalInputType.None)
+                        map.Hotkeys[k] = (v, !singleButtonGlobal);
+                }
+            }
+
+            // Merge global HotkeyManager gamepad chords (overrides layer defaults when customized or cleared)
+            foreach (var def in HotkeyManager.Defaults.Take(18))
+            {
+                var hkBind = HotkeyManager.ResolveGamepadTriggerBinding(def.ActionId, out bool reqMod);
+                string customPadKey = def.ActionId + "_pad";
+                bool hasCustom = SettingsManager.Current?.CustomHotkeys != null &&
+                                 SettingsManager.Current.CustomHotkeys.ContainsKey(customPadKey);
+
+                if (hasCustom)
+                {
+                    if (hkBind == null) map.Hotkeys.Remove(def.ActionId);
+                    else map.Hotkeys[def.ActionId] = (hkBind, !singleButtonGlobal && reqMod);
+                }
+                else if (hkBind != null && !map.Hotkeys.ContainsKey(def.ActionId))
+                {
+                    map.Hotkeys[def.ActionId] = (hkBind, !singleButtonGlobal && reqMod);
                 }
             }
 
             for (int id = 0; id < 16; id++)
             {
-                if (layer != null && layer.JoypadBindings.TryGetValue(id, out var b))
+                if (layer != null && layer.JoypadBindings.TryGetValue(id, out var b) && b.Type != PhysicalInputType.None)
                 {
                     map.Buttons[id] = new CompiledButtonBinding
                     {
@@ -4760,12 +4751,97 @@ public partial class NativeLibretroHost
                         VkCode = b.Type == PhysicalInputType.KeyboardKey ? b.Code : 0
                     };
                 }
-                else
+                else if (map.HasDevice && !map.IsKeyboardVirtual)
                 {
                     map.Buttons[id] = GetDefaultCompiledBinding(id, map.IsXInput, p);
                 }
+                else
+                {
+                    map.Buttons[id] = default;
+                }
+
+                // Resolve per-player keyboard mapping (PlayerKeyboardBindings -> retroarch.cfg -> defaults)
+                int vk = 0;
+                if (SettingsManager.Current?.PlayerKeyboardBindings != null &&
+                    SettingsManager.Current.PlayerKeyboardBindings.TryGetValue(p, out var pk) &&
+                    pk.TryGetValue(id, out var kStr))
+                {
+                    vk = KeyNameToVirtualKey(kStr);
+                }
+                if (vk <= 0)
+                {
+                    string cfgName = GetRetroPadButtonCfgKey(p + 1, id);
+                    if (!string.IsNullOrEmpty(cfgName))
+                        vk = KeyNameToVirtualKey(RetroArchConfigManager.GetString(cfgName, ""));
+                }
+                if (vk <= 0 && map.IsKeyboardVirtual && p > 0)
+                {
+                    vk = GetDefaultSecondaryKeyboardVk(p, id);
+                }
+                map.KeyboardFallbackVks[id] = vk;
+            }
+
+            for (int axSlot = 0; axSlot < 8; axSlot++)
+            {
+                if (layer != null && layer.AnalogBindings != null &&
+                    layer.AnalogBindings.TryGetValue(100 + axSlot, out var ab) &&
+                    ab.Type != PhysicalInputType.None)
+                {
+                    map.AnalogAxes[axSlot] = new CompiledButtonBinding
+                    {
+                        Type = ab.Type,
+                        Code = ab.Code,
+                        Parameter = ab.Parameter
+                    };
+                }
+                else
+                {
+                    map.AnalogAxes[axSlot] = default;
+                }
             }
         }
+    }
+
+    private static string GetRetroPadButtonCfgKey(int playerNumber, int id) => id switch
+    {
+        0 => $"input_player{playerNumber}_b",
+        1 => $"input_player{playerNumber}_y",
+        2 => $"input_player{playerNumber}_select",
+        3 => $"input_player{playerNumber}_start",
+        4 => $"input_player{playerNumber}_up",
+        5 => $"input_player{playerNumber}_down",
+        6 => $"input_player{playerNumber}_left",
+        7 => $"input_player{playerNumber}_right",
+        8 => $"input_player{playerNumber}_a",
+        9 => $"input_player{playerNumber}_x",
+        10 => $"input_player{playerNumber}_l",
+        11 => $"input_player{playerNumber}_r",
+        12 => $"input_player{playerNumber}_l2",
+        13 => $"input_player{playerNumber}_r2",
+        14 => $"input_player{playerNumber}_l3",
+        15 => $"input_player{playerNumber}_r3",
+        _ => ""
+    };
+
+    private static int GetDefaultSecondaryKeyboardVk(int portIndex, int id)
+    {
+        if (portIndex != 1) return 0;
+        return id switch
+        {
+            4 => 0x68, // Numpad 8
+            5 => 0x62, // Numpad 2
+            6 => 0x64, // Numpad 4
+            7 => 0x66, // Numpad 6
+            0 => 0x4A, // J (B)
+            8 => 0x4B, // K (A)
+            1 => 0x55, // U (Y)
+            9 => 0x49, // I (X)
+            10 => 0x4F, // O (L1)
+            11 => 0x50, // P (R1)
+            2 => 0x65, // Numpad 5 (Select)
+            3 => 0x60, // Numpad 0 (Start)
+            _ => 0
+        };
     }
 
     private static CompiledButtonBinding GetDefaultCompiledBinding(int id, bool isXInput, int port)
@@ -4774,7 +4850,7 @@ public partial class NativeLibretroHost
         {
             return id switch
             {
-                0 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x2000 },
+                0 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x1000 },
                 1 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x4000 },
                 2 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x0020 },
                 3 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x0010 },
@@ -4782,7 +4858,7 @@ public partial class NativeLibretroHost
                 5 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x0002 },
                 6 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x0004 },
                 7 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x0008 },
-                8 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x1000 },
+                8 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x2000 },
                 9 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x8000 },
                 10 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x0100 },
                 11 => new CompiledButtonBinding { Type = PhysicalInputType.XInputButton, Code = 0x0200 },
@@ -4799,8 +4875,8 @@ public partial class NativeLibretroHost
             {
                 0 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 0 },
                 1 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 2 },
-                2 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 6 },
-                3 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 7 },
+                2 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 8 },
+                3 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 9 },
                 4 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmPovHat, Code = 0, Parameter = 0 },
                 5 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmPovHat, Code = 0, Parameter = 18000 },
                 6 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmPovHat, Code = 0, Parameter = 27000 },
@@ -4809,8 +4885,10 @@ public partial class NativeLibretroHost
                 9 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 3 },
                 10 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 4 },
                 11 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 5 },
-                14 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 8 },
-                15 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 9 },
+                12 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 6 },
+                13 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 7 },
+                14 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 10 },
+                15 => new CompiledButtonBinding { Type = PhysicalInputType.WinMmButton, Code = 11 },
                 _ => default
             };
         }
@@ -4829,23 +4907,21 @@ public partial class NativeLibretroHost
         _isFocusedThisFrame = IsProcessWindowFocusedOncePerFrame();
 
         EnsureXInputInitialized();
-        if (_xinputGetState != null)
+        for (uint i = 0; i < 4; i++)
         {
-            for (uint i = 0; i < 4; i++)
-            {
-                _xinputConnected[i] = (_xinputGetState(i, out _xinputStates[i]) == 0);
-            }
+            _xinputConnected[i] = TryGetXInputState(i, out _xinputStates[i]);
         }
 
-        // Poll connected WinMM devices
+        // Poll connected WinMM DirectInput / Wheel / Flight Stick devices
+        uint joyExSize = (uint)Marshal.SizeOf<DeviceInputProfileEngine.JOYINFOEX>();
         for (int p = 0; p < 8; p++)
         {
             var map = _compiledPorts[p];
-            if (map != null && map.HasDevice && !map.IsXInput)
+            if (map != null && map.HasDevice && !map.IsXInput && !map.IsKeyboardVirtual)
             {
                 var joyInfo = new DeviceInputProfileEngine.JOYINFOEX
                 {
-                    dwSize = (uint)Marshal.SizeOf<DeviceInputProfileEngine.JOYINFOEX>(),
+                    dwSize = joyExSize,
                     dwFlags = DeviceInputProfileEngine.JOY_RETURNALL
                 };
                 if (DeviceInputProfileEngine.joyGetPosEx(map.WinMmIndex, ref joyInfo) == DeviceInputProfileEngine.JOYERR_NOERROR)
@@ -4855,7 +4931,6 @@ public partial class NativeLibretroHost
             }
         }
 
-        // Mouse Delta
         if (GetCursorPos(out var pt))
         {
             _mouseDeltaX = Math.Clamp(pt.X - _lastMousePt.X, -120, 120);
@@ -4863,7 +4938,6 @@ public partial class NativeLibretroHost
             _lastMousePt = pt;
         }
 
-        // Keyboard callback
         if (_keyboardCallback != null)
         {
             ushort mods = 0;
@@ -4888,7 +4962,8 @@ public partial class NativeLibretroHost
             }
         }
 
-        // Fast poll each port 0..7 and evaluate flat bitmask and analog axes
+        var nextActiveChords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         for (int p = 0; p < 8; p++)
         {
             var map = _compiledPorts[p];
@@ -4903,7 +4978,6 @@ public partial class NativeLibretroHost
                 }
             }
 
-            // Turbo Auto-Fire Modulation
             if (SettingsManager.Current != null && SettingsManager.Current.TurboButtonsEnabled && (map.TurboMask & mask) != 0)
             {
                 int hz = Math.Clamp(SettingsManager.Current.TurboFireHz, 5, 30);
@@ -4916,44 +4990,40 @@ public partial class NativeLibretroHost
                 }
             }
 
-            // Controller Hotkey Chords Detection
-            if (map.HasHotkeyEnable && IsPhysicalBindingDown(map.HotkeyEnable, map))
+            bool globalEnableHeld = map.HasHotkeyEnable && IsPhysicalBindingDown(map.HotkeyEnable, map);
+            foreach (var (actionId, entry) in map.Hotkeys)
             {
-                foreach (var (actionId, chordBinding) in map.Hotkeys)
+                var chordBinding = entry.Binding;
+                bool enableOk = !entry.RequiresEnable || globalEnableHeld;
+                if (enableOk && IsPhysicalBindingDown(chordBinding, map))
                 {
-                    if (IsPhysicalBindingDown(chordBinding, map))
+                    // Suppress chord button from leaking into game joypad state when using chord modifier
+                    if (entry.RequiresEnable)
                     {
-                        // Suppress action button from in-game bitmask
-                        if (chordBinding.Type == PhysicalInputType.XInputButton)
+                        for (int bid = 0; bid < 16; bid++)
                         {
-                            for (int bid = 0; bid < 16; bid++)
+                            if (map.Buttons[bid].Type == chordBinding.Type &&
+                                map.Buttons[bid].Code == chordBinding.Code &&
+                                map.Buttons[bid].Parameter == chordBinding.Parameter)
                             {
-                                if (map.Buttons[bid].Type == PhysicalInputType.XInputButton && map.Buttons[bid].Code == chordBinding.Code)
-                                {
-                                    mask &= ~(1u << bid);
-                                }
+                                mask &= ~(1u << bid);
                             }
                         }
-
-                        int hash = actionId.GetHashCode();
-                        if ((_prevHotkeyChordMask & (uint)hash) == 0)
-                        {
-                            _prevHotkeyChordMask |= (uint)hash;
-                            string act = actionId;
-                            Application.Current?.Dispatcher?.BeginInvoke(() =>
-                            {
-                                OnControllerHotkeyTriggered?.Invoke(act);
-                            });
-                        }
                     }
-                    else
+
+                    string chordKey = $"{p}:{actionId}";
+                    nextActiveChords.Add(chordKey);
+                    if (!_activeHotkeyChords.Contains(chordKey))
                     {
-                        _prevHotkeyChordMask &= ~(uint)actionId.GetHashCode();
+                        string act = actionId;
+                        Application.Current?.Dispatcher?.BeginInvoke(() =>
+                        {
+                            OnControllerHotkeyTriggered?.Invoke(act);
+                        });
                     }
                 }
             }
 
-            // Active Controller Auto-Handoff: if a controller on port > 0 is pressed, notify
             if (p != 0 && mask != 0)
             {
                 DeviceInputProfileEngine.NotifyDeviceActivityOnPort(p);
@@ -4961,16 +5031,27 @@ public partial class NativeLibretroHost
 
             _portJoypadBitmask[p] = mask;
 
-            // Compute Analog Axes
+            // Compute Analog Axes (Left X/Y, Right X/Y, Analog L2/R2 Triggers/Pedals)
             if (map.IsXInput && map.XInputIndex < 4 && _xinputConnected[map.XInputIndex])
             {
                 var gp = _xinputStates[map.XInputIndex].Gamepad;
-                _portAnalogAxes[p, 0] = Math.Abs(gp.sThumbLX) > map.Deadzone ? (short)(gp.sThumbLX * map.Sensitivity) : (short)0;
-                _portAnalogAxes[p, 1] = Math.Abs(gp.sThumbLY) > map.Deadzone ? (short)(-gp.sThumbLY * map.Sensitivity) : (short)0;
-                _portAnalogAxes[p, 2] = Math.Abs(gp.sThumbRX) > map.Deadzone ? (short)(gp.sThumbRX * map.Sensitivity) : (short)0;
-                _portAnalogAxes[p, 3] = Math.Abs(gp.sThumbRY) > map.Deadzone ? (short)(-gp.sThumbRY * map.Sensitivity) : (short)0;
-                _portAnalogAxes[p, 4] = gp.bLeftTrigger > map.TriggerThreshold ? (short)(gp.bLeftTrigger * 128) : (short)0;
-                _portAnalogAxes[p, 5] = gp.bRightTrigger > map.TriggerThreshold ? (short)(gp.bRightTrigger * 128) : (short)0;
+                int dz = map.FormFactor == InputDeviceFormFactor.RacingWheel ? map.SteeringDeadzone : map.Deadzone;
+                _portAnalogAxes[p, 0] = Math.Abs(gp.sThumbLX) > dz ? ClampAnalog(gp.sThumbLX * map.Sensitivity) : (short)0;
+                _portAnalogAxes[p, 1] = Math.Abs(gp.sThumbLY) > dz ? ClampAnalog(-gp.sThumbLY * map.Sensitivity) : (short)0;
+                _portAnalogAxes[p, 2] = Math.Abs(gp.sThumbRX) > dz ? ClampAnalog(gp.sThumbRX * map.Sensitivity) : (short)0;
+                _portAnalogAxes[p, 3] = Math.Abs(gp.sThumbRY) > dz ? ClampAnalog(-gp.sThumbRY * map.Sensitivity) : (short)0;
+                _portAnalogAxes[p, 4] = gp.bLeftTrigger > map.TriggerThreshold ? (short)Math.Clamp(gp.bLeftTrigger * 128, 0, 32767) : (short)0;
+                _portAnalogAxes[p, 5] = gp.bRightTrigger > map.TriggerThreshold ? (short)Math.Clamp(gp.bRightTrigger * 128, 0, 32767) : (short)0;
+            }
+            else if (map.HasDevice && !map.IsXInput && !map.IsKeyboardVirtual)
+            {
+                int dz = map.FormFactor == InputDeviceFormFactor.RacingWheel ? map.SteeringDeadzone : map.Deadzone;
+                _portAnalogAxes[p, 0] = EvaluateWinMmPairedStickAxis(map, 0, 1, dz, defaultAxis: 0);
+                _portAnalogAxes[p, 1] = EvaluateWinMmPairedStickAxis(map, 2, 3, dz, defaultAxis: 1);
+                _portAnalogAxes[p, 2] = EvaluateWinMmPairedStickAxis(map, 4, 5, dz, defaultAxis: 4);
+                _portAnalogAxes[p, 3] = EvaluateWinMmPairedStickAxis(map, 6, 7, dz, defaultAxis: 3);
+                _portAnalogAxes[p, 4] = EvaluateTriggerAnalog(p, map, 12, mask);
+                _portAnalogAxes[p, 5] = EvaluateTriggerAnalog(p, map, 13, mask);
             }
             else
             {
@@ -4978,10 +5059,84 @@ public partial class NativeLibretroHost
                 _portAnalogAxes[p, 1] = 0;
                 _portAnalogAxes[p, 2] = 0;
                 _portAnalogAxes[p, 3] = 0;
-                _portAnalogAxes[p, 4] = 0;
-                _portAnalogAxes[p, 5] = 0;
+                _portAnalogAxes[p, 4] = ((mask >> 12) & 1) != 0 ? (short)32767 : (short)0;
+                _portAnalogAxes[p, 5] = ((mask >> 13) & 1) != 0 ? (short)32767 : (short)0;
             }
         }
+
+        _activeHotkeyChords.Clear();
+        foreach (var k in nextActiveChords) _activeHotkeyChords.Add(k);
+    }
+
+    private static short ClampAnalog(double v) => (short)Math.Clamp((int)Math.Round(v), -32767, 32767);
+
+    private double ReadNormalizedWinMmAxis(int portIndex, CompiledPortMap map, int axisIdx)
+    {
+        var joy = _winMmStates[portIndex];
+        uint raw = axisIdx switch
+        {
+            0 => joy.dwXpos,
+            1 => joy.dwYpos,
+            2 => joy.dwZpos,
+            3 => joy.dwRpos,
+            4 => joy.dwUpos,
+            5 => joy.dwVpos,
+            _ => 32768u
+        };
+        uint min = (axisIdx >= 0 && axisIdx < 6 && map.WinMmAxisMax[axisIdx] > map.WinMmAxisMin[axisIdx]) ? map.WinMmAxisMin[axisIdx] : 0u;
+        uint max = (axisIdx >= 0 && axisIdx < 6 && map.WinMmAxisMax[axisIdx] > map.WinMmAxisMin[axisIdx]) ? map.WinMmAxisMax[axisIdx] : 65535u;
+        return Math.Clamp(((raw - min) / (double)(max - min)) * 2.0 - 1.0, -1.0, 1.0);
+    }
+
+    private short EvaluateWinMmPairedStickAxis(CompiledPortMap map, int negSlot, int posSlot, int deadzoneRaw, int defaultAxis)
+    {
+        var bNeg = map.AnalogAxes[negSlot];
+        var bPos = map.AnalogAxes[posSlot];
+
+        double signedNorm = 0.0;
+        if (bNeg.Type == PhysicalInputType.WinMmAxis && bPos.Type == PhysicalInputType.WinMmAxis && bNeg.Code == bPos.Code)
+        {
+            double raw = ReadNormalizedWinMmAxis(map.PortIndex, map, bNeg.Code);
+            signedNorm = bPos.Parameter >= 0 ? raw : -raw;
+        }
+        else if (bNeg.Type == PhysicalInputType.WinMmAxis || bPos.Type == PhysicalInputType.WinMmAxis)
+        {
+            double negPart = 0.0;
+            double posPart = 0.0;
+            if (bNeg.Type == PhysicalInputType.WinMmAxis)
+            {
+                double v = ReadNormalizedWinMmAxis(map.PortIndex, map, bNeg.Code) * (bNeg.Parameter >= 0 ? 1.0 : -1.0);
+                if (v > 0) negPart = v;
+            }
+            if (bPos.Type == PhysicalInputType.WinMmAxis)
+            {
+                double v = ReadNormalizedWinMmAxis(map.PortIndex, map, bPos.Code) * (bPos.Parameter >= 0 ? 1.0 : -1.0);
+                if (v > 0) posPart = v;
+            }
+            signedNorm = posPart - negPart;
+        }
+        else
+        {
+            signedNorm = ReadNormalizedWinMmAxis(map.PortIndex, map, defaultAxis);
+        }
+
+        double scaled = signedNorm * 32767.0;
+        if (Math.Abs(scaled) <= deadzoneRaw) return 0;
+        return ClampAnalog(scaled * map.Sensitivity);
+    }
+
+    private short EvaluateTriggerAnalog(int portIndex, CompiledPortMap map, int buttonId, uint digitalMask)
+    {
+        var b = map.Buttons[buttonId];
+        if (b.Type == PhysicalInputType.WinMmAxis)
+        {
+            double norm = ReadNormalizedWinMmAxis(portIndex, map, b.Code);
+            double pressure = b.Parameter >= 0 ? Math.Clamp((norm + 1.0) * 0.5, 0.0, 1.0) : Math.Clamp((1.0 - norm) * 0.5, 0.0, 1.0);
+            int thresh = map.TriggerThreshold;
+            int scaled255 = (int)(pressure * 255.0);
+            return scaled255 > thresh ? (short)Math.Clamp((int)(pressure * 32767.0), 0, 32767) : (short)0;
+        }
+        return ((digitalMask >> buttonId) & 1) != 0 ? (short)32767 : (short)0;
     }
 
     private bool IsPortButtonDown(int portIndex, CompiledPortMap map, uint btnId)
@@ -5036,18 +5191,32 @@ public partial class NativeLibretroHost
                     };
                 }
                 break;
+            case PhysicalInputType.WinMmAxis:
+                {
+                    double norm = ReadNormalizedWinMmAxis(portIndex, map, b.Code);
+                    pressed = b.Parameter > 0 ? (norm > 0.35) : (norm < -0.35);
+                }
+                break;
             case PhysicalInputType.KeyboardKey:
                 if (_isFocusedThisFrame && b.VkCode > 0 && b.VkCode < 256)
                     pressed = (GetAsyncKeyState(b.VkCode) & 0x8000) != 0;
                 break;
         }
 
-        if (!pressed && portIndex == 0 && _isFocusedThisFrame)
+        if (!pressed && _isFocusedThisFrame && (portIndex == 0 || map.IsKeyboardVirtual))
         {
             if (b.VkCode > 0 && (GetAsyncKeyState(b.VkCode) & 0x8000) != 0)
+            {
                 pressed = true;
-            else
+            }
+            else if (map.KeyboardFallbackVks[btnId] > 0 && (GetAsyncKeyState(map.KeyboardFallbackVks[btnId]) & 0x8000) != 0)
+            {
+                pressed = true;
+            }
+            else if (portIndex == 0)
+            {
                 pressed = QueryKeyboardFallback(btnId);
+            }
         }
 
         return pressed;
@@ -5104,6 +5273,11 @@ public partial class NativeLibretroHost
                     };
                 }
                 break;
+            case PhysicalInputType.WinMmAxis:
+                {
+                    double norm = ReadNormalizedWinMmAxis(map.PortIndex, map, binding.Code);
+                    return binding.Parameter > 0 ? (norm > 0.35) : (norm < -0.35);
+                }
             case PhysicalInputType.KeyboardKey:
                 if (_isFocusedThisFrame && binding.Code > 0 && binding.Code < 256)
                     return (GetAsyncKeyState(binding.Code) & 0x8000) != 0;
@@ -5117,27 +5291,7 @@ public partial class NativeLibretroHost
     {
         bool isDown(int vk) => vk > 0 && (GetAsyncKeyState(vk) & 0x8000) != 0;
 
-        string configKey = id switch
-        {
-            0 => "input_player1_b",
-            1 => "input_player1_y",
-            2 => "input_player1_select",
-            3 => "input_player1_start",
-            4 => "input_player1_up",
-            5 => "input_player1_down",
-            6 => "input_player1_left",
-            7 => "input_player1_right",
-            8 => "input_player1_a",
-            9 => "input_player1_x",
-            10 => "input_player1_l",
-            11 => "input_player1_r",
-            12 => "input_player1_l2",
-            13 => "input_player1_r2",
-            14 => "input_player1_l3",
-            15 => "input_player1_r3",
-            _ => ""
-        };
-
+        string configKey = GetRetroPadButtonCfgKey(1, (int)id);
         if (!string.IsNullOrEmpty(configKey))
         {
             string configuredKey = RetroArchConfigManager.GetString(configKey, "");
@@ -5198,11 +5352,19 @@ public partial class NativeLibretroHost
             return (short)((_portJoypadBitmask[port] >> (int)id) & 1);
         }
 
-        // 2. RETRO_DEVICE_ANALOG = 4
+        // 2. RETRO_DEVICE_ANALOG = 4 (includes RETRO_DEVICE_INDEX_ANALOG_BUTTON = 2 for L2/R2)
         if (device == 4)
         {
-            if (port >= 8 || index >= 2 || id >= 2) return 0;
-            return _portAnalogAxes[port, index * 2 + id];
+            if (port >= 8) return 0;
+            if (index < 2 && id < 2)
+                return _portAnalogAxes[port, index * 2 + id];
+            if (index == 2)
+            {
+                if (id == 12) return _portAnalogAxes[port, 4];
+                if (id == 13) return _portAnalogAxes[port, 5];
+                if (id < 16) return ((_portJoypadBitmask[port] >> (int)id) & 1) != 0 ? (short)32767 : (short)0;
+            }
+            return 0;
         }
 
         // 3. RETRO_DEVICE_KEYBOARD = 3

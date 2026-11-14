@@ -53,16 +53,19 @@ class StormNativeBridge(
     @Volatile
     private var lastUpdateInfo: MobileUpdateInfo = MobileUpdateInfo(
         updateAvailable = false,
-        currentVersion = "2.7.4",
-        latestVersion = "2.7.4",
+        currentVersion = "2.7.5",
+        latestVersion = "2.7.5",
         apkDownloadUrl = "",
         releaseNotes = "",
         releasePageUrl = "https://github.com/ReiKatari/STORM_RETROARCH/releases",
-        statusMessage = "STORM RETROARCH 2.7.4"
+        statusMessage = "STORM RETROARCH 2.7.5"
     )
 
     @Volatile
     var pendingPatchGameId: String = ""
+
+    @Volatile
+    var captureModeActive: Boolean = false
 
     init {
         MobileCoreRegistry.init(appCtx)
@@ -159,8 +162,8 @@ class StormNativeBridge(
         includeSlowScans: Boolean = true
     ): JSONObject {
         val root = JSONObject()
-        root.put("version", "2.7.4")
-        root.put("versionCode", 272)
+        root.put("version", "2.7.5")
+        root.put("versionCode", 275)
         root.put("warming", !startupWarmDone)
         root.put("abi", MobileCoreRegistry.detectDeviceAbi())
         root.put("sdkInt", Build.VERSION.SDK_INT)
@@ -172,7 +175,9 @@ class StormNativeBridge(
         root.put("cores", serializeCoresCatalogArray())
         root.put("bios", if (includeSlowScans || cachedBiosItems != null) serializeBiosArray() else JSONArray())
         root.put("saves", if (includeSlowScans) serializeSaveSlotsOverview(games) else JSONArray())
-        root.put("controllers", serializeControllersArray())
+        val ctrlPayload = MobileControllerProfileManager.buildControllersPayloadJson(appCtx)
+        root.put("controllers", ctrlPayload.optJSONArray("controllers") ?: serializeControllersArray())
+        root.put("portAssignments", ctrlPayload.optJSONObject("portAssignments") ?: JSONObject())
         root.put("updateInfo", serializeUpdateInfo(lastUpdateInfo))
         return root
     }
@@ -1065,6 +1070,93 @@ class StormNativeBridge(
     }
 
     @JavascriptInterface
+    fun getControllersStateJson(): String {
+        return MobileControllerProfileManager.buildControllersPayloadJson(appCtx).toString()
+    }
+
+    @JavascriptInterface
+    fun setControllerCaptureMode(enabled: Boolean) {
+        captureModeActive = enabled
+    }
+
+    @JavascriptInterface
+    fun setPortAssignmentJson(port: Int, target: String): Boolean {
+        val ok = MobileControllerProfileManager.setPortAssignment(port, target, appCtx)
+        if (ok) {
+            emitStormEvent("bootstrapUpdated", MobileControllerProfileManager.buildControllersPayloadJson(appCtx))
+        }
+        return ok
+    }
+
+    @JavascriptInterface
+    fun updateControllerButtonBindingJson(profileKey: String, retroName: String, keyCode: Int): Boolean {
+        val prof = MobileControllerProfileManager.getProfileByKey(profileKey, appCtx) ?: return false
+        prof.buttonBindings[retroName] = keyCode
+        val ok = MobileControllerProfileManager.saveProfile(prof, appCtx)
+        if (ok) {
+            emitStormEvent("bootstrapUpdated", MobileControllerProfileManager.buildControllersPayloadJson(appCtx))
+        }
+        return ok
+    }
+
+    @JavascriptInterface
+    fun updateControllerAxisBindingJson(profileKey: String, axisKey: String, axisCode: Int): Boolean {
+        val prof = MobileControllerProfileManager.getProfileByKey(profileKey, appCtx) ?: return false
+        prof.axisBindings[axisKey] = axisCode
+        val ok = MobileControllerProfileManager.saveProfile(prof, appCtx)
+        if (ok) {
+            emitStormEvent("bootstrapUpdated", MobileControllerProfileManager.buildControllersPayloadJson(appCtx))
+        }
+        return ok
+    }
+
+    @JavascriptInterface
+    fun updateControllerHotkeyBindingJson(profileKey: String, actionName: String, keyCode: Int): Boolean {
+        val prof = MobileControllerProfileManager.getProfileByKey(profileKey, appCtx) ?: return false
+        prof.hotkeyBindings[actionName] = keyCode
+        val ok = MobileControllerProfileManager.saveProfile(prof, appCtx)
+        if (ok) {
+            emitStormEvent("bootstrapUpdated", MobileControllerProfileManager.buildControllersPayloadJson(appCtx))
+        }
+        return ok
+    }
+
+    @JavascriptInterface
+    fun updateControllerTuningJson(profileKey: String, tuningJson: String): Boolean {
+        val prof = MobileControllerProfileManager.getProfileByKey(profileKey, appCtx) ?: return false
+        return try {
+            val obj = JSONObject(tuningJson)
+            if (obj.has("analogDeadzone")) {
+                prof.analogDeadzone = obj.optDouble("analogDeadzone", prof.analogDeadzone.toDouble()).toFloat().coerceIn(0.02f, 0.50f)
+            }
+            if (obj.has("steeringDeadzone")) {
+                prof.steeringDeadzone = obj.optDouble("steeringDeadzone", prof.steeringDeadzone.toDouble()).toFloat().coerceIn(0.0f, 0.30f)
+            }
+            if (obj.has("triggerThreshold")) {
+                prof.triggerThreshold = obj.optDouble("triggerThreshold", prof.triggerThreshold.toDouble()).toFloat().coerceIn(0.05f, 0.90f)
+            }
+            if (obj.has("chordModifier")) {
+                prof.chordModifier = obj.optString("chordModifier", prof.chordModifier)
+                prof.requireSelectForHotkeys = prof.chordModifier != MobileControllerProfileManager.CHORD_NONE
+            }
+            val ok = MobileControllerProfileManager.saveProfile(prof, appCtx)
+            if (ok) {
+                emitStormEvent("bootstrapUpdated", MobileControllerProfileManager.buildControllersPayloadJson(appCtx))
+            }
+            ok
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    @JavascriptInterface
+    fun resetControllerProfileJson(profileKey: String): Boolean {
+        val reset = MobileControllerProfileManager.resetProfileByKey(profileKey, appCtx) ?: return false
+        emitStormEvent("bootstrapUpdated", MobileControllerProfileManager.buildControllersPayloadJson(appCtx))
+        return reset.profileKey.isNotEmpty()
+    }
+
+    @JavascriptInterface
     fun saveControllerMappingJson(descriptor: String, mapJson: String): Boolean {
         return try {
             appCtx.getSharedPreferences(PREFS_STUDIO_UI, Context.MODE_PRIVATE)
@@ -1174,7 +1266,7 @@ class StormNativeBridge(
 
     @JavascriptInterface
     fun checkForUpdates() {
-        AutoUpdateHelper.checkForUpdateAsync("2.7.4") { info ->
+        AutoUpdateHelper.checkForUpdateAsync("2.7.5") { info ->
             lastUpdateInfo = info
             emitStormEvent("updateStatus", serializeUpdateInfo(info))
             emitToast(info.statusMessage)
@@ -1187,9 +1279,9 @@ class StormNativeBridge(
         if (!info.updateAvailable || info.apkDownloadUrl.isBlank()) {
             emitToast(
                 if (StormLocalization.currentLanguage == "ru") {
-                    "Установлена актуальная версия 2.7.4"
+                    "Установлена актуальная версия 2.7.5"
                 } else {
-                    "STORM RETROARCH 2.7.4 is up to date"
+                    "STORM RETROARCH 2.7.5 is up to date"
                 }
             )
             return
@@ -1563,18 +1655,8 @@ class StormNativeBridge(
     }
 
     fun serializeControllersArray(): JSONArray {
-        val arr = JSONArray()
-        val list = MobileControllerProfileManager.enumerateConnectedControllers(appCtx)
-        for ((idx, pad) in list.withIndex()) {
-            arr.put(
-                JSONObject()
-                    .put("descriptor", pad.profileKey)
-                    .put("name", pad.name)
-                    .put("port", idx + 1)
-                    .put("type", pad.controllerType)
-            )
-        }
-        return arr
+        return MobileControllerProfileManager.buildControllersPayloadJson(appCtx).optJSONArray("controllers")
+            ?: JSONArray()
     }
 
     private fun serializeUpdateInfo(info: MobileUpdateInfo): JSONObject {
@@ -1588,7 +1670,7 @@ class StormNativeBridge(
             .put("statusMessage", info.statusMessage)
     }
 
-    // === RetroAchievements, Netplay, AI Guide & Streaming 2.7.4 Methods ===
+    // === RetroAchievements, Netplay, AI Guide & Streaming 2.7.5 Methods ===
 
     private var textToSpeech: android.speech.tts.TextToSpeech? = null
 
@@ -1601,7 +1683,7 @@ class StormNativeBridge(
             val conn = URL(urlStr).openConnection() as HttpURLConnection
             conn.connectTimeout = timeoutMs
             conn.readTimeout = timeoutMs
-            conn.setRequestProperty("User-Agent", "STORM-RETROARCH/2.7.4 (Android; RetroAchievements Client)")
+            conn.setRequestProperty("User-Agent", "STORM-RETROARCH/2.7.5 (Android; RetroAchievements Client)")
             if (conn.responseCode in 200..299) {
                 conn.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
             } else null

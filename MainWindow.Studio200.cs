@@ -14,8 +14,8 @@ using System.Windows.Threading;
 namespace StormRetroArch;
 
 /// <summary>
-/// Phase 2 Modular UI, Virtualization, OSK &amp; Localization Integrator for STORM RETROARCH 2.7.4.
-/// Содержит всю новую логику версии 2.7.4: двуязычную экранную клавиатуру, live achievement toast,
+/// Phase 2 Modular UI, Virtualization, OSK &amp; Localization Integrator for STORM RETROARCH 2.7.5.
+/// Содержит всю новую логику версии 2.7.5: двуязычную экранную клавиатуру, live achievement toast,
 /// 10-футовую XInput-навигацию по UI, аппаратный стек (OpenGL HW, WASAPI 15мс, DRC), Rollback Netplay
 /// и динамическую 11-языковую локализацию всех меню.
 /// </summary>

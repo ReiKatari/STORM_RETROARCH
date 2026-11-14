@@ -203,11 +203,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private TaskCompletionSource<bool>? _alertTcs;
 
-    // Win32 UIPI Bypass & Drag-and-Drop
+    // Win32 UIPI Bypass & Drag-and-Drop & Hotplug
     private const int WM_DROPFILES = 0x0233;
+    private const int WM_DEVICECHANGE = 0x0219;
     private const int WM_COPYDATA = 0x004A;
     private const int WM_COPYGLOBALDATA = 0x0049;
     private const uint MSGFLT_ALLOW = 1;
+    private DispatcherTimer? _deviceChangeDebounceTimer;
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
@@ -319,7 +321,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         CmbStateSlot.SelectionChanged += CmbStateSlot_SelectionChanged;
         SettingItem.SettingChanged += OnLiveSettingChanged;
 
-        // 2.7.4 Instant Debounced Search Timer (35ms)
+        // 2.7.5 Instant Debounced Search Timer (35ms)
         _searchDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(35) };
         _searchDebounceTimer.Tick += (s, e) =>
         {
@@ -346,7 +348,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }));
         };
 
-        // 2.7.4 Multi-Device Input Engine & Controller Hotkey Studio
+        // 2.7.5 Multi-Device Input Engine & Controller Hotkey Studio
         DeviceInputProfileEngine.Initialize();
         DeviceInputProfileEngine.OnDeviceProfileActivated += (dev, msg) =>
         {
@@ -364,45 +366,58 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }));
         };
 
-        // 2.0.0 Live Gamepad Telemetry & Axis Tester Timer (65ms, active ONLY on ViewInputRemap)
+        // 2.0.0 Live Gamepad Telemetry & Axis Tester Timer (65ms, active ONLY on ViewInputRemap or InGamePadOverlay)
         _livePadTesterTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
             Interval = TimeSpan.FromMilliseconds(65)
         };
         _livePadTesterTimer.Tick += (s, e) =>
         {
-            if (ViewInputRemap == null || ViewInputRemap.Visibility != Visibility.Visible)
+            bool remapVisible = ViewInputRemap != null && ViewInputRemap.Visibility == Visibility.Visible;
+            bool overlayVisible = PnlInGamePadOverlay != null && PnlInGamePadOverlay.Visibility == Visibility.Visible;
+            if (!remapVisible && !overlayVisible)
             {
                 _livePadTesterTimer?.Stop();
                 return;
             }
             int port = Math.Max(0, _selectedRemapPlayerIndex - 1);
+            var portDev = DeviceInputProfileEngine.GetPort(port);
             var telemetry = NativeLibretroHost.PollGamepadTelemetry(port);
-            if (telemetry.Connected)
+            if (telemetry.Connected || portDev.IsKeyboardVirtual)
             {
-                int lx = (int)(telemetry.LeftStickX * 100);
-                int ly = (int)(telemetry.LeftStickY * 100);
-                int lt = (int)(telemetry.LeftTrigger * 100);
-                int rt = (int)(telemetry.RightTrigger * 100);
+                int lx = (int)Math.Round(telemetry.LeftStickX * 100);
+                int ly = (int)Math.Round(telemetry.LeftStickY * 100);
+                int rx = (int)Math.Round(telemetry.RightStickX * 100);
+                int ry = (int)Math.Round(telemetry.RightStickY * 100);
+                int lt = (int)Math.Round(telemetry.LeftTrigger * 100);
+                int rt = (int)Math.Round(telemetry.RightTrigger * 100);
                 if (TxtLivePadTelemetry != null)
                 {
-                    TxtLivePadTelemetry.Text = $"Подключён • Оси L:({lx}%, {ly}%) • LT:{lt}% RT:{rt}%";
+                    string devTag = string.IsNullOrWhiteSpace(portDev.DisplayName) ? $"Порт {port + 1}" : portDev.DisplayName;
+                    TxtLivePadTelemetry.Text = portDev.IsKeyboardVirtual
+                        ? $"{devTag} • Активен режим клавиатуры (Порт {port + 1})"
+                        : $"{devTag} • L:({lx}%, {ly}%) R:({rx}%, {ry}%) • LT/Газ:{lt}% RT/Тормоз:{rt}%";
                     TxtLivePadTelemetry.Foreground = (Brush)FindResource("ThemeAccentGlow");
                 }
-                if (!string.IsNullOrEmpty(telemetry.ActiveRetroButton) && telemetry.ActiveRetroButton != "None")
+                string? activeBtn = (!string.IsNullOrEmpty(telemetry.ActiveRetroButton) && telemetry.ActiveRetroButton != "None")
+                    ? telemetry.ActiveRetroButton
+                    : null;
+                if (remapVisible)
                 {
-                    UpdateControllerPreview(telemetry.ActiveRetroButton);
+                    string style = _selectedDeviceProfile?.FormFactor.ToString() ?? portDev.FormFactor.ToString();
+                    UpdateControllerPreviewChangeOnly(style, _selectedRemapPlayerIndex, activeBtn, telemetry.LeftStickX, telemetry.LeftStickY, telemetry.RightStickX, telemetry.RightStickY);
                 }
-                else
+                if (overlayVisible)
                 {
-                    UpdateControllerPreview(null);
+                    string style = _selectedDeviceProfile?.FormFactor.ToString() ?? portDev.FormFactor.ToString();
+                    UpdateOverlayArtChangeOnly(style, _selectedRemapPlayerIndex, activeBtn, telemetry.LeftStickX, telemetry.LeftStickY, telemetry.RightStickX, telemetry.RightStickY);
                 }
             }
             else
             {
                 if (TxtLivePadTelemetry != null)
                 {
-                    TxtLivePadTelemetry.Text = "Ожидание XInput геймпада...";
+                    TxtLivePadTelemetry.Text = $"Порт {port + 1}: контроллер не подключён (подключите геймпад/руль/стик или выберите Клавиатуру ПК)";
                     TxtLivePadTelemetry.Foreground = (Brush)FindResource("ThemeTextMuted");
                 }
             }
@@ -520,7 +535,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         IntPtr hwnd = helper.Handle;
         try
         {
-            SetWindowText(hwnd, Title ?? "STORM RETROARCH 2.7.4");
+            SetWindowText(hwnd, Title ?? "STORM RETROARCH 2.7.5");
             ChangeWindowMessageFilterEx(hwnd, WM_DROPFILES, MSGFLT_ALLOW, IntPtr.Zero);
             ChangeWindowMessageFilterEx(hwnd, WM_COPYDATA, MSGFLT_ALLOW, IntPtr.Zero);
             ChangeWindowMessageFilterEx(hwnd, WM_COPYGLOBALDATA, MSGFLT_ALLOW, IntPtr.Zero);
@@ -667,7 +682,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _isLoaded = true;
         LogCheckpoint("Before InitStudio200"); InitStudio200(); InitStudio210(); InitStudio220Subsystem(); InitStudio230Subsystem(); InitStudio260(); InitializeStreamAndAiControls(); LogCheckpoint("After InitStudio260");
 
-        // 2.7.4 Non-blocking background subsystem warmup (shaders, saves, BIOS, cheats, bezels, achievements, external emus)
+        // 2.7.5 Non-blocking background subsystem warmup (shaders, saves, BIOS, cheats, bezels, achievements, external emus)
         if (Environment.GetCommandLineArgs().Any(a => a.StartsWith("--screenshot", StringComparison.OrdinalIgnoreCase)))
             {
                 await HydrateSubsystemsInBackgroundAsync();
@@ -1419,6 +1434,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
             if (_isCapturingGamepadButton && !string.IsNullOrEmpty(_capturingButtonName))
             {
+                _wizardCaptureQueue.Clear();
+                _wizardCaptureIndex = -1;
                 CancelGamepadButtonCapture();
                 e.Handled = true;
                 return;
@@ -1507,7 +1524,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        if (!string.IsNullOrEmpty(_capturingHotkeyActionId))
+        if (!string.IsNullOrEmpty(_capturingHotkeyActionId) && !_isCapturingGamepadChord)
         {
             Key key = (e.Key == Key.System) ? e.SystemKey : e.Key;
             if (key != Key.LeftCtrl && key != Key.RightCtrl &&
@@ -1515,7 +1532,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 key != Key.LeftAlt && key != Key.RightAlt &&
                 key != Key.LWin && key != Key.RWin)
             {
-                HotkeyManager.SetBinding(_capturingHotkeyActionId, key);
+                HotkeyManager.SetBinding(_capturingHotkeyActionId, key, Keyboard.Modifiers);
+                DeviceInputProfileEngine.ApplyCompiledMapsToNativeHost();
                 CancelHotkeyCapture();
                 RefreshHotkeyBindings();
                 ShowOsdToast("Горячая клавиша назначена", "#10B981");
@@ -1524,25 +1542,30 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
         }
 
-        if (_isCapturingGamepadButton && !string.IsNullOrEmpty(_capturingButtonName))
+        if (_isCapturingGamepadButton && !_isCapturingPhysicalPadInput && !string.IsNullOrEmpty(_capturingButtonName))
         {
-            string retroKey = InputRemapManager.ConvertKeyToRetroArch(e.Key);
-            ApplyCapturedKey(retroKey);
-            e.Handled = true;
-            return;
+            Key capKey = (e.Key == Key.System) ? e.SystemKey : e.Key;
+            string retroKey = InputRemapManager.ConvertKeyToRetroArch(capKey);
+            if (!string.IsNullOrEmpty(retroKey) && retroKey != "nul")
+            {
+                ApplyCapturedKey(retroKey);
+                e.Handled = true;
+                return;
+            }
         }
 
         Key actualKey = (e.Key == Key.System) ? e.SystemKey : e.Key;
+        ModifierKeys activeMods = Keyboard.Modifiers;
 
         if (Keyboard.FocusedElement is not TextBox)
         {
-            if (HotkeyManager.Matches("quick_menu", actualKey))
+            if (HotkeyManager.Matches("quick_menu", actualKey, activeMods))
             {
                 ToggleInGameQuickMenu();
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("pause_toggle", actualKey))
+            if (HotkeyManager.Matches("pause_toggle", actualKey, activeMods))
             {
                 if (NativeLibretroHost.Current.IsRunning)
                 {
@@ -1552,13 +1575,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("reset_game", actualKey))
+            if (HotkeyManager.Matches("reset_game", actualKey, activeMods))
             {
                 BtnGameReset_Click(sender, e);
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("state_slot_next", actualKey))
+            if (HotkeyManager.Matches("state_slot_next", actualKey, activeMods))
             {
                 int nextSlot = Math.Min(9, NativeLibretroHost.Current.ActiveStateSlot + 1);
                 NativeLibretroHost.Current.ActiveStateSlot = nextSlot;
@@ -1568,7 +1591,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("state_slot_prev", actualKey))
+            if (HotkeyManager.Matches("state_slot_prev", actualKey, activeMods))
             {
                 int nextSlot = Math.Max(0, NativeLibretroHost.Current.ActiveStateSlot - 1);
                 NativeLibretroHost.Current.ActiveStateSlot = nextSlot;
@@ -1578,61 +1601,61 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("save_state", actualKey))
+            if (HotkeyManager.Matches("save_state", actualKey, activeMods))
             {
                 BtnGameSaveState_Click(sender, e);
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("load_state", actualKey))
+            if (HotkeyManager.Matches("load_state", actualKey, activeMods))
             {
                 BtnGameLoadState_Click(sender, e);
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("game_screen", actualKey))
+            if (HotkeyManager.Matches("game_screen", actualKey, activeMods))
             {
                 BtnNavGamePlayer_Click(sender, e);
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("instant_replay", actualKey))
+            if (HotkeyManager.Matches("instant_replay", actualKey, activeMods))
             {
                 TriggerInstantReplaySave();
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("screenshot", actualKey))
+            if (HotkeyManager.Matches("screenshot", actualKey, activeMods))
             {
                 BtnGameScreenshot_Click(sender, e);
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("shader_next", actualKey) || HotkeyManager.Matches("shader_cycle", actualKey))
+            if (HotkeyManager.Matches("shader_next", actualKey, activeMods) || HotkeyManager.Matches("shader_cycle", actualKey, activeMods))
             {
                 BtnGameShader_Click(sender, e);
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("bezel_toggle", actualKey))
+            if (HotkeyManager.Matches("bezel_toggle", actualKey, activeMods))
             {
                 BtnGameBezel_Click(sender, e);
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("bigbox_mode", actualKey))
+            if (HotkeyManager.Matches("bigbox_mode", actualKey, activeMods))
             {
                 ToggleBigBoxMode();
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("fullscreen_toggle", actualKey) || HotkeyManager.Matches("fullscreen", actualKey))
+            if (HotkeyManager.Matches("fullscreen_toggle", actualKey, activeMods) || HotkeyManager.Matches("fullscreen", actualKey, activeMods))
             {
                 BtnGameFullscreen_Click(sender, e);
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("frame_advance", actualKey))
+            if (HotkeyManager.Matches("frame_advance", actualKey, activeMods))
             {
                 if (ViewGamePlayer != null && ViewGamePlayer.Visibility == Visibility.Visible)
                 {
@@ -1642,25 +1665,25 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("rewind_hold", actualKey))
+            if (HotkeyManager.Matches("rewind_hold", actualKey, activeMods))
             {
                 BtnGameRewind_Click(sender, e);
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("fast_forward_hold", actualKey) || HotkeyManager.Matches("fast_forward_toggle", actualKey) || HotkeyManager.Matches("fast_forward", actualKey))
+            if (HotkeyManager.Matches("fast_forward_hold", actualKey, activeMods) || HotkeyManager.Matches("fast_forward_toggle", actualKey, activeMods) || HotkeyManager.Matches("fast_forward", actualKey, activeMods))
             {
                 BtnGameFastForward_Click(sender, e);
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("audio_mute", actualKey) || HotkeyManager.Matches("mute_audio", actualKey))
+            if (HotkeyManager.Matches("audio_mute", actualKey, activeMods) || HotkeyManager.Matches("mute_audio", actualKey, activeMods))
             {
                 BtnGameMute_Click(sender, e);
                 e.Handled = true;
                 return;
             }
-            if (HotkeyManager.Matches("osk_toggle", actualKey))
+            if (HotkeyManager.Matches("osk_toggle", actualKey, activeMods))
             {
                 BtnHudToggleOsk_Click(sender, e);
                 e.Handled = true;
@@ -1939,6 +1962,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 break;
             case "osk_toggle":
                 BtnHudToggleOsk_Click(this, new RoutedEventArgs());
+                break;
+            case "game_screen":
+                BtnNavGamePlayer_Click(this, new RoutedEventArgs());
+                break;
+            case "bigbox_mode":
+                ToggleBigBoxMode();
                 break;
         }
     }
@@ -2255,9 +2284,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _activeNavView = "InputRemap";
             ViewInputRemap.Visibility = Visibility.Visible;
+            DeviceInputProfileEngine.PollDevicesAndHotplug();
             SyncGamepadStudioControls();
+            PopulateDeviceProfilesDropdown();
+            PopulatePortDeviceAssignDropdown();
             RefreshHotkeyBindings();
-            LoadRemapBindings(1);
+            LoadRemapBindings(_selectedRemapPlayerIndex);
             _livePadTesterTimer?.Start();
         }
         else if (btn == NavBtnAchievements)
@@ -3326,7 +3358,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (!match) continue;
             }
 
-            // 2.0.0 / 2.7.4 Smart Collections filter
+            // 2.0.0 / 2.7.5 Smart Collections filter
             if (_selectedSmartCollection == "Избранное")
             {
                 if (!g.IsFavorite) continue;
@@ -4299,6 +4331,20 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             });
 
             handled = true;
+        }
+        if (msg == WM_DEVICECHANGE)
+        {
+            if (_deviceChangeDebounceTimer == null)
+            {
+                _deviceChangeDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(260) };
+                _deviceChangeDebounceTimer.Tick += (_, _) =>
+                {
+                    _deviceChangeDebounceTimer.Stop();
+                    DeviceInputProfileEngine.PollDevicesAndHotplug();
+                };
+            }
+            _deviceChangeDebounceTimer.Stop();
+            _deviceChangeDebounceTimer.Start();
         }
         return IntPtr.Zero;
     }
@@ -5961,17 +6007,181 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     // ==================== INPUT REMAP (PORTS 1-8) ====================
 
+    private readonly List<RemapButtonBinding> _allPortRemapBindings = new();
+    private string _remapCategoryFilter = "all";
+
     private void LoadRemapBindings(int playerIndex)
     {
-        _selectedRemapPlayerIndex = playerIndex;
-        var bindings = InputRemapManager.CreateDefaultBindings(playerIndex);
-        _currentRemapBindings.ReplaceAll(bindings);
+        _selectedRemapPlayerIndex = Math.Clamp(playerIndex, 1, 8);
+        int portIdx = _selectedRemapPlayerIndex - 1;
+        var portDev = DeviceInputProfileEngine.GetPort(portIdx);
+        DeviceInputProfile? profile = portDev.Profile;
+        if (profile == null && !portDev.IsKeyboardVirtual && portDev.InstanceKey != "none")
+        {
+            profile = _selectedDeviceProfile;
+        }
+
+        BindingLayer? layer = null;
+        if (profile != null)
+        {
+            layer = GetSelectedEditingLayer(profile);
+        }
+
+        InputDeviceFormFactor ff = portDev.IsConnected
+            ? portDev.FormFactor
+            : (_selectedDeviceProfile?.FormFactor ?? InputDeviceFormFactor.XboxGamepad);
+
+        var bindings = InputRemapManager.CreateUnifiedStudioBindings(_selectedRemapPlayerIndex, profile, layer, ff, includeAnalog: true);
+        _allPortRemapBindings.Clear();
+        _allPortRemapBindings.AddRange(bindings);
+
+        ApplyRemapCategoryFilter();
+        PopulatePortDeviceAssignDropdown();
+
+        if (PnlPlayerPortChips != null)
+        {
+            int idx = 1;
+            foreach (var child in PnlPlayerPortChips.Children)
+            {
+                if (child is Button b && b.Content?.ToString()?.StartsWith("Игрок") == true)
+                {
+                    b.Tag = (idx == _selectedRemapPlayerIndex) ? "Active" : null;
+                    idx++;
+                }
+            }
+        }
+
         UpdateControllerPreview();
+    }
+
+    private void ApplyRemapCategoryFilter()
+    {
+        IEnumerable<RemapButtonBinding> filtered = _remapCategoryFilter switch
+        {
+            "buttons" => _allPortRemapBindings.Where(b => !b.IsAnalogAxis),
+            "analog" => _allPortRemapBindings.Where(b => b.IsAnalogAxis),
+            _ => _allPortRemapBindings
+        };
+        _currentRemapBindings.ReplaceAll(filtered.ToList());
+    }
+
+    private void PopulatePortDeviceAssignDropdown()
+    {
+        if (CmbPortDeviceAssign == null) return;
+        int portIdx = Math.Clamp(_selectedRemapPlayerIndex - 1, 0, 7);
+
+        string currentAssign = "auto";
+        if (SettingsManager.Current?.PortDeviceAssignments != null &&
+            SettingsManager.Current.PortDeviceAssignments.TryGetValue(portIdx, out var savedAssign) &&
+            !string.IsNullOrWhiteSpace(savedAssign))
+        {
+            currentAssign = savedAssign;
+        }
+
+        _suppressInputUiSync = true;
+        try
+        {
+            CmbPortDeviceAssign.Items.Clear();
+            CmbPortDeviceAssign.Items.Add(new ComboBoxItem { Tag = "auto", Content = "Автоматически (По приоритету)" });
+            CmbPortDeviceAssign.Items.Add(new ComboBoxItem { Tag = "KBD", Content = "Клавиатура ПК (Локальный игрок)" });
+            CmbPortDeviceAssign.Items.Add(new ComboBoxItem { Tag = "none", Content = "Отключён (Пустой порт)" });
+
+            var rawDevs = DeviceInputProfileEngine.GetRawHardwareDevices();
+            foreach (var dev in rawDevs)
+            {
+                if (dev.IsKeyboardVirtual) continue;
+                string proto = dev.IsXInput ? "XInput" : "WinMM/HID";
+                string label = $"{dev.DisplayName} [{proto}]";
+                CmbPortDeviceAssign.Items.Add(new ComboBoxItem { Tag = dev.InstanceKey, Content = label });
+            }
+
+            int selIndex = 0;
+            for (int i = 0; i < CmbPortDeviceAssign.Items.Count; i++)
+            {
+                if (CmbPortDeviceAssign.Items[i] is ComboBoxItem ci &&
+                    string.Equals(ci.Tag?.ToString(), currentAssign, StringComparison.OrdinalIgnoreCase))
+                {
+                    selIndex = i;
+                    break;
+                }
+            }
+            CmbPortDeviceAssign.SelectedIndex = selIndex;
+        }
+        finally
+        {
+            _suppressInputUiSync = false;
+        }
+    }
+
+    private void CmbPortDeviceAssign_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressInputUiSync || CmbPortDeviceAssign?.SelectedItem is not ComboBoxItem ci) return;
+        int portIdx = Math.Clamp(_selectedRemapPlayerIndex - 1, 0, 7);
+        string assignKey = ci.Tag?.ToString() ?? "auto";
+        DeviceInputProfileEngine.SetPortAssignment(portIdx, assignKey);
+
+        var portDev = DeviceInputProfileEngine.GetPort(portIdx);
+        if (portDev.Profile != null)
+        {
+            SelectDeviceProfileByName(portDev.Profile.DisplayName);
+        }
+        LoadRemapBindings(_selectedRemapPlayerIndex);
+        ShowOsdToast($"Порт {_selectedRemapPlayerIndex}: назначено устройство «{ci.Content}»", "#38BDF8");
+    }
+
+    private void BtnFilterRemapCategory_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+        if (btn == BtnFilterRemapButtons) _remapCategoryFilter = "buttons";
+        else if (btn == BtnFilterRemapAxes) _remapCategoryFilter = "analog";
+        else _remapCategoryFilter = "all";
+
+        if (BtnFilterRemapAll != null) BtnFilterRemapAll.Tag = _remapCategoryFilter == "all" ? "Active" : null;
+        if (BtnFilterRemapButtons != null) BtnFilterRemapButtons.Tag = _remapCategoryFilter == "buttons" ? "Active" : null;
+        if (BtnFilterRemapAxes != null) BtnFilterRemapAxes.Tag = _remapCategoryFilter == "analog" ? "Active" : null;
+
+        ApplyRemapCategoryFilter();
+    }
+
+    private void SaveRemapListIntoPortAndProfile(int portIdx, DeviceInputProfile profile, BindingLayer layer)
+    {
+        SettingsManager.Current.PlayerKeyboardBindings ??= new Dictionary<int, Dictionary<int, string>>();
+        if (!SettingsManager.Current.PlayerKeyboardBindings.TryGetValue(portIdx, out var kbdMap))
+        {
+            kbdMap = new Dictionary<int, string>();
+            SettingsManager.Current.PlayerKeyboardBindings[portIdx] = kbdMap;
+        }
+
+        foreach (var b in _allPortRemapBindings)
+        {
+            int retroId = b.RetroId >= 0 ? b.RetroId : ButtonNameToRetroId(b.ButtonName);
+            if (retroId < 0) continue;
+
+            string keyVal = string.IsNullOrWhiteSpace(b.BoundKey) ? "nul" : b.BoundKey.Trim();
+            kbdMap[retroId] = keyVal;
+
+            if (string.IsNullOrWhiteSpace(b.BoundBtn) || b.BoundBtn.Equals("None", StringComparison.OrdinalIgnoreCase) || b.BoundBtn == "-")
+            {
+                if (retroId >= 100) layer.AnalogBindings.Remove(retroId);
+                else layer.JoypadBindings.Remove(retroId);
+            }
+        }
+
+        SettingsManager.Save();
+        InputRemapManager.SaveBindingsToConfig(_allPortRemapBindings);
+    }
+
+    private void TxtRemapManual_LostFocus(object sender, RoutedEventArgs e)
+    {
+        int portIdx = Math.Clamp(_selectedRemapPlayerIndex - 1, 0, 7);
+        var (profile, layer) = GetPortEditingProfileAndLayer(portIdx);
+        SaveRemapListIntoPortAndProfile(portIdx, profile, layer);
+        DeviceInputProfileEngine.ApplyCompiledMapsToNativeHost();
     }
 
     private void CmbControllerPlatformProfile_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (!_isLoaded) return;
+        if (!_isLoaded || _suppressInputUiSync) return;
         UpdateControllerPreview();
     }
 
@@ -5980,13 +6190,23 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (ImgRealisticController == null) return;
         try
         {
-            string selected = CmbControllerPlatformProfile?.SelectedItem?.ToString() ?? "SNES";
+            int portIdx = Math.Clamp(_selectedRemapPlayerIndex - 1, 0, 7);
+            var portDev = DeviceInputProfileEngine.GetPort(portIdx);
+            string selected = CmbControllerPlatformProfile?.SelectedItem?.ToString()
+                ?? ControllerArtRenderer.FormFactorToProfileName(portDev.FormFactor);
             if (selected.StartsWith("Авто", StringComparison.OrdinalIgnoreCase))
             {
-                string? currentCore = NativeLibretroHost.Current.IsRunning ? NativeLibretroHost.Current.CurrentCoreName : (_selectedCoreProfile?.CoreName);
-                selected = ControllerArtRenderer.MapPlatformToControllerProfile(currentCore);
+                if (portDev.IsConnected)
+                {
+                    selected = ControllerArtRenderer.FormFactorToProfileName(portDev.FormFactor);
+                }
+                else
+                {
+                    string? currentCore = NativeLibretroHost.Current.IsRunning ? NativeLibretroHost.Current.CurrentCoreName : (_selectedCoreProfile?.CoreName);
+                    selected = ControllerArtRenderer.MapPlatformToControllerProfile(currentCore);
+                }
             }
-            ImgRealisticController.Source = ControllerArtRenderer.RenderController(selected, _selectedRemapPlayerIndex, activeKey);
+            UpdateControllerPreviewChangeOnly(selected, _selectedRemapPlayerIndex, activeKey);
         }
         catch { }
     }
@@ -6006,8 +6226,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void BtnDetectXInput_Click(object sender, RoutedEventArgs e)
     {
-        ShowOsdToast("Обнаружен контроллер XInput. Привязки обновлены.");
+        DeviceInputProfileEngine.PollDevicesAndHotplug();
+        PopulateDeviceProfilesDropdown();
         LoadRemapBindings(_selectedRemapPlayerIndex);
+        ShowOsdToast("Устройства ввода просканированы, привязки обновлены.", "#10B981");
     }
 
     private void BtnPlayerPort_Click(object sender, RoutedEventArgs e)
@@ -6032,19 +6254,28 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         else if (txt.Contains("7")) port = 7;
         else if (txt.Contains("8")) port = 8;
 
+        var portDev = DeviceInputProfileEngine.GetPort(port - 1);
+        if (portDev.Profile != null)
+        {
+            SelectDeviceProfileByName(portDev.Profile.DisplayName);
+        }
         LoadRemapBindings(port);
     }
 
     private void BtnSaveInputRemap_Click(object sender, RoutedEventArgs e)
     {
-        InputRemapManager.SaveBindingsToConfig(_currentRemapBindings);
-        ShowNotification("STORM RETROARCH", $"Назначения кнопок для Игрока {_selectedRemapPlayerIndex} успешно сохранены в retroarch.cfg!");
+        int portIdx = Math.Clamp(_selectedRemapPlayerIndex - 1, 0, 7);
+        var (profile, layer) = GetPortEditingProfileAndLayer(portIdx);
+        SaveRemapListIntoPortAndProfile(portIdx, profile, layer);
+        DeviceInputProfileEngine.SaveProfile(profile);
+        DeviceInputProfileEngine.ApplyCompiledMapsToNativeHost();
+        ShowNotification("STORM RETROARCH", $"Назначения кнопок для Игрока {_selectedRemapPlayerIndex} успешно сохранены!");
     }
 
     private void BtnExportRemap_Click(object sender, RoutedEventArgs e)
     {
         string coreName = _selectedCoreProfile?.CoreName ?? "RetroPad";
-        InputRemapManager.ExportRemapFile(coreName, _currentRemapBindings);
+        InputRemapManager.ExportRemapFile(coreName, _allPortRemapBindings.Count > 0 ? _allPortRemapBindings : _currentRemapBindings);
         ShowNotification("STORM RETROARCH", $"Файл переназначения remaps/{coreName}/{coreName}.rmp успешно экспортирован!");
     }
 
@@ -6058,7 +6289,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         };
         if (dlg.ShowDialog() == true)
         {
-            InputRemapManager.ImportRemapFile(dlg.FileName, _currentRemapBindings);
+            var list = _allPortRemapBindings.Count > 0 ? (IEnumerable<RemapButtonBinding>)_allPortRemapBindings : _currentRemapBindings;
+            InputRemapManager.ImportRemapFile(dlg.FileName, list);
+            ApplyRemapCategoryFilter();
+            int portIdx = Math.Clamp(_selectedRemapPlayerIndex - 1, 0, 7);
+            var (profile, layer) = GetPortEditingProfileAndLayer(portIdx);
+            SaveRemapListIntoPortAndProfile(portIdx, profile, layer);
+            DeviceInputProfileEngine.ApplyCompiledMapsToNativeHost();
             ShowNotification("STORM RETROARCH", $"Переназначение из {Path.GetFileName(dlg.FileName)} загружено!");
             UpdateControllerPreview();
         }
@@ -6066,8 +6303,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void BtnResetInputRemap_Click(object sender, RoutedEventArgs e)
     {
-        LoadRemapBindings(_selectedRemapPlayerIndex);
-        ShowNotification("STORM RETROARCH", $"Кнопки Игрока {_selectedRemapPlayerIndex} сброшены на стандартные.");
+        BtnResetPortBinds_Click(sender, e);
     }
 
     // ==================== RETROACHIEVEMENTS STUDIO ====================
@@ -7999,21 +8235,196 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         if (sender is Button btn && btn.Tag is string btnName)
         {
-            Border? b = FindPadBorderByName(btnName);
-            StartGamepadButtonCapture(btnName, b);
+            _wizardCaptureQueue.Clear();
+            _wizardCaptureIndex = -1;
+            StartKeyboardButtonCapture(btnName, FindPadBorderByName(btnName));
         }
+    }
+
+    private void BtnCapturePadInput_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string btnName)
+        {
+            _wizardCaptureQueue.Clear();
+            _wizardCaptureIndex = -1;
+            StartGamepadButtonCapture(btnName, FindPadBorderByName(btnName));
+        }
+    }
+
+    private void BtnClearRemapBind_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string btnName) return;
+        int portIdx = Math.Clamp(_selectedRemapPlayerIndex - 1, 0, 7);
+        int retroId = ButtonNameToRetroId(btnName);
+
+        var binding = _allPortRemapBindings.FirstOrDefault(b => b.ButtonName.Equals(btnName, StringComparison.OrdinalIgnoreCase))
+                   ?? _currentRemapBindings.FirstOrDefault(b => b.ButtonName.Equals(btnName, StringComparison.OrdinalIgnoreCase));
+        if (binding != null)
+        {
+            binding.BoundKey = "nul";
+            binding.BoundBtn = "None";
+        }
+
+        if (retroId >= 0)
+        {
+            SettingsManager.Current.PlayerKeyboardBindings ??= new Dictionary<int, Dictionary<int, string>>();
+            if (!SettingsManager.Current.PlayerKeyboardBindings.TryGetValue(portIdx, out var kbdMap))
+            {
+                kbdMap = new Dictionary<int, string>();
+                SettingsManager.Current.PlayerKeyboardBindings[portIdx] = kbdMap;
+            }
+            kbdMap[retroId] = "nul";
+            SettingsManager.Save();
+
+            var (profile, layer) = GetPortEditingProfileAndLayer(portIdx);
+            if (retroId >= 100) layer.AnalogBindings.Remove(retroId);
+            else layer.JoypadBindings.Remove(retroId);
+            DeviceInputProfileEngine.SaveProfile(profile);
+            DeviceInputProfileEngine.ApplyCompiledMapsToNativeHost();
+        }
+
+        ShowOsdToast($"Порт {_selectedRemapPlayerIndex}: канал [{btnName.ToUpperInvariant()}] очищен");
+    }
+
+    private void BtnStartBindWizard_Click(object sender, RoutedEventArgs e)
+    {
+        CancelHotkeyCapture();
+        CancelGamepadButtonCapture();
+
+        var items = _currentRemapBindings.ToList();
+        if (items.Count == 0) return;
+
+        int portIdx = Math.Clamp(_selectedRemapPlayerIndex - 1, 0, 7);
+        var portDev = DeviceInputProfileEngine.GetPort(portIdx);
+        _wizardCaptureQueue = items.Select(b => b.ButtonName).ToList();
+        _wizardCaptureIndex = 0;
+        _wizardCaptureForKeyboard = portDev.IsKeyboardVirtual || !portDev.IsConnected;
+
+        string firstBtn = _wizardCaptureQueue[0];
+        if (_wizardCaptureForKeyboard)
+            StartKeyboardButtonCapture(firstBtn);
+        else
+            StartGamepadButtonCapture(firstBtn);
+    }
+
+    private void AdvanceBindWizardIfActive()
+    {
+        if (_wizardCaptureQueue.Count == 0 || _wizardCaptureIndex < 0) return;
+        _wizardCaptureIndex++;
+        if (_wizardCaptureIndex >= _wizardCaptureQueue.Count)
+        {
+            _wizardCaptureQueue.Clear();
+            _wizardCaptureIndex = -1;
+            if (BadgeGamepadCapture != null) BadgeGamepadCapture.Visibility = Visibility.Visible;
+            if (TxtGamepadCaptureStatus != null)
+            {
+                TxtGamepadCaptureStatus.Text = $"Пошаговый мастер Порта {_selectedRemapPlayerIndex} завершён!";
+                TxtGamepadCaptureStatus.Foreground = GetFrozenBrush("#10B981");
+            }
+            ShowOsdToast($"Все кнопки Порта {_selectedRemapPlayerIndex} настроены!", "#10B981");
+            return;
+        }
+
+        string nextBtn = _wizardCaptureQueue[_wizardCaptureIndex];
+        if (_wizardCaptureForKeyboard)
+            StartKeyboardButtonCapture(nextBtn);
+        else
+            StartGamepadButtonCapture(nextBtn);
+    }
+
+    private void BtnAutoBindPort_Click(object sender, RoutedEventArgs e)
+    {
+        DeviceInputProfileEngine.PollDevicesAndHotplug();
+        int portIdx = Math.Clamp(_selectedRemapPlayerIndex - 1, 0, 7);
+        var portDev = DeviceInputProfileEngine.GetPort(portIdx);
+
+        if (portDev.Profile != null)
+        {
+            var fresh = DeviceInputProfileEngine.CreateDefaultProfileForFormFactor(
+                portDev.DeviceId, portDev.DisplayName, portDev.FormFactor, portDev.VendorId, portDev.ProductId);
+            if (_activeCoreScope == "Global")
+            {
+                portDev.Profile.GlobalLayer = fresh.GlobalLayer;
+            }
+            else
+            {
+                portDev.Profile.CoreLayers[_activeCoreScope] = fresh.GlobalLayer;
+            }
+            DeviceInputProfileEngine.SaveProfile(portDev.Profile);
+        }
+
+        DeviceInputProfileEngine.ApplyCompiledMapsToNativeHost();
+        LoadRemapBindings(_selectedRemapPlayerIndex);
+        ShowOsdToast($"Порт {_selectedRemapPlayerIndex}: автопривязка «{portDev.DisplayName}» ({portDev.FormFactor}) применена!", "#10B981");
+    }
+
+    private void BtnResetPortBinds_Click(object sender, RoutedEventArgs e)
+    {
+        int portIdx = Math.Clamp(_selectedRemapPlayerIndex - 1, 0, 7);
+        if (SettingsManager.Current.PlayerKeyboardBindings != null &&
+            SettingsManager.Current.PlayerKeyboardBindings.Remove(portIdx))
+        {
+            SettingsManager.Save();
+        }
+
+        var portDev = DeviceInputProfileEngine.GetPort(portIdx);
+        var (profile, _) = GetPortEditingProfileAndLayer(portIdx);
+        var fresh = DeviceInputProfileEngine.CreateDefaultProfileForFormFactor(
+            profile.DeviceId, profile.DisplayName, portDev.IsConnected ? portDev.FormFactor : profile.FormFactor, profile.VendorId, profile.ProductId);
+        if (_activeCoreScope == "Global")
+        {
+            profile.GlobalLayer = fresh.GlobalLayer;
+        }
+        else
+        {
+            profile.CoreLayers[_activeCoreScope] = fresh.GlobalLayer;
+        }
+        DeviceInputProfileEngine.SaveProfile(profile);
+        DeviceInputProfileEngine.ApplyCompiledMapsToNativeHost();
+        LoadRemapBindings(_selectedRemapPlayerIndex);
+        ShowOsdToast($"Порт {_selectedRemapPlayerIndex}: все назначения сброшены на стандартные.", "#38BDF8");
     }
 
     private Border? FindPadBorderByName(string btnName) => null;
 
+    private void StartKeyboardButtonCapture(string btnName, Border? border = null)
+    {
+        _capturingHotkeyActionId = null;
+        _isCapturingGamepadChord = false;
+        _physicalCaptureTimer.Stop();
+
+        _isCapturingGamepadButton = true;
+        _isCapturingPhysicalPadInput = false;
+        _capturingButtonName = btnName;
+
+        string wizardTag = (_wizardCaptureQueue.Count > 0 && _wizardCaptureIndex >= 0)
+            ? $"Мастер ({_wizardCaptureIndex + 1}/{_wizardCaptureQueue.Count}) • "
+            : "";
+
+        if (BadgeGamepadCapture != null)
+        {
+            BadgeGamepadCapture.Visibility = Visibility.Visible;
+            BadgeGamepadCapture.Background = GetFrozenBrush("#308B5CF6");
+            BadgeGamepadCapture.BorderBrush = GetFrozenBrush("#8B5CF6");
+        }
+        if (TxtGamepadCaptureStatus != null)
+        {
+            TxtGamepadCaptureStatus.Text = $"{wizardTag}Нажмите клавишу клавиатуры для [{btnName.ToUpperInvariant()}]... (ESC - отмена)";
+            TxtGamepadCaptureStatus.Foreground = (Brush)FindResource("ThemeTextPrimary");
+        }
+    }
+
     private void StartGamepadButtonCapture(string btnName, Border? border = null)
     {
+        _capturingHotkeyActionId = null;
+        _isCapturingGamepadChord = false;
         _isCapturingGamepadButton = true;
+        _isCapturingPhysicalPadInput = true;
         _capturingButtonName = btnName;
 
         if (_activePadButtonBorder != null)
         {
-            _activePadButtonBorder.BorderBrush = (Brush)new BrushConverter().ConvertFrom("#8B5CF6")!;
+            _activePadButtonBorder.BorderBrush = GetFrozenBrush("#8B5CF6");
         }
 
         border ??= FindPadBorderByName(btnName);
@@ -8021,64 +8432,98 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         if (_activePadButtonBorder != null)
         {
-            _activePadButtonBorder.BorderBrush = (Brush)new BrushConverter().ConvertFrom("#38BDF8")!;
+            _activePadButtonBorder.BorderBrush = GetFrozenBrush("#38BDF8");
         }
+
+        string wizardTag = (_wizardCaptureQueue.Count > 0 && _wizardCaptureIndex >= 0)
+            ? $"Мастер ({_wizardCaptureIndex + 1}/{_wizardCaptureQueue.Count}) • "
+            : "";
 
         if (BadgeGamepadCapture != null)
         {
-            BadgeGamepadCapture.Background = (Brush)new BrushConverter().ConvertFrom("#3038BDF8")!;
-            BadgeGamepadCapture.BorderBrush = (Brush)new BrushConverter().ConvertFrom("#38BDF8")!;
+            BadgeGamepadCapture.Visibility = Visibility.Visible;
+            BadgeGamepadCapture.Background = GetFrozenBrush("#3038BDF8");
+            BadgeGamepadCapture.BorderBrush = GetFrozenBrush("#38BDF8");
         }
 
         if (TxtGamepadCaptureStatus != null)
         {
-            TxtGamepadCaptureStatus.Text = $"Нажмите кнопку геймпада/стика или клавишу для [{btnName.ToUpper()}]... (ESC - отмена)"; _physicalCaptureTimer?.Start();
-            TxtGamepadCaptureStatus.Foreground = (Brush)new BrushConverter().ConvertFrom("#38BDF8")!;
+            TxtGamepadCaptureStatus.Text = $"{wizardTag}Нажмите кнопку, триггер или поверните руль/ось для [{btnName.ToUpperInvariant()}]... (ESC - отмена)";
+            TxtGamepadCaptureStatus.Foreground = (Brush)FindResource("ThemeTextPrimary");
         }
+
+        DeviceInputProfileEngine.BeginInputCaptureSnapshot();
+        _physicalCaptureTimer?.Start();
     }
 
     private void CancelGamepadButtonCapture()
     {
-        _isCapturingGamepadButton = false; _physicalCaptureTimer?.Stop();
+        _isCapturingGamepadButton = false;
+        _isCapturingPhysicalPadInput = false;
+        _physicalCaptureTimer?.Stop();
         _capturingButtonName = "";
 
         if (_activePadButtonBorder != null)
         {
-            _activePadButtonBorder.BorderBrush = (Brush)new BrushConverter().ConvertFrom("#8B5CF6")!;
+            _activePadButtonBorder.BorderBrush = GetFrozenBrush("#8B5CF6");
             _activePadButtonBorder = null;
         }
 
+        if (BadgeGamepadCapture != null)
+        {
+            BadgeGamepadCapture.Visibility = Visibility.Collapsed;
+        }
         if (TxtGamepadCaptureStatus != null)
         {
-            TxtGamepadCaptureStatus.Text = "Назначение отменено. Кликните кнопку для выбора.";
-            TxtGamepadCaptureStatus.Foreground = (Brush)new BrushConverter().ConvertFrom("#94A3B8")!;
+            TxtGamepadCaptureStatus.Text = "Назначение отменено.";
+            TxtGamepadCaptureStatus.Foreground = (Brush)FindResource("ThemeTextMuted");
         }
     }
 
     private void ApplyCapturedKey(string retroKey)
     {
-        var binding = _currentRemapBindings.FirstOrDefault(b => b.ButtonName.Equals(_capturingButtonName, StringComparison.OrdinalIgnoreCase));
+        int portIdx = Math.Clamp(_selectedRemapPlayerIndex - 1, 0, 7);
+        int retroId = ButtonNameToRetroId(_capturingButtonName);
+
+        var binding = _allPortRemapBindings.FirstOrDefault(b => b.ButtonName.Equals(_capturingButtonName, StringComparison.OrdinalIgnoreCase))
+                   ?? _currentRemapBindings.FirstOrDefault(b => b.ButtonName.Equals(_capturingButtonName, StringComparison.OrdinalIgnoreCase));
         if (binding != null)
         {
             binding.BoundKey = retroKey;
-            InputRemapManager.SaveBindingsToConfig(_currentRemapBindings);
+            if (retroId >= 0)
+            {
+                SettingsManager.Current.PlayerKeyboardBindings ??= new Dictionary<int, Dictionary<int, string>>();
+                if (!SettingsManager.Current.PlayerKeyboardBindings.TryGetValue(portIdx, out var kbdMap))
+                {
+                    kbdMap = new Dictionary<int, string>();
+                    SettingsManager.Current.PlayerKeyboardBindings[portIdx] = kbdMap;
+                }
+                kbdMap[retroId] = retroKey;
+                SettingsManager.Save();
+            }
+
+            InputRemapManager.SaveBindingsToConfig(_allPortRemapBindings.Count > 0 ? _allPortRemapBindings : _currentRemapBindings);
+            DeviceInputProfileEngine.ApplyCompiledMapsToNativeHost();
 
             if (_activePadButtonBorder != null)
             {
-                _activePadButtonBorder.BorderBrush = (Brush)new BrushConverter().ConvertFrom("#10B981")!;
+                _activePadButtonBorder.BorderBrush = GetFrozenBrush("#10B981");
             }
 
             if (TxtGamepadCaptureStatus != null)
             {
-                TxtGamepadCaptureStatus.Text = $"Назначено: [{binding.DisplayLabel}] -> «{retroKey}»";
-                TxtGamepadCaptureStatus.Foreground = (Brush)new BrushConverter().ConvertFrom("#6EE7B7")!;
+                TxtGamepadCaptureStatus.Text = $"Порт {_selectedRemapPlayerIndex}: [{binding.DisplayLabel}] -> «{retroKey}»";
+                TxtGamepadCaptureStatus.Foreground = (Brush)FindResource("ThemeTextPrimary");
             }
 
-            ShowNotification("STORM RETROARCH", $"Кнопка {binding.DisplayLabel} назначена на клавишу «{retroKey}»");
+            ShowOsdToast($"Порт {_selectedRemapPlayerIndex}: {binding.DisplayLabel} -> «{retroKey}»", "#10B981");
         }
 
         _isCapturingGamepadButton = false;
+        _isCapturingPhysicalPadInput = false;
         _capturingButtonName = "";
+
+        AdvanceBindWizardIfActive();
     }
 
     // ==================== SHADERS PACKAGE DOWNLOAD ====================
@@ -10154,9 +10599,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (sender is Button btn && btn.Tag is HotkeyBindingItem item)
         {
             _capturingHotkeyActionId = item.ActionId;
+            _isCapturingGamepadChord = false;
             if (BadgeHotkeyCapture != null) BadgeHotkeyCapture.Visibility = Visibility.Visible;
             if (TxtHotkeyCaptureStatus != null)
                 TxtHotkeyCaptureStatus.Text = $"Нажмите клавишу для «{item.Title}» (ESC для отмены)...";
+        }
+        else if (sender is Button btn2 && btn2.Tag is string btnName)
+        {
+            StartGamepadButtonCapture(btnName, FindPadBorderByName(btnName));
         }
     }
 
@@ -10423,23 +10873,54 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             ChkAmbiluxGlow.IsChecked = SettingsManager.Current.AmbiluxGlowEnabled;
     }
 
-    // ==================== 2.0.0 GAMEPAD DEADZONE, TRIGGER & TURBO STUDIO ====================
+    // ==================== 2.0.0 GAMEPAD DEADZONE, STEERING, TRIGGER & TURBO STUDIO ====================
     private void SliderAnalogDeadzone_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (!_isLoaded || SliderAnalogDeadzone == null) return;
+        if (!_isLoaded || _suppressInputUiSync || SliderAnalogDeadzone == null) return;
         int dz = (int)Math.Round(SliderAnalogDeadzone.Value);
         if (TxtAnalogDeadzoneVal != null) TxtAnalogDeadzoneVal.Text = $"{dz}%";
         SettingsManager.Current.AnalogDeadzonePercent = dz;
         SettingsManager.Save();
+
+        if (_selectedDeviceProfile != null)
+        {
+            var layer = GetSelectedEditingLayer(_selectedDeviceProfile);
+            layer.AnalogDeadzonePercent = dz;
+            DeviceInputProfileEngine.SaveProfile(_selectedDeviceProfile);
+            DeviceInputProfileEngine.ApplyCompiledMapsToNativeHost();
+        }
+    }
+
+    private void SliderSteeringDeadzone_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (!_isLoaded || _suppressInputUiSync || SliderSteeringDeadzone == null) return;
+        int sdz = (int)Math.Round(SliderSteeringDeadzone.Value);
+        if (TxtSteeringDeadzoneVal != null) TxtSteeringDeadzoneVal.Text = $"{sdz}%";
+
+        if (_selectedDeviceProfile != null)
+        {
+            var layer = GetSelectedEditingLayer(_selectedDeviceProfile);
+            layer.SteeringDeadzonePercent = sdz;
+            DeviceInputProfileEngine.SaveProfile(_selectedDeviceProfile);
+            DeviceInputProfileEngine.ApplyCompiledMapsToNativeHost();
+        }
     }
 
     private void SliderTriggerThreshold_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (!_isLoaded || SliderTriggerThreshold == null) return;
+        if (!_isLoaded || _suppressInputUiSync || SliderTriggerThreshold == null) return;
         int th = (int)Math.Round(SliderTriggerThreshold.Value);
         if (TxtTriggerThresholdVal != null) TxtTriggerThresholdVal.Text = $"{th}%";
         SettingsManager.Current.TriggerThresholdPercent = th;
         SettingsManager.Save();
+
+        if (_selectedDeviceProfile != null)
+        {
+            var layer = GetSelectedEditingLayer(_selectedDeviceProfile);
+            layer.TriggerThresholdPercent = th;
+            DeviceInputProfileEngine.SaveProfile(_selectedDeviceProfile);
+            DeviceInputProfileEngine.ApplyCompiledMapsToNativeHost();
+        }
     }
 
     private void ChkRumbleEnabled_Click(object sender, RoutedEventArgs e)
@@ -10447,14 +10928,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         bool enabled = ChkRumbleEnabled.IsChecked == true;
         SettingsManager.Current.RumbleEnabled = enabled;
         SettingsManager.Save();
-        ShowOsdToast($"Виброотдача XInput: {(enabled ? "ВКЛ" : "ВЫКЛ")}");
+        ShowOsdToast($"Виброотдача / Force Feedback: {(enabled ? "ВКЛ" : "ВЫКЛ")}");
     }
 
     private void BtnTestRumble_Click(object sender, RoutedEventArgs e)
     {
         int port = Math.Max(0, _selectedRemapPlayerIndex - 1);
         NativeLibretroHost.TriggerTestRumble(port, 380);
-        ShowOsdToast($"Тест виброотдачи геймпада (Порт {_selectedRemapPlayerIndex})...");
+        ShowOsdToast($"Тест виброотдачи контроллера (Порт {_selectedRemapPlayerIndex})...");
     }
 
     private void ChkTurboButtons_Click(object sender, RoutedEventArgs e)
@@ -10482,37 +10963,51 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void SyncGamepadStudioControls()
     {
-        if (SliderAnalogDeadzone != null)
+        _suppressInputUiSync = true;
+        try
         {
-            int dz = Math.Clamp(SettingsManager.Current.AnalogDeadzonePercent, 5, 40);
-            SliderAnalogDeadzone.Value = dz;
-            if (TxtAnalogDeadzoneVal != null) TxtAnalogDeadzoneVal.Text = $"{dz}%";
-        }
-        if (SliderTriggerThreshold != null)
-        {
-            int th = Math.Clamp(SettingsManager.Current.TriggerThresholdPercent, 5, 50);
-            SliderTriggerThreshold.Value = th;
-            if (TxtTriggerThresholdVal != null) TxtTriggerThresholdVal.Text = $"{th}%";
-        }
-        if (ChkRumbleEnabled != null)
-        {
-            ChkRumbleEnabled.IsChecked = SettingsManager.Current.RumbleEnabled;
-        }
-        if (ChkTurboButtons != null)
-        {
-            ChkTurboButtons.IsChecked = SettingsManager.Current.TurboButtonsEnabled;
-        }
-        if (CmbTurboFireHz != null)
-        {
-            int hz = SettingsManager.Current.TurboFireHz;
-            int idx = hz switch
+            if (SliderAnalogDeadzone != null)
             {
-                5 => 0,
-                10 => 1,
-                30 => 3,
-                _ => 2
-            };
-            CmbTurboFireHz.SelectedIndex = idx;
+                int dz = Math.Clamp(SettingsManager.Current.AnalogDeadzonePercent, 5, 40);
+                SliderAnalogDeadzone.Value = dz;
+                if (TxtAnalogDeadzoneVal != null) TxtAnalogDeadzoneVal.Text = $"{dz}%";
+            }
+            if (SliderSteeringDeadzone != null)
+            {
+                int sdz = Math.Clamp(_selectedDeviceProfile?.GlobalLayer.SteeringDeadzonePercent ?? 3, 0, 25);
+                SliderSteeringDeadzone.Value = sdz;
+                if (TxtSteeringDeadzoneVal != null) TxtSteeringDeadzoneVal.Text = $"{sdz}%";
+            }
+            if (SliderTriggerThreshold != null)
+            {
+                int th = Math.Clamp(SettingsManager.Current.TriggerThresholdPercent, 5, 50);
+                SliderTriggerThreshold.Value = th;
+                if (TxtTriggerThresholdVal != null) TxtTriggerThresholdVal.Text = $"{th}%";
+            }
+            if (ChkRumbleEnabled != null)
+            {
+                ChkRumbleEnabled.IsChecked = SettingsManager.Current.RumbleEnabled;
+            }
+            if (ChkTurboButtons != null)
+            {
+                ChkTurboButtons.IsChecked = SettingsManager.Current.TurboButtonsEnabled;
+            }
+            if (CmbTurboFireHz != null)
+            {
+                int hz = SettingsManager.Current.TurboFireHz;
+                int idx = hz switch
+                {
+                    5 => 0,
+                    10 => 1,
+                    30 => 3,
+                    _ => 2
+                };
+                CmbTurboFireHz.SelectedIndex = idx;
+            }
+        }
+        finally
+        {
+            _suppressInputUiSync = false;
         }
     }
 

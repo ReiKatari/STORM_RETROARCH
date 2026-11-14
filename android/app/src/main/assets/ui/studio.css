@@ -2800,7 +2800,7 @@ body, button, input, select, textarea {
   transition: font-family 0.18s ease, color 0.18s ease;
 }
 
-/* 2.7.4 Zero-Truncation Anti-Clip Guarantees */
+/* 2.7.5 Zero-Truncation Anti-Clip Guarantees */
 .btn-3d,
 .btn-3d > span,
 .bento-tile-head,
@@ -2828,7 +2828,7 @@ body, button, input, select, textarea {
   padding: 10px 24px;
 }
 
-/* ==================== 2.7.4 FIXED-SLOT METADATA, FOLDER MANAGER & MEDIA LIGHTBOX ==================== */
+/* ==================== 2.7.5 FIXED-SLOT METADATA, FOLDER MANAGER & MEDIA LIGHTBOX ==================== */
 .game-fixed-meta-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3225,4 +3225,157 @@ body, button, input, select, textarea {
   align-items: flex-start;
   opacity: 0.65;
   filter: grayscale(0.7);
+}
+
+/* ==========================================================================
+   2.7.5: UNIVERSAL CONTROLLER STUDIO & 8-PORT ROUTER (THEME + 412PX SAFE)
+   ========================================================================== */
+.ctrl-device-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.14s ease;
+}
+
+.ctrl-device-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.ctrl-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+}
+
+.ctrl-subtab-btn {
+  flex: 1 1 auto;
+  min-width: 82px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.ctrl-subtab-btn.active {
+  background: var(--accent);
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 2px 10px var(--accent-glow);
+}
+
+.ctrl-capture-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(139, 92, 246, 0.16);
+  border: 1px solid var(--accent);
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.ctrl-bind-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ctrl-bind-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 11px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+.ctrl-bind-row.listening {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.ctrl-bind-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.ctrl-bind-name {
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ctrl-bind-val {
+  font-size: 0.70rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ctrl-bind-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.port-router-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 9px 11px;
+  border-radius: 11px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+}
+
+@media (max-width: 520px) {
+  .ctrl-bind-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ctrl-subtab-btn {
+    min-width: 46%;
+  }
+  .port-router-row .select-3d {
+    width: 100%;
+    min-width: 100%;
+  }
 }
