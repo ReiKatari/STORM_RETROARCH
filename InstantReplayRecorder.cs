@@ -110,7 +110,15 @@ public sealed class InstantReplayRecorder
     /// <summary>
     /// Экспортирует последние 30 секунд геймплея в MP4 или анимированный GIF в фоновом режиме.
     /// </summary>
-    public async Task<(bool Success, string OutputPath, int FrameCount, string MessageRu)> SaveLast30SecondsAsync(string gameName)
+    public Task<(bool Success, string OutputPath, int FrameCount, string MessageRu)> SaveLast30SecondsAsync(string gameName)
+    {
+        return SaveLast30SecondsAsync(gameName, null, null);
+    }
+
+    /// <summary>
+    /// Экспортирует последние 30 секунд геймплея в MP4 или анимированный GIF с сохранением по структурированному пути.
+    /// </summary>
+    public async Task<(bool Success, string OutputPath, int FrameCount, string MessageRu)> SaveLast30SecondsAsync(string gameName, string? platform, string? romPath)
     {
         int snapshotCount;
         byte[][] framesSnapshot;
@@ -137,10 +145,9 @@ public sealed class InstantReplayRecorder
         {
             try
             {
-                string recDir = Path.Combine(SettingsManager.AppRootDir, "recordings");
-                if (!Directory.Exists(recDir)) Directory.CreateDirectory(recDir);
+                string recDir = MediaPathResolver.GetVideoSaveDir(platform, gameName, romPath);
 
-                string safeName = string.Join("_", (string.IsNullOrWhiteSpace(gameName) ? "Gameplay" : gameName).Split(Path.GetInvalidFileNameChars()));
+                string safeName = MediaPathResolver.CleanGameTitleForFolder(gameName);
                 string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
 
                 string? ffmpegPath = FindFfmpegExecutable();

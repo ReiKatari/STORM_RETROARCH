@@ -107,8 +107,7 @@ public partial class MainWindow
                 var shaders = ShaderManager.GetAllShaders();
                 var saves = SaveManager.ScanSavesAndStates();
                 var bios = BiosManager.InspectSystemDirectory();
-                BezelManager.EnsureBuiltinBezels();
-                var bezels = BezelManager.ScanBezels();
+                var bezels = BezelManager.ScanBezelsAsync(false).GetAwaiter().GetResult();
                 var cheevos = AchievementsManager.ScanLibraryGamesForCheevos(gamesSnapshot);
                 CheatManager.CleanupDuplicateAndSampleCheats(gamesSnapshot);
                 var cheats = CheatManager.ScanCheats(gamesSnapshot);

@@ -13,7 +13,7 @@ using Microsoft.Win32;
 namespace StormRetroArch;
 
 /// <summary>
-/// Phase 2.7.2 Studio UI, Hardware GPU Engine, Universal Bezel and Mega Bezel Integrator.
+/// Phase 2.7.3 Studio UI, Hardware GPU Engine, Universal Bezel and Mega Bezel Integrator.
 /// </summary>
 public partial class MainWindow
 {
@@ -279,7 +279,7 @@ public partial class MainWindow
                 packId, progress, onStatus, _megaBezelInstallCts.Token);
 
             RefreshMegaBezelHubStatus();
-            LoadBezels();
+            await LoadBezelsAsync(forceReload: true);
             ShowNotification(ok ? "Mega Bezel установлен" : "Ошибка установки Mega Bezel", msg);
         }
         catch (OperationCanceledException)
@@ -304,7 +304,7 @@ public partial class MainWindow
         if (TxtMegaBezelInstallProgress != null) TxtMegaBezelInstallProgress.Text = "Отмена загрузки...";
     }
 
-    private void BtnValidateMegaBezel_Click(object sender, RoutedEventArgs e)
+    private async void BtnValidateMegaBezel_Click(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -312,7 +312,7 @@ public partial class MainWindow
             if (TxtMegaBezelValidationSummary != null)
                 TxtMegaBezelValidationSummary.Text = report.SummaryMessage;
             RefreshMegaBezelHubStatus();
-            LoadBezels();
+            await LoadBezelsAsync(forceReload: true);
             ShowNotification("Проверка пакетов Mega Bezel", report.SummaryMessage);
         }
         catch (Exception ex)
@@ -359,7 +359,7 @@ public partial class MainWindow
                 packId, dlg.FileName, progress, onStatus, _megaBezelInstallCts.Token);
 
             RefreshMegaBezelHubStatus();
-            LoadBezels();
+            _ = LoadBezelsAsync(forceReload: true);
             ShowNotification(ok ? "Импорт завершён" : "Ошибка импорта", msg);
         }
         catch (Exception ex)
@@ -421,6 +421,17 @@ public partial class MainWindow
                 }));
 
             RefreshCoresUi();
+        }
+
+        // Ensure clean no-filter default before checking per-game overrides
+        string defPreset = LiveVisualEffectsEngine.NormalizeShaderId(SettingsManager.Current.ActiveShaderPreset);
+        if (defPreset == "none")
+        {
+            ApplyShaderPresetStudio270("none", "Без фильтра");
+        }
+        if (BdrAmbiluxAmbientGlow != null)
+        {
+            BdrAmbiluxAmbientGlow.Visibility = SettingsManager.Current.AmbiluxGlowEnabled ? Visibility.Visible : Visibility.Collapsed;
         }
 
         // Apply per-game profile override if any

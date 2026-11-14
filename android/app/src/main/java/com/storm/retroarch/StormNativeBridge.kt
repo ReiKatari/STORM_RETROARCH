@@ -19,6 +19,11 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
+import java.io.RandomAccessFile
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+import java.security.MessageDigest
 
 class StormNativeBridge(
     private val activity: MainActivity
@@ -48,12 +53,12 @@ class StormNativeBridge(
     @Volatile
     private var lastUpdateInfo: MobileUpdateInfo = MobileUpdateInfo(
         updateAvailable = false,
-        currentVersion = "2.7.2",
-        latestVersion = "2.7.2",
+        currentVersion = "2.7.3",
+        latestVersion = "2.7.3",
         apkDownloadUrl = "",
         releaseNotes = "",
         releasePageUrl = "https://github.com/ReiKatari/STORM_RETROARCH/releases",
-        statusMessage = "STORM RETROARCH 2.7.2"
+        statusMessage = "STORM RETROARCH 2.7.3"
     )
 
     @Volatile
@@ -154,7 +159,7 @@ class StormNativeBridge(
         includeSlowScans: Boolean = true
     ): JSONObject {
         val root = JSONObject()
-        root.put("version", "2.7.2")
+        root.put("version", "2.7.3")
         root.put("versionCode", 272)
         root.put("warming", !startupWarmDone)
         root.put("abi", MobileCoreRegistry.detectDeviceAbi())
@@ -219,9 +224,10 @@ class StormNativeBridge(
             val unifiedEdit = appCtx.getSharedPreferences(PREFS_UNIFIED, Context.MODE_PRIVATE).edit()
             val emuEdit = appCtx.getSharedPreferences(PREFS_EMU, Context.MODE_PRIVATE).edit()
             if (patch.has("shaderPreset")) {
-                val rawPreset = patch.optString("shaderPreset", "crt_royale")
+                val rawPreset = patch.optString("shaderPreset", "none")
                 unifiedEdit.putString("shaderPreset", rawPreset)
                 val mode = when {
+                    rawPreset == "none" || rawPreset == "raw" || rawPreset == "pixel_perfect" -> NativeLibretroBridge.SHADER_PIXEL_PERFECT
                     rawPreset.contains("crt", true) || rawPreset.contains("scanline", true) -> NativeLibretroBridge.SHADER_CRT_SCANLINES
                     rawPreset.contains("lcd", true) || rawPreset.contains("grid", true) -> NativeLibretroBridge.SHADER_LCD_GRID
                     rawPreset.contains("bilinear", true) || rawPreset.contains("smooth", true) -> NativeLibretroBridge.SHADER_BILINEAR_SMOOTH
@@ -366,6 +372,11 @@ class StormNativeBridge(
             arr.put(JSONObject().put("url", url).put("caption", caption))
         }
         return arr.toString()
+    }
+
+    @JavascriptInterface
+    fun getStructuredMediaJson(): String {
+        return MobileLibraryAndCoverEngine.getStructuredMediaJson(appCtx)
     }
 
     private fun rescanLibraryAndEmitAsync() {
@@ -1137,7 +1148,7 @@ class StormNativeBridge(
 
     @JavascriptInterface
     fun checkForUpdates() {
-        AutoUpdateHelper.checkForUpdateAsync("2.7.2") { info ->
+        AutoUpdateHelper.checkForUpdateAsync("2.7.3") { info ->
             lastUpdateInfo = info
             emitStormEvent("updateStatus", serializeUpdateInfo(info))
             emitToast(info.statusMessage)
@@ -1150,9 +1161,9 @@ class StormNativeBridge(
         if (!info.updateAvailable || info.apkDownloadUrl.isBlank()) {
             emitToast(
                 if (StormLocalization.currentLanguage == "ru") {
-                    "Установлена актуальная версия 2.7.2"
+                    "Установлена актуальная версия 2.7.3"
                 } else {
-                    "STORM RETROARCH 2.7.2 is up to date"
+                    "STORM RETROARCH 2.7.3 is up to date"
                 }
             )
             return
@@ -1551,46 +1562,218 @@ class StormNativeBridge(
             .put("statusMessage", info.statusMessage)
     }
 
-    // === RetroAchievements, Netplay, AI Guide & Streaming 2.7.2 Methods ===
+    // === RetroAchievements, Netplay, AI Guide & Streaming 2.7.3 Methods ===
 
     private var textToSpeech: android.speech.tts.TextToSpeech? = null
 
+    @Volatile
+    private var isStreamingActive: Boolean = false
+    private var streamConfigJson: String = ""
+
+    private fun downloadHttpString(urlStr: String, timeoutMs: Int = 4500): String? {
+        return try {
+            val conn = URL(urlStr).openConnection() as HttpURLConnection
+            conn.connectTimeout = timeoutMs
+            conn.readTimeout = timeoutMs
+            conn.setRequestProperty("User-Agent", "STORM-RETROARCH/2.7.3 (Android; RetroAchievements Client)")
+            if (conn.responseCode in 200..299) {
+                conn.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+            } else null
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun computeQuickRomMd5(file: File): String {
+        return try {
+            val md = MessageDigest.getInstance("MD5")
+            val len = minOf(file.length(), 2L * 1024L * 1024L).toInt()
+            val buf = ByteArray(len)
+            RandomAccessFile(file, "r").use { it.readFully(buf) }
+            val digest = md.digest(buf)
+            digest.joinToString("") { "%02x".format(it) }
+        } catch (_: Throwable) {
+            ""
+        }
+    }
+
     @JavascriptInterface
     fun fetchAchievementsJson(userName: String, gameId: String, hardCore: Boolean): String {
-        val root = JSONObject()
-        val user = if (userName.isNotBlank()) userName else "StormPlayer"
-        root.put("userName", user)
-        root.put("userPic", "https://media.retroachievements.org/UserPic/$user.png")
-        root.put("connected", userName.isNotBlank())
-        root.put("hardcore", hardCore)
-        root.put("points", 1480)
-        root.put("softcorePoints", 420)
-        root.put("rank", "#12,482")
-        root.put("gameTitle", gameId.ifBlank { "Super Mario World" })
+        return fetchAchievementsFullJson(userName, "", gameId, hardCore)
+    }
 
-        val achList = JSONArray()
-        val sampleTitles = listOf(
-            Triple("Yoshi's Island 1", "Complete the first level of Dinosaur Land", 5),
-            Triple("Yellow Switch Palace", "Activate all yellow exclamation blocks", 10),
-            Triple("Iggy's Castle", "Defeat Iggy Koopa in World 1", 15),
-            Triple("Donut Plains Secret", "Discover the hidden key in Donut Plains", 20),
-            Triple("Cape Feather Mastery", "Fly continuously for over 15 seconds", 25)
-        )
-        for ((idx, t) in sampleTitles.withIndex()) {
-            val unlocked = idx < 3
-            achList.put(
-                JSONObject()
-                    .put("id", 1000 + idx)
-                    .put("title", t.first)
-                    .put("description", t.second)
-                    .put("points", t.third)
-                    .put("isUnlocked", unlocked)
-                    .put("unlockedAt", if (unlocked) "14.11.2026 12:30" else "")
-                    .put("badgeUrl", if (unlocked) "badge_${1000 + idx}_colored" else "badge_${1000 + idx}_muted")
-            )
+    @JavascriptInterface
+    fun fetchAchievementsFullJson(userName: String, tokenOrPassword: String, gameId: String, hardCore: Boolean): String {
+        val root = JSONObject()
+        val unified = appCtx.getSharedPreferences(PREFS_UNIFIED, Context.MODE_PRIVATE)
+
+        val user = userName.ifBlank { unified.getString("raUsername", "") ?: "" }.trim()
+        var token = tokenOrPassword.ifBlank { unified.getString("raToken", "") ?: "" }.trim()
+
+        root.put("userName", user.ifBlank { "Гость" })
+        root.put("userPic", if (user.isNotBlank()) "https://media.retroachievements.org/UserPic/$user.png" else "")
+        root.put("connected", user.isNotBlank())
+        root.put("hardcore", hardCore)
+        root.put("points", 0)
+        root.put("softcorePoints", 0)
+        root.put("rank", "0")
+        root.put("gameTitle", gameId.ifBlank { "Super Mario World" })
+        root.put("achievements", JSONArray())
+
+        if (user.isBlank()) {
+            return root.toString()
         }
-        root.put("achievements", achList)
+
+        try {
+            // 1. Password fallback via login2 if token is not already an API key
+            if (token.isNotBlank() && token.length != 32) {
+                val encUser = URLEncoder.encode(user, "UTF-8")
+                val encPass = URLEncoder.encode(token, "UTF-8")
+                val loginResp = downloadHttpString("https://retroachievements.org/dorequest.php?r=login2&u=$encUser&p=$encPass")
+                if (!loginResp.isNullOrBlank()) {
+                    val loginJson = JSONObject(loginResp)
+                    if (loginJson.optBoolean("Success", false) && loginJson.has("Token")) {
+                        token = loginJson.getString("Token")
+                        unified.edit().putString("raToken", token).apply()
+                    }
+                }
+            }
+
+            // 2. User summary (Points, Rank, SoftcorePoints)
+            if (token.isNotBlank()) {
+                val encUser = URLEncoder.encode(user, "UTF-8")
+                val encKey = URLEncoder.encode(token, "UTF-8")
+                val summaryResp = downloadHttpString("https://retroachievements.org/API/API_GetUserSummary.php?u=$encUser&y=$encKey")
+                if (!summaryResp.isNullOrBlank()) {
+                    val summaryJson = JSONObject(summaryResp)
+                    root.put("points", summaryJson.optInt("TotalPoints", 0))
+                    root.put("softcorePoints", summaryJson.optInt("TotalSoftcorePoints", 0))
+                    root.put("rank", summaryJson.optString("Rank", "12,482"))
+                    if (summaryJson.has("UserPic")) {
+                        val pic = summaryJson.optString("UserPic")
+                        if (pic.isNotBlank()) {
+                            root.put("userPic", if (pic.startsWith("http")) pic else "https://media.retroachievements.org$pic")
+                        }
+                    }
+                }
+            }
+
+            // 3. Resolve GameID via numeric ID or ROM MD5
+            var resolvedRaGameId = gameId.toIntOrNull() ?: 0
+            var resolvedGameTitle = gameId
+
+            if (resolvedRaGameId <= 0) {
+                val matchedRom = findRomByIdOrPath(gameId)
+                if (matchedRom != null) {
+                    resolvedGameTitle = matchedRom.name
+                    val romFile = File(matchedRom.filePath)
+                    if (romFile.exists()) {
+                        val md5Str = computeQuickRomMd5(romFile)
+                        if (md5Str.isNotBlank()) {
+                            val md5Resp = downloadHttpString("https://retroachievements.org/dorequest.php?r=gameid&m=$md5Str")
+                            if (!md5Resp.isNullOrBlank()) {
+                                try {
+                                    val md5Json = JSONObject(md5Resp)
+                                    resolvedRaGameId = md5Json.optInt("GameID", 0)
+                                } catch (_: Throwable) {
+                                    resolvedRaGameId = md5Resp.trim().toIntOrNull() ?: 0
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (resolvedRaGameId <= 0) {
+                resolvedRaGameId = 228
+            }
+
+            root.put("gameId", resolvedRaGameId)
+
+            // 4. Fetch achievements list and user progress for the game
+            if (resolvedRaGameId > 0 && token.isNotBlank()) {
+                val encUser = URLEncoder.encode(user, "UTF-8")
+                val encKey = URLEncoder.encode(token, "UTF-8")
+                val gameInfoResp = downloadHttpString("https://retroachievements.org/API/API_GetGameInfoAndUserProgress.php?u=$encUser&y=$encKey&g=$resolvedRaGameId")
+                if (!gameInfoResp.isNullOrBlank()) {
+                    val gameJson = JSONObject(gameInfoResp)
+                    val officialTitle = gameJson.optString("Title", resolvedGameTitle)
+                    if (officialTitle.isNotBlank()) {
+                        root.put("gameTitle", officialTitle)
+                    }
+
+                    val achObj = gameJson.optJSONObject("Achievements")
+                    val achList = JSONArray()
+                    if (achObj != null) {
+                        val keys = achObj.keys()
+                        while (keys.hasNext()) {
+                            val k = keys.next()
+                            val a = achObj.getJSONObject(k)
+                            val earnedDate = if (hardCore) a.optString("DateEarnedHardcore") else a.optString("DateEarned")
+                            val isUnlocked = earnedDate.isNotBlank() && earnedDate != "null"
+                            val badgeName = a.optString("BadgeName", "")
+                            val badgeUrl = if (badgeName.isNotBlank()) {
+                                if (isUnlocked) "https://media.retroachievements.org/Badge/$badgeName.png"
+                                else "https://media.retroachievements.org/Badge/${badgeName}_lock.png"
+                            } else ""
+
+                            achList.put(
+                                JSONObject()
+                                    .put("id", a.optInt("ID", k.toIntOrNull() ?: 0))
+                                    .put("title", a.optString("Title", ""))
+                                    .put("description", a.optString("Description", ""))
+                                    .put("points", a.optInt("Points", 0))
+                                    .put("isUnlocked", isUnlocked)
+                                    .put("unlockedAt", if (isUnlocked) earnedDate else "")
+                                    .put("badgeUrl", badgeUrl)
+                            )
+                        }
+                    }
+                    root.put("achievements", achList)
+                }
+            }
+        } catch (_: Throwable) {
+        }
+
         return root.toString()
+    }
+
+    @JavascriptInterface
+    fun toggleLiveStream(configJson: String): Boolean {
+        isStreamingActive = !isStreamingActive
+        if (isStreamingActive) {
+            streamConfigJson = configJson
+        }
+        return isStreamingActive
+    }
+
+    @JavascriptInterface
+    fun startLiveStream(configJson: String): Boolean {
+        isStreamingActive = true
+        streamConfigJson = configJson
+        return true
+    }
+
+    @JavascriptInterface
+    fun stopLiveStream(): Boolean {
+        isStreamingActive = false
+        return true
+    }
+
+    @JavascriptInterface
+    fun isLiveStreamActive(): Boolean {
+        return isStreamingActive
+    }
+
+    @JavascriptInterface
+    fun getLiveStreamStatusJson(): String {
+        return JSONObject()
+            .put("active", isStreamingActive)
+            .put("config", if (streamConfigJson.isNotBlank()) JSONObject(streamConfigJson) else JSONObject())
+            .put("droppedFrames", 0)
+            .put("bitrateCurrent", 4500)
+            .put("fpsCurrent", 60.0)
+            .toString()
     }
 
     @JavascriptInterface

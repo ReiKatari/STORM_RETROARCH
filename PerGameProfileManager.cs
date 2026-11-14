@@ -12,8 +12,8 @@ public class PerGameOverrideProfile
     public string GameName { get; set; } = string.Empty;
     public string PreferredCoreDll { get; set; } = string.Empty;
     public string ShaderPresetName { get; set; } = string.Empty;
-    public double Scanlines { get; set; } = 0.32;
-    public double Mask { get; set; } = 0.20;
+    public double Scanlines { get; set; } = 0.0;
+    public double Mask { get; set; } = 0.0;
     public double Curvature { get; set; } = 0.0;
     public string BezelName { get; set; } = string.Empty;
     public string AspectMode { get; set; } = "Core";
@@ -113,8 +113,8 @@ public static class PerGameProfileManager
                 GameName = game.Name,
                 PreferredCoreDll = !string.IsNullOrEmpty(game.CoreDll) ? game.CoreDll : (s?.GameCoreOverrides.GetValueOrDefault(game.Name) ?? ""),
                 ShaderPresetName = s?.ShaderScanlineIntensity > 0 ? "Пользовательский ЭЛТ" : "Чистый",
-                Scanlines = host?.ScanlineIntensity ?? (s?.ShaderScanlineIntensity ?? 0.32),
-                Mask = host?.MaskIntensity ?? (s?.ShaderMaskIntensity ?? 0.20),
+                Scanlines = host?.ScanlineIntensity ?? (s?.ShaderScanlineIntensity ?? 0.0),
+                Mask = host?.MaskIntensity ?? (s?.ShaderMaskIntensity ?? 0.0),
                 Curvature = host?.CurvatureIntensity ?? (s?.ShaderCurvature ?? 0.0),
                 BezelName = BezelManager.GetActiveBezel()?.Name ?? "",
                 AspectMode = aspectStr,

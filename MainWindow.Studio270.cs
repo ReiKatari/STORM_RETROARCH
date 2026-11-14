@@ -21,11 +21,11 @@ using System.Windows.Threading;
 namespace StormRetroArch;
 
 /// <summary>
-/// STORM RETROARCH 2.7.2 Studio Integrator:
+/// STORM RETROARCH 2.7.3 Studio Integrator:
 /// - 2-row studio in-game HUD toolbar with direct ComboBox dropdown controls
 /// - Real-time LiveVisualEffectsEngine shader and bezel overlays
 /// - Dynamic font, theme, accent, and language synchronization with 140ms ease-out transitions
-/// - RetroAchievements 2.7.2 profile banner and visual card deck (unlocked full-color vs locked grayscale)
+/// - RetroAchievements 2.7.3 profile banner and visual card deck (unlocked full-color vs locked grayscale)
 /// - Rollback Netplay relay ping, room code generation (STORM-XXXX-XXXX) and LAN discovery
 /// - AI Vision Walkthrough with screenshot analysis and fast speech synthesis
 /// - Streaming telemetry and FFmpeg process bridge
@@ -33,12 +33,17 @@ namespace StormRetroArch;
 /// </summary>
 public partial class MainWindow
 {
-    // ==================== 1. HUD & STUDIO 2.7.2 STATE ====================
+    // ==================== 1. HUD & STUDIO 2.7.3 STATE ====================
     private bool _isStudio270Initialized = false;
     private DispatcherTimer? _streamingTelemetryTimer;
     private CancellationTokenSource? _aiAskCts;
     private CancellationTokenSource? _netplayPingCts;
     private readonly ObservableCollection<AchievementCardItem> _studioCheevosCards = new();
+    private List<AchievementCardItem> _allLoadedCheevosCards = new();
+    private string _cheevosCardFilter = "ALL";
+    private string _selectedCheevosGameTitle = "";
+    private string _selectedCheevosGamePath = "";
+    private string _selectedCheevosGamePlatform = "";
     private string _activeCoreFilterStatus = "ALL";
 
     // Compatibility TextBlock labels for older HUD references in MainWindow.xaml.cs
@@ -65,8 +70,8 @@ public partial class MainWindow
             ItemsCheevosCards.ItemsSource = _studioCheevosCards;
         }
 
-        // 4. Update Window Title to 2.7.2
-        Title = "STORM RETROARCH 2.7.2";
+        // 4. Update Window Title to 2.7.3
+        Title = "STORM RETROARCH 2.7.3";
     }
 
     private void InitHudDropdowns()
@@ -413,7 +418,7 @@ public partial class MainWindow
         element.BeginAnimation(UIElement.OpacityProperty, anim);
     }
 
-    // ==================== 5. ACHIEVEMENTS STUDIO 2.7.2 ====================
+    // ==================== 5. ACHIEVEMENTS STUDIO 2.7.3 ====================
     public async Task RefreshAchievementsStudio270Async()
     {
         try
@@ -438,30 +443,49 @@ public partial class MainWindow
                 if (TxtCheevosPoints != null) TxtCheevosPoints.Text = $"{profile.TotalPoints} Очков ({profile.SoftcorePoints} Softcore)";
                 if (TxtCheevosRank != null) TxtCheevosRank.Text = profile.RankText;
 
-                // User avatar
-                if (ImgCheevosUserAvatar != null && !string.IsNullOrWhiteSpace(profile.AvatarUrl))
+                // User avatar (prefer locally cached file from LocalAvatarPath, fallback to AvatarUrl)
+                string avatarSrc = !string.IsNullOrWhiteSpace(profile.LocalAvatarPath) && File.Exists(profile.LocalAvatarPath)
+                    ? profile.LocalAvatarPath
+                    : profile.AvatarUrl;
+                if (!string.IsNullOrWhiteSpace(avatarSrc))
                 {
                     try
                     {
                         var bi = new BitmapImage();
                         bi.BeginInit();
-                        bi.UriSource = new Uri(profile.AvatarUrl);
+                        bi.UriSource = new Uri(avatarSrc);
                         bi.CacheOption = BitmapCacheOption.OnLoad;
+                        bi.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
                         bi.EndInit();
-                        ImgCheevosUserAvatar.Source = bi;
+                        if (ImgCheevosUserAvatar != null) ImgCheevosUserAvatar.Source = bi;
+                        if (ImgInGameCheevosAvatar != null) ImgInGameCheevosAvatar.Source = bi;
                     }
                     catch { }
                 }
 
                 // Fetch Game Achievements Cards
-                string? gameTitle = _selectedSplitGame?.Title ?? TxtActiveGameTitle?.Text ?? "Классическая ретро-игра";
-                var gameRes = await AchievementsManager.FetchGameAchievementsAsync(gameTitle);
-                _studioCheevosCards.Clear();
-                foreach (var card in gameRes.Cards)
-                {
-                    _studioCheevosCards.Add(card);
-                }
+                string gameTitle = !string.IsNullOrWhiteSpace(_selectedCheevosGameTitle)
+                    ? _selectedCheevosGameTitle
+                    : (_selectedSplitGame?.Title ?? _activeRomItem?.Name ?? TxtActiveGameTitle?.Text ?? "Классическая ретро-игра");
+                string gamePath = !string.IsNullOrWhiteSpace(_selectedCheevosGamePath)
+                    ? _selectedCheevosGamePath
+                    : (_selectedSplitGame?.FilePath ?? _activeRomItem?.FilePath ?? "");
+                string gamePlatform = !string.IsNullOrWhiteSpace(_selectedCheevosGamePlatform)
+                    ? _selectedCheevosGamePlatform
+                    : (_selectedSplitGame?.Platform ?? _activeRomItem?.Platform ?? "");
 
+                var gameRes = await AchievementsManager.FetchGameAchievementsAsync(gameTitle, gamePath, gamePlatform);
+                _allLoadedCheevosCards = gameRes.Cards ?? new List<AchievementCardItem>();
+                ApplyCheevosCardFilter();
+
+                if (TxtCheevosSelectedGameTitle != null)
+                {
+                    TxtCheevosSelectedGameTitle.Text = $"{gameRes.GameTitle} (ID: {gameRes.GameId})";
+                }
+                if (TxtCheevosSelectedGameSummary != null)
+                {
+                    TxtCheevosSelectedGameSummary.Text = gameRes.ProgressSummary;
+                }
                 if (PbCheevosProgress != null && gameRes.TotalGamePoints > 0)
                 {
                     PbCheevosProgress.Maximum = gameRes.TotalGamePoints;
@@ -475,7 +499,85 @@ public partial class MainWindow
         }
     }
 
-    // ==================== 6. NETPLAY STUDIO 2.7.2 ====================
+    private void ApplyCheevosCardFilter()
+    {
+        _studioCheevosCards.Clear();
+        IEnumerable<AchievementCardItem> list = _allLoadedCheevosCards;
+        if (_cheevosCardFilter == "UNLOCKED") list = list.Where(c => c.IsUnlocked);
+        else if (_cheevosCardFilter == "LOCKED") list = list.Where(c => !c.IsUnlocked);
+        foreach (var card in list) _studioCheevosCards.Add(card);
+    }
+
+    private void BtnCheevosFilter_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button btn) return;
+        if (btn.Parent is Panel p)
+        {
+            foreach (var child in p.Children) if (child is Button b) b.Tag = null;
+        }
+        btn.Tag = "Active";
+        _cheevosCardFilter = string.IsNullOrWhiteSpace(btn.Uid) ? "ALL" : btn.Uid;
+        ApplyCheevosCardFilter();
+    }
+
+    private async void CheevosLibraryCard_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: CheevosGameSupportItem item }) return;
+        _selectedCheevosGameTitle = item.GameTitle;
+        _selectedCheevosGamePath = item.FilePath;
+        _selectedCheevosGamePlatform = item.Platform;
+        if (TxtCheevosSelectedGameTitle != null) TxtCheevosSelectedGameTitle.Text = $"{item.GameTitle} - загрузка достижений...";
+        await RefreshAchievementsStudio270Async();
+    }
+
+    private async void BtnInGameAchievements_Click(object sender, RoutedEventArgs e)
+    {
+        if (PnlInGameAchievementsOverlay == null) return;
+        if (PnlInGameQuickMenu != null) PnlInGameQuickMenu.Visibility = Visibility.Collapsed;
+        PnlInGameAchievementsOverlay.Visibility = Visibility.Visible;
+
+        string gTitle = _activeRomItem?.Name ?? NativeLibretroHost.Current.CurrentGameTitle;
+        string gPath = _activeRomItem?.FilePath ?? "";
+        string gPlat = _activeRomItem?.Platform ?? "";
+        if (TxtInGameCheevosGameTitle != null) TxtInGameCheevosGameTitle.Text = string.IsNullOrWhiteSpace(gTitle) ? "Достижения RetroAchievements" : gTitle;
+        if (TxtInGameCheevosSummary != null) TxtInGameCheevosSummary.Text = "Загрузка трофеев с сервера RetroAchievements...";
+
+        try
+        {
+            var res = await AchievementsManager.FetchGameAchievementsAsync(gTitle, gPath, gPlat);
+            if (!string.IsNullOrWhiteSpace(res.Profile.LocalAvatarPath) && File.Exists(res.Profile.LocalAvatarPath) && ImgInGameCheevosAvatar != null)
+            {
+                var bi = new BitmapImage();
+                bi.BeginInit();
+                bi.UriSource = new Uri(res.Profile.LocalAvatarPath);
+                bi.CacheOption = BitmapCacheOption.OnLoad;
+                bi.EndInit();
+                ImgInGameCheevosAvatar.Source = bi;
+            }
+            if (TxtInGameCheevosGameTitle != null) TxtInGameCheevosGameTitle.Text = $"{res.GameTitle} (ID: {res.GameId})";
+            if (TxtInGameCheevosSummary != null) TxtInGameCheevosSummary.Text = $"{res.Profile.Username}: {res.ProgressSummary}";
+            if (PbInGameCheevosProgress != null && res.TotalGamePoints > 0)
+            {
+                PbInGameCheevosProgress.Maximum = res.TotalGamePoints;
+                PbInGameCheevosProgress.Value = res.EarnedPoints;
+            }
+            if (ItemsInGameCheevosCards != null)
+            {
+                ItemsInGameCheevosCards.ItemsSource = res.Cards;
+            }
+        }
+        catch (Exception ex)
+        {
+            if (TxtInGameCheevosSummary != null) TxtInGameCheevosSummary.Text = $"Ошибка загрузки: {ex.Message}";
+        }
+    }
+
+    private void BtnCloseInGameAchievements_Click(object sender, RoutedEventArgs e)
+    {
+        if (PnlInGameAchievementsOverlay != null) PnlInGameAchievementsOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    // ==================== 6. NETPLAY STUDIO 2.7.3 ====================
     private async void BtnNetplayPingRelay_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -552,7 +654,7 @@ public partial class MainWindow
         }
     }
 
-    // ==================== 7. AI GUIDE STUDIO 2.7.2 ====================
+    // ==================== 7. AI GUIDE STUDIO 2.7.3 ====================
     private async void BtnAiAskQuestion_Click(object sender, RoutedEventArgs e)
     {
         string question = TxtAiPrompt?.Text?.Trim() ?? "";
@@ -609,10 +711,16 @@ public partial class MainWindow
         ShowOsdToast("Озвучивание остановлено");
     }
 
-    // ==================== 8. STREAMING & TELEMETRY STUDIO 2.7.2 ====================
+    // ==================== 8. STREAMING & TELEMETRY STUDIO 2.7.3 ====================
     private async void BtnStreamCheckServer_Click(object sender, RoutedEventArgs e)
     {
-        string target = (CmbStreamPlatform?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "127.0.0.1";
+        string target = TxtStreamCustomUrl?.Text?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            target = (CmbStreamPlatform?.SelectedItem as ComboBoxItem)?.Tag is StreamingPlatform sp
+                ? sp.DefaultServerUrl
+                : ((CmbStreamPlatform?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "127.0.0.1");
+        }
 
         if (BtnStreamCheckServer != null) BtnStreamCheckServer.IsEnabled = false;
         try
@@ -634,14 +742,22 @@ public partial class MainWindow
 
     private async void BtnStreamStartReal_Click(object sender, RoutedEventArgs e)
     {
-        string target = (CmbStreamPlatform?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "rtmp://live.twitch.tv/app/";
+        string target = TxtStreamCustomUrl?.Text?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            target = (CmbStreamPlatform?.SelectedItem as ComboBoxItem)?.Tag is StreamingPlatform sp
+                ? sp.DefaultServerUrl
+                : ((CmbStreamPlatform?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "rtmp://live.twitch.tv/app");
+        }
         string key = TxtStreamKey?.Text?.Trim() ?? "";
-        if (!string.IsNullOrWhiteSpace(key)) target = $"{target.TrimEnd('/')}/{key}";
+        if (!string.IsNullOrWhiteSpace(key) && !target.Contains(key, StringComparison.Ordinal))
+            target = $"{target.TrimEnd('/')}/{key}";
 
-        int bitrate = 4500;
+        int bitrate = int.TryParse(TxtStreamBitrate?.Text?.Trim(), out int br) && br >= 300 ? br : 6000;
+        string preset = CmbRecordPreset?.SelectedItem?.ToString() ?? "veryfast";
         IntPtr hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
 
-        bool started = await StreamAndAiManager.StartRealStreamAsync(target, bitrate, "fast", hwnd);
+        bool started = await StreamAndAiManager.StartRealStreamAsync(target, bitrate, preset, hwnd);
         if (started)
         {
             StartStreamTelemetryPolling();
@@ -675,7 +791,7 @@ public partial class MainWindow
         _streamingTelemetryTimer.Start();
     }
 
-    // ==================== 9. BIOS STUDIO 2.7.2 ====================
+    // ==================== 9. BIOS STUDIO 2.7.3 ====================
     public void RefreshBiosStudio270()
     {
         try

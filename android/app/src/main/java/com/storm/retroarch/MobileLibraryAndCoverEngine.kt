@@ -105,6 +105,20 @@ data class MobileRomItem(
         }
 }
 
+data class RomParsedMeta(
+    val region: String,
+    val isRussianMod: Boolean,
+    val gameCode: String,
+    val revision: String
+)
+
+data class RomHeaderInfo(
+    val internalTitle: String,
+    val gameCode: String,
+    val region: String,
+    val revision: String
+)
+
 data class WatchedFolderEntry(
     val pathOrUri: String,
     var recursive: Boolean = true
@@ -873,7 +887,7 @@ object MobileLibraryAndCoverEngine {
         return out
     }
 
-    fun parseRegionAndRusMod(rawFileName: String): Pair<String, Boolean> {
+    fun parseRomMeta(rawFileName: String): RomParsedMeta {
         val upper = rawFileName.uppercase(Locale.ROOT)
         val isRus = upper.contains("MOD - M. RUS") ||
             upper.contains("[M. RUS]") ||
@@ -885,17 +899,47 @@ object MobileLibraryAndCoverEngine {
             Regex("[А-ЯЁа-яё]").containsMatchIn(rawFileName)
 
         val region = when {
-            upper.contains("(USA") || upper.contains("(US)") || upper.contains("(U)") -> "US"
-            upper.contains("(EUROPE") || upper.contains("(EU)") || upper.contains("(E)") ||
-                upper.contains("(UK)") || upper.contains("(GERMANY)") || upper.contains("(FRANCE)") -> "EU"
-            upper.contains("(JAPAN") || upper.contains("(JP)") || upper.contains("(J)") || upper.contains(", JAPAN)") -> "JP"
-            upper.contains("(WORLD") || upper.contains("(W)") -> "WORLD"
-            upper.contains("(KOREA") || upper.contains("(KR)") || upper.contains("(K)") -> "KR"
-            upper.contains("(CHINA") || upper.contains("(TAIWAN") || upper.contains("(ASIA") -> "ASIA"
-            upper.contains("(BRAZIL") || upper.contains("(BR)") -> "BR"
+            Regex("(\\((USA|US|U|NORTH AMERICA)\\)|(\\[(USA|US|U)\\]))", RegexOption.IGNORE_CASE).containsMatchIn(rawFileName) -> "US"
+            Regex("(\\((EUROPE|EU|EUR|E|UK|GERMANY|FRANCE)\\)|(\\[(EUROPE|EU|EUR|E)\\]))", RegexOption.IGNORE_CASE).containsMatchIn(rawFileName) -> "EU"
+            Regex("(\\((JAPAN|JP|JPN|J)\\)|(\\[(JAPAN|JP|JPN|J)\\])|,\\s*JAPAN\\))", RegexOption.IGNORE_CASE).containsMatchIn(rawFileName) -> "JP"
+            Regex("(\\((WORLD|W)\\)|(\\[(WORLD|W)\\]))", RegexOption.IGNORE_CASE).containsMatchIn(rawFileName) -> "WORLD"
+            Regex("(\\((KOREA|KR|KOR|K)\\)|(\\[(KOREA|KR|KOR|K)\\]))", RegexOption.IGNORE_CASE).containsMatchIn(rawFileName) -> "KR"
+            Regex("(\\((CHINA|TAIWAN|ASIA|TW)\\)|(\\[(CHINA|ASIA|TW)\\]))", RegexOption.IGNORE_CASE).containsMatchIn(rawFileName) -> "ASIA"
+            Regex("(\\((BRAZIL|BR|BRA)\\)|(\\[(BRAZIL|BR)\\]))", RegexOption.IGNORE_CASE).containsMatchIn(rawFileName) -> "BR"
             else -> "WORLD"
         }
-        return region to isRus
+
+        val codeMatch = Regex("\\b([A-Z0-9]{2,5}-[A-Z0-9]{2,6}(?:-[A-Z0-9]+)?)\\b").find(rawFileName)
+        val gameCode = codeMatch?.groupValues?.getOrNull(1) ?: ""
+
+        val revMatch = Regex("\\b(?:Rev\\s*([A-Z0-9.]+)|v(\\d+(?:\\.\\d+)*))\\b", RegexOption.IGNORE_CASE).find(rawFileName)
+        val revision = if (revMatch != null) {
+            val v = revMatch.groupValues[1].ifEmpty { revMatch.groupValues[2] }
+            when {
+                v.startsWith("1.1") -> "Rev 1"
+                v.startsWith("1.2") -> "Rev 2"
+                v.startsWith("1.3") -> "Rev 3"
+                v.all { it.isDigit() } -> "Rev $v"
+                else -> "Rev $v"
+            }
+        } else {
+            val numMatch = Regex("[\\(\\[](\\d+\\.\\d+)(?:\\s*-\\s*[A-Z0-9-]+)?[\\)\\]").find(rawFileName)
+            if (numMatch != null) {
+                when (val num = numMatch.groupValues[1]) {
+                    "1.1" -> "Rev 1"
+                    "1.2" -> "Rev 2"
+                    "1.3" -> "Rev 3"
+                    else -> "v$num"
+                }
+            } else ""
+        }
+
+        return RomParsedMeta(region, isRus, gameCode, revision)
+    }
+
+    fun parseRegionAndRusMod(rawFileName: String): Pair<String, Boolean> {
+        val meta = parseRomMeta(rawFileName)
+        return meta.region to meta.isRussianMod
     }
 
     fun cleanDisplayTitle(rawStem: String): String {
@@ -903,10 +947,13 @@ object MobileLibraryAndCoverEngine {
             .replace(Regex("\\[MOD\\s*-\\s*M\\.\\s*RUS\\]", RegexOption.IGNORE_CASE), "")
             .replace(Regex("\\[RUS\\]", RegexOption.IGNORE_CASE), "")
             .replace(Regex("\\[!\\]"), "")
+            .replace(Regex("[\\(\\[]1G(?:\\+1[UM])*(?:\\+[0-9A-Z]+)*[\\)\\]", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("[\\(\\[](?:19\\d\\d|20\\d\\d)[\\)\\]"), "")
+            .replace(Regex("[\\(\\[]\\d+(?:\\.\\d+)*\\s*-\\s*[A-Z0-9-]+[\\)\\]", RegexOption.IGNORE_CASE), "")
             .replace(Regex("\\[[^\\]]*\\]"), "")
             .replace(
                 Regex(
-                    "\\((USA|Japan|Europe|World|Korea|Russia|Brazil|Asia|Australia|En,Fr[^)]*|En,Ja[^)]*|Rev\\s*[A-Z0-9.]+|v\\d[^)]*|Track\\s*\\d+|Disc\\s*\\d+|Disk\\s*\\d+|Proto|Beta|Sample|Unl|SGB\\s*Enhanced|NP)\\)",
+                    "\\((USA|Japan|Europe|World|Korea|Russia|Brazil|Asia|Australia|En,Fr[^)]*|En,Ja[^)]*|Rev\\s*[A-Z0-9.]+|v\\d[^)]*|Track\\s*\\d+|Disc\\s*\\d+|Disk\\s*\\d+|Proto|Beta|Sample|Unl|SGB\\s*Enhanced|NP|\\d+\\.\\d+[^)]*)\\)",
                     RegexOption.IGNORE_CASE
                 ),
                 ""
@@ -915,6 +962,169 @@ object MobileLibraryAndCoverEngine {
             .trim()
         if (s.isEmpty()) s = rawStem.trim()
         return s
+    }
+
+    fun readRomHeaderInfo(file: File): RomHeaderInfo? {
+        if (!file.exists() || file.length() < 512L) return null
+        return try {
+            val head = ByteArray(65536)
+            var headLen = 0
+            val ext = file.extension.lowercase(Locale.ROOT)
+
+            if (ext == "zip") {
+                ZipFile(file).use { zf ->
+                    val entries = zf.entries()
+                    while (entries.hasMoreElements()) {
+                        val e = entries.nextElement()
+                        if (e.isDirectory) continue
+                        val iext = File(e.name).extension.lowercase(Locale.ROOT)
+                        if (iext in setOf("sfc", "smc", "gba", "nds", "n64", "z64", "v64", "gen", "md", "bin", "iso")) {
+                            zf.getInputStream(e).use { stream ->
+                                var readTotal = 0
+                                while (readTotal < head.size) {
+                                    val r = stream.read(head, readTotal, head.size - readTotal)
+                                    if (r <= 0) break
+                                    readTotal += r
+                                }
+                                headLen = readTotal
+                            }
+                            break
+                        }
+                    }
+                }
+            } else {
+                RandomAccessFile(file, "r").use { raf ->
+                    headLen = raf.read(head, 0, minOf(head.size.toLong(), file.length()).toInt())
+                }
+            }
+
+            if (headLen < 512) return null
+
+            // 1. SNES (LoROM at 0x7FC0 or HiROM at 0xFFC0, with 512 copier offset)
+            val copierOffset = if (file.length() % 1024L == 512L) 512 else 0
+            val loOffset = copierOffset + 0x7FC0
+            val hiOffset = copierOffset + 0xFFC0
+            for (off in listOf(loOffset, hiOffset)) {
+                if (off + 32 <= headLen) {
+                    val csumComp = (head[off + 0x1C].toInt() and 0xFF) or ((head[off + 0x1D].toInt() and 0xFF) shl 8)
+                    val csum = (head[off + 0x1E].toInt() and 0xFF) or ((head[off + 0x1F].toInt() and 0xFF) shl 8)
+                    if ((csum xor csumComp) == 0xFFFF) {
+                        val rawTitle = String(head, off, 21, StandardCharsets.ISO_8859_1).trim()
+                        val countryByte = head[off + 0x19].toInt() and 0xFF
+                        val reg = when (countryByte) {
+                            0x00 -> "JP"
+                            0x01 -> "US"
+                            0x02 -> "EU"
+                            0x0D -> "KR"
+                            else -> "WORLD"
+                        }
+                        val verByte = head[off + 0x1B].toInt() and 0xFF
+                        val rev = when (verByte) {
+                            0x01 -> "Rev 1"
+                            0x02 -> "Rev 2"
+                            0x03 -> "Rev 3"
+                            else -> if (verByte > 0) "Rev $verByte" else ""
+                        }
+                        val code = if (off >= 0x0E) String(head, off - 0x0E, 4, StandardCharsets.ISO_8859_1).trim() else ""
+                        return RomHeaderInfo(rawTitle, code, reg, rev)
+                    }
+                }
+            }
+
+            // 2. GBA (0xA0..0xBC)
+            if (headLen >= 0xC0) {
+                val gbaCheck = (head[0xB2].toInt() and 0xFF) == 0x96
+                if (gbaCheck) {
+                    val rawTitle = String(head, 0xA0, 12, StandardCharsets.ISO_8859_1).trim()
+                    val code = String(head, 0xAC, 4, StandardCharsets.ISO_8859_1).trim()
+                    val reg = when (code.takeLast(1)) {
+                        "J" -> "JP"
+                        "E" -> "US"
+                        "P" -> "EU"
+                        else -> "WORLD"
+                    }
+                    val verByte = head[0xBC].toInt() and 0xFF
+                    val rev = if (verByte > 0) "Rev $verByte" else ""
+                    return RomHeaderInfo(rawTitle, code, reg, rev)
+                }
+            }
+
+            // 3. NDS (0x00..0x1E)
+            if (headLen >= 0x40 && head[0x12].toInt() == 0) {
+                val rawTitle = String(head, 0x00, 12, StandardCharsets.ISO_8859_1).trim()
+                val code = String(head, 0x0C, 4, StandardCharsets.ISO_8859_1).trim()
+                if (code.length >= 4 && code.all { it.isLetterOrDigit() }) {
+                    val reg = when (code.takeLast(1)) {
+                        "J" -> "JP"
+                        "E" -> "US"
+                        "P" -> "EU"
+                        "K" -> "KR"
+                        else -> "WORLD"
+                    }
+                    val verByte = head[0x1E].toInt() and 0xFF
+                    val rev = if (verByte > 0) "Rev $verByte" else ""
+                    return RomHeaderInfo(rawTitle, code, reg, rev)
+                }
+            }
+
+            // 4. N64 (0x20..0x3F)
+            if (headLen >= 0x40) {
+                val magic = ((head[0].toInt() and 0xFF) shl 24) or ((head[1].toInt() and 0xFF) shl 16) or ((head[2].toInt() and 0xFF) shl 8) or (head[3].toInt() and 0xFF)
+                if (magic == 0x80371240.toInt() || magic == 0x37804012 || magic == 0x40123780) {
+                    val rawTitle = String(head, 0x20, 20, StandardCharsets.ISO_8859_1).trim()
+                    val code = String(head, 0x3B, 4, StandardCharsets.ISO_8859_1).trim()
+                    val regByte = head[0x3E].toInt().toChar()
+                    val reg = when (regByte) {
+                        'E' -> "US"
+                        'J' -> "JP"
+                        'P' -> "EU"
+                        else -> "WORLD"
+                    }
+                    val verByte = head[0x3F].toInt() and 0xFF
+                    val rev = if (verByte > 0) "Rev $verByte" else ""
+                    return RomHeaderInfo(rawTitle, code, reg, rev)
+                }
+            }
+
+            // 5. Mega Drive / Genesis (0x100..0x200)
+            if (headLen >= 0x200) {
+                val segaMagic = String(head, 0x100, 16, StandardCharsets.ISO_8859_1)
+                if (segaMagic.contains("SEGA")) {
+                    val domTitle = String(head, 0x120, 48, StandardCharsets.ISO_8859_1).trim()
+                    val ovsTitle = String(head, 0x150, 48, StandardCharsets.ISO_8859_1).trim()
+                    val code = String(head, 0x180, 14, StandardCharsets.ISO_8859_1).trim()
+                    val country = String(head, 0x1F0, 16, StandardCharsets.ISO_8859_1).trim()
+                    val reg = when {
+                        country.contains("J") -> "JP"
+                        country.contains("U") -> "US"
+                        country.contains("E") -> "EU"
+                        else -> "WORLD"
+                    }
+                    val title = if (ovsTitle.isNotBlank() && !ovsTitle.all { it == ' ' }) ovsTitle else domTitle
+                    return RomHeaderInfo(title, code, reg, "")
+                }
+            }
+
+            // 6. PS1 (Scan for SLUS/SCUS/SLES/SCES/SLPS/SLPM/SCPS)
+            val ascii = String(head, StandardCharsets.ISO_8859_1)
+            val ps1Regex = Regex("\\b(SLUS|SCUS|SLES|SCES|SLPS|SLPM|SCPS|SLED)[_-](\\d{3})[.]?(\\d{2})\\b")
+            val ps1Match = ps1Regex.find(ascii)
+            if (ps1Match != null) {
+                val prefix = ps1Match.groupValues[1]
+                val code = "$prefix-${ps1Match.groupValues[2]}.${ps1Match.groupValues[3]}"
+                val reg = when (prefix) {
+                    "SLUS", "SCUS" -> "US"
+                    "SLES", "SCES", "SLED" -> "EU"
+                    "SLPS", "SLPM", "SCPS" -> "JP"
+                    else -> "WORLD"
+                }
+                return RomHeaderInfo("", code, reg, "")
+            }
+
+            null
+        } catch (_: Throwable) {
+            null
+        }
     }
 
     fun detectPlatformKeyForFile(file: File, ext: String): String {
@@ -1122,6 +1332,112 @@ object MobileLibraryAndCoverEngine {
         return null
     }
 
+    fun resolvePlatformType(romPath: String, platformKey: String, platformName: String): String {
+        val p = romPath.replace('\\', '/').uppercase(Locale.ROOT)
+        for (cat in listOf("CONSOLES", "HANDHELDS", "PERSONAL COMPUTERS", "ARCADES", "GAME ENGINES", "MOBILES", "VR AR HEADSETS")) {
+            if (p.contains("/$cat/") || p.startsWith("$cat/") || p.contains("\\$cat\\")) {
+                return cat
+            }
+        }
+        val k = platformKey.lowercase(Locale.ROOT).trim()
+        val n = platformName.lowercase(Locale.ROOT).trim()
+        return when {
+            k in setOf("nes", "fds", "snes", "sfc", "n64", "gamecube", "gc", "wii", "wiiu", "switch",
+                "genesis", "megadrive", "md", "segacd", "sega32x", "32x", "saturn", "dreamcast",
+                "ps1", "psx", "ps2", "ps3", "ps4", "ps5", "xbox", "xbox360", "tg16", "pce", "pcecd",
+                "pcfx", "3do", "jaguar", "cdi", "coleco", "intellivision", "atari2600", "atari5200",
+                "atari7800", "vectrex", "sg1000", "sms", "mastersystem") -> "CONSOLES"
+            k in setOf("gb", "gbc", "gba", "nds", "3ds", "psp", "vita", "gamegear", "gg", "sms_gg",
+                "wonderswan", "wsc", "ngpc", "neogeopocket", "lynx", "pokemonmini", "playdate", "gamewatch") -> "HANDHELDS"
+            k in setOf("dos", "pc", "win3x", "win9x", "windows", "msx", "msx2", "c64", "c128", "amiga",
+                "atarist", "zxspectrum", "pc88", "pc98", "x68000", "fmtowns", "amstrad", "amstradcpc",
+                "apple2", "mac", "bk0010", "korvet", "vector06c", "agat") -> "PERSONAL COMPUTERS"
+            k in setOf("arcade", "mame", "fba", "fbneo", "cps1", "cps2", "cps3", "neogeo", "neocd", "model2", "model3", "naomi") -> "ARCADES"
+            k in setOf("scummvm", "rpgmaker", "wolf3d", "doom", "quake", "residualvm", "solarus", "easyrpg", "flash") -> "GAME ENGINES"
+            k in setOf("android", "ios", "j2me", "symbian", "ngage") -> "MOBILES"
+            k in setOf("vb", "virtualboy", "oculus", "quest", "psvr") -> "VR AR HEADSETS"
+            n.contains("handheld") || n.contains("pocket") || n.contains("game boy") || n.contains("advance") || n.contains("ds") || n.contains("psp") -> "HANDHELDS"
+            n.contains("computer") || n.contains("dos") || n.contains("pc") || n.contains("amiga") || n.contains("spectrum") || n.contains("msx") -> "PERSONAL COMPUTERS"
+            n.contains("arcade") || n.contains("mame") || n.contains("neo geo") -> "ARCADES"
+            n.contains("engine") || n.contains("scumm") || n.contains("doom") || n.contains("quake") -> "GAME ENGINES"
+            else -> "CONSOLES"
+        }
+    }
+
+    fun getStructuredMediaJson(context: Context): String {
+        val rootObj = JSONObject()
+        val screenshotsArr = JSONArray()
+        val videosArr = JSONArray()
+
+        val imageExts = setOf("png", "jpg", "jpeg", "webp")
+        val videoExts = setOf("mp4", "mkv", "webm", "ts", "mov", "flv", "gif")
+
+        val searchDirs = listOf(
+            File(MobileCoreRegistry.STORM_PUBLIC_ROOT, "screenshots") to "screenshots",
+            File(context.applicationContext.filesDir, "screenshots") to "screenshots",
+            File(MobileCoreRegistry.STORM_PUBLIC_ROOT, "videos") to "videos",
+            File(context.applicationContext.filesDir, "videos") to "videos"
+        )
+
+        val seenPaths = HashSet<String>()
+
+        fun scanDir(dir: File, mediaType: String) {
+            if (!dir.exists() || !dir.isDirectory) return
+            val files = dir.listFiles() ?: return
+            for (f in files) {
+                if (f.isDirectory) {
+                    scanDir(f, mediaType)
+                } else if (f.isFile && f.length() > 256L) {
+                    val ext = f.extension.lowercase(Locale.ROOT)
+                    val normPath = normalizePathKey(f)
+                    if (!seenPaths.add(normPath)) continue
+
+                    val isImg = ext in imageExts
+                    val isVid = ext in videoExts
+                    if (!isImg && !isVid) continue
+
+                    val parts = f.parentFile?.absolutePath?.replace('\\', '/')?.split('/') ?: emptyList()
+                    val pTypeIdx = parts.indexOfFirst { it.equals("screenshots", true) || it.equals("videos", true) }
+                    var pType = "CONSOLES"
+                    var platform = "Super Nintendo (SNES)"
+                    var gameTitle = cleanDisplayTitle(f.nameWithoutExtension)
+
+                    if (pTypeIdx >= 0 && parts.size > pTypeIdx + 3) {
+                        pType = parts[pTypeIdx + 1]
+                        platform = parts[pTypeIdx + 2]
+                        gameTitle = parts[pTypeIdx + 3]
+                    } else if (pTypeIdx >= 0 && parts.size > pTypeIdx + 2) {
+                        pType = parts[pTypeIdx + 1]
+                        platform = parts[pTypeIdx + 2]
+                    }
+
+                    val itemObj = JSONObject()
+                        .put("platformType", pType)
+                        .put("platform", platform)
+                        .put("gameTitle", gameTitle)
+                        .put("path", f.absolutePath)
+                        .put("url", toStormLocalUrl(f.absolutePath))
+                        .put("size", f.length())
+                        .put("name", f.name)
+
+                    if (isImg) {
+                        screenshotsArr.put(itemObj)
+                    } else {
+                        videosArr.put(itemObj)
+                    }
+                }
+            }
+        }
+
+        for ((dir, type) in searchDirs) {
+            scanDir(dir, type)
+        }
+
+        rootObj.put("screenshots", screenshotsArr)
+        rootObj.put("videos", videosArr)
+        return rootObj.toString()
+    }
+
     fun getGameMediaGallery(context: Context, rom: MobileRomItem): List<Pair<String, String>> {
         val gallery = ArrayList<Pair<String, String>>()
         val seenPaths = HashSet<String>()
@@ -1139,10 +1455,17 @@ object MobileLibraryAndCoverEngine {
             addFile(File(rom.coverPath!!), "${rom.name} - Обложка")
         }
 
+        val platformType = resolvePlatformType(rom.filePath, rom.platformKey, rom.platform)
+        val safePlatDisplay = sanitizeFileComponent(rom.platform)
+        val safeGame = sanitizeFileComponent(rom.name)
         val queryNorm = normalizeTitleForMatch(rom.name)
         val stemNorm = normalizeTitleForMatch(rom.rawNoIntroName)
         val safePlat = sanitizeFileComponent(rom.platformKey.ifEmpty { "misc" })
+
         val snapDirs = listOf(
+            File(File(File(File(MobileCoreRegistry.STORM_PUBLIC_ROOT, "screenshots"), platformType), safePlatDisplay), safeGame),
+            File(File(File(File(context.applicationContext.filesDir, "screenshots"), platformType), safePlatDisplay), safeGame),
+            File(File(File(File(MobileCoreRegistry.STORM_PUBLIC_ROOT, "videos"), platformType), safePlatDisplay), safeGame),
             File(MobileCoreRegistry.STORM_PUBLIC_ROOT, "screenshots"),
             File(context.applicationContext.filesDir, "screenshots"),
             File(MobileCoreRegistry.STORM_PUBLIC_ROOT, "states"),
@@ -1158,7 +1481,8 @@ object MobileLibraryAndCoverEngine {
             for (f in files) {
                 if (gallery.size >= 16) break
                 val normFile = normalizeTitleForMatch(f.nameWithoutExtension)
-                val matches = (queryNorm.length >= 3 && normFile.contains(queryNorm)) ||
+                val matches = dir.name == safeGame ||
+                    (queryNorm.length >= 3 && normFile.contains(queryNorm)) ||
                     (stemNorm.length >= 4 && normFile.contains(stemNorm))
                 if (matches) {
                     addFile(f, f.nameWithoutExtension)
@@ -1243,7 +1567,53 @@ object MobileLibraryAndCoverEngine {
         val clean = cleanDisplayTitle(rom.rawNoIntroName).replace(":", " -")
         val altClean = rom.name.replace(":", " -")
 
-        // Strip [MOD - M. RUS], [RUS], [!], (Rev 1), (Track 1) while preserving original base stem if No-Intro
+        val meta = parseRomMeta(rom.rawNoIntroName)
+        val headerInfo = try {
+            readRomHeaderInfo(File(rom.filePath))
+        } catch (_: Throwable) { null }
+
+        val effectiveRev = meta.revision.ifBlank { headerInfo?.revision ?: "" }
+        val revTag = if (effectiveRev.isNotBlank()) " ($effectiveRev)" else ""
+
+        val effectiveRegion = meta.region.ifBlank { headerInfo?.region?.ifBlank { rom.regionCode } ?: rom.regionCode }
+        val primaryRegionName = when (effectiveRegion) {
+            "JP" -> "(Japan)"
+            "US" -> "(USA)"
+            "EU" -> "(Europe)"
+            "KR" -> "(Korea)"
+            "ASIA" -> "(Asia)"
+            "BR" -> "(Brazil)"
+            else -> "(World)"
+        }
+
+        // 1. Title + Region + (Rev X)
+        if (revTag.isNotBlank() && clean.isNotBlank()) {
+            list.add("$clean $primaryRegionName$revTag")
+        }
+        // 2. Title + Region
+        if (clean.isNotBlank()) {
+            list.add("$clean $primaryRegionName")
+        }
+        // 3. Title before " - " + Region + (Rev X)
+        if (clean.contains(" - ")) {
+            val shortTitle = clean.substringBefore(" - ").trim()
+            if (shortTitle.isNotBlank() && shortTitle != clean) {
+                if (revTag.isNotBlank()) {
+                    list.add("$shortTitle $primaryRegionName$revTag")
+                }
+                list.add("$shortTitle $primaryRegionName")
+            }
+        }
+        // 4. Internal Header Title + Region + (Rev X)
+        val internalTitle = headerInfo?.internalTitle?.let { cleanDisplayTitle(it) } ?: ""
+        if (internalTitle.isNotBlank() && internalTitle != clean) {
+            if (revTag.isNotBlank()) {
+                list.add("$internalTitle $primaryRegionName$revTag")
+            }
+            list.add("$internalTitle $primaryRegionName")
+        }
+
+        // 5. Alternate titles and No-Intro original stem if it had parens
         val strippedNoIntro = rom.rawNoIntroName
             .replace(Regex("\\[MOD\\s*-\\s*M\\.\\s*RUS\\]", RegexOption.IGNORE_CASE), "")
             .replace(Regex("\\[RUS\\]", RegexOption.IGNORE_CASE), "")
@@ -1257,7 +1627,7 @@ object MobileLibraryAndCoverEngine {
             list.add(strippedNoIntro)
         }
 
-        val orderedRegionSuffixes = when (rom.regionCode) {
+        val orderedRegionSuffixes = when (effectiveRegion) {
             "US" -> listOf("(USA)", "(USA, Europe)", "(World)", "(Europe)", "(Japan)")
             "EU" -> listOf("(Europe)", "(USA, Europe)", "(World)", "(USA)", "(Japan)")
             "JP" -> listOf("(Japan)", "(World)", "(USA)", "(Europe)")
@@ -1268,6 +1638,9 @@ object MobileLibraryAndCoverEngine {
         for (base in listOf(clean, altClean).distinct()) {
             if (base.isBlank()) continue
             for (reg in orderedRegionSuffixes) {
+                if (revTag.isNotBlank()) {
+                    list.add("$base $reg$revTag")
+                }
                 list.add("$base $reg")
             }
             if (CD_3D_KEYS.contains(rom.platformKey)) {

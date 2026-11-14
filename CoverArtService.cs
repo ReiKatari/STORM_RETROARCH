@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
@@ -24,6 +25,15 @@ public static class CoverArtService
     {
         Timeout = TimeSpan.FromSeconds(10)
     };
+
+        private static int _negativeCacheVersion = 2;
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> _failedNegativeCache = new(StringComparer.OrdinalIgnoreCase);
+
+    public static void ClearFailedNegativeCache()
+    {
+        _failedNegativeCache.Clear();
+        Interlocked.Increment(ref _negativeCacheVersion);
+    }
 
     public static string ThumbnailsRoot => Directory.Exists(CoreManager.InstallDir)
         ? Path.Combine(CoreManager.InstallDir, "thumbnails")
@@ -179,6 +189,210 @@ public static class CoverArtService
             EnsureMediaIndexStarted();
             return _mediaIndexInstance;
         }
+    }
+
+        /// <summary>
+    /// Lightweight binary ROM header reader (reads first 64KB of raw file or .zip entry)
+    /// Supports SNES LoROM/HiROM, GBA, NDS, N64, Mega Drive, GameCube/Wii, and PS1/PS2/PSP PVD serials.
+    /// </summary>
+    public static (string InternalTitle, string Region, string RevisionTag, string GameCode) ReadRomHeaderMetadata(string filePath)
+    {
+        string internalTitle = "";
+        string region = "";
+        string revisionTag = "";
+        string gameCode = "";
+
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+            return (internalTitle, region, revisionTag, gameCode);
+
+        byte[] headerBytes;
+        try
+        {
+            string ext = Path.GetExtension(filePath).ToLowerInvariant();
+            if (ext == ".zip")
+            {
+                using var zip = ZipFile.OpenRead(filePath);
+                var entry = zip.Entries.FirstOrDefault(e => !e.FullName.EndsWith("/") && e.Length > 0);
+                if (entry == null) return (internalTitle, region, revisionTag, gameCode);
+                using var stream = entry.Open();
+                headerBytes = new byte[Math.Min(entry.Length, 65536)];
+                int read = 0;
+                while (read < headerBytes.Length)
+                {
+                    int r = stream.Read(headerBytes, read, headerBytes.Length - read);
+                    if (r <= 0) break;
+                    read += r;
+                }
+            }
+            else
+            {
+                using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                headerBytes = new byte[Math.Min(fs.Length, 65536)];
+                fs.Read(headerBytes, 0, headerBytes.Length);
+            }
+        }
+        catch
+        {
+            return (internalTitle, region, revisionTag, gameCode);
+        }
+
+        if (headerBytes.Length < 512) return (internalTitle, region, revisionTag, gameCode);
+
+        // 1. SNES LoROM / HiROM
+        int copierOffset = (headerBytes.Length >= 512 && (new FileInfo(filePath).Length % 1024 == 512)) ? 512 : 0;
+        int[] snesOffsets = { copierOffset + 0x7FC0, copierOffset + 0xFFC0 };
+        foreach (int off in snesOffsets)
+        {
+            if (off + 32 <= headerBytes.Length)
+            {
+                ushort complement = (ushort)(headerBytes[off + 0x1C] | (headerBytes[off + 0x1D] << 8));
+                ushort checksum = (ushort)(headerBytes[off + 0x1E] | (headerBytes[off + 0x1F] << 8));
+                if ((checksum + complement) == 0xFFFF && checksum != 0)
+                {
+                    internalTitle = System.Text.Encoding.ASCII.GetString(headerBytes, off, 21).Trim('\0', ' ');
+                    byte country = headerBytes[off + 0x19];
+                    region = country switch
+                    {
+                        0 => "JP",
+                        1 => "US",
+                        2 => "EU",
+                        13 => "KR",
+                        _ => (country >= 3 && country <= 10) ? "EU" : "US"
+                    };
+                    byte version = headerBytes[off + 0x1B];
+                    if (version > 0)
+                    {
+                        revisionTag = $"Rev {version}";
+                    }
+                    if (off - 16 >= 0)
+                    {
+                        string possibleCode = System.Text.Encoding.ASCII.GetString(headerBytes, off - 16, 4).Trim('\0', ' ');
+                        if (Regex.IsMatch(possibleCode, @"^[A-Za-z0-9]{2,4}$"))
+                        {
+                            gameCode = possibleCode;
+                        }
+                    }
+                    return (internalTitle, region, revisionTag, gameCode);
+                }
+            }
+        }
+
+        // 2. GBA (0xA0..0xAB title, 0xAC..0xAF game code, 0xBC version)
+        if (headerBytes.Length >= 0xC0)
+        {
+            byte fixedVal = headerBytes[0xB2];
+            if (fixedVal == 0x96)
+            {
+                internalTitle = System.Text.Encoding.ASCII.GetString(headerBytes, 0xA0, 12).Trim('\0', ' ');
+                gameCode = System.Text.Encoding.ASCII.GetString(headerBytes, 0xAC, 4).Trim('\0', ' ');
+                byte ver = headerBytes[0xBC];
+                if (ver > 0) revisionTag = $"Rev {ver}";
+                if (gameCode.Length >= 4)
+                {
+                    char dest = gameCode[3];
+                    region = dest switch { 'J' => "JP", 'E' => "US", 'P' => "EU", 'D' => "DE", 'F' => "FR", 'I' => "IT", 'S' => "ES", _ => "US" };
+                }
+                return (internalTitle, region, revisionTag, gameCode);
+            }
+        }
+
+        // 3. NDS (0x00..0x0B title, 0x0C..0x0F game code, 0x1E version)
+        if (headerBytes.Length >= 0x200 && headerBytes[0x12] == 0x00 && headerBytes[0x13] == 0x00)
+        {
+            string maybeCode = System.Text.Encoding.ASCII.GetString(headerBytes, 0x0C, 4).Trim('\0', ' ');
+            if (Regex.IsMatch(maybeCode, @"^[A-Z0-9]{4}$"))
+            {
+                internalTitle = System.Text.Encoding.ASCII.GetString(headerBytes, 0x00, 12).Trim('\0', ' ');
+                gameCode = maybeCode;
+                byte ver = headerBytes[0x1E];
+                if (ver > 0) revisionTag = $"Rev {ver}";
+                char dest = maybeCode[3];
+                region = dest switch { 'J' => "JP", 'E' => "US", 'P' => "EU", 'K' => "KR", _ => "US" };
+                return (internalTitle, region, revisionTag, gameCode);
+            }
+        }
+
+        // 4. N64 (format check 0x80371240 / endian swap, internal name at 0x20, game code at 0x3B, version at 0x3F)
+        if (headerBytes.Length >= 0x40)
+        {
+            uint magic = (uint)((headerBytes[0] << 24) | (headerBytes[1] << 16) | (headerBytes[2] << 8) | headerBytes[3]);
+            byte[] n64Hdr = headerBytes;
+            if (magic == 0x37804012) // Byte-swapped v64
+            {
+                n64Hdr = new byte[64];
+                for (int i = 0; i < 64; i += 2)
+                {
+                    n64Hdr[i] = headerBytes[i + 1];
+                    n64Hdr[i + 1] = headerBytes[i];
+                }
+                magic = 0x80371240;
+            }
+            if (magic == 0x80371240)
+            {
+                internalTitle = System.Text.Encoding.ASCII.GetString(n64Hdr, 0x20, 20).Trim('\0', ' ');
+                gameCode = System.Text.Encoding.ASCII.GetString(n64Hdr, 0x3B, 4).Trim('\0', ' ');
+                byte ver = n64Hdr[0x3F];
+                if (ver > 0) revisionTag = $"Rev {ver}";
+                if (gameCode.Length >= 4)
+                {
+                    char dest = gameCode[3];
+                    region = dest switch { 'J' => "JP", 'E' => "US", 'P' => "EU", 'U' => "AU", _ => "US" };
+                }
+                return (internalTitle, region, revisionTag, gameCode);
+            }
+        }
+
+        // 5. Sega Genesis / Mega Drive (0x100 SEGA string, 0x120 domestic title, 0x150 overseas title, 0x180 serial)
+        if (headerBytes.Length >= 0x200)
+        {
+            string sega = System.Text.Encoding.ASCII.GetString(headerBytes, 0x100, 4);
+            if (sega == "SEGA")
+            {
+                internalTitle = System.Text.Encoding.ASCII.GetString(headerBytes, 0x150, 48).Trim('\0', ' ');
+                if (string.IsNullOrEmpty(internalTitle))
+                    internalTitle = System.Text.Encoding.ASCII.GetString(headerBytes, 0x120, 48).Trim('\0', ' ');
+                gameCode = System.Text.Encoding.ASCII.GetString(headerBytes, 0x180, 14).Trim('\0', ' ');
+                string countries = System.Text.Encoding.ASCII.GetString(headerBytes, 0x1F0, 16).Trim('\0', ' ');
+                if (countries.Contains("J")) region = "JP";
+                else if (countries.Contains("U")) region = "US";
+                else if (countries.Contains("E")) region = "EU";
+                return (internalTitle, region, revisionTag, gameCode);
+            }
+        }
+
+        // 6. GameCube / Wii (0x00 game code, 0x07 version, 0x20 title)
+        if (headerBytes.Length >= 0x60)
+        {
+            uint dvdMagic = (uint)((headerBytes[0x1C] << 24) | (headerBytes[0x1D] << 16) | (headerBytes[0x1E] << 8) | headerBytes[0x1F]);
+            if (dvdMagic == 0xC2339F3D || dvdMagic == 0x5D1C9EA3)
+            {
+                gameCode = System.Text.Encoding.ASCII.GetString(headerBytes, 0x00, 4).Trim('\0', ' ');
+                internalTitle = System.Text.Encoding.ASCII.GetString(headerBytes, 0x20, 64).Trim('\0', ' ');
+                byte ver = headerBytes[0x07];
+                if (ver > 0) revisionTag = $"Rev {ver}";
+                if (gameCode.Length >= 4)
+                {
+                    char dest = gameCode[3];
+                    region = dest switch { 'J' => "JP", 'E' => "US", 'P' => "EU", _ => "US" };
+                }
+                return (internalTitle, region, revisionTag, gameCode);
+            }
+        }
+
+        // 7. PS1 / PS2 / PSP PVD serial scan
+        string asciiChunk = System.Text.Encoding.ASCII.GetString(headerBytes);
+        var mPsx = Regex.Match(asciiChunk, @"\b(SLPS|SLUS|SLES|SCUS|SCES|SCPS|SLPM|PAPX|ULUS|ULES|UCUS|UCES|SLED|SLKA)[-_](\d{3}\.?\d{2}|\d{5})\b", RegexOptions.IgnoreCase);
+        if (mPsx.Success)
+        {
+            gameCode = mPsx.Value.ToUpperInvariant().Replace(".", "").Replace("_", "-");
+            string prefix = mPsx.Groups[1].Value.ToUpperInvariant();
+            if (prefix.StartsWith("SLP") || prefix.StartsWith("SCP") || prefix.StartsWith("PAP")) region = "JP";
+            else if (prefix.StartsWith("SLU") || prefix.StartsWith("SCU") || prefix.StartsWith("ULU")) region = "US";
+            else if (prefix.StartsWith("SLE") || prefix.StartsWith("SCE") || prefix.StartsWith("ULE")) region = "EU";
+            return (internalTitle, region, revisionTag, gameCode);
+        }
+
+        return (internalTitle, region, revisionTag, gameCode);
     }
 
     public static string NormalizeLookupKey(string name)
@@ -555,7 +769,7 @@ public static class CoverArtService
         return 60 + penalty;
     }
 
-    private static List<string> MatchCandidatesInDirectoryIndex(List<string> indexEntries, List<string> exactCandidates, string rawTitle, string preferredRegion)
+    private static List<string> MatchCandidatesInDirectoryIndex(List<string> indexEntries, List<string> exactCandidates, string rawTitle, string preferredRegion, string revisionTag = "", string gameCode = "")
     {
         var matched = new List<string>();
         var indexSet = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -564,7 +778,7 @@ public static class CoverArtService
             if (!indexSet.ContainsKey(e)) indexSet[e] = e;
         }
 
-        // 1. Exact candidate match in strict regional priority order
+        // 1. Exact candidate match in strict regional & revision priority order
         foreach (var cand in exactCandidates)
         {
             if (indexSet.TryGetValue(cand, out var actual) && !matched.Contains(actual))
@@ -616,6 +830,28 @@ public static class CoverArtService
             if (titleMatchBonus > 0)
             {
                 int totalScore = titleMatchBonus + ScoreServerRegionMatch(entry, preferredRegion);
+
+                // Revision match priority bonus
+                if (!string.IsNullOrWhiteSpace(revisionTag))
+                {
+                    if (entry.Contains($"({revisionTag})", StringComparison.OrdinalIgnoreCase) ||
+                        (revisionTag.Equals("Rev 1", StringComparison.OrdinalIgnoreCase) && entry.Contains("(Rev A)", StringComparison.OrdinalIgnoreCase)) ||
+                        (revisionTag.Equals("Rev 2", StringComparison.OrdinalIgnoreCase) && entry.Contains("(Rev B)", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        totalScore += 120;
+                    }
+                    else if (entry.Contains("(Rev ", StringComparison.OrdinalIgnoreCase))
+                    {
+                        totalScore -= 80;
+                    }
+                }
+
+                // GameCode / Serial match priority bonus
+                if (!string.IsNullOrWhiteSpace(gameCode) && entry.Contains(gameCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    totalScore += 150;
+                }
+
                 scored.Add((entry, totalScore));
             }
         }
@@ -633,10 +869,18 @@ public static class CoverArtService
     {
         if (item == null || string.IsNullOrWhiteSpace(item.Name)) return null;
 
+        item.EnsureRomHeaderMetadata();
+
+        string negKey = $"{item.Platform}/{item.Name}/{item.Region}/{item.RevisionTag}";
+        if (_failedNegativeCache.TryGetValue(negKey, out int ver) && ver == _negativeCacheVersion)
+        {
+            return null;
+        }
+
         var sysDirs = GetLibretroDirs(item.Platform, item.Extension);
         if (sysDirs.Count == 0) return null;
 
-        var candidates = BuildLibretroCandidates(item.Name, item.Region, item.Platform, item.RawNoIntroName);
+        var candidates = BuildLibretroCandidates(item.Name, item.Region, item.Platform, item.RawNoIntroName, item.RevisionTag, item.GameCode);
         string[] folders = { "Named_Boxarts", "Named_Titles" };
 
         foreach (var sysDir in sysDirs)
@@ -647,7 +891,7 @@ public static class CoverArtService
                 var dirIndex = await GetLibretroDirectoryIndexAsync(encSys, folder).ConfigureAwait(false);
                 if (dirIndex.Count > 0)
                 {
-                    var verifiedMatches = MatchCandidatesInDirectoryIndex(dirIndex, candidates, item.Name, item.Region);
+                    var verifiedMatches = MatchCandidatesInDirectoryIndex(dirIndex, candidates, item.Name, item.Region, item.RevisionTag, item.GameCode);
                     foreach (var exactServerName in verifiedMatches)
                     {
                         string cdnUrl = $"https://thumbnails.libretro.com/{encSys}/{folder}/{Uri.EscapeDataString(exactServerName)}.png";
@@ -670,6 +914,7 @@ public static class CoverArtService
             }
         }
 
+        _failedNegativeCache[negKey] = _negativeCacheVersion;
         return null;
     }
 
@@ -766,96 +1011,114 @@ public static class CoverArtService
 
     public static List<string> BuildLibretroCandidates(string rawTitle, string preferredRegion, string platform)
     {
-        return BuildLibretroCandidates(rawTitle, preferredRegion, platform, "");
+        return BuildLibretroCandidates(rawTitle, preferredRegion, platform, "", "", "");
     }
 
     public static List<string> BuildLibretroCandidates(string rawTitle, string preferredRegion, string platform, string rawNoIntro)
+    {
+        return BuildLibretroCandidates(rawTitle, preferredRegion, platform, rawNoIntro, "", "");
+    }
+
+    public static List<string> BuildLibretroCandidates(string rawTitle, string preferredRegion, string platform, string rawNoIntro, string revisionTag, string gameCode = "")
     {
         string clean = Regex.Replace(rawTitle, @"\[[^\]]*\]|\([^)]*\)", "").Trim();
         clean = Regex.Replace(clean, @"\s+", " ").Trim();
         string colonNorm = Regex.Replace(clean, @"\s*:\s*", " - ").Trim();
 
         string regUpper = (preferredRegion ?? "").ToUpperInvariant();
-        List<string> primarySuffixes;
-        List<string> fallbackSuffixes;
+        List<string> rawPrimarySuffixes;
+        List<string> rawFallbackSuffixes;
 
         if (regUpper.Contains("JP-US") || regUpper.Contains("JU"))
         {
-            primarySuffixes = new List<string> { "(Japan, USA)", "(Japan)", "(USA)", "(World)" };
-            fallbackSuffixes = new List<string> { "(Europe)" };
+            rawPrimarySuffixes = new List<string> { "(Japan, USA)", "(Japan)", "(USA)", "(World)" };
+            rawFallbackSuffixes = new List<string> { "(Europe)" };
         }
         else if (regUpper.Contains("US-EU") || regUpper.Contains("UE"))
         {
-            primarySuffixes = new List<string> { "(USA, Europe)", "(USA)", "(Europe)", "(World)" };
-            fallbackSuffixes = new List<string> { "(Japan)" };
+            rawPrimarySuffixes = new List<string> { "(USA, Europe)", "(USA)", "(Europe)", "(World)" };
+            rawFallbackSuffixes = new List<string> { "(Japan)" };
         }
         else if (regUpper.Contains("JP") || regUpper.Contains("JAP"))
         {
-            primarySuffixes = new List<string> { "(Japan)", "(Japan, USA)", "(Japan) (En)", "(Japan, Korea)", "(Asia)", "(World)" };
-            fallbackSuffixes = new List<string> { "(USA)", "(Europe)" };
+            rawPrimarySuffixes = new List<string> { "(Japan)", "(Japan, USA)", "(Japan) (En)", "(Japan, Korea)", "(Asia)", "(World)" };
+            rawFallbackSuffixes = new List<string> { "(USA)", "(Europe)" };
         }
         else if (regUpper.Contains("EU") || regUpper.Contains("PAL"))
         {
-            primarySuffixes = new List<string> { "(Europe)", "(Europe) (En,Fr,De)", "(Europe) (En,Fr,De,Es,It)", "(Europe) (En,Fr,De,Es)", "(USA, Europe)", "(UK)", "(Germany)", "(France)", "(World)" };
-            fallbackSuffixes = new List<string> { "(USA)", "(Japan)" };
+            rawPrimarySuffixes = new List<string> { "(Europe)", "(Europe) (En,Fr,De)", "(Europe) (En,Fr,De,Es,It)", "(Europe) (En,Fr,De,Es)", "(USA, Europe)", "(UK)", "(Germany)", "(France)", "(World)" };
+            rawFallbackSuffixes = new List<string> { "(USA)", "(Japan)" };
         }
         else if (regUpper.Contains("KR"))
         {
-            primarySuffixes = new List<string> { "(Korea)", "(Japan, Korea)", "(Asia)", "(World)", "(USA)" };
-            fallbackSuffixes = new List<string> { "(Europe)", "(Japan)" };
+            rawPrimarySuffixes = new List<string> { "(Korea)", "(Japan, Korea)", "(Asia)", "(World)", "(USA)" };
+            rawFallbackSuffixes = new List<string> { "(Europe)", "(Japan)" };
         }
         else if (regUpper.Contains("RU") || regUpper.Contains("RUS"))
         {
-            primarySuffixes = new List<string> { "(Russia)", "(Europe)", "(USA)", "(World)" };
-            fallbackSuffixes = new List<string> { "(Japan)" };
+            rawPrimarySuffixes = new List<string> { "(Russia)", "(Europe)", "(USA)", "(World)" };
+            rawFallbackSuffixes = new List<string> { "(Japan)" };
         }
         else if (regUpper.Contains("WORLD") || regUpper.Contains("WW"))
         {
-            primarySuffixes = new List<string> { "(World)", "(USA, Europe)", "(USA)", "(Europe)", "(Japan)" };
-            fallbackSuffixes = new List<string>();
+            rawPrimarySuffixes = new List<string> { "(World)", "(USA, Europe)", "(USA)", "(Europe)", "(Japan)" };
+            rawFallbackSuffixes = new List<string>();
         }
         else // US or empty
         {
-            primarySuffixes = new List<string> { "(USA)", "(USA, Europe)", "(World)", "(Europe)", "(Japan)" };
-            fallbackSuffixes = new List<string>();
+            rawPrimarySuffixes = new List<string> { "(USA)", "(USA, Europe)", "(World)", "(Europe)", "(Japan)" };
+            rawFallbackSuffixes = new List<string>();
         }
+
+        var primarySuffixes = new List<string>();
+        if (!string.IsNullOrWhiteSpace(revisionTag))
+        {
+            string revClean = revisionTag.Trim();
+            foreach (var suf in rawPrimarySuffixes)
+            {
+                primarySuffixes.Add($"{suf} ({revClean})");
+                if (revClean.Equals("Rev 1", StringComparison.OrdinalIgnoreCase))
+                {
+                    primarySuffixes.Add($"{suf} (Rev A)");
+                }
+                else if (revClean.Equals("Rev 2", StringComparison.OrdinalIgnoreCase))
+                {
+                    primarySuffixes.Add($"{suf} (Rev B)");
+                }
+            }
+        }
+        primarySuffixes.AddRange(rawPrimarySuffixes);
+
+        var fallbackSuffixes = new List<string>();
+        if (!string.IsNullOrWhiteSpace(revisionTag))
+        {
+            string revClean = revisionTag.Trim();
+            foreach (var suf in rawFallbackSuffixes)
+            {
+                fallbackSuffixes.Add($"{suf} ({revClean})");
+            }
+        }
+        fallbackSuffixes.AddRange(rawFallbackSuffixes);
 
         var baseTitles = new List<string>();
         void PushBase(string b)
         {
             string norm = Regex.Replace(b, @"\s*:\s*", " - ");
+            // Sanitize only filesystem invalid characters, keep spaces and '-' intact!
             norm = Regex.Replace(norm, @"[&*/:`<>?\|""]", "_");
             norm = Regex.Replace(norm, @"\s+", " ").Trim();
             if (!string.IsNullOrEmpty(norm) && !baseTitles.Contains(norm)) baseTitles.Add(norm);
         }
 
-        // 1. If title contains " - ", generate "_ " variants
-        if (colonNorm.Contains(" - "))
-        {
-            string underAll = colonNorm.Replace(" - ", "_ ");
-            PushBase(underAll);
+        // 1. Standard normalized title first (exact title with spaces and ' - ' intact)
+        PushBase(colonNorm);
 
-            int firstDash = colonNorm.IndexOf(" - ");
-            if (firstDash > 0)
-            {
-                string underFirst = colonNorm.Substring(0, firstDash) + "_ " + colonNorm.Substring(firstDash + 3);
-                PushBase(underFirst);
-            }
-
-            if (colonNorm.Contains(" - The "))
-            {
-                PushBase(colonNorm.Replace(" - The ", "_ The "));
-                PushBase(colonNorm.Replace(" - The ", "_ "));
-            }
-        }
-
-        // 2. Standard normalized title
+        // 2. Title with 'The' moved
         if (Regex.IsMatch(colonNorm, @"^the\s+", RegexOptions.IgnoreCase))
         {
             string withoutThe = Regex.Replace(colonNorm, @"^the\s+", "", RegexOptions.IgnoreCase).Trim();
             PushBase($"{withoutThe}, The");
         }
-        PushBase(colonNorm);
 
         // 3. Roman <-> Arabic swaps
         (string From, string To)[] swaps =
@@ -870,16 +1133,22 @@ public static class CoverArtService
             if (colonNorm.Contains(fromStr))
             {
                 string swapped = colonNorm.Replace(fromStr, toStr);
-                PushBase(swapped.Replace(" - ", "_ "));
                 PushBase(swapped);
             }
         }
 
-        // 4. Known expansions
+        // 4. Franchise stem before ' - '
+        int dashIdx = colonNorm.IndexOf(" - ", StringComparison.Ordinal);
+        if (dashIdx > 0)
+        {
+            string franchiseStem = colonNorm.Substring(0, dashIdx).Trim();
+            PushBase(franchiseStem);
+        }
+
+        // 5. Known expansions
         if (colonNorm.Contains("Dungeon Master II", StringComparison.OrdinalIgnoreCase) &&
             !colonNorm.Contains("Skullkeep", StringComparison.OrdinalIgnoreCase))
         {
-            PushBase("Dungeon Master II_ The Legend of Skullkeep");
             PushBase("Dungeon Master II - The Legend of Skullkeep");
         }
 
@@ -891,9 +1160,13 @@ public static class CoverArtService
             if (!string.IsNullOrEmpty(norm) && !results.Contains(norm)) results.Add(norm);
         }
 
-        // Candidate #1: exact RawNoIntroName (standard No-Intro name without brackets)
+        // Candidate #1: exact RawNoIntroName if provided
         if (!string.IsNullOrWhiteSpace(rawNoIntro))
         {
+            if (!string.IsNullOrWhiteSpace(revisionTag) && !rawNoIntro.Contains("(Rev", StringComparison.OrdinalIgnoreCase))
+            {
+                PushResult($"{rawNoIntro} ({revisionTag.Trim()})");
+            }
             PushResult(rawNoIntro);
         }
 
@@ -974,6 +1247,27 @@ public static class CoverArtService
                 {
                     foreach (var p in rawPaths) TryAddPath(p);
                 }
+            }
+
+            // Structured MediaPathResolver directory: <ScreenshotsRoot>/<PlatformType>/<Platform>/<GameTitle>/
+            string structuredDir = MediaPathResolver.GetScreenshotSaveDir(item.Platform, item.Name, item.FilePath);
+            if (Directory.Exists(structuredDir))
+            {
+                try
+                {
+                    foreach (var f in Directory.GetFiles(structuredDir, "*.*"))
+                    {
+                        string ext = Path.GetExtension(f);
+                        if (ext.Equals(".png", StringComparison.OrdinalIgnoreCase) ||
+                            ext.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                            ext.Equals(".webp", StringComparison.OrdinalIgnoreCase))
+                        {
+                            TryAddPath(f);
+                        }
+                        if (list.Count >= 16) break;
+                    }
+                }
+                catch { }
             }
 
             // Also include user-captured local screenshots & save-state previews

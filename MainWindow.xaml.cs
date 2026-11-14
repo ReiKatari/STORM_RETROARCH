@@ -162,9 +162,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private string _selectedChipPlatform = "Все платформы";
 
     // Extended Feature Collections: Shaders, Saves, BIOS, Cheats, Netplay
+    private const int StudioPageChunkSize = 48;
     private readonly BulkObservableCollection<ShaderPresetItem> _allShaders = new();
     private readonly BulkObservableCollection<ShaderPresetItem> _filteredShaders = new();
-    private string _selectedShaderCategory = "Все категории";
+    private List<ShaderPresetItem> _matchedShaders = new();
+    private string _selectedShaderCategory = "ALL";
+    private ShaderPresetItem? _previewedShaderPreset;
 
     private readonly BulkObservableCollection<SaveEntryItem> _allSaves = new();
     private readonly BulkObservableCollection<SaveEntryItem> _filteredSaves = new();
@@ -183,7 +186,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private readonly BulkObservableCollection<BezelPresetItem> _allBezels = new();
     private readonly BulkObservableCollection<BezelPresetItem> _filteredBezels = new();
-    private string _selectedBezelPlatform = "Все рамки";
+    private List<BezelPresetItem> _matchedBezels = new();
+    private string _selectedBezelPlatform = "ALL";
+    private BezelPresetItem? _previewedBezelPreset;
     private string _selectedCoreManufacturer = "Все ядра (350+)";
 
     private List<SettingItem> _allSettings = new();
@@ -314,7 +319,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         CmbStateSlot.SelectionChanged += CmbStateSlot_SelectionChanged;
         SettingItem.SettingChanged += OnLiveSettingChanged;
 
-        // 2.7.2 Instant Debounced Search Timer (35ms)
+        // 2.7.3 Instant Debounced Search Timer (35ms)
         _searchDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(35) };
         _searchDebounceTimer.Tick += (s, e) =>
         {
@@ -341,7 +346,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }));
         };
 
-        // 2.7.2 Multi-Device Input Engine & Controller Hotkey Studio
+        // 2.7.3 Multi-Device Input Engine & Controller Hotkey Studio
         DeviceInputProfileEngine.Initialize();
         DeviceInputProfileEngine.OnDeviceProfileActivated += (dev, msg) =>
         {
@@ -515,7 +520,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         IntPtr hwnd = helper.Handle;
         try
         {
-            SetWindowText(hwnd, Title ?? "STORM RETROARCH 2.7.2");
+            SetWindowText(hwnd, Title ?? "STORM RETROARCH 2.7.3");
             ChangeWindowMessageFilterEx(hwnd, WM_DROPFILES, MSGFLT_ALLOW, IntPtr.Zero);
             ChangeWindowMessageFilterEx(hwnd, WM_COPYDATA, MSGFLT_ALLOW, IntPtr.Zero);
             ChangeWindowMessageFilterEx(hwnd, WM_COPYGLOBALDATA, MSGFLT_ALLOW, IntPtr.Zero);
@@ -639,13 +644,30 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         SyncPerformanceControls();
         SyncBezelControls();
+        if (BdrAmbiluxAmbientGlow != null)
+        {
+            BdrAmbiluxAmbientGlow.Visibility = SettingsManager.Current.AmbiluxGlowEnabled ? Visibility.Visible : Visibility.Collapsed;
+        }
+        // Enforce Clean / Zero-Filter state by default when ActiveShaderPreset is "none"
+        string initPreset = LiveVisualEffectsEngine.NormalizeShaderId(SettingsManager.Current.ActiveShaderPreset);
+        if (initPreset == "none")
+        {
+            NativeLibretroHost.Current.ApplyShaderStudioPreset("none");
+            LiveVisualEffectsEngine.ApplyLiveShaderOverlay(GrdLiveShaderOverlay, "none");
+        }
+        else
+        {
+            NativeLibretroHost.Current.ApplyShaderStudioPreset(initPreset);
+            LiveVisualEffectsEngine.ApplyLiveShaderOverlay(GrdLiveShaderOverlay, initPreset);
+        }
+        SyncShaderStudioControls();
         SyncGamepadStudioControls();
         SyncQuickSettingsCheckboxes();
 
         _isLoaded = true;
-        LogCheckpoint("Before InitStudio200"); InitStudio200(); InitStudio210(); InitStudio220Subsystem(); InitStudio230Subsystem(); InitStudio260(); LogCheckpoint("After InitStudio260");
+        LogCheckpoint("Before InitStudio200"); InitStudio200(); InitStudio210(); InitStudio220Subsystem(); InitStudio230Subsystem(); InitStudio260(); InitializeStreamAndAiControls(); LogCheckpoint("After InitStudio260");
 
-        // 2.7.2 Non-blocking background subsystem warmup (shaders, saves, BIOS, cheats, bezels, achievements, external emus)
+        // 2.7.3 Non-blocking background subsystem warmup (shaders, saves, BIOS, cheats, bezels, achievements, external emus)
         if (Environment.GetCommandLineArgs().Any(a => a.StartsWith("--screenshot", StringComparison.OrdinalIgnoreCase)))
             {
                 await HydrateSubsystemsInBackgroundAsync();
@@ -1406,6 +1428,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 StormAlertOverlay.Visibility = Visibility.Collapsed;
                 _alertTcs?.TrySetResult(false);
                 _alertTcs = null;
+                e.Handled = true;
+                return;
+            }
+            if (PnlInGameAchievementsOverlay != null && PnlInGameAchievementsOverlay.Visibility == Visibility.Visible)
+            {
+                PnlInGameAchievementsOverlay.Visibility = Visibility.Collapsed;
                 e.Handled = true;
                 return;
             }
@@ -2190,7 +2218,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             SyncShaderStudioControls();
             RefreshShaderLivePreview();
             if (!_shadersLoaded) LoadShaders(forceReload: false);
-            if (ItemsShaders != null) AnalyticalSpringEngine.AnimateStaggeredChildren(ItemsShaders);
         }
         else if (btn == NavBtnSaves)
         {
@@ -2216,8 +2243,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _activeNavView = "Bezels";
             ViewBezels.Visibility = Visibility.Visible;
             SyncBezelControls();
-            if (!_bezelsLoaded) LoadBezels(forceReload: false);
-            if (ItemsBezels != null) AnalyticalSpringEngine.AnimateStaggeredChildren(ItemsBezels);
+            if (!_bezelsLoaded) _ = LoadBezelsAsync(forceReload: false);
         }
         else if (btn == NavBtnCoreOptions)
         {
@@ -2244,6 +2270,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _activeNavView = "StreamAi";
             ViewStreamAi.Visibility = Visibility.Visible;
+            SyncStreamAiStatusUi();
         }
         else if (btn == NavBtnSaveSync)
         {
@@ -3299,7 +3326,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (!match) continue;
             }
 
-            // 2.0.0 / 2.7.2 Smart Collections filter
+            // 2.0.0 / 2.7.3 Smart Collections filter
             if (_selectedSmartCollection == "Избранное")
             {
                 if (!g.IsFavorite) continue;
@@ -3874,28 +3901,84 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    // ==================== SCREENSHOTS ====================
+    // ==================== SCREENSHOTS & VIDEOS ====================
 
     private void RefreshScreenshotsList()
     {
+        if (WrapScreenshots == null) return;
         WrapScreenshots.Children.Clear();
-        string dir = RetroArchConfigManager.GetString("screenshot_directory", Path.Combine(CoreManager.AppDir, "screenshots"));
-        if (!Directory.Exists(dir))
+        WrapVideos?.Children.Clear();
+
+        MediaPathResolver.MigrateLegacyMediaIfNeeded();
+        string ssRoot = MediaPathResolver.GetScreenshotsRoot();
+        string vidRoot = MediaPathResolver.GetVideosRoot();
+        Directory.CreateDirectory(ssRoot);
+        Directory.CreateDirectory(vidRoot);
+
+        if (TxtScreenshotsDirDisplay != null)
         {
-            try { Directory.CreateDirectory(dir); } catch { }
-            return;
+            TxtScreenshotsDirDisplay.Text = $"Скриншоты: {ssRoot}   |   Видео: {vidRoot}";
         }
 
-        try
+        string selectedPlat = (CmbMediaPlatformFilter?.SelectedItem as ComboBoxItem)?.Content?.ToString()
+                              ?? CmbMediaPlatformFilter?.SelectedItem?.ToString()
+                              ?? "Все платформы";
+        string query = TxtMediaSearch?.Text?.Trim().ToLowerInvariant() ?? "";
+
+        var ssFiles = MediaPathResolver.ListMediaEntries(ssRoot, new[] { ".png", ".jpg", ".jpeg", ".webp", ".bmp" })
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .ToList();
+        var vidFiles = MediaPathResolver.ListMediaEntries(vidRoot, new[] { ".mp4", ".mkv", ".avi", ".webm", ".mov", ".ts", ".flv", ".gif" })
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .ToList();
+
+        // Populate platform filter dropdown dynamically
+        if (CmbMediaPlatformFilter != null)
         {
-            var files = Directory.GetFiles(dir, "*.png").OrderByDescending(File.GetCreationTime).Take(24);
-            foreach (var f in files)
+            var plats = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var f in ssFiles.Concat(vidFiles))
+            {
+                string meta = FormatRelativeMediaLabel(f, f.StartsWith(ssRoot, StringComparison.OrdinalIgnoreCase) ? ssRoot : vidRoot);
+                var parts = meta.Split('/');
+                if (parts.Length >= 2 && !string.IsNullOrWhiteSpace(parts[1].Trim())) plats.Add(parts[1].Trim());
+            }
+            string prev = selectedPlat;
+            if (CmbMediaPlatformFilter.Items.Count <= 1 || plats.Count + 1 != CmbMediaPlatformFilter.Items.Count)
+            {
+                CmbMediaPlatformFilter.SelectionChanged -= CmbMediaPlatformFilter_SelectionChanged;
+                CmbMediaPlatformFilter.Items.Clear();
+                CmbMediaPlatformFilter.Items.Add("Все платформы");
+                foreach (var pl in plats) CmbMediaPlatformFilter.Items.Add(pl);
+                CmbMediaPlatformFilter.SelectedItem = plats.Contains(prev) ? prev : "Все платформы";
+                CmbMediaPlatformFilter.SelectionChanged += CmbMediaPlatformFilter_SelectionChanged;
+            }
+        }
+
+        bool MatchesFilter(string path, string rootBase)
+        {
+            string rel = FormatRelativeMediaLabel(path, rootBase);
+            if (!string.IsNullOrEmpty(query) && !rel.ToLowerInvariant().Contains(query) && !Path.GetFileName(path).ToLowerInvariant().Contains(query))
+                return false;
+            if (!string.Equals(selectedPlat, "Все платформы", StringComparison.OrdinalIgnoreCase) &&
+                !rel.Contains(selectedPlat, StringComparison.OrdinalIgnoreCase))
+                return false;
+            return true;
+        }
+
+        var filteredSs = ssFiles.Where(f => MatchesFilter(f, ssRoot)).Take(48).ToList();
+        var filteredVid = vidFiles.Where(f => MatchesFilter(f, vidRoot)).Take(48).ToList();
+
+        if (TxtScreenshotsCountBadge != null) TxtScreenshotsCountBadge.Text = $"{filteredSs.Count} файлов";
+        if (TxtScreenshotsEmpty != null) TxtScreenshotsEmpty.Visibility = filteredSs.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var f in filteredSs)
+        {
+            try
             {
                 var card = new Border
                 {
-                    Width = 240,
-                    Height = 160,
-                    Background = (Brush)FindResource("ThemeSurface"),
+                    Width = 248,
+                    Height = 186,
+                    Background = (Brush)FindResource("ThemeHeader"),
                     BorderBrush = (Brush)FindResource("ThemeBorder"),
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(8),
@@ -3903,27 +3986,35 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                     Padding = new Thickness(8),
                     Cursor = Cursors.Hand
                 };
-
                 var sp = new StackPanel();
                 var bmp = new BitmapImage();
                 bmp.BeginInit();
                 bmp.UriSource = new Uri(f);
-                bmp.DecodePixelWidth = 220;
+                bmp.DecodePixelWidth = 240;
                 bmp.CacheOption = BitmapCacheOption.OnLoad;
                 bmp.EndInit();
 
-                var img = new Image { Source = bmp, Height = 115, Stretch = Stretch.Uniform };
-                var txt = new TextBlock
+                var img = new Image { Source = bmp, Height = 122, Stretch = Stretch.Uniform };
+                var titleTb = new TextBlock
                 {
                     Text = Path.GetFileName(f),
-                    Foreground = (Brush)FindResource("ThemeTextSecondary"),
-                    FontSize = 11,
+                    Foreground = (Brush)FindResource("ThemeTextPrimary"),
+                    FontSize = 11.5,
+                    FontWeight = FontWeights.SemiBold,
                     TextTrimming = TextTrimming.CharacterEllipsis,
                     Margin = new Thickness(0, 6, 0, 0)
                 };
-
+                var metaTb = new TextBlock
+                {
+                    Text = FormatRelativeMediaLabel(f, ssRoot),
+                    Foreground = (Brush)FindResource("ThemeTextMuted"),
+                    FontSize = 10,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    Margin = new Thickness(0, 2, 0, 0)
+                };
                 sp.Children.Add(img);
-                sp.Children.Add(txt);
+                sp.Children.Add(titleTb);
+                sp.Children.Add(metaTb);
                 card.Child = sp;
 
                 string filePath = f;
@@ -3931,16 +4022,101 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 {
                     try { Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true }); } catch { }
                 };
-
                 WrapScreenshots.Children.Add(card);
             }
+            catch { }
         }
-        catch { }
+
+        if (TxtVideosCountBadge != null) TxtVideosCountBadge.Text = $"{filteredVid.Count} файлов";
+        if (TxtVideosEmpty != null) TxtVideosEmpty.Visibility = filteredVid.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (WrapVideos != null)
+        {
+            foreach (var vf in filteredVid)
+            {
+                try
+                {
+                    long kb = new FileInfo(vf).Length / 1024;
+                    string sizeText = kb >= 1024 ? $"{kb / 1024.0:F1} МБ" : $"{kb} КБ";
+                    string ext = Path.GetExtension(vf).TrimStart('.').ToUpperInvariant();
+                    var card = new Border
+                    {
+                        Width = 264,
+                        Height = 126,
+                        Background = (Brush)FindResource("ThemeHeader"),
+                        BorderBrush = (Brush)FindResource("ThemeBorder"),
+                        BorderThickness = new Thickness(1),
+                        CornerRadius = new CornerRadius(8),
+                        Margin = new Thickness(0, 0, 10, 10),
+                        Padding = new Thickness(12),
+                        Cursor = Cursors.Hand
+                    };
+                    var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                    var topRow = new DockPanel { LastChildFill = true };
+                    var badge = new Border
+                    {
+                        Background = new SolidColorBrush(Color.FromArgb(40, 167, 139, 250)),
+                        BorderBrush = new SolidColorBrush(Color.FromRgb(167, 139, 250)),
+                        BorderThickness = new Thickness(1),
+                        CornerRadius = new CornerRadius(4),
+                        Padding = new Thickness(6, 1, 6, 1)
+                    };
+                    DockPanel.SetDock(badge, Dock.Right);
+                    badge.Child = new TextBlock { Text = $"{ext} • {sizeText}", Foreground = new SolidColorBrush(Color.FromRgb(196, 181, 253)), FontSize = 10, FontWeight = FontWeights.Bold };
+                    topRow.Children.Add(badge);
+                    topRow.Children.Add(new TextBlock
+                    {
+                        Text = Path.GetFileName(vf),
+                        Foreground = (Brush)FindResource("ThemeTextPrimary"),
+                        FontSize = 12.5,
+                        FontWeight = FontWeights.Bold,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                        VerticalAlignment = VerticalAlignment.Center
+                    });
+                    sp.Children.Add(topRow);
+                    sp.Children.Add(new TextBlock
+                    {
+                        Text = FormatRelativeMediaLabel(vf, vidRoot),
+                        Foreground = (Brush)FindResource("ThemeTextSecondary"),
+                        FontSize = 11,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                        Margin = new Thickness(0, 8, 0, 6)
+                    });
+                    sp.Children.Add(new TextBlock
+                    {
+                        Text = $"Создано: {File.GetLastWriteTime(vf):yyyy-MM-dd HH:mm} • Нажмите для воспроизведения",
+                        Foreground = (Brush)FindResource("ThemeTextMuted"),
+                        FontSize = 10.5
+                    });
+                    card.Child = sp;
+
+                    string videoPath = vf;
+                    card.MouseDown += (s, ev) =>
+                    {
+                        try { Process.Start(new ProcessStartInfo { FileName = videoPath, UseShellExecute = true }); } catch { }
+                    };
+                    WrapVideos.Children.Add(card);
+                }
+                catch { }
+            }
+        }
     }
+
+    private static string FormatRelativeMediaLabel(string fullPath, string rootDir)
+    {
+        try
+        {
+            string rel = Path.GetRelativePath(rootDir, Path.GetDirectoryName(fullPath) ?? rootDir);
+            return rel == "." ? "Общая папка" : rel.Replace('\\', '/');
+        }
+        catch { return "Медиа"; }
+    }
+
+    private void CmbMediaPlatformFilter_SelectionChanged(object sender, SelectionChangedEventArgs e) => RefreshScreenshotsList();
+    private void TxtMediaSearch_TextChanged(object sender, TextChangedEventArgs e) => RefreshScreenshotsList();
 
     private void BtnOpenScreenshotsFolder_Click(object sender, RoutedEventArgs e)
     {
-        string dir = RetroArchConfigManager.GetString("screenshot_directory", Path.Combine(CoreManager.AppDir, "screenshots"));
+        string dir = MediaPathResolver.GetScreenshotsRoot();
         try
         {
             if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
@@ -4307,7 +4483,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         foreach (var s in _allShaders)
         {
-            bool matchCat = _selectedShaderCategory == "Все категории" || s.Category.Equals(_selectedShaderCategory, StringComparison.OrdinalIgnoreCase);
+            bool matchCat = string.Equals(_selectedShaderCategory, "ALL", StringComparison.OrdinalIgnoreCase)
+                            || s.CategoryKey.Equals(_selectedShaderCategory, StringComparison.OrdinalIgnoreCase)
+                            || s.Category.Equals(_selectedShaderCategory, StringComparison.OrdinalIgnoreCase);
             bool matchQuery = string.IsNullOrEmpty(query) || s.Name.ToLowerInvariant().Contains(query) || s.Description.ToLowerInvariant().Contains(query);
 
             if (matchCat && matchQuery)
@@ -4316,7 +4494,21 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
         }
 
-        _filteredShaders.ReplaceAll(filtered);
+        _matchedShaders = filtered;
+        _filteredShaders.ReplaceAll(_matchedShaders.Take(StudioPageChunkSize).ToList());
+    }
+
+    private void SvShaders_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (_filteredShaders.Count >= _matchedShaders.Count) return;
+        if (e.VerticalOffset + e.ViewportHeight >= e.ExtentHeight - 240)
+        {
+            var nextBatch = _matchedShaders.Skip(_filteredShaders.Count).Take(StudioPageChunkSize).ToList();
+            if (nextBatch.Count > 0)
+            {
+                _filteredShaders.AddRange(nextBatch);
+            }
+        }
     }
 
     private void TxtSearchShaders_TextChanged(object sender, TextChangedEventArgs e) => ApplyShadersFilter();
@@ -4332,16 +4524,85 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
         }
         btn.Tag = "Active";
-        _selectedShaderCategory = btn.Content?.ToString() ?? "Все категории";
+        string key = string.IsNullOrWhiteSpace(btn.Uid) ? (btn.Content?.ToString() ?? "ALL") : btn.Uid;
+        if (key.Equals("NONE", StringComparison.OrdinalIgnoreCase))
+        {
+            PreviewShaderPresetItem(null);
+            BtnDisableShaders_Click(sender, e);
+            _selectedShaderCategory = "NONE";
+            ApplyShadersFilter();
+            return;
+        }
+        _selectedShaderCategory = key;
         ApplyShadersFilter();
+    }
+
+    private void PreviewShaderPresetItem(ShaderPresetItem? item)
+    {
+        _previewedShaderPreset = item;
+        if (item == null || item.CategoryKey.Equals("NONE", StringComparison.OrdinalIgnoreCase))
+        {
+            if (TxtShaderPreviewBanner != null)
+            {
+                TxtShaderPreviewBanner.Text = "Предпросмотр: Без фильтра (чистый исходный кадр)";
+            }
+            if (ImgShaderLivePreview != null)
+            {
+                ImgShaderLivePreview.Source = NativeLibretroHost.RenderShaderPreviewSplit(0.0, 560, 315);
+            }
+            return;
+        }
+
+        if (TxtShaderPreviewBanner != null)
+        {
+            TxtShaderPreviewBanner.Text = $"Предпросмотр: {item.Name} ({item.Category}) - нажмите «Применить», чтобы включить в игре";
+        }
+        if (ImgShaderLivePreview != null)
+        {
+            ImgShaderLivePreview.Source = ShaderManager.RenderPreviewBitmapForPreset(item, false)
+                                          ?? NativeLibretroHost.RenderShaderPreviewSplit(0.5, 560, 315);
+        }
+    }
+
+    private void ShaderCard_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject dep)
+        {
+            // Ignore clicks coming directly from inner Apply/Preview buttons
+            for (var cur = dep; cur != null; cur = VisualTreeHelper.GetParent(cur))
+            {
+                if (cur is Button) return;
+                if (cur == sender) break;
+            }
+        }
+        if (sender is FrameworkElement { Tag: ShaderPresetItem item })
+        {
+            PreviewShaderPresetItem(item);
+        }
+    }
+
+    private void BtnPreviewShaderPreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ShaderPresetItem item }) return;
+        e.Handled = true;
+        PreviewShaderPresetItem(item);
     }
 
     private void BtnApplyShaderPreset_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: ShaderPresetItem item }) return;
+        e.Handled = true;
 
         ShaderManager.ApplyShader(item);
         foreach (var s in _allShaders) s.IsActive = (s == item);
+
+        if (item.CategoryKey.Equals("NONE", StringComparison.OrdinalIgnoreCase) ||
+            item.RelativePath.Equals("none", StringComparison.OrdinalIgnoreCase))
+        {
+            ApplyShaderPresetStudio270("none", "Без фильтра");
+            PreviewShaderPresetItem(null);
+            return;
+        }
 
         string n = item.Name.ToLowerInvariant();
         if (n.Contains("crt") || n.Contains("scanline")) NativeLibretroHost.Current.ShaderFilterMode = 1;
@@ -4349,14 +4610,20 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         else if (n.Contains("xbr") || n.Contains("smooth") || n.Contains("aa") || n.Contains("scale")) NativeLibretroHost.Current.ShaderFilterMode = 2;
         else NativeLibretroHost.Current.ShaderFilterMode = 1;
 
+        SettingsManager.Current.ActiveShaderPreset = item.Name;
+        SettingsManager.Save();
+        PreviewShaderPresetItem(item);
         ShowOsdToast($"Шейдер «{item.Name}» активирован!");
     }
 
     private void BtnDisableShaders_Click(object sender, RoutedEventArgs e)
     {
-        ShaderManager.DisableShaders();
+        ShaderManager.DisableAllShaders();
         foreach (var s in _allShaders) s.IsActive = false;
-        ShowNotification("Все шейдеры отключены (video_shader_enable = false)");
+        ApplyShaderPresetStudio270("none", "Без фильтра");
+        if (BtnPresetClean != null) BtnShaderPreset_Click(BtnPresetClean, new RoutedEventArgs());
+        PreviewShaderPresetItem(null);
+        ShowOsdToast("Все видеофильтры отключены (оригинал пиксель-в-пиксель)");
     }
 
     private void BtnOpenShadersDir_Click(object sender, RoutedEventArgs e)
@@ -5023,7 +5290,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        ShowNotification($"Загрузка обложек для {_allGames.Count} игр...");
+        CoverArtService.ClearFailedNegativeCache();
+        ShowNotification($"Загрузка обложек для {_allGames.Count} игр (с проверкой кода и региона)...");
         await CoverArtService.LoadCoversParallelAsync(_allGames, forceRefresh: true);
         ShowNotification("Загрузка обложек завершена!");
     }
@@ -5036,6 +5304,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
+        CoverArtService.ClearFailedNegativeCache();
         ShowOsdToast($"Параллельная загрузка обложек для {_allGames.Count} игр...");
         await CoverArtService.LoadCoversParallelAsync(_allGames, forceRefresh: true);
         ShowOsdToast("Обложки успешно загружены!");
@@ -5321,14 +5590,25 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
 
 
-private void LoadBezels(bool forceReload = true)
+    private void LoadBezels(bool forceReload = true) => _ = LoadBezelsAsync(forceReload);
+
+    private async Task LoadBezelsAsync(bool forceReload = true)
     {
         if (_bezelsLoaded && !forceReload) return;
-        BezelManager.EnsureBuiltinBezels();
-        var bezels = BezelManager.ScanBezels();
+        if (forceReload)
+        {
+            MegaBezelPackManager.InvalidatePresetCache();
+            BezelManager.RefreshCache();
+        }
+        var bezels = await BezelManager.ScanBezelsAsync(forceReload);
         _allBezels.ReplaceAll(bezels);
         _bezelsLoaded = true;
         ApplyBezelsFilter();
+        var active = bezels.FirstOrDefault(b => b.IsActive) ?? bezels.FirstOrDefault();
+        if (active != null && _previewedBezelPreset == null)
+        {
+            PreviewBezelPresetItem(active);
+        }
     }
 
     private void ApplyBezelsFilter()
@@ -5338,14 +5618,14 @@ private void LoadBezels(bool forceReload = true)
 
         foreach (var b in _allBezels)
         {
-            bool matchPlatform = _selectedBezelPlatform switch
+            bool matchPlatform = _selectedBezelPlatform.ToUpperInvariant() switch
             {
-                "Mega Bezel / Duimon" => b.PackSource.Contains("Mega Bezel", StringComparison.OrdinalIgnoreCase) || b.PackSource.Contains("Duimon", StringComparison.OrdinalIgnoreCase) || b.SlangpPath.Contains("Mega_Bezel", StringComparison.OrdinalIgnoreCase) || b.Name.Contains("Mega Bezel", StringComparison.OrdinalIgnoreCase) || b.Name.Contains("Duimon", StringComparison.OrdinalIgnoreCase),
-                "PS2 / PS3 / PSV" => b.Platform.Contains("PS2", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("PS3", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Vita", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("PlayStation 2", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("PlayStation 3", StringComparison.OrdinalIgnoreCase),
-                "Sony" => b.Platform.Contains("Sony", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("PlayStation", StringComparison.OrdinalIgnoreCase),
-                "Nintendo" => b.Platform.Contains("Nintendo", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Game Boy", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("SNES", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("NES", StringComparison.OrdinalIgnoreCase),
-                "Sega" => b.Platform.Contains("Sega", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Genesis", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Saturn", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Dreamcast", StringComparison.OrdinalIgnoreCase),
-                "Arcade / Other" or "Аркады и другие" => b.Platform.Contains("Arcade", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("STORM", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Custom", StringComparison.OrdinalIgnoreCase),
+                "MEGA_BEZEL" => b.PackSource.Contains("Mega Bezel", StringComparison.OrdinalIgnoreCase) || b.PackSource.Contains("Duimon", StringComparison.OrdinalIgnoreCase) || b.SlangpPath.Contains("Mega_Bezel", StringComparison.OrdinalIgnoreCase) || b.Name.Contains("Mega Bezel", StringComparison.OrdinalIgnoreCase) || b.Name.Contains("Duimon", StringComparison.OrdinalIgnoreCase),
+                "PS" => b.Platform.Contains("PS2", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("PS3", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Vita", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("PlayStation 2", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("PlayStation 3", StringComparison.OrdinalIgnoreCase),
+                "SONY" => b.Platform.Contains("Sony", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("PlayStation", StringComparison.OrdinalIgnoreCase),
+                "NINTENDO" => b.Platform.Contains("Nintendo", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Game Boy", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("SNES", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("NES", StringComparison.OrdinalIgnoreCase),
+                "SEGA" => b.Platform.Contains("Sega", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Genesis", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Saturn", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Dreamcast", StringComparison.OrdinalIgnoreCase),
+                "ARCADE" => b.Platform.Contains("Arcade", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("STORM", StringComparison.OrdinalIgnoreCase) || b.Platform.Contains("Custom", StringComparison.OrdinalIgnoreCase),
                 _ => true
             };
 
@@ -5360,7 +5640,21 @@ private void LoadBezels(bool forceReload = true)
             }
         }
 
-        _filteredBezels.ReplaceAll(filtered);
+        _matchedBezels = filtered;
+        _filteredBezels.ReplaceAll(_matchedBezels.Take(StudioPageChunkSize).ToList());
+    }
+
+    private void SvBezels_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (_filteredBezels.Count >= _matchedBezels.Count) return;
+        if (e.VerticalOffset + e.ViewportHeight >= e.ExtentHeight - 240)
+        {
+            var nextBatch = _matchedBezels.Skip(_filteredBezels.Count).Take(StudioPageChunkSize).ToList();
+            if (nextBatch.Count > 0)
+            {
+                _filteredBezels.AddRange(nextBatch);
+            }
+        }
     }
 
     private void TxtSearchBezels_TextChanged(object sender, TextChangedEventArgs e) => ApplyBezelsFilter();
@@ -5376,18 +5670,73 @@ private void LoadBezels(bool forceReload = true)
             }
         }
         btn.Tag = "Active";
-        _selectedBezelPlatform = btn.Content?.ToString() ?? "Все рамки";
+        _selectedBezelPlatform = string.IsNullOrWhiteSpace(btn.Uid) ? "ALL" : btn.Uid;
         ApplyBezelsFilter();
+    }
+
+    private void PreviewBezelPresetItem(BezelPresetItem item)
+    {
+        _previewedBezelPreset = item;
+        if (ImgBezelLivePreview != null)
+        {
+            ImgBezelLivePreview.Source = item.PreviewImage;
+        }
+        if (TxtBezelPreviewTitle != null)
+        {
+            TxtBezelPreviewTitle.Text = $"Предпросмотр рамки: {item.Name}";
+        }
+        if (TxtBezelPreviewMeta != null)
+        {
+            TxtBezelPreviewMeta.Text = $"{item.Platform} • Источник: {item.PackSource} • {item.AspectRatio} • {item.Description}";
+        }
+    }
+
+    private void BezelCard_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject dep)
+        {
+            for (var cur = dep; cur != null; cur = VisualTreeHelper.GetParent(cur))
+            {
+                if (cur is Button) return;
+                if (cur == sender) break;
+            }
+        }
+        if (sender is FrameworkElement { Tag: BezelPresetItem item })
+        {
+            PreviewBezelPresetItem(item);
+        }
+    }
+
+    private void BtnPreviewBezelPreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: BezelPresetItem item }) return;
+        e.Handled = true;
+        PreviewBezelPresetItem(item);
+    }
+
+    private void BtnApplyPreviewedBezel_Click(object sender, RoutedEventArgs e)
+    {
+        if (_previewedBezelPreset == null)
+        {
+            ShowOsdToast("Выберите рамку в списке ниже для просмотра и применения");
+            return;
+        }
+        BezelManager.ApplyBezel(_previewedBezelPreset);
+        foreach (var b in _allBezels) b.IsActive = (b == _previewedBezelPreset);
+        ApplyActiveBezelToViewport();
+        ShowOsdToast($"Рамка «{_previewedBezelPreset.Name}» активирована!", "#10B981");
     }
 
     private void BtnApplyBezelPreset_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: BezelPresetItem item }) return;
+        e.Handled = true;
 
+        PreviewBezelPresetItem(item);
         BezelManager.ApplyBezel(item);
         foreach (var b in _allBezels) b.IsActive = (b == item);
         ApplyActiveBezelToViewport();
-        ShowNotification($"Рамка «{item.Name}» активирована! Разрешение viewport настроено под 4:3.");
+        ShowOsdToast($"Рамка «{item.Name}» активирована! (4:3 Viewport)");
     }
 
     private void BtnDisableBezel_Click(object sender, RoutedEventArgs e)
@@ -5727,7 +6076,7 @@ private void LoadBezels(bool forceReload = true)
     {
         if (_achievementsLoaded && !forceReload) return;
         TxtCheevosUsername.Text = AchievementsManager.Username;
-        TxtCheevosToken.Text = string.IsNullOrEmpty(AchievementsManager.Token) ? AchievementsManager.Password : AchievementsManager.Token;
+        TxtCheevosToken.Text = !string.IsNullOrEmpty(AchievementsManager.Token) ? AchievementsManager.Token : AchievementsManager.Password;
 
         ChkCheevosEnable.IsChecked = AchievementsManager.EnableCheevos;
         ChkCheevosHardcore.IsChecked = AchievementsManager.HardcoreMode;
@@ -5743,15 +6092,25 @@ private void LoadBezels(bool forceReload = true)
         _achievementsLoaded = true;
         TxtCheevosLibraryCount.Text = $"{_filteredAchievements.Count} игр в библиотеке";
         ItemsCheevosLibrary.ItemsSource = _filteredAchievements;
+        _ = RefreshAchievementsStudio270Async();
     }
 
-    private void BtnSaveCheevosAccount_Click(object sender, RoutedEventArgs e)
+    private async void BtnSaveCheevosAccount_Click(object sender, RoutedEventArgs e)
     {
         AchievementsManager.Username = TxtCheevosUsername.Text.Trim();
         string tokenOrPwd = TxtCheevosToken.Text.Trim();
-        AchievementsManager.Token = tokenOrPwd;
-        AchievementsManager.Password = tokenOrPwd;
-        ShowNotification("STORM RETROARCH", "Учётные данные RetroAchievements сохранены в retroarch.cfg!");
+        if (System.Text.RegularExpressions.Regex.IsMatch(tokenOrPwd, "^[A-Za-z0-9]{28,40}$"))
+        {
+            AchievementsManager.Token = tokenOrPwd;
+        }
+        else
+        {
+            AchievementsManager.Token = string.Empty;
+            AchievementsManager.Password = tokenOrPwd;
+        }
+        if (TxtCheevosConnectionStatus != null) TxtCheevosConnectionStatus.Text = "Авторизация...";
+        await RefreshAchievementsStudio270Async();
+        ShowOsdToast($"RetroAchievements: учётная запись {AchievementsManager.Username} синхронизирована!", "#10B981");
     }
 
     private void BtnOpenCheevosProfile_Click(object sender, RoutedEventArgs e)
@@ -5783,51 +6142,175 @@ private void LoadBezels(bool forceReload = true)
 
     // ==================== STREAM & AI SERVICE ====================
 
+    private void InitializeStreamAndAiControls()
+    {
+        try
+        {
+            if (CmbStreamPlatform != null && CmbStreamPlatform.Items.Count == 0)
+            {
+                foreach (var pl in StreamAndAiManager.StreamingPlatforms)
+                {
+                    CmbStreamPlatform.Items.Add(new ComboBoxItem
+                    {
+                        Content = $"{pl.Name} ({pl.Protocol})",
+                        Tag = pl
+                    });
+                }
+                if (CmbStreamPlatform.Items.Count > 0) CmbStreamPlatform.SelectedIndex = 0;
+            }
+            if (CmbRecordFormat != null && CmbRecordFormat.Items.Count == 0)
+            {
+                foreach (var c in StreamAndAiManager.VideoContainers) CmbRecordFormat.Items.Add(c);
+                CmbRecordFormat.SelectedIndex = 0;
+            }
+            if (CmbRecordCodec != null && CmbRecordCodec.Items.Count == 0)
+            {
+                foreach (var vc in StreamAndAiManager.VideoCodecs) CmbRecordCodec.Items.Add(vc);
+                CmbRecordCodec.SelectedIndex = 0;
+            }
+            if (CmbRecordAudioCodec != null && CmbRecordAudioCodec.Items.Count == 0)
+            {
+                foreach (var ac in StreamAndAiManager.AudioCodecs) CmbRecordAudioCodec.Items.Add(ac);
+                CmbRecordAudioCodec.SelectedIndex = 0;
+            }
+            if (CmbRecordResolution != null && CmbRecordResolution.Items.Count == 0)
+            {
+                foreach (var r in StreamAndAiManager.Resolutions) CmbRecordResolution.Items.Add(r);
+                CmbRecordResolution.SelectedIndex = 0;
+            }
+            if (CmbRecordFps != null && CmbRecordFps.Items.Count == 0)
+            {
+                foreach (var f in StreamAndAiManager.FpsList) CmbRecordFps.Items.Add($"{f} FPS");
+                CmbRecordFps.SelectedIndex = 0;
+            }
+            if (CmbRecordRateControl != null && CmbRecordRateControl.Items.Count == 0)
+            {
+                foreach (var rc in StreamAndAiManager.RateControls) CmbRecordRateControl.Items.Add(rc);
+                CmbRecordRateControl.SelectedIndex = 0;
+            }
+            if (CmbRecordPreset != null && CmbRecordPreset.Items.Count == 0)
+            {
+                foreach (var pr in StreamAndAiManager.Presets) CmbRecordPreset.Items.Add(pr);
+                CmbRecordPreset.SelectedIndex = 2;
+            }
+            SyncStreamAiStatusUi();
+        }
+        catch { }
+    }
+
+    private void SyncStreamAiStatusUi()
+    {
+        if (TxtAiServiceStatus != null)
+        {
+            bool running = StreamAndAiManager.IsAiServerRunning;
+            string portText = TxtAiPort?.Text?.Trim() ?? "4404";
+            TxtAiServiceStatus.Text = running ? $"Статус: Активен (Порт {portText})" : $"Статус: Остановлен (Порт {portText})";
+            TxtAiServiceStatus.Foreground = new SolidColorBrush(running ? Color.FromRgb(16, 185, 129) : Color.FromRgb(245, 158, 11));
+        }
+        if (TxtRecordLiveStatus != null)
+        {
+            TxtRecordLiveStatus.Text = StreamAndAiManager.IsRecording ? "Идёт видеозапись..." : "Запись не активна";
+            TxtRecordLiveStatus.Foreground = StreamAndAiManager.IsRecording
+                ? new SolidColorBrush(Color.FromRgb(251, 113, 133))
+                : (Brush)FindResource("ThemeTextSecondary");
+        }
+    }
+
     private void BtnStartAiService_Click(object sender, RoutedEventArgs e)
     {
         StreamAndAiManager.StartAiServer(msg =>
         {
-            Dispatcher.Invoke(() =>
-            {
-                TxtAiServiceStatus.Text = "Статус: Активен (Порт 4404)";
-                TxtAiServiceStatus.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(16, 185, 129));
-            });
+            Dispatcher.Invoke(SyncStreamAiStatusUi);
         });
-        ShowNotification("STORM RETROARCH", "Локальный AI Service запущен на http://127.0.0.1:4404/!");
+        SyncStreamAiStatusUi();
+        ShowOsdToast("Локальный AI Service запущен!", "#10B981");
     }
 
     private void BtnStopAiService_Click(object sender, RoutedEventArgs e)
     {
         StreamAndAiManager.StopAiServer();
-        TxtAiServiceStatus.Text = "Статус: Остановлен";
-        TxtAiServiceStatus.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68));
-        ShowNotification("STORM RETROARCH", "Локальный AI Service остановлен.");
+        SyncStreamAiStatusUi();
+        ShowOsdToast("Локальный AI Service остановлен.");
+    }
+
+    private async void BtnTestAiEndpoint_Click(object sender, RoutedEventArgs e)
+    {
+        int port = int.TryParse(TxtAiPort?.Text?.Trim(), out int p) && p > 0 ? p : 4404;
+        var res = await StreamAndAiManager.CheckAiEndpointAsync($"http://127.0.0.1:{port}/");
+        if (TxtAiServiceStatus != null)
+        {
+            TxtAiServiceStatus.Text = res.Message;
+            TxtAiServiceStatus.Foreground = new SolidColorBrush(res.Ok ? Color.FromRgb(16, 185, 129) : Color.FromRgb(251, 113, 133));
+        }
+        ShowOsdToast(res.Message);
     }
 
     private void BtnConfigureAiInCfg_Click(object sender, RoutedEventArgs e)
     {
-        StreamAndAiManager.ConfigureAiServiceInRetroArch("ru");
-        ShowNotification("STORM RETROARCH", "Параметры AI Service успешно прописаны в retroarch.cfg!");
+        string srcLang = (CmbAiSourceLang?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "auto";
+        string tgtLang = (CmbAiTargetLang?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "ru";
+        string engine = (CmbAiEngine?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "builtin";
+        int port = int.TryParse(TxtAiPort?.Text?.Trim(), out int p) && p > 0 ? p : 4404;
+        StreamAndAiManager.SaveAiSettings(srcLang, tgtLang, engine, port);
+        ShowOsdToast($"Параметры AI Service ({srcLang} -> {tgtLang}) сохранены в retroarch.cfg!");
     }
 
     private void CmbStreamPlatform_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        // Platform selection changed
+        if (CmbStreamPlatform?.SelectedItem is ComboBoxItem cbi && cbi.Tag is StreamingPlatform sp)
+        {
+            if (TxtStreamCustomUrl != null) TxtStreamCustomUrl.Text = sp.DefaultServerUrl;
+            if (TxtStreamBitrate != null) TxtStreamBitrate.Text = sp.RecommendedBitrate.TrimEnd('k', 'K');
+        }
     }
 
     private void BtnSaveStreamSettings_Click(object sender, RoutedEventArgs e)
     {
-        string rtmp = "rtmp://live.twitch.tv/app/";
-        if (CmbStreamPlatform.SelectedItem is ComboBoxItem item && item.Tag is string tag) rtmp = tag;
-        string key = TxtStreamKey.Text.Trim();
-
+        string rtmp = TxtStreamCustomUrl?.Text?.Trim() ?? "rtmp://live.twitch.tv/app";
+        string key = TxtStreamKey?.Text?.Trim() ?? "";
         StreamAndAiManager.SaveStreamingSettings(rtmp, key);
-        ShowNotification("STORM RETROARCH", "Параметры стриминга RTMP сохранены в retroarch.cfg!");
+        ShowOsdToast("Параметры стриминга RTMP/RTMPS/WHIP сохранены в retroarch.cfg!");
+    }
+
+    private async void BtnRecordStartLocal_Click(object sender, RoutedEventArgs e)
+    {
+        string gameName = _activeRomItem?.Name ?? NativeLibretroHost.Current.CurrentGameTitle;
+        if (string.IsNullOrWhiteSpace(gameName)) gameName = "Gameplay";
+        string outDir = MediaPathResolver.GetVideoSaveDir(_activeRomItem?.Platform, gameName, _activeRomItem?.FilePath);
+        string safeStem = MediaPathResolver.CleanGameTitleForFolder(gameName);
+
+        string container = (CmbRecordFormat?.SelectedItem?.ToString() ?? "MKV").ToLowerInvariant();
+        if (container == "mpeg-ts") container = "ts";
+        string vCodec = CmbRecordCodec?.SelectedItem?.ToString() ?? "libx264";
+        string aCodec = CmbRecordAudioCodec?.SelectedItem?.ToString() ?? "aac";
+        string fpsRaw = CmbRecordFps?.SelectedItem?.ToString()?.Replace(" FPS", "") ?? "60";
+        int fps = int.TryParse(fpsRaw.Trim(), out int parsedFps) ? parsedFps : 60;
+        int vBitrate = int.TryParse(TxtRecordBitrate?.Text?.Trim(), out int vb) && vb >= 500 ? vb : 8000;
+        string preset = CmbRecordPreset?.SelectedItem?.ToString() ?? "veryfast";
+
+        var res = await StreamAndAiManager.StartLocalRecordingAsync(outDir, safeStem, container, vCodec, aCodec, fps, vBitrate, 192, preset);
+        SyncStreamAiStatusUi();
+        ShowOsdToast(res.Message, res.Success ? "#10B981" : "#FB7185");
+    }
+
+    private async void BtnRecordStopLocal_Click(object sender, RoutedEventArgs e)
+    {
+        var res = await StreamAndAiManager.StopLocalRecordingAsync();
+        SyncStreamAiStatusUi();
+        RefreshScreenshotsList();
+        ShowOsdToast(res.Summary, res.Success ? "#38BDF8" : "#FB7185");
+    }
+
+    private async void BtnProbeEncoders_Click(object sender, RoutedEventArgs e)
+    {
+        var encoders = await StreamAndAiManager.ProbeAvailableEncodersAsync();
+        var hwFound = StreamAndAiManager.VideoCodecs.Where(c => encoders.Contains(c)).ToList();
+        ShowOsdToast($"Доступно кодеков FFmpeg ({encoders.Count}): {string.Join(", ", hwFound.Take(6))}", "#38BDF8");
     }
 
     private void BtnOpenRecordingsDir_Click(object sender, RoutedEventArgs e)
     {
-        string recDir = Path.Combine(CoreManager.AppDir, "recordings");
+        string recDir = MediaPathResolver.GetVideosRoot();
         if (!Directory.Exists(recDir)) Directory.CreateDirectory(recDir);
         try { Process.Start(new ProcessStartInfo { FileName = recDir, UseShellExecute = true }); }
         catch (Exception ex) { ShowNotification("STORM RETROARCH", $"Ошибка: {ex.Message}"); }
@@ -6912,6 +7395,12 @@ private void LoadBezels(bool forceReload = true)
             ShowOsdToast("Нет запущенной игры для перемотки");
             return;
         }
+        if (!NativeLibretroHost.Current.RewindBufferEnabled)
+        {
+            NativeLibretroHost.Current.RewindBufferEnabled = true;
+            ShowOsdToast("Буфер перемотки активирован (удерживайте для шага назад)");
+            return;
+        }
         NativeLibretroHost.Current.StepRewind();
         ShowOsdToast("Перемотка времени назад");
     }
@@ -6981,8 +7470,9 @@ private void LoadBezels(bool forceReload = true)
 
     private async void TriggerInstantReplaySave()
     {
-        string title = NativeLibretroHost.Current.CurrentGameTitle;
-        var res = await InstantReplayRecorder.Instance.SaveLast30SecondsAsync(title);
+        string title = _activeRomItem?.Name ?? NativeLibretroHost.Current.CurrentGameTitle;
+        var res = await InstantReplayRecorder.Instance.SaveLast30SecondsAsync(title, _activeRomItem?.Platform, _activeRomItem?.FilePath);
+        if (res.Success) RefreshScreenshotsList();
         ShowOsdToast(res.MessageRu);
     }
 
@@ -6991,14 +7481,15 @@ private void LoadBezels(bool forceReload = true)
         if (VulkanD3dEngineBridge.Current.IsRunning)
         {
             VulkanD3dEngineBridge.Current.TakeScreenshot();
+            RefreshScreenshotsList();
             ShowOsdToast("Скриншот сохранён (GPU)");
             return;
         }
 
-        string ssDir = Path.Combine(CoreManager.AppDir, "screenshots");
-        string title = string.IsNullOrWhiteSpace(NativeLibretroHost.Current.CurrentGameTitle) ? "StormRetroArch" : NativeLibretroHost.Current.CurrentGameTitle;
-        foreach (char c in Path.GetInvalidFileNameChars()) title = title.Replace(c, '_');
-        string path = Path.Combine(ssDir, $"{title}_{DateTime.Now:yyyyMMdd_HHmmss}.png");
+        string gameTitle = _activeRomItem?.Name ?? (string.IsNullOrWhiteSpace(NativeLibretroHost.Current.CurrentGameTitle) ? "StormRetroArch" : NativeLibretroHost.Current.CurrentGameTitle);
+        string ssDir = MediaPathResolver.GetScreenshotSaveDir(_activeRomItem?.Platform, gameTitle, _activeRomItem?.FilePath);
+        string safeFile = MediaPathResolver.CleanGameTitleForFolder(gameTitle);
+        string path = Path.Combine(ssDir, $"{safeFile}_{DateTime.Now:yyyyMMdd_HHmmss}.png");
         bool ok = NativeLibretroHost.Current.CaptureScreenshot(path);
         if (ok)
         {
@@ -9500,12 +9991,13 @@ private void LoadBezels(bool forceReload = true)
         else if (btn == BtnPresetVga) presetId = "ibm_vga";
         else if (btn == BtnPresetGbLcd) presetId = "gb_lcd";
         else if (btn == BtnPresetVhs) presetId = "vhs";
-        else if (btn == BtnPresetClean) presetId = "clean_raw";
+        else if (btn == BtnPresetClean) presetId = "none";
 
-        NativeLibretroHost.Current.ApplyShaderStudioPreset(presetId);
+        ApplyShaderPresetStudio270(presetId, btn.Content?.ToString() ?? presetId);
+        SettingsManager.Current.ActiveShaderPreset = presetId;
+        SettingsManager.Save();
         SyncShaderStudioControls();
         RefreshShaderLivePreview();
-        ShowOsdToast($"Шейдер: {btn.Content}", "#8B5CF6");
     }
 
     public void SyncShaderStudioControls()

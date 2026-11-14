@@ -1723,13 +1723,19 @@ public partial class NativeLibretroHost
 
     private int _audioBufferPos = 0;
 
-    private const int WaveHdrCount = 8;
+    private const uint WHDR_DONE = 0x00000001u;
+    private const uint WHDR_PREPARED = 0x00000002u;
+    private const uint WHDR_INQUEUE = 0x00000010u;
+
+    private const int WaveHdrCount = 12;
 
     private WAVEHDR[] _waveHdrs = new WAVEHDR[WaveHdrCount];
 
     private IntPtr[] _waveBuffers = new IntPtr[WaveHdrCount];
 
     private int _currentWaveHdr = 0;
+
+    public bool RewindBufferEnabled { get; set; } = false;
 
 
 
@@ -2823,7 +2829,107 @@ public partial class NativeLibretroHost
 
             int srcPitch = (int)pitch;
 
-            bool applyScanlines = (_shaderFilterMode == 1 || _shaderFilterMode == 3 || _scanlineIntensity > 0.05);
+            if (_shaderFilterMode == 0)
+
+            {
+
+                // Fast tight single-loop pixel format conversion (XRGB8888, RGB565, 0RGB1555 -> BGRA32)
+
+                // Zero Parallel.For overhead, zero scanlines, zero mask, zero vignette, zero blur/dimming
+
+                bool applyScanlines = false;
+
+                int maskPercent = 0;
+
+                bool hasVignette = false;
+
+                int gainVal = 100;
+
+                fixed (byte* dstFixed = _bgraBuffer)
+
+                {
+
+                    if (_pixelFormat == 1) // XRGB8888
+
+                    {
+
+                        for (int y = 0; y < h; y++)
+
+                        {
+
+                            uint* srcRow = (uint*)(srcBytes + y * srcPitch);
+
+                            uint* dstRow = (uint*)(dstFixed + y * w * 4);
+
+                            for (int x = 0; x < w; x++)
+
+                            {
+
+                                dstRow[x] = 0xFF000000u | srcRow[x];
+
+                            }
+
+                        }
+
+                    }
+
+                    else if (_pixelFormat == 2) // RGB565
+
+                    {
+
+                        for (int y = 0; y < h; y++)
+
+                        {
+
+                            ushort* srcRow = (ushort*)(srcBytes + y * srcPitch);
+
+                            uint* dstRow = (uint*)(dstFixed + y * w * 4);
+
+                            for (int x = 0; x < w; x++)
+
+                            {
+
+                                dstRow[x] = Rgb565Lut[srcRow[x]];
+
+                            }
+
+                        }
+
+                    }
+
+                    else // 0RGB1555
+
+                    {
+
+                        for (int y = 0; y < h; y++)
+
+                        {
+
+                            ushort* srcRow = (ushort*)(srcBytes + y * srcPitch);
+
+                            uint* dstRow = (uint*)(dstFixed + y * w * 4);
+
+                            for (int x = 0; x < w; x++)
+
+                            {
+
+                                dstRow[x] = Rgb1555Lut[srcRow[x]];
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
+            }
+
+            else
+
+            {
+
+                bool applyScanlines = (_shaderFilterMode == 1 || _shaderFilterMode == 3 || _scanlineIntensity > 0.05);
 
 
 
@@ -3204,6 +3310,8 @@ public partial class NativeLibretroHost
                     }
 
                 }
+
+            }
 
             }
 
@@ -4241,42 +4349,43 @@ public partial class NativeLibretroHost
 
 
 
-            int hdrIdx = _currentWaveHdr;
-
-            _currentWaveHdr = (_currentWaveHdr + 1) % WaveHdrCount;
-
-
-
-            ref var hdr = ref _waveHdrs[hdrIdx];
-
-            if ((hdr.dwFlags & 0x00000001) != 0) // WHDR_PREPARED
-
+            // Probe forward up to WaveHdrCount from _currentWaveHdr to find a slot where (dwFlags & WHDR_INQUEUE) == 0
+            int foundSlot = -1;
+            for (int i = 0; i < WaveHdrCount; i++)
             {
-
-                waveOutUnprepareHeader(_hWaveOut, ref hdr, (uint)Marshal.SizeOf<WAVEHDR>());
-
+                int candidate = (_currentWaveHdr + i) % WaveHdrCount;
+                if ((_waveHdrs[candidate].dwFlags & WHDR_INQUEUE) == 0)
+                {
+                    foundSlot = candidate;
+                    break;
+                }
             }
 
+            if (foundSlot == -1)
+            {
+                // All 12 buffers are queued: cleanly skip/throttle 1 chunk instead of corrupting an active playing buffer
+                _audioBufferPos = 0;
+                return;
+            }
 
+            _currentWaveHdr = (foundSlot + 1) % WaveHdrCount;
+            ref var hdr = ref _waveHdrs[foundSlot];
+
+            // Only unprepare if (dwFlags & WHDR_PREPARED) != 0 && (dwFlags & WHDR_INQUEUE) == 0
+            if ((hdr.dwFlags & WHDR_PREPARED) != 0 && (hdr.dwFlags & WHDR_INQUEUE) == 0)
+            {
+                waveOutUnprepareHeader(_hWaveOut, ref hdr, (uint)Marshal.SizeOf<WAVEHDR>());
+            }
 
             int bytesToWrite = _audioBufferPos * sizeof(short);
+            Marshal.Copy(_audioBuffer, 0, _waveBuffers[foundSlot], _audioBufferPos);
 
-            Marshal.Copy(_audioBuffer, 0, _waveBuffers[hdrIdx], _audioBufferPos);
-
-
-
-            hdr.lpData = _waveBuffers[hdrIdx];
-
+            hdr.lpData = _waveBuffers[foundSlot];
             hdr.dwBufferLength = (uint)bytesToWrite;
-
             hdr.dwBytesRecorded = 0;
-
             hdr.dwFlags = 0;
 
-
-
             waveOutPrepareHeader(_hWaveOut, ref hdr, (uint)Marshal.SizeOf<WAVEHDR>());
-
             waveOutWrite(_hWaveOut, ref hdr, (uint)Marshal.SizeOf<WAVEHDR>());
 
         }
@@ -4340,6 +4449,10 @@ public partial class NativeLibretroHost
                     _waveHdrs[i] = new WAVEHDR();
 
                 }
+
+                _audioBufferPos = 0;
+
+                _currentWaveHdr = 0;
 
             }
 
@@ -5407,7 +5520,7 @@ public partial class NativeLibretroHost
 
                     _frameCount++;
 
-                    if (_frameCount % 2 == 0 && _serializeSize > 0)
+                    if (RewindBufferEnabled && _frameCount % 12 == 0 && _serializeSize > 0 && _serializeSize <= 524288)
 
                     {
 
@@ -5427,51 +5540,33 @@ public partial class NativeLibretroHost
 
                 nextTickMs += targetFrameMs;
 
+                double nowElapsed = sw.Elapsed.TotalMilliseconds;
+
+                if (nowElapsed - nextTickMs > targetFrameMs * 2)
+
+                {
+
+                    nextTickMs = nowElapsed;
+
+                }
+
+
+
                 double wait = nextTickMs - sw.Elapsed.TotalMilliseconds;
 
-                if (PrecisionFramePacerEnabled)
+                if (wait > 1.8)
 
                 {
 
-                    if (wait > 2.2)
-
-                    {
-
-                        Thread.Sleep((int)(wait - 1.5));
-
-                    }
-
-                    while (sw.Elapsed.TotalMilliseconds < nextTickMs)
-
-                    {
-
-                        Thread.SpinWait(64);
-
-                    }
+                    Thread.Sleep((int)(wait - 1.2));
 
                 }
 
-                else
+                while (sw.Elapsed.TotalMilliseconds < nextTickMs)
 
                 {
 
-                    if (wait > 1.0)
-
-                    {
-
-                        Thread.Sleep((int)wait);
-
-                    }
-
-                }
-
-
-
-                if (wait < -50.0)
-
-                {
-
-                    nextTickMs = sw.Elapsed.TotalMilliseconds;
+                    Thread.SpinWait(32);
 
                 }
 
@@ -5497,7 +5592,7 @@ public partial class NativeLibretroHost
 
     {
 
-        if (_retroSerialize == null || _serializeSize == 0) return;
+        if (_retroSerialize == null || _serializeSize == 0 || _serializeSize > 524288) return;
 
         try
 
@@ -5523,31 +5618,27 @@ public partial class NativeLibretroHost
 
 
 
-                GCHandle pin = GCHandle.Alloc(slot, GCHandleType.Pinned);
-
-                try
+                unsafe
 
                 {
 
-                    if (_retroSerialize(pin.AddrOfPinnedObject(), _serializeSize))
+                    fixed (byte* p = slot)
 
                     {
 
-                        _rewindHead = (_rewindHead + 1) % _rewindRing.Length;
+                        if (_retroSerialize((IntPtr)p, _serializeSize))
 
-                        if (_rewindCount < _rewindRing.Length)
+                        {
 
-                            _rewindCount++;
+                            _rewindHead = (_rewindHead + 1) % _rewindRing.Length;
+
+                            if (_rewindCount < _rewindRing.Length)
+
+                                _rewindCount++;
+
+                        }
 
                     }
-
-                }
-
-                finally
-
-                {
-
-                    pin.Free();
 
                 }
 
@@ -5566,6 +5657,22 @@ public partial class NativeLibretroHost
     {
 
         _isPaused = !_isPaused;
+
+        if (_isPaused)
+
+        {
+
+            _audioBufferPos = 0;
+
+            if (_hWaveOut != IntPtr.Zero)
+
+            {
+
+                try { waveOutReset(_hWaveOut); } catch { }
+
+            }
+
+        }
 
     }
 

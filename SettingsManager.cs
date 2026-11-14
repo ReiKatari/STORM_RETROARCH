@@ -80,19 +80,32 @@ public class UserSettings
     public Dictionary<string, string> CustomHotkeys { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     // Interactive Shader Studio Parameters (2.0.0)
-    public double ShaderScanlineIntensity { get; set; } = 0.32;
-    public double ShaderMaskIntensity { get; set; } = 0.20;
-    public double ShaderVignetteIntensity { get; set; } = 0.18;
-    public double ShaderBrightnessGain { get; set; } = 1.04;
+    public double ShaderScanlineIntensity { get; set; } = 0.0;
+    public double ShaderMaskIntensity { get; set; } = 0.0;
+    public double ShaderVignetteIntensity { get; set; } = 0.0;
+    public double ShaderBrightnessGain { get; set; } = 1.0;
     public int ShaderColorTemperatureMode { get; set; } = 0;
     public double ShaderCurvature { get; set; } = 0.0;
     public double ShaderChromatic { get; set; } = 0.0;
+    public string ActiveShaderPreset { get; set; } = "none";
+
+    // Streaming, Recording & AI Translation Engine Settings
+    public string VideoResolution { get; set; } = "Native";
+    public string VideoScaling { get; set; } = "neighbor";
+    public int VideoFps { get; set; } = 60;
+    public string VideoRateControl { get; set; } = "CBR";
+    public string VideoPreset { get; set; } = "veryfast";
+    public string AudioRecordCodec { get; set; } = "aac";
+    public int AudioSampleRate { get; set; } = 48000;
+    public string AiSourceLang { get; set; } = "auto";
+    public string AiTargetLang { get; set; } = "ru";
+    public string AiEngine { get; set; } = "builtin";
 
     // Emulation Performance & Run-Ahead (2.0.0)
     public int RunAheadFrames { get; set; } = 0;
     public bool PrecisionFramePacer { get; set; } = true;
     public bool AutoBezelByPlatform { get; set; } = true;
-    public bool AmbiluxGlowEnabled { get; set; } = true;
+    public bool AmbiluxGlowEnabled { get; set; } = false;
 
     // Gamepad, Deadzone, Rumble & Turbo (2.0.0)
     public int AnalogDeadzonePercent { get; set; } = 15;
@@ -184,9 +197,20 @@ public static class SettingsManager
         Current.PlatformDefaultCores ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         Current.GameCoreOverrides ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         Current.CustomHotkeys ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (Current.ShaderBrightnessGain < 0.5 || Current.ShaderBrightnessGain > 2.0) Current.ShaderBrightnessGain = 1.04;
+        if (Current.ShaderBrightnessGain < 0.5 || Current.ShaderBrightnessGain > 2.0) Current.ShaderBrightnessGain = 1.0;
         if (Current.ShaderCurvature < 0.0 || Current.ShaderCurvature > 0.5) Current.ShaderCurvature = 0.0;
         if (Current.ShaderChromatic < 0.0 || Current.ShaderChromatic > 1.0) Current.ShaderChromatic = 0.0;
+
+        if (string.IsNullOrWhiteSpace(Current.ActiveShaderPreset) ||
+            Current.ActiveShaderPreset.Equals("none", StringComparison.OrdinalIgnoreCase) ||
+            Current.ActiveShaderPreset.Equals("Без фильтра", StringComparison.OrdinalIgnoreCase))
+        {
+            Current.ActiveShaderPreset = "none";
+            Current.ShaderScanlineIntensity = 0.0;
+            Current.ShaderMaskIntensity = 0.0;
+            Current.ShaderVignetteIntensity = 0.0;
+            Current.ShaderBrightnessGain = 1.0;
+        }
         if (Current.RunAheadFrames < 0 || Current.RunAheadFrames > 2) Current.RunAheadFrames = 0;
         if (Current.AnalogDeadzonePercent < 5 || Current.AnalogDeadzonePercent > 40) Current.AnalogDeadzonePercent = 15;
         if (Current.TriggerThresholdPercent < 5 || Current.TriggerThresholdPercent > 50) Current.TriggerThresholdPercent = 12;

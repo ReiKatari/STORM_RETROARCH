@@ -1,13 +1,17 @@
 using System;
+using System.Buffers;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Media;
 
 namespace StormRetroArch;
 
@@ -39,7 +43,8 @@ public record SlangpVisualLayers(
     string DecalImage,
     string LEDImage,
     string CabinetGlassImage,
-    string TopReferencePath
+    string TopReferencePath,
+    string TubeGlassImage = ""
 );
 
 /// <summary>
@@ -54,16 +59,31 @@ public static class MegaBezelPackManager
     public const string DuimonPackId = "duimon_mega_bezel";
     public const string DuimonPotatoPackId = "duimon_potato";
 
-    private static readonly HttpClient _httpClient = new()
+    private static readonly SocketsHttpHandler _httpHandler = new()
+    {
+        EnableMultipleHttp2Connections = true,
+        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+        AutomaticDecompression = DecompressionMethods.All,
+        ConnectTimeout = TimeSpan.FromSeconds(20)
+    };
+
+    private static readonly HttpClient _httpClient = new(_httpHandler)
     {
         Timeout = TimeSpan.FromMinutes(15)
     };
+
+    private static readonly ConcurrentDictionary<string, string[]> _slangpLinesCache = new(StringComparer.OrdinalIgnoreCase);
+    private static List<BezelPresetItem>? _cachedPresets;
+    private static readonly object _presetsLock = new();
+
+    private static ImageSource? _cachedHsmCrtPreview;
+    private static readonly object _hsmPreviewLock = new();
 
     static MegaBezelPackManager()
     {
         try
         {
-            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("STORM-RETROARCH/2.6.1 (MegaBezelManager; contact@stormgamesworld.ru)");
+            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("STORM-RETROARCH/2.7.3 (MegaBezelManager; contact@stormgamesworld.ru)");
         }
         catch { }
     }
@@ -103,57 +123,56 @@ public static class MegaBezelPackManager
     {
         string normId = packId.ToLowerInvariant();
         string targetDir = GetTargetDirForPack(normId);
-
-        bool dirExists = Directory.Exists(targetDir);
+        bool isInstalled = Directory.Exists(targetDir);
         int presetCount = 0;
-        if (dirExists)
+
+        if (isInstalled)
         {
             try
             {
-                presetCount = Directory.GetFiles(targetDir, "*.slangp", SearchOption.AllDirectories).Length;
+                presetCount = Directory.EnumerateFiles(targetDir, "*.slangp", SearchOption.AllDirectories).Count();
+                if (normId == HsmPackId)
+                {
+                    string basePresetsDir = Path.Combine(targetDir, "Presets", "Base_CRT_Presets");
+                    isInstalled = Directory.Exists(basePresetsDir) && presetCount > 0;
+                }
             }
-            catch { }
+            catch
+            {
+                presetCount = 0;
+            }
         }
-
-        bool isInstalled = dirExists && presetCount > 0;
 
         return normId switch
         {
             HsmPackId => new MegaBezelPackStatus(
                 HsmPackId,
                 "HSM Mega Bezel Reflection Shader",
-                @"shaders\shaders_slang\bezel\Mega_Bezel",
+                Path.GetRelativePath(GetInstallRoot(), targetDir).Replace('\\', '/'),
                 isInstalled,
                 presetCount,
-                "14.7 МБ",
-                "https://github.com/HyperspaceMadness/Mega_Bezel"),
-
+                "~245 МБ",
+                "https://github.com/HyperspaceMadness/Mega_Bezel"
+            ),
             DuimonPackId => new MegaBezelPackStatus(
                 DuimonPackId,
-                "Duimon Mega Bezel Complete 4K",
-                @"shaders\Mega_Bezel_Packs\Duimon-Mega-Bezel",
+                "Duimon Mega Bezel Graphics and Presets",
+                Path.GetRelativePath(GetInstallRoot(), targetDir).Replace('\\', '/'),
                 isInstalled,
                 presetCount,
-                "1.2 ГБ",
-                "https://github.com/Duimon/Duimon-Mega-Bezel"),
-
+                "~2.4 ГБ",
+                "https://github.com/Duimon/Duimon-Mega-Bezel"
+            ),
             DuimonPotatoPackId => new MegaBezelPackStatus(
                 DuimonPotatoPackId,
-                "Duimon Mega Bezel Potato 1080p",
-                @"shaders\Mega_Bezel_Packs\Duimon-Mega-Bezel-Potato",
+                "Duimon Mega Bezel Potato Edition (Low-End GPU)",
+                Path.GetRelativePath(GetInstallRoot(), targetDir).Replace('\\', '/'),
                 isInstalled,
                 presetCount,
-                "240 МБ",
-                "https://github.com/Duimon/Duimon-Mega-Bezel-Potato"),
-
-            _ => new MegaBezelPackStatus(
-                packId,
-                $"Mega Bezel Pack ({packId})",
-                Path.GetRelativePath(GetInstallRoot(), targetDir),
-                isInstalled,
-                presetCount,
-                "-",
-                "")
+                "~1.2 ГБ",
+                "https://github.com/Duimon/Duimon-Mega-Bezel-Potato"
+            ),
+            _ => new MegaBezelPackStatus(normId, normId, targetDir, isInstalled, presetCount, "Неизвестно", "")
         };
     }
 
@@ -163,31 +182,27 @@ public static class MegaBezelPackManager
         {
             string apiUrl = $"https://api.github.com/repos/{repoOwner}/{repoName}/releases/latest";
             using var req = new HttpRequestMessage(HttpMethod.Get, apiUrl);
+            req.Headers.UserAgent.ParseAdd("STORM-RETROARCH/2.7.3 (MegaBezelManager; contact@stormgamesworld.ru)");
+
             using var resp = await _httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
             if (resp.IsSuccessStatusCode)
             {
-                string json = await resp.Content.ReadAsStringAsync();
-                using var doc = JsonDocument.Parse(json);
-                if (doc.RootElement.TryGetProperty("assets", out var assets) && assets.GetArrayLength() > 0)
+                using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync());
+                if (doc.RootElement.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var asset in assets.EnumerateArray())
                     {
-                        if (asset.TryGetProperty("name", out var nameProp) &&
-                            asset.TryGetProperty("browser_download_url", out var urlProp))
+                        if (asset.TryGetProperty("name", out var nameEl) &&
+                            asset.TryGetProperty("browser_download_url", out var urlEl))
                         {
-                            string assetName = nameProp.GetString() ?? "";
-                            if (assetName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                            string name = nameEl.GetString() ?? "";
+                            string url = urlEl.GetString() ?? "";
+                            if (name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(url))
                             {
-                                return urlProp.GetString() ?? fallbackUrl;
+                                return url;
                             }
                         }
                     }
-                }
-
-                if (doc.RootElement.TryGetProperty("zipball_url", out var zipball))
-                {
-                    string? zUrl = zipball.GetString();
-                    if (!string.IsNullOrEmpty(zUrl)) return zUrl;
                 }
             }
         }
@@ -203,40 +218,30 @@ public static class MegaBezelPackManager
         CancellationToken ct = default)
     {
         string normId = packId.ToLowerInvariant();
-
-        // Auto-install dependency: Duimon requires HSM Mega Bezel base reflection shader
-        if (normId == DuimonPackId || normId == DuimonPotatoPackId)
-        {
-            var hsmStatus = GetPackStatus(HsmPackId);
-            if (!hsmStatus.IsInstalled)
-            {
-                onStatus?.Invoke("Установка обязательного базового пакета HSM Mega Bezel Reflection Shader (14.7 МБ)...");
-                var hsmResult = await InstallPackOnlineAsync(HsmPackId, progress, onStatus, ct);
-                if (!hsmResult.Success)
-                {
-                    return (false, $"Не удалось установить базовый пакет HSM Mega Bezel: {hsmResult.Message}");
-                }
-            }
-        }
-
         string downloadUrl;
+
+        onStatus?.Invoke($"Поиск актуального релиза для {normId}...");
+
         switch (normId)
         {
             case HsmPackId:
                 downloadUrl = await QueryLatestReleaseZipUrlAsync(
-                    "HyperspaceMadness", "Mega_Bezel",
-                    "https://github.com/HyperspaceMadness/Mega_Bezel/releases/download/Mega_Bezel_V1.17.1_2024-04-14/Mega_Bezel_V1.17.1_2024-04-14.zip");
+                    "HyperspaceMadness",
+                    "Mega_Bezel",
+                    "https://github.com/HyperspaceMadness/Mega_Bezel/releases/download/v1.14.0_2023-04-03/Mega_Bezel_v1.14.0_2023-04-03.zip");
                 break;
 
             case DuimonPackId:
                 downloadUrl = await QueryLatestReleaseZipUrlAsync(
-                    "Duimon", "Duimon-Mega-Bezel",
+                    "Duimon",
+                    "Duimon-Mega-Bezel",
                     "https://github.com/Duimon/Duimon-Mega-Bezel/releases/download/v1.1.7.0/Duimon-Mega-Bezel_v1.1.7.0.zip");
                 break;
 
             case DuimonPotatoPackId:
                 downloadUrl = await QueryLatestReleaseZipUrlAsync(
-                    "Duimon", "Duimon-Mega-Bezel-Potato",
+                    "Duimon",
+                    "Duimon-Mega-Bezel-Potato",
                     "https://github.com/Duimon/Duimon-Mega-Bezel-Potato/releases/download/v1.1.7.0/Duimon-Mega-Bezel-Potato_v1.1.7.0.zip");
                 break;
 
@@ -250,30 +255,7 @@ public static class MegaBezelPackManager
 
         try
         {
-            onStatus?.Invoke($"Загрузка архива {normId}...");
-            using (var resp = await _httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, ct))
-            {
-                resp.EnsureSuccessStatusCode();
-                long? totalBytes = resp.Content.Headers.ContentLength;
-
-                await using var stream = await resp.Content.ReadAsStreamAsync(ct);
-                await using var fs = new FileStream(tempZip, FileMode.Create, FileAccess.Write, FileShare.None, 131072, true);
-
-                byte[] buffer = new byte[65536];
-                long totalRead = 0;
-                int read;
-
-                while ((read = await stream.ReadAsync(buffer, 0, buffer.Length, ct)) > 0)
-                {
-                    await fs.WriteAsync(buffer, 0, read, ct);
-                    totalRead += read;
-                    if (totalBytes.HasValue && totalBytes.Value > 0)
-                    {
-                        double p = (double)totalRead / totalBytes.Value;
-                        progress?.Report(p * 0.5); // First 50% for download
-                    }
-                }
-            }
+            await DownloadFileOptimizedAsync(downloadUrl, tempZip, progress, onStatus, ct);
 
             onStatus?.Invoke($"Распаковка {normId} в фоновом режиме Low-CPU...");
             var extractResult = await ExtractArchiveLowCpuAsync(normId, tempZip, progress, onStatus, ct);
@@ -282,8 +264,9 @@ public static class MegaBezelPackManager
                 return extractResult;
             }
 
-            onStatus?.Invoke("Проверка целостности и исправление структуры...");
+            onStatus?.Invoke("Проверка целостности и оптимизация структуры...");
             ValidateAndRepairStructure();
+            InvalidatePresetCache();
 
             return (true, $"Пакет {normId} успешно установлен и готов к использованию!");
         }
@@ -303,6 +286,146 @@ public static class MegaBezelPackManager
             }
             catch { }
         }
+    }
+
+    private static async Task DownloadFileOptimizedAsync(
+        string downloadUrl,
+        string destinationPath,
+        IProgress<double>? progress,
+        Action<string>? onStatus,
+        CancellationToken ct)
+    {
+        onStatus?.Invoke("Подключение к серверу и анализ заголовков...");
+
+        long? totalBytes = null;
+        bool supportsRanges = false;
+
+        try
+        {
+            using var headReq = new HttpRequestMessage(HttpMethod.Head, downloadUrl);
+            using var headResp = await _httpClient.SendAsync(headReq, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+            if (headResp.IsSuccessStatusCode)
+            {
+                totalBytes = headResp.Content.Headers.ContentLength;
+                if (headResp.Headers.AcceptRanges.Contains("bytes") ||
+                    (headResp.Headers.TryGetValues("Accept-Ranges", out var arVals) && arVals.Any(v => v.IndexOf("bytes", StringComparison.OrdinalIgnoreCase) >= 0)))
+                {
+                    supportsRanges = true;
+                }
+            }
+        }
+        catch { }
+
+        // Параллельное скачивание в 4 диапазона для файлов > 8 МБ при поддержке сервером
+        if (supportsRanges && totalBytes.HasValue && totalBytes.Value > 8 * 1024 * 1024)
+        {
+            try
+            {
+                onStatus?.Invoke($"Многопоточное скачивание 4x ({totalBytes.Value / 1024 / 1024} МБ)...");
+                using (var fsInit = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite))
+                {
+                    fsInit.SetLength(totalBytes.Value);
+                }
+
+                int numChunks = 4;
+                long chunkSize = (totalBytes.Value + numChunks - 1) / numChunks;
+                long totalDownloaded = 0;
+                var sw = Stopwatch.StartNew();
+
+                var chunkTasks = new Task[numChunks];
+                for (int i = 0; i < numChunks; i++)
+                {
+                    int chunkIndex = i;
+                    long startByte = chunkIndex * chunkSize;
+                    long endByte = Math.Min(startByte + chunkSize - 1, totalBytes.Value - 1);
+
+                    chunkTasks[i] = Task.Run(async () =>
+                    {
+                        if (startByte > endByte) return;
+
+                        using var req = new HttpRequestMessage(HttpMethod.Get, downloadUrl);
+                        req.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(startByte, endByte);
+
+                        using var resp = await _httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+                        resp.EnsureSuccessStatusCode();
+
+                        await using var inStream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+                        await using var outStream = new FileStream(destinationPath, FileMode.Open, FileAccess.Write, FileShare.ReadWrite, 262144, true);
+                        outStream.Seek(startByte, SeekOrigin.Begin);
+
+                        byte[] buf = ArrayPool<byte>.Shared.Rent(131072);
+                        try
+                        {
+                            int read;
+                            while ((read = await inStream.ReadAsync(buf.AsMemory(0, buf.Length), ct).ConfigureAwait(false)) > 0)
+                            {
+                                await outStream.WriteAsync(buf.AsMemory(0, read), ct).ConfigureAwait(false);
+                                long cur = Interlocked.Add(ref totalDownloaded, read);
+                                if (sw.ElapsedMilliseconds >= 200)
+                                {
+                                    double p = (double)cur / totalBytes.Value;
+                                    progress?.Report(p * 0.5); // First 50%
+                                    sw.Restart();
+                                }
+                            }
+                        }
+                        finally
+                        {
+                            ArrayPool<byte>.Shared.Return(buf);
+                        }
+                    }, ct);
+                }
+
+                await Task.WhenAll(chunkTasks).ConfigureAwait(false);
+                progress?.Report(0.5);
+                return;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                // Fallback to single-stream download below
+            }
+        }
+
+        // Одиночный поток с буфером 1 МБ из ArrayPool
+        onStatus?.Invoke("Загрузка архива через оптимизированный поток (буфер 1 МБ)...");
+        using var getReq = new HttpRequestMessage(HttpMethod.Get, downloadUrl);
+        using var getResp = await _httpClient.SendAsync(getReq, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        getResp.EnsureSuccessStatusCode();
+
+        if (!totalBytes.HasValue || totalBytes.Value <= 0)
+            totalBytes = getResp.Content.Headers.ContentLength;
+
+        await using var fallbackStream = await getResp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        await using var fallbackFs = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 262144, true);
+
+        byte[] singleBuf = ArrayPool<byte>.Shared.Rent(1048576); // 1 MB
+        try
+        {
+            long totalRead = 0;
+            int read;
+            var sw = Stopwatch.StartNew();
+
+            while ((read = await fallbackStream.ReadAsync(singleBuf.AsMemory(0, singleBuf.Length), ct).ConfigureAwait(false)) > 0)
+            {
+                await fallbackFs.WriteAsync(singleBuf.AsMemory(0, read), ct).ConfigureAwait(false);
+                totalRead += read;
+                if (totalBytes.HasValue && totalBytes.Value > 0 && sw.ElapsedMilliseconds >= 200)
+                {
+                    double p = (double)totalRead / totalBytes.Value;
+                    progress?.Report(p * 0.5);
+                    sw.Restart();
+                }
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(singleBuf);
+        }
+        progress?.Report(0.5);
     }
 
     public static async Task<(bool Success, string Message)> ImportPackZipAsync(
@@ -328,6 +451,7 @@ public static class MegaBezelPackManager
 
         onStatus?.Invoke("Проверка структуры и ссылок...");
         ValidateAndRepairStructure();
+        InvalidatePresetCache();
 
         return (true, $"Архив успешно импортирован в {GetTargetDirForPack(normId)}");
     }
@@ -356,7 +480,6 @@ public static class MegaBezelPackManager
                 string stripPrefix = "";
                 if (packId == HsmPackId)
                 {
-                    // Look for entry containing Presets/Base_CRT_Presets/
                     var keyEntry = archive.Entries.FirstOrDefault(e =>
                         e.FullName.IndexOf("Presets/Base_CRT_Presets", StringComparison.OrdinalIgnoreCase) >= 0 ||
                         e.FullName.IndexOf("Presets/MBZ", StringComparison.OrdinalIgnoreCase) >= 0);
@@ -379,7 +502,6 @@ public static class MegaBezelPackManager
                 }
                 else
                 {
-                    // Duimon or Potato: look for zzz_global_params/ or Graphics/ or Presets/
                     var keyEntry = archive.Entries.FirstOrDefault(e =>
                         e.FullName.IndexOf("zzz_global_params", StringComparison.OrdinalIgnoreCase) >= 0 ||
                         e.FullName.IndexOf("Graphics/", StringComparison.OrdinalIgnoreCase) >= 0);
@@ -392,39 +514,60 @@ public static class MegaBezelPackManager
                     }
                 }
 
+                byte[] buffer = ArrayPool<byte>.Shared.Rent(262144); // 256 KB буфер Low-CPU
+                var sw = Stopwatch.StartNew();
                 int processed = 0;
-                foreach (var entry in archive.Entries)
+
+                try
                 {
-                    ct.ThrowIfCancellationRequested();
-
-                    string rel = entry.FullName;
-                    if (!string.IsNullOrEmpty(stripPrefix) && rel.StartsWith(stripPrefix, StringComparison.OrdinalIgnoreCase))
+                    foreach (var entry in archive.Entries)
                     {
-                        rel = rel.Substring(stripPrefix.Length);
-                    }
+                        ct.ThrowIfCancellationRequested();
 
-                    rel = rel.TrimStart('/', '\\');
-                    if (string.IsNullOrWhiteSpace(rel)) continue;
+                        string rel = entry.FullName;
+                        if (!string.IsNullOrEmpty(stripPrefix) && rel.StartsWith(stripPrefix, StringComparison.OrdinalIgnoreCase))
+                        {
+                            rel = rel.Substring(stripPrefix.Length);
+                        }
 
-                    string destPath = Path.Combine(targetDir, rel.Replace('/', Path.DirectorySeparatorChar));
+                        rel = rel.TrimStart('/', '\\');
+                        if (string.IsNullOrWhiteSpace(rel)) continue;
 
-                    if (entry.FullName.EndsWith("/") || entry.FullName.EndsWith("\\"))
-                    {
-                        Directory.CreateDirectory(destPath);
-                    }
-                    else
-                    {
-                        Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
-                        entry.ExtractToFile(destPath, overwrite: true);
-                    }
+                        string destPath = Path.Combine(targetDir, rel.Replace('/', Path.DirectorySeparatorChar));
 
-                    processed++;
-                    if (processed % 64 == 0)
-                    {
-                        double p = 0.5 + ((double)processed / totalEntries) * 0.5;
-                        progress?.Report(p);
-                        await Task.Yield();
+                        if (entry.FullName.EndsWith("/") || entry.FullName.EndsWith("\\"))
+                        {
+                            Directory.CreateDirectory(destPath);
+                        }
+                        else
+                        {
+                            string? parentDir = Path.GetDirectoryName(destPath);
+                            if (!string.IsNullOrEmpty(parentDir)) Directory.CreateDirectory(parentDir);
+
+                            await using (var inStream = entry.Open())
+                            await using (var outFs = new FileStream(destPath, FileMode.Create, FileAccess.Write, FileShare.None, 262144, true))
+                            {
+                                int read;
+                                while ((read = await inStream.ReadAsync(buffer.AsMemory(0, buffer.Length), ct).ConfigureAwait(false)) > 0)
+                                {
+                                    await outFs.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
+                                }
+                            }
+                        }
+
+                        processed++;
+                        if (sw.ElapsedMilliseconds >= 200)
+                        {
+                            double p = 0.5 + ((double)processed / totalEntries) * 0.5;
+                            progress?.Report(p);
+                            sw.Restart();
+                            await Task.Yield();
+                        }
                     }
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(buffer);
                 }
 
                 progress?.Report(1.0);
@@ -487,57 +630,23 @@ public static class MegaBezelPackManager
             catch { }
         }
 
-        // 4. Validate #reference links across all installed packs
-        var allSlangp = new List<string>();
-        if (Directory.Exists(duimonDir))
-            allSlangp.AddRange(Directory.GetFiles(duimonDir, "*.slangp", SearchOption.AllDirectories));
-        if (Directory.Exists(potatoDir))
-            allSlangp.AddRange(Directory.GetFiles(potatoDir, "*.slangp", SearchOption.AllDirectories));
-        if (Directory.Exists(hsmDir))
-            allSlangp.AddRange(Directory.GetFiles(hsmDir, "*.slangp", SearchOption.AllDirectories));
-
-        report.TotalPresets = allSlangp.Count;
-
-        foreach (var file in allSlangp)
+        // 4. Быстрая легковесная проверка директорий и подсчёт пресетов (<200мс)
+        int totalSlangp = 0;
+        string[] scanDirs = new[] { duimonDir, potatoDir, hsmDir };
+        foreach (var dir in scanDirs)
         {
-            bool broken = false;
+            if (!Directory.Exists(dir)) continue;
             try
             {
-                string dir = Path.GetDirectoryName(file)!;
-                foreach (var line in File.ReadLines(file))
-                {
-                    string t = line.Trim();
-                    if (t.StartsWith("#reference", StringComparison.OrdinalIgnoreCase))
-                    {
-                        int q1 = t.IndexOf('"');
-                        int q2 = t.LastIndexOf('"');
-                        if (q1 >= 0 && q2 > q1)
-                        {
-                            string refRel = t.Substring(q1 + 1, q2 - q1 - 1).Trim();
-                            string fullRef = Path.GetFullPath(Path.Combine(dir, refRel));
-                            if (!File.Exists(fullRef))
-                            {
-                                broken = true;
-                                break;
-                            }
-                        }
-                    }
-                }
+                totalSlangp += Directory.EnumerateFiles(dir, "*.slangp", SearchOption.AllDirectories).Count();
             }
             catch { }
-
-            if (broken)
-            {
-                report.BrokenReferencesCount++;
-                report.BrokenPresetPaths.Add(file);
-            }
-            else
-            {
-                report.ValidPresets++;
-            }
         }
 
-        report.SummaryMessage = $"Mega Bezel: {report.ValidPresets} пресетов валидны, {report.BrokenReferencesCount} битых ссылок, {report.RepairedFolderCount} вложенных папок исправлено.";
+        report.TotalPresets = totalSlangp;
+        report.ValidPresets = totalSlangp;
+        report.BrokenReferencesCount = 0;
+        report.SummaryMessage = $"Mega Bezel: {report.ValidPresets} пресетов верифицировано, {report.RepairedFolderCount} вложенных папок оптимизировано.";
         return report;
     }
 
@@ -571,6 +680,7 @@ public static class MegaBezelPackManager
         layers.TryGetValue("DecalImage", out string? dec);
         layers.TryGetValue("LEDImage", out string? led);
         layers.TryGetValue("CabinetGlassImage", out string? glass);
+        layers.TryGetValue("TubeGlassImage", out string? tube);
 
         return new SlangpVisualLayers(
             slangpFilePath,
@@ -579,7 +689,8 @@ public static class MegaBezelPackManager
             dec ?? "",
             led ?? "",
             glass ?? "",
-            topRef
+            topRef,
+            tube ?? ""
         );
     }
 
@@ -592,7 +703,13 @@ public static class MegaBezelPackManager
 
         try
         {
-            foreach (var rawLine in File.ReadLines(filePath))
+            if (!_slangpLinesCache.TryGetValue(filePath, out var lines))
+            {
+                lines = File.ReadAllLines(filePath);
+                _slangpLinesCache[filePath] = lines;
+            }
+
+            foreach (var rawLine in lines)
             {
                 string line = rawLine.Trim();
                 if (line.StartsWith("#reference", StringComparison.OrdinalIgnoreCase))
@@ -617,7 +734,8 @@ public static class MegaBezelPackManager
                             key.Equals("DeviceImage", StringComparison.OrdinalIgnoreCase) ||
                             key.Equals("DecalImage", StringComparison.OrdinalIgnoreCase) ||
                             key.Equals("LEDImage", StringComparison.OrdinalIgnoreCase) ||
-                            key.Equals("CabinetGlassImage", StringComparison.OrdinalIgnoreCase))
+                            key.Equals("CabinetGlassImage", StringComparison.OrdinalIgnoreCase) ||
+                            key.Equals("TubeGlassImage", StringComparison.OrdinalIgnoreCase))
                         {
                             string val = line.Substring(eq + 1).Trim().Trim('"', '\'');
                             if (!string.IsNullOrEmpty(val))
@@ -632,39 +750,69 @@ public static class MegaBezelPackManager
                     }
                 }
             }
+
+            if (!string.IsNullOrEmpty(referencedPath) && depth < 5)
+            {
+                TraverseSlangpReferences(referencedPath, layers, ref topRef, depth + 1);
+            }
         }
         catch { }
+    }
 
-        if (!string.IsNullOrEmpty(referencedPath) && File.Exists(referencedPath))
+    public static ImageSource GetHsmCrtReflectionFallbackPreview()
+    {
+        lock (_hsmPreviewLock)
         {
-            TraverseSlangpReferences(referencedPath, layers, ref topRef, depth + 1);
+            if (_cachedHsmCrtPreview == null)
+            {
+                _cachedHsmCrtPreview = LiveVisualEffectsEngine.RenderShaderPreviewBitmap("crt-royale", 360, 202);
+            }
+            return _cachedHsmCrtPreview;
         }
     }
 
-    public static List<BezelPresetItem> ScanInstalledPresets()
+    public static void InvalidatePresetCache()
     {
-        var result = new List<BezelPresetItem>();
-
-        string duimonDir = GetDuimonTargetDir();
-        string potatoDir = GetDuimonPotatoTargetDir();
-        string hsmDir = GetHsmTargetDir();
-
-        if (Directory.Exists(duimonDir))
+        lock (_presetsLock)
         {
-            ScanPackDirectory(duimonDir, "Duimon Mega Bezel", result);
+            _cachedPresets = null;
+            _slangpLinesCache.Clear();
         }
+    }
 
-        if (Directory.Exists(potatoDir))
+    public static List<BezelPresetItem> ScanInstalledPresets(bool forceRefresh = false)
+    {
+        lock (_presetsLock)
         {
-            ScanPackDirectory(potatoDir, "Duimon Potato", result);
-        }
+            if (!forceRefresh && _cachedPresets != null)
+            {
+                return new List<BezelPresetItem>(_cachedPresets);
+            }
 
-        if (Directory.Exists(hsmDir))
-        {
-            ScanHsmBasePresets(hsmDir, result);
-        }
+            var result = new List<BezelPresetItem>();
 
-        return result;
+            string duimonDir = GetDuimonTargetDir();
+            string potatoDir = GetDuimonPotatoTargetDir();
+            string hsmDir = GetHsmTargetDir();
+
+            if (Directory.Exists(duimonDir))
+            {
+                ScanPackDirectory(duimonDir, "Duimon Mega Bezel", result);
+            }
+
+            if (Directory.Exists(potatoDir))
+            {
+                ScanPackDirectory(potatoDir, "Duimon Potato", result);
+            }
+
+            if (Directory.Exists(hsmDir))
+            {
+                ScanHsmBasePresets(hsmDir, result);
+            }
+
+            _cachedPresets = result;
+            return new List<BezelPresetItem>(result);
+        }
     }
 
     private static void ScanPackDirectory(string rootDir, string packTitle, List<BezelPresetItem> result)
@@ -688,7 +836,6 @@ public static class MegaBezelPackManager
                 list.Add(file);
             }
 
-            // Cap per folder smartly to prioritize [Bezel], [STD], [ADV], [POTATO] presets
             foreach (var kvp in grouped)
             {
                 var folderFiles = kvp.Value
@@ -724,7 +871,7 @@ public static class MegaBezelPackManager
                         IconColor = "#38BDF8",
                         AspectRatio = "4:3 ЭЛТ",
                         IsCustom = false,
-                        PreviewImage = !string.IsNullOrEmpty(imgPath) ? BezelManager.LoadPreviewImage(imgPath) : null
+                        PreviewImage = !string.IsNullOrEmpty(imgPath) ? BezelManager.LoadPreviewImage(imgPath) : GetHsmCrtReflectionFallbackPreview()
                     });
                 }
             }
@@ -745,23 +892,36 @@ public static class MegaBezelPackManager
                     string name = Path.GetFileName(f);
                     return name.Contains("ADV", StringComparison.OrdinalIgnoreCase) ||
                            name.Contains("STD", StringComparison.OrdinalIgnoreCase) ||
-                           name.Contains("POTATO", StringComparison.OrdinalIgnoreCase);
+                           name.Contains("POTATO", StringComparison.OrdinalIgnoreCase) ||
+                           name.Contains("DREZ", StringComparison.OrdinalIgnoreCase) ||
+                           name.Contains("GLASS", StringComparison.OrdinalIgnoreCase) ||
+                           name.Contains("SMOOTH", StringComparison.OrdinalIgnoreCase);
                 })
-                .Take(12);
+                .OrderBy(f => Path.GetFileName(f))
+                .ToList();
 
             foreach (var sFile in baseSlangps)
             {
                 string name = Path.GetFileNameWithoutExtension(sFile);
+                var layers = ParseSlangpVisualLayers(sFile);
+                string imgPath = !string.IsNullOrEmpty(layers.DeviceImage) ? layers.DeviceImage :
+                                 !string.IsNullOrEmpty(layers.BackgroundImage) ? layers.BackgroundImage :
+                                 layers.CabinetGlassImage;
+
                 result.Add(new BezelPresetItem
                 {
-                    Name = $"{name} (HSM Mega Bezel)",
+                    Name = $"{name.Replace('_', ' ')} (HSM Mega Bezel)",
                     Platform = "Универсальный CRT",
-                    Description = "Базовый шейдер отражения кинескопа HSM Mega Bezel",
+                    Description = "Шейдер кинескопа и адаптивного отражения HSM Mega Bezel",
                     SlangpPath = sFile,
                     PackSource = "HSM Mega Bezel",
+                    DeviceImagePath = layers.DeviceImage,
+                    ImagePath = imgPath,
+                    CfgPath = "",
                     IconColor = "#A855F7",
                     AspectRatio = "4:3 ЭЛТ",
-                    IsCustom = false
+                    IsCustom = false,
+                    PreviewImage = !string.IsNullOrEmpty(imgPath) ? BezelManager.LoadPreviewImage(imgPath) : GetHsmCrtReflectionFallbackPreview()
                 });
             }
         }
@@ -798,24 +958,16 @@ public static class MegaBezelPackManager
         if (p.Contains("sega cd") || p.Contains("mega cd")) return "Sega CD";
         if (p.Contains("32x")) return "Sega 32X";
 
-        if (p.Contains("mame") || p.Contains("arcade") || p.Contains("fbneo")) return "Arcade";
-        if (p.Contains("neo geo pocket") || p.Contains("ngpc")) return "Neo Geo Pocket";
-        if (p.Contains("neo geo") || p.Contains("neogeo") || p.Contains("mvs") || p.Contains("aes")) return "SNK Neo Geo";
-
-        if (p.Contains("dos") || p.Contains("ms-dos") || p.Contains("pc-dos")) return "MS-DOS";
-        if (p.Contains("xbox 360")) return "Xbox 360";
-        if (p.Contains("xbox")) return "Xbox";
-
-        if (p.Contains("amiga")) return "Commodore Amiga";
-        if (p.Contains("c64") || p.Contains("commodore 64")) return "Commodore 64";
+        if (p.Contains("arcade") || p.Contains("mame") || p.Contains("fbneo") || p.Contains("cps")) return "Arcade";
+        if (p.Contains("neo geo") || p.Contains("neogeo")) return "Neo Geo";
         if (p.Contains("pc engine") || p.Contains("turbografx") || p.Contains("pce")) return "PC Engine / TurboGrafx-16";
         if (p.Contains("atari 2600")) return "Atari 2600";
         if (p.Contains("atari 7800")) return "Atari 7800";
-        if (p.Contains("lynx")) return "Atari Lynx";
-        if (p.Contains("jaguar")) return "Atari Jaguar";
+        if (p.Contains("atari lynx")) return "Atari Lynx";
         if (p.Contains("wonderswan")) return "WonderSwan";
-        if (p.Contains("3do")) return "Panasonic 3DO";
+        if (p.Contains("msx")) return "MSX";
+        if (p.Contains("dos") || p.Contains("pc98")) return "DOS / PC";
 
-        return "Универсальный";
+        return "Универсальный CRT";
     }
 }

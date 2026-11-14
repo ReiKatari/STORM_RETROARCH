@@ -12,18 +12,38 @@ using System.Windows.Media;
 
 namespace StormRetroArch;
 
+public class ShaderItem : ShaderPresetItem { }
+
 public class ShaderPresetItem : INotifyPropertyChanged
 {
     private bool _isActive;
+    private ImageSource? _previewImage;
 
     public string Name { get; set; } = "";
     public string Category { get; set; } = "CRT и ЭЛТ мониторы";
+    public string CategoryKey { get; set; } = "CRT";
     public string Description { get; set; } = "";
     public string RelativePath { get; set; } = "";
     public int PassesCount { get; set; } = 1;
     public string IconPathData { get; set; } = "M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z";
     public string IconColor { get; set; } = "#38BDF8";
-    public ImageSource? PreviewImage { get; set; }
+
+    public ImageSource? PreviewImage
+    {
+        get
+        {
+            if (_previewImage == null)
+            {
+                _previewImage = ShaderManager.RenderPreviewBitmapForPreset(this, false);
+            }
+            return _previewImage;
+        }
+        set
+        {
+            _previewImage = value;
+            OnPropertyChanged();
+        }
+    }
 
     public bool IsActive
     {
@@ -90,12 +110,12 @@ public static class ShaderManager
             {
                 Name = "Без фильтра",
                 Category = "0. Оригинал (Без фильтра)",
+                CategoryKey = "NONE",
                 Description = "Оригинальное изображение пиксель-в-пиксель без шейдеров и размытия.",
                 RelativePath = "none",
                 PassesCount = 0,
                 IconPathData = "M12 2A10 10 0 1 0 22 12A10 10 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8a8 8 0 0 1-8 8Z",
-                IconColor = "#94A3B8",
-                PreviewImage = LiveVisualEffectsEngine.RenderShaderPreviewBitmap("none")
+                IconColor = "#94A3B8"
             };
             _cachedShaders.Add(nonePreset);
 
@@ -106,78 +126,78 @@ public static class ShaderManager
                 {
                     Name = "CRT Royale (3D Phosphor)",
                     Category = "1. Студийные ЭЛТ-пресеты",
+                    CategoryKey = "CRT",
                     Description = "Эмуляция люминофорных триад, апертурной решётки и сканлиний.",
                     RelativePath = "shaders/crt-royale.slangp",
                     PassesCount = 12,
                     IconPathData = "M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z",
-                    IconColor = "#38BDF8",
-                    PreviewImage = LiveVisualEffectsEngine.RenderShaderPreviewBitmap("crt-royale")
+                    IconColor = "#38BDF8"
                 },
                 new ShaderPresetItem
                 {
                     Name = "CRT Geom (Curved Trinitron)",
                     Category = "1. Студийные ЭЛТ-пресеты",
+                    CategoryKey = "CRT",
                     Description = "Изогнутый кинескоп Trinitron с бочкообразной геометрией и тёплой гаммой.",
                     RelativePath = "shaders/crt-geom.slangp",
                     PassesCount = 8,
                     IconPathData = "M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z",
-                    IconColor = "#818CF8",
-                    PreviewImage = LiveVisualEffectsEngine.RenderShaderPreviewBitmap("crt-geom")
+                    IconColor = "#818CF8"
                 },
                 new ShaderPresetItem
                 {
                     Name = "CRT Lottes (Arcade Bloom)",
                     Category = "1. Студийные ЭЛТ-пресеты",
+                    CategoryKey = "CRT",
                     Description = "Классический аркадный монитор с точечной маской и мягким свечением.",
                     RelativePath = "shaders/crt-lottes.slangp",
                     PassesCount = 6,
                     IconPathData = "M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.93V17a1 1 0 0 1-2 0v-.07A8 8 0 0 1 4.07 11H4a1 1 0 0 1 0-2h.07A8 8 0 0 1 11 4.07V4a1 1 0 0 1 2 0v.07A8 8 0 0 1 19.93 11H20a1 1 0 0 1 0 2h-.07A8 8 0 0 1 13 16.93z",
-                    IconColor = "#EC4899",
-                    PreviewImage = LiveVisualEffectsEngine.RenderShaderPreviewBitmap("crt-lottes")
+                    IconColor = "#EC4899"
                 },
                 new ShaderPresetItem
                 {
                     Name = "Scanlines (Subtle 240p)",
                     Category = "1. Студийные ЭЛТ-пресеты",
+                    CategoryKey = "RETRO",
                     Description = "Мягкие затемнённые строки 240p для высокой чёткости без артефактов.",
                     RelativePath = "shaders/scanlines-subtle.slangp",
                     PassesCount = 2,
                     IconPathData = "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z",
-                    IconColor = "#A78BFA",
-                    PreviewImage = LiveVisualEffectsEngine.RenderShaderPreviewBitmap("scanlines-subtle")
+                    IconColor = "#A78BFA"
                 },
                 new ShaderPresetItem
                 {
                     Name = "LCD Grid (Game Boy / GBA)",
                     Category = "2. Портативные ЖК-матрицы",
+                    CategoryKey = "LCD",
                     Description = "Аутентичная субпиксельная сетка портативных консолей с подсветкой.",
                     RelativePath = "shaders/lcd-grid.slangp",
                     PassesCount = 3,
                     IconPathData = "M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z",
-                    IconColor = "#10B981",
-                    PreviewImage = LiveVisualEffectsEngine.RenderShaderPreviewBitmap("lcd-grid")
+                    IconColor = "#10B981"
                 },
                 new ShaderPresetItem
                 {
                     Name = "xBRZ 4x (HQ Upscale)",
                     Category = "3. Сглаживание и апскейл",
+                    CategoryKey = "UPSCALE",
                     Description = "Векторное сглаживание ступенчатых пикселей высокого разрешения.",
                     RelativePath = "shaders/xbrz-4x.slangp",
                     PassesCount = 4,
                     IconPathData = "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z",
-                    IconColor = "#FBBF24",
-                    PreviewImage = LiveVisualEffectsEngine.RenderShaderPreviewBitmap("xbrz-4x")
+                    IconColor = "#FBBF24"
                 },
                 new ShaderPresetItem
                 {
                     Name = "VHS / NTSC (Tape Glitch)",
                     Category = "4. Аналоговые эффекты",
+                    CategoryKey = "RETRO",
                     Description = "Хроматическая аберрация, композитное размытие и помехи видеокассеты.",
                     RelativePath = "shaders/vhs-ntsc.slangp",
                     PassesCount = 5,
                     IconPathData = "M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z",
-                    IconColor = "#F43F5E",
-                    PreviewImage = LiveVisualEffectsEngine.RenderShaderPreviewBitmap("vhs-ntsc")
+                    IconColor = "#F43F5E"
                 }
             };
             _cachedShaders.AddRange(studioPresets);
@@ -273,12 +293,12 @@ public static class ShaderManager
                         {
                             Name = cleanTitle,
                             Category = category,
+                            CategoryKey = DetermineCanonicalCategoryKey(rel, category),
                             Description = desc,
                             RelativePath = rel,
                             PassesCount = passes,
                             IconPathData = iconData,
-                            IconColor = iconColor,
-                            PreviewImage = LiveVisualEffectsEngine.RenderShaderPreviewBitmap(rel)
+                            IconColor = iconColor
                         });
                     }
                 }
@@ -304,6 +324,62 @@ public static class ShaderManager
                                  .ToList();
         }
     }
+
+    public static string DetermineCanonicalCategoryKey(string relativePath, string category)
+    {
+        if (string.Equals(relativePath, "none", StringComparison.OrdinalIgnoreCase)) return "NONE";
+        string s = (relativePath + " " + category).ToLowerInvariant();
+        if (s.Contains("crt") || s.Contains("trinitron") || s.Contains("lottes") || s.Contains("phosphor") ||
+            s.Contains("scanline") || s.Contains("royale") || s.Contains("geom") || s.Contains("easymode") || s.Contains("aperture"))
+            return "CRT";
+        if (s.Contains("lcd") || s.Contains("gameboy") || s.Contains("gba") || s.Contains("handheld") ||
+            s.Contains("nds") || s.Contains("grid") || s.Contains("pixel") || s.Contains("dmg"))
+            return "LCD";
+        if (s.Contains("upscale") || s.Contains("xbr") || s.Contains("scalefx") || s.Contains("fsr") ||
+            s.Contains("super-xbr") || s.Contains("bicubic") || s.Contains("hq") || s.Contains("scale"))
+            return "UPSCALE";
+        if (s.Contains("aa") || s.Contains("anti-aliasing") || s.Contains("smaa") || s.Contains("fxaa") || s.Contains("edge"))
+            return "AA";
+        if (s.Contains("bloom") || s.Contains("blur") || s.Contains("glow") || s.Contains("diffuse") || s.Contains("kawase"))
+            return "BLOOM";
+        if (s.Contains("color") || s.Contains("palette") || s.Contains("gamma") || s.Contains("tonemap") ||
+            s.Contains("vibrant") || s.Contains("mono") || s.Contains("grade") || s.Contains("temperature"))
+            return "COLOR";
+        if (s.Contains("retro") || s.Contains("vhs") || s.Contains("ntsc") || s.Contains("composite") ||
+            s.Contains("analog") || s.Contains("tape") || s.Contains("glitch") || s.Contains("rf") || s.Contains("s-video"))
+            return "RETRO";
+        return "CRT";
+    }
+
+    public static ImageSource RenderPreviewBitmapForPreset(ShaderPresetItem item, bool bypass = false)
+    {
+        if (bypass || item == null || string.Equals(item.RelativePath, "none", StringComparison.OrdinalIgnoreCase))
+        {
+            return LiveVisualEffectsEngine.RenderShaderPreviewBitmap("none", 360, 210);
+        }
+
+        string presetId = Path.GetFileNameWithoutExtension(item.RelativePath);
+        return LiveVisualEffectsEngine.RenderShaderPreviewBitmap(presetId, 360, 210);
+    }
+
+    public static ImageSource RenderPreviewBitmapForPreset(ShaderItem item, bool bypass = false) =>
+        RenderPreviewBitmapForPreset((ShaderPresetItem)item, bypass);
+
+    public static void DisableAllShaders()
+    {
+        DisableShaders();
+    }
+
+    public static void InvalidateCache()
+    {
+        lock (_shadersLock)
+        {
+            _cachedShaders.Clear();
+            _lastShadersDirWriteTimeUtc = DateTime.MinValue;
+        }
+    }
+
+    public static void ApplyShader(ShaderItem item) => ApplyShader((ShaderPresetItem)item);
 
     private static void RefreshActiveState()
     {

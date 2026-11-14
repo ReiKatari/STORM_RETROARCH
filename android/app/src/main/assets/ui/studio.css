@@ -238,8 +238,7 @@
   --border-card: rgba(16, 185, 129, 0.15);
 }
 
-:root[data-storm-theme="SOLARIZED DARK"],
-:root[data-storm-theme="DAY"] {
+:root[data-storm-theme="SOLARIZED DARK"] {
   --bg-primary: #001A23;
   --bg-header: rgba(4, 36, 47, 0.90);
   --bg-header-solid: #04242F;
@@ -255,6 +254,24 @@
   --border-subtle: rgba(45, 212, 191, 0.26);
   --border-highlight: rgba(255, 255, 255, 0.16);
   --border-card: rgba(45, 212, 191, 0.14);
+}
+
+:root[data-storm-theme="DAY"] {
+  --bg-primary: #F1F5F9;
+  --bg-header: rgba(255, 255, 255, 0.94);
+  --bg-header-solid: #FFFFFF;
+  --bg-glass: rgba(255, 255, 255, 0.90);
+  --bg-glass-elevated: rgba(248, 250, 252, 0.98);
+  --bg-solid: #FFFFFF;
+  --bg-input: #E2E8F0;
+  --bg-Aurora-a: rgba(59, 130, 246, 0.12);
+  --bg-Aurora-b: rgba(14, 165, 233, 0.08);
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+  --border-subtle: rgba(15, 23, 42, 0.14);
+  --border-highlight: rgba(15, 23, 42, 0.08);
+  --border-card: rgba(15, 23, 42, 0.10);
 }
 
 /* ==========================================================================
@@ -2783,7 +2800,7 @@ body, button, input, select, textarea {
   transition: font-family 0.18s ease, color 0.18s ease;
 }
 
-/* 2.7.2 Zero-Truncation Anti-Clip Guarantees */
+/* 2.7.3 Zero-Truncation Anti-Clip Guarantees */
 .btn-3d,
 .btn-3d > span,
 .bento-tile-head,
@@ -2811,7 +2828,7 @@ body, button, input, select, textarea {
   padding: 10px 24px;
 }
 
-/* ==================== 2.7.2 FIXED-SLOT METADATA, FOLDER MANAGER & MEDIA LIGHTBOX ==================== */
+/* ==================== 2.7.3 FIXED-SLOT METADATA, FOLDER MANAGER & MEDIA LIGHTBOX ==================== */
 .game-fixed-meta-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3022,4 +3039,190 @@ body, button, input, select, textarea {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* ==========================================================================
+   INTERACTIVE SHADER & BEZEL PREVIEW, MEDIA GALLERY & RETROACHIEVEMENTS UI
+   ========================================================================== */
+.filter-chip-row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+  scrollbar-width: none;
+}
+.filter-chip-row::-webkit-scrollbar {
+  display: none;
+}
+.filter-chip-btn {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: 1px solid var(--border-card);
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.filter-chip-btn.active {
+  background: var(--accent);
+  color: #FFFFFF;
+  border-color: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow, rgba(139, 92, 246, 0.45));
+}
+
+.shader-split-compare-box {
+  background: rgba(4, 3, 10, 0.75);
+  border: 1px solid var(--border-card);
+  border-radius: 14px;
+  padding: 12px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.shader-compare-canvas {
+  width: 100%;
+  max-height: 220px;
+  border-radius: 10px;
+  background: #000000;
+  display: block;
+}
+.shader-action-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Structured Media Gallery */
+.media-section-block {
+  margin-bottom: 20px;
+}
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+.media-card-3d {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-card);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease;
+  display: flex;
+  flex-direction: column;
+}
+.media-card-3d:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+}
+.media-thumb-wrap {
+  width: 100%;
+  height: 110px;
+  background: #000000;
+  position: relative;
+  overflow: hidden;
+}
+.media-thumb-wrap img,
+.media-thumb-wrap video {
+  width: 100%;
+  height: 110px;
+  object-fit: cover;
+  display: block;
+}
+.media-video-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(244, 63, 94, 0.90);
+  color: #FFFFFF;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 0.65rem;
+  font-weight: 800;
+}
+.media-meta-wrap {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.media-game-title {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.media-sub-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.70rem;
+  color: var(--text-secondary);
+}
+
+/* RetroAchievements Per-Game Modal */
+.achievements-modal-sheet {
+  max-width: 640px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+.achievements-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-card);
+  margin-bottom: 12px;
+}
+.achievements-progress-bar-wrap {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+.achievements-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10B981, #06B6D4);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+.achievements-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+  overflow-y: auto;
+  max-height: 55vh;
+  padding-right: 4px;
+}
+.ach-card-unlocked {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(6, 182, 212, 0.06) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.40);
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.ach-card-locked {
+  background: var(--bg-glass);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  opacity: 0.65;
+  filter: grayscale(0.7);
 }

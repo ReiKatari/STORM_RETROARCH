@@ -70,7 +70,7 @@ object MobileCoreRegistry {
     const val STORM_PUBLIC_ROOT = "/storage/emulated/0/STORM RETROARCH"
     const val STORM_MIRROR_CORES_BASE = "https://stormgamesworld.ru/uploads/programs/STORM_RETROARCH/cores"
     const val BUILDBOT_ANDROID_BASE = "https://buildbot.libretro.com/nightly/android/latest"
-    private const val USER_AGENT = "STORM-RETROARCH/2.7.2 (Android; LibretroCoreLoader)"
+    private const val USER_AGENT = "STORM-RETROARCH/2.7.3 (Android; LibretroCoreLoader)"
     private const val MIN_VALID_SO_BYTES = 32768L
 
     private val downloadExecutor = Executors.newFixedThreadPool(2)

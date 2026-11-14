@@ -208,7 +208,7 @@ public static class RetroArchConfigManager
         SetDefault("aspect_ratio_index", "0");
         SetDefault("video_scale_integer", "false");
         SetDefault("video_smooth", "false");
-        SetDefault("video_shader_enable", "true");
+        SetDefault("video_shader_enable", "false");
         SetDefault("video_vsync", "true");
         SetDefault("video_adaptive_vsync", "false");
         SetDefault("vrr_runloop_enable", "true");
@@ -323,7 +323,7 @@ public static class RetroArchConfigManager
         SetDefault("config_save_on_exit", "true");
         SetDefault("auto_overrides_enable", "true");
         SetDefault("auto_remaps_enable", "true");
-        SetDefault("auto_shaders_enable", "true");
+        SetDefault("auto_shaders_enable", "false");
         SetDefault("log_to_file", "false");
         SetDefault("frontend_log_level", "1");
 

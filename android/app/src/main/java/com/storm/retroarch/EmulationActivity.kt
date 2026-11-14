@@ -54,6 +54,14 @@ import android.widget.TextView
 import android.widget.Toast
 import java.io.File
 import java.io.FileOutputStream
+import java.io.RandomAccessFile
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+import java.security.MessageDigest
+import java.util.concurrent.Executors
+import org.json.JSONArray
+import org.json.JSONObject
 import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -947,6 +955,9 @@ class EmulationActivity : Activity() {
             val targetFps = NativeLibretroBridge.nativeGetFps().let { if (it in 20.0..120.0) it else 60.0 }
             val frameDurationNs = (1_000_000_000.0 / targetFps).toLong()
             val audioBuf = ShortArray(8192)
+        val audioResidualBuf = ShortArray(8192)
+        var audioResidualCount = 0
+        var audioResidualOffset = 0
             var frameCounter = 0L
             var sramAutosaveCounter = 0
             var nextFrameDeadline = System.nanoTime()
@@ -971,6 +982,18 @@ class EmulationActivity : Activity() {
                     }
                     NativeLibretroBridge.nativePullAudioSamples(audioBuf, audioBuf.size)
                 } else {
+                    // Drain any residual unwritten samples before new frame
+                    if (audioResidualCount > 0) {
+                        try {
+                            val resWritten = audioTrack?.write(audioResidualBuf, audioResidualOffset, audioResidualCount, AudioTrack.WRITE_NON_BLOCKING) ?: 0
+                            if (resWritten > 0) {
+                                audioResidualOffset += resWritten
+                                audioResidualCount -= resWritten
+                                if (audioResidualCount == 0) audioResidualOffset = 0
+                            }
+                        } catch (_: Throwable) {}
+                    }
+
                     val ffSteps = fastForwardMultiplier.coerceIn(1, 4)
                     val totalSteps = if (ffSteps > 1) ffSteps else (1 + frameSkip.coerceIn(0, 3))
                     for (s in 0 until totalSteps) {
@@ -980,6 +1003,8 @@ class EmulationActivity : Activity() {
                             val sr = NativeLibretroBridge.nativeGetSampleRate()
                             if (sr > 8000 && sr != currentSampleRate) {
                                 initOrUpdateAudioTrack(sr)
+                                audioResidualCount = 0
+                                audioResidualOffset = 0
                             }
                             if (audioGainLinear > 1.02f) {
                                 val g = audioGainLinear
@@ -988,7 +1013,24 @@ class EmulationActivity : Activity() {
                                 }
                             }
                             try {
-                                audioTrack?.write(audioBuf, 0, pulled, AudioTrack.WRITE_NON_BLOCKING)
+                                var curOffset = 0
+                                var remaining = pulled
+                                while (remaining > 0 && emuRunning) {
+                                    val written = audioTrack?.write(audioBuf, curOffset, remaining, AudioTrack.WRITE_NON_BLOCKING) ?: 0
+                                    if (written > 0) {
+                                        curOffset += written
+                                        remaining -= written
+                                    } else if (written == 0) {
+                                        val copyCount = minOf(remaining, audioResidualBuf.size)
+                                        System.arraycopy(audioBuf, curOffset, audioResidualBuf, 0, copyCount)
+                                        audioResidualOffset = 0
+                                        audioResidualCount = copyCount
+                                        try { Thread.sleep(1) } catch (_: InterruptedException) {}
+                                        break
+                                    } else {
+                                        break
+                                    }
+                                }
                             } catch (_: Throwable) {
                             }
                         }
@@ -1367,6 +1409,10 @@ class EmulationActivity : Activity() {
         return ok
     }
 
+    private fun sanitizeSafeComponent(name: String): String {
+        return name.replace(Regex("""[\\/:*?"<>|]"""), "_").replace(Regex("""\s+"""), " ").trim()
+    }
+
     private fun captureScreenshotToGallery(preCaptured: Bitmap? = null): File? {
         val bmp = preCaptured ?: captureCurrentFrameBitmap()
         if (bmp == null) {
@@ -1374,9 +1420,13 @@ class EmulationActivity : Activity() {
             return null
         }
         return try {
-            screenshotsDir.mkdirs()
+            val pType = MobileLibraryAndCoverEngine.resolvePlatformType(romPath, platformName, platformName)
+            val pFolder = sanitizeSafeComponent(platformName.ifEmpty { "Console" })
+            val gFolder = sanitizeSafeComponent(MobileLibraryAndCoverEngine.cleanDisplayTitle(romBaseStem).ifEmpty { romName })
+            val targetDir = File(File(File(File(MobileCoreRegistry.STORM_PUBLIC_ROOT, "screenshots"), pType), pFolder), gFolder)
+            targetDir.mkdirs()
             val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-            val out = File(screenshotsDir, "${romBaseStem}_$stamp.png")
+            val out = File(targetDir, "${romBaseStem}_$stamp.png")
             FileOutputStream(out).use { fos ->
                 bmp.compress(Bitmap.CompressFormat.PNG, 100, fos)
             }
@@ -1524,7 +1574,7 @@ fun showInGameQuickDrawer() {
         val measuredFps = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetMeasuredFps() else 60.0
         val frameMs = if (measuredFps > 1.0) 1000.0 / measuredFps else 16.7
         val telemetryPill = TextView(this).apply {
-            text = String.format(Locale.US, "STORM RETROARCH 2.7.2  |  %.1f FPS  |  %.1f ms", measuredFps, frameMs)
+            text = String.format(Locale.US, "STORM RETROARCH 2.7.3  |  %.1f FPS  |  %.1f ms", measuredFps, frameMs)
             fontFeatureSettings = "tnum"
             setTextColor(StormThemeEngine.lighten(accent, 0.25f))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f)
@@ -1995,6 +2045,20 @@ fun showInGameQuickDrawer() {
 
         body.addView(perfCard, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(12f) })
 
+        // 6.2 RetroAchievements Quick Viewer
+        val achBtn = createIconActionButton(StormVectorIcons.STAR, "Достижения игры", isAccent = false) {
+            showInGameAchievementsDialog()
+        }.apply {
+            background = StormThemeEngine.createVolumetricButtonDrawable(
+                this@EmulationActivity,
+                Color.rgb(24, 48, 64),
+                Color.rgb(12, 28, 40),
+                accent,
+                12f
+            )
+        }
+        body.addView(achBtn, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8f) })
+
         // 7. EXIT TO STUDIO
         val exitBtn = createIconActionButton(StormVectorIcons.CLOSE, "Выйти в студию", isAccent = false) {
             dialog.dismiss()
@@ -2029,6 +2093,212 @@ fun showInGameQuickDrawer() {
             .setDuration(220L)
             .setInterpolator(DecelerateInterpolator())
             .start()
+    }
+
+    private fun showInGameAchievementsDialog() {
+        val pal = StormThemeEngine.currentTheme
+        val accent = StormThemeEngine.activeAccentColor
+
+        val dlg = Dialog(this, android.R.style.Theme_Translucent_NoTitleBar_Fullscreen)
+        dlg.setCanceledOnTouchOutside(true)
+
+        val backdrop = FrameLayout(this).apply {
+            setBackgroundColor(Color.argb(175, 4, 3, 12))
+            setPadding(dp(16f), dp(20f), dp(16f), dp(20f))
+            setOnClickListener { dlg.dismiss() }
+        }
+
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            isClickable = true
+            background = createGlassStudioDrawerDrawable(accent, cornerDp = 18f)
+            setPadding(dp(16f), dp(16f), dp(16f), dp(16f))
+        }
+
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val title = TextView(this).apply {
+            text = "Достижения - $romName"
+            setTextColor(pal.textPrimary)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15.5f)
+            maxLines = 1
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            StormThemeEngine.applyFont(this, bold = true)
+        }
+        header.addView(title)
+        header.addView(
+            createIconActionButton(StormVectorIcons.CLOSE, "", isAccent = false) { dlg.dismiss() },
+            LinearLayout.LayoutParams(dp(34f), dp(34f))
+        )
+        card.addView(header)
+
+        val statusTv = TextView(this).apply {
+            text = "Загрузка достижений RetroAchievements..."
+            setTextColor(pal.textSecondary)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            setPadding(0, dp(8f), 0, dp(8f))
+            StormThemeEngine.applyFont(this, bold = false)
+        }
+        card.addView(statusTv)
+
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+        }
+        val listContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(4f), 0, dp(8f))
+        }
+        scroll.addView(listContainer)
+        card.addView(scroll)
+
+        backdrop.addView(
+            card,
+            FrameLayout.LayoutParams(
+                minOf((resources.displayMetrics.widthPixels * 0.92f).roundToInt(), dp(520f)),
+                minOf((resources.displayMetrics.heightPixels * 0.85f).roundToInt(), dp(640f)),
+                Gravity.CENTER
+            )
+        )
+        dlg.setContentView(backdrop)
+        dlg.show()
+
+        Executors.newSingleThreadExecutor().execute {
+            val up = unifiedPrefs()
+            val user = up.getString("raUsername", "") ?: ""
+            val token = up.getString("raToken", "") ?: ""
+            val isHardcore = up.getBoolean("raHardcore", false)
+
+            var achList = JSONArray()
+            var totalPts = 0
+
+            if (user.isNotBlank()) {
+                try {
+                    val romFile = File(romPath)
+                    var raGameId = 0
+                    if (romFile.exists()) {
+                        val md = MessageDigest.getInstance("MD5")
+                        val buf = ByteArray(minOf(romFile.length(), 2L * 1024L * 1024L).toInt())
+                        RandomAccessFile(romFile, "r").use { it.readFully(buf) }
+                        val md5Str = md.digest(buf).joinToString("") { "%02x".format(it) }
+                        val idConn = URL("https://retroachievements.org/dorequest.php?r=gameid&m=$md5Str").openConnection() as HttpURLConnection
+                        idConn.connectTimeout = 3500
+                        idConn.readTimeout = 3500
+                        idConn.setRequestProperty("User-Agent", "STORM-RETROARCH/2.7.3")
+                        if (idConn.responseCode in 200..299) {
+                            val idText = idConn.inputStream.bufferedReader().readText()
+                            try {
+                                raGameId = JSONObject(idText).optInt("GameID", 0)
+                            } catch (_: Throwable) {
+                                raGameId = idText.trim().toIntOrNull() ?: 0
+                            }
+                        }
+                    }
+
+                    if (raGameId > 0 && token.isNotBlank()) {
+                        val encU = URLEncoder.encode(user, "UTF-8")
+                        val encT = URLEncoder.encode(token, "UTF-8")
+                        val progConn = URL("https://retroachievements.org/API/API_GetGameInfoAndUserProgress.php?u=$encU&y=$encT&g=$raGameId").openConnection() as HttpURLConnection
+                        progConn.connectTimeout = 4000
+                        progConn.readTimeout = 4000
+                        progConn.setRequestProperty("User-Agent", "STORM-RETROARCH/2.7.3")
+                        if (progConn.responseCode in 200..299) {
+                            val respJson = JSONObject(progConn.inputStream.bufferedReader().readText())
+                            val achMap = respJson.optJSONObject("Achievements")
+                            if (achMap != null) {
+                                val kIter = achMap.keys()
+                                while (kIter.hasNext()) {
+                                    val k = kIter.next()
+                                    val item = achMap.getJSONObject(k)
+                                    val date = if (isHardcore) item.optString("DateEarnedHardcore") else item.optString("DateEarned")
+                                    val unlocked = date.isNotBlank() && date != "null"
+                                    achList.put(
+                                        JSONObject()
+                                            .put("title", item.optString("Title", ""))
+                                            .put("desc", item.optString("Description", ""))
+                                            .put("pts", item.optInt("Points", 0))
+                                            .put("unlocked", unlocked)
+                                    )
+                                    if (unlocked) totalPts += item.optInt("Points", 0)
+                                }
+                            }
+                        }
+                    }
+                } catch (_: Throwable) {
+                }
+            }
+
+            runOnUiThread {
+                if (dlg.isShowing) {
+                    listContainer.removeAllViews()
+                    if (achList.length() == 0) {
+                        statusTv.text = if (user.isBlank()) {
+                            "Профиль RetroAchievements не подключен в Студии (Вкладка 'Сообщество')."
+                        } else {
+                            "Для этой игры или версии ROM достижения не найдены на сервере RA."
+                        }
+                    } else {
+                        val unlockedCount = (0 until achList.length()).count { achList.getJSONObject(it).optBoolean("unlocked") }
+                        statusTv.text = "Разблокировано: $unlockedCount / ${achList.length()} ($totalPts очков) • $user"
+
+                        for (i in 0 until achList.length()) {
+                            val a = achList.getJSONObject(i)
+                            val isUnlocked = a.optBoolean("unlocked")
+                            val aTitle = a.optString("title")
+                            val aDesc = a.optString("desc")
+                            val aPts = a.optInt("pts")
+
+                            val row = LinearLayout(this).apply {
+                                orientation = LinearLayout.HORIZONTAL
+                                gravity = Gravity.CENTER_VERTICAL
+                                setPadding(dp(10f), dp(8f), dp(10f), dp(8f))
+                                background = createGlassStudioDrawerDrawable(
+                                    if (isUnlocked) Color.rgb(16, 185, 129) else Color.rgb(60, 60, 80),
+                                    cornerDp = 10f
+                                )
+                            }
+                            val textCol = LinearLayout(this).apply {
+                                orientation = LinearLayout.VERTICAL
+                                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                            }
+                            val tView = TextView(this).apply {
+                                text = aTitle
+                                setTextColor(if (isUnlocked) Color.rgb(250, 250, 250) else pal.textSecondary)
+                                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f)
+                                StormThemeEngine.applyFont(this, bold = true)
+                            }
+                            val dView = TextView(this).apply {
+                                text = aDesc
+                                setTextColor(pal.textSecondary)
+                                setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f)
+                                StormThemeEngine.applyFont(this, bold = false)
+                            }
+                            textCol.addView(tView)
+                            textCol.addView(dView)
+                            row.addView(textCol)
+
+                            val ptsPill = TextView(this).apply {
+                                text = "+$aPts"
+                                setTextColor(if (isUnlocked) Color.rgb(52, 211, 153) else pal.textSecondary)
+                                setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+                                fontFeatureSettings = "tnum"
+                                StormThemeEngine.applyFont(this, bold = true)
+                            }
+                            row.addView(ptsPill)
+
+                            listContainer.addView(
+                                row,
+                                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                                    bottomMargin = dp(6f)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // === Glassmorphic In-Game Cheats (.cht) Modal ===

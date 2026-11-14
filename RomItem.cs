@@ -37,6 +37,8 @@ public class RomItem : INotifyPropertyChanged
     private string _rawNoIntroName = "";
     private string _regionDisplay = "";
     private string _audioBadge = "";
+    private string _gameCode = "";
+    private string _revisionTag = "";
 
     // Playtime, Launch & Library Metadata (1.6.0)
     private long _totalPlaySeconds;
@@ -209,6 +211,45 @@ public class RomItem : INotifyPropertyChanged
     }
 
     public string Version => VersionBadge;
+
+    public string GameCode
+    {
+        get => _gameCode;
+        set => SetField(ref _gameCode, value);
+    }
+
+    public string RevisionTag
+    {
+        get => _revisionTag;
+        set => SetField(ref _revisionTag, value);
+    }
+
+    public void EnsureRomHeaderMetadata()
+    {
+        if (!string.IsNullOrEmpty(_gameCode) && !string.IsNullOrEmpty(_revisionTag))
+            return;
+
+        if (string.IsNullOrWhiteSpace(FilePath) || !File.Exists(FilePath))
+            return;
+
+        try
+        {
+            var meta = CoverArtService.ReadRomHeaderMetadata(FilePath);
+            if (!string.IsNullOrEmpty(meta.GameCode) && string.IsNullOrEmpty(_gameCode))
+            {
+                GameCode = meta.GameCode;
+            }
+            if (!string.IsNullOrEmpty(meta.RevisionTag) && string.IsNullOrEmpty(_revisionTag))
+            {
+                RevisionTag = meta.RevisionTag;
+            }
+            if (!string.IsNullOrEmpty(meta.Region) && string.IsNullOrEmpty(Region))
+            {
+                Region = meta.Region;
+            }
+        }
+        catch { }
+    }
 
     public bool HasYear => !string.IsNullOrEmpty(Year);
     public bool HasRegion => !string.IsNullOrEmpty(Region);
@@ -446,6 +487,51 @@ public class RomItem : INotifyPropertyChanged
         if (!string.IsNullOrEmpty(ver)) VersionBadge = ver;
         if (!string.IsNullOrEmpty(rawNoIntro)) RawNoIntroName = rawNoIntro;
         AudioBadge = ParseAudioBadge(fileName, LanguageBadge, Region);
+        ParseGameCodeAndRevision(fileName);
+    }
+
+    public void ParseGameCodeAndRevision(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName)) return;
+
+        // 1. Revision from version or rev tokens: e.g. 1.1 -> Rev 1, 1.2 -> Rev 2, Rev A, Rev 1
+        var mRevExplicit = Regex.Match(fileName, @"\((Rev\s*[A-Za-z0-9]+)\)", RegexOptions.IgnoreCase);
+        if (mRevExplicit.Success)
+        {
+            RevisionTag = mRevExplicit.Groups[1].Value.Trim();
+        }
+        else
+        {
+            var mVer = Regex.Match(fileName, @"\((?:v)?(\d+)\.(\d+)(?:\s*-\s*([^()]+))?\)", RegexOptions.IgnoreCase);
+            if (mVer.Success)
+            {
+                int major = int.TryParse(mVer.Groups[1].Value, out int maj) ? maj : 0;
+                int minor = int.TryParse(mVer.Groups[2].Value, out int min) ? min : 0;
+                if (major >= 1 && minor > 0)
+                {
+                    RevisionTag = $"Rev {minor}";
+                }
+
+                if (mVer.Groups[3].Success && string.IsNullOrEmpty(_gameCode))
+                {
+                    string candCode = mVer.Groups[3].Value.Trim();
+                    if (!Regex.IsMatch(candCode, @"^[0-9A-Fa-f]{8}$")) // Not just a CRC32
+                    {
+                        GameCode = candCode;
+                    }
+                }
+            }
+        }
+
+        // 2. Serial code scanning: SHVC-*, SNS-*, SLPS-*, SLUS-*, SLES-*, SCUS-*, SCES-*, MK-*, AGB-*, NTR-*, NUS-*, DOL-*
+        if (string.IsNullOrEmpty(_gameCode))
+        {
+            var mSerial = Regex.Match(fileName, @"\b(SHVC-[A-Z0-9]+|SNS-[A-Z0-9]+|SLPS[-_]\d+|SLUS[-_]\d+|SLES[-_]\d+|SCUS[-_]\d+|SCES[-_]\d+|SCPS[-_]\d+|MK-\d+|AGB-[A-Z0-9]+|NTR-[A-Z0-9]+|NUS-[A-Z0-9]+|DOL-[A-Z0-9]+)\b", RegexOptions.IgnoreCase);
+            if (mSerial.Success)
+            {
+                GameCode = mSerial.Groups[1].Value.Trim().ToUpperInvariant();
+            }
+        }
     }
 
     public static (string CleanName, string Year, string Region, string LanguageBadge, string VersionBadge) ParseFileName(string fileName)

@@ -186,7 +186,7 @@ public static class LiveVisualEffectsEngine
     {
         if (string.IsNullOrWhiteSpace(id)) return "none";
         string s = id.Trim().ToLowerInvariant().Replace('_', '-');
-        if (s == "none" || s == "off" || s == "disabled" || s.Contains("без фильтра") || s.Contains("no filter") || s.Contains("оригинал"))
+        if (s == "none" || s == "off" || s == "disabled" || s == "clean-raw" || s == "clean" || s == "raw" || s.Contains("без фильтра") || s.Contains("чистый пиксель") || s.Contains("no filter") || s.Contains("оригинал"))
             return "none";
         if (s.Contains("royale")) return "crt-royale";
         if (s.Contains("geom")) return "crt-geom";

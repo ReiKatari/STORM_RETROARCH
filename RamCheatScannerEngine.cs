@@ -136,6 +136,7 @@ public sealed class RamCheatScannerEngine
 
     private readonly object _scanLock = new();
     private readonly ConcurrentDictionary<uint, (RamValueWidth Width, uint Value)> _frozenValues = new();
+    private readonly byte[] _freezeScratchBuffer = new byte[4];
     private readonly byte[] _simulatedRam = new byte[65536];
     private readonly Random _simRnd = new(1337);
 
@@ -510,25 +511,45 @@ public sealed class RamCheatScannerEngine
             uint addr = kvp.Key;
             var (width, val) = kvp.Value;
 
-            byte[] bytes = width switch
+            int len;
+            lock (_freezeScratchBuffer)
             {
-                RamValueWidth.Byte8 => new byte[] { (byte)val },
-                RamValueWidth.UInt16 => BitConverter.GetBytes((ushort)val),
-                RamValueWidth.UInt32 => BitConverter.GetBytes(val),
-                _ => new byte[] { (byte)val }
-            };
-
-            try
-            {
-                NativeLibretroHost.Current.WriteSystemRamBytes(addr, bytes);
-            }
-            catch { }
-
-            lock (_simulatedRam)
-            {
-                if (addr + (uint)bytes.Length <= _simulatedRam.Length)
+                switch (width)
                 {
-                    Buffer.BlockCopy(bytes, 0, _simulatedRam, (int)addr, bytes.Length);
+                    case RamValueWidth.Byte8:
+                        _freezeScratchBuffer[0] = (byte)val;
+                        len = 1;
+                        break;
+                    case RamValueWidth.UInt16:
+                        _freezeScratchBuffer[0] = (byte)(val & 0xFF);
+                        _freezeScratchBuffer[1] = (byte)((val >> 8) & 0xFF);
+                        len = 2;
+                        break;
+                    case RamValueWidth.UInt32:
+                        _freezeScratchBuffer[0] = (byte)(val & 0xFF);
+                        _freezeScratchBuffer[1] = (byte)((val >> 8) & 0xFF);
+                        _freezeScratchBuffer[2] = (byte)((val >> 16) & 0xFF);
+                        _freezeScratchBuffer[3] = (byte)((val >> 24) & 0xFF);
+                        len = 4;
+                        break;
+                    default:
+                        _freezeScratchBuffer[0] = (byte)val;
+                        len = 1;
+                        break;
+                }
+
+                try
+                {
+                    NativeLibretroHost.Current.WriteSystemRamBytes(addr, _freezeScratchBuffer.AsSpan(0, len));
+                }
+                catch { }
+
+                lock (_simulatedRam)
+                {
+                    if (addr + (uint)len <= _simulatedRam.Length)
+                    {
+                        Buffer.BlockCopy(_freezeScratchBuffer, 0, _simulatedRam, (int)addr, len);
+                    }
                 }
             }
         }

@@ -20,13 +20,50 @@ public class BezelPresetItem : INotifyPropertyChanged
     public string CfgPath { get; set; } = "";
     public string ImagePath { get; set; } = "";
     public string SlangpPath { get; set; } = "";
+    public string PresetPath
+    {
+        get => SlangpPath;
+        set => SlangpPath = value;
+    }
     public string PackSource { get; set; } = "STORM Studio";
     public string DeviceImagePath { get; set; } = "";
     public string IconPathData { get; set; } = "M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z";
     public string IconColor { get; set; } = "#38BDF8";
     public string AspectRatio { get; set; } = "4:3 ЭЛТ";
     public bool IsCustom { get; set; }
-    public ImageSource? PreviewImage { get; set; }
+
+    private ImageSource? _previewImage;
+    public ImageSource? PreviewImage
+    {
+        get
+        {
+            if (_previewImage == null)
+            {
+                if (CfgPath == "none" || Name == "Без рамки")
+                {
+                    _previewImage = LiveVisualEffectsEngine.RenderBezelFrameBitmap("none", 360, 202, withSampleScreen: true);
+                }
+                else if (!string.IsNullOrEmpty(ImagePath) && File.Exists(ImagePath))
+                {
+                    _previewImage = BezelManager.LoadPreviewImage(ImagePath);
+                }
+                else if (!string.IsNullOrEmpty(DeviceImagePath) && File.Exists(DeviceImagePath))
+                {
+                    _previewImage = BezelManager.LoadPreviewImage(DeviceImagePath);
+                }
+                else if (!string.IsNullOrEmpty(SlangpPath))
+                {
+                    _previewImage = MegaBezelPackManager.GetHsmCrtReflectionFallbackPreview();
+                }
+            }
+            return _previewImage;
+        }
+        set
+        {
+            _previewImage = value;
+            OnPropertyChanged();
+        }
+    }
 
     // Studio Cutout Geometry (1920x1080 default frame)
     public int CutLeft { get; set; } = 272;
@@ -254,6 +291,21 @@ public static class BezelManager
     private static int _lastBordersCount = 0;
     private static readonly List<BezelPresetItem> _cachedBezels = new();
     private static readonly object _bezelsLock = new();
+
+    public static void RefreshCache()
+    {
+        lock (_bezelsLock)
+        {
+            _lastBordersDirWriteTimeUtc = DateTime.MinValue;
+            _cachedBezels.Clear();
+            MegaBezelPackManager.InvalidatePresetCache();
+        }
+    }
+
+    public static async Task<List<BezelPresetItem>> ScanBezelsAsync(bool forceRefresh = false)
+    {
+        return await Task.Run(() => ScanBezels(forceRefresh));
+    }
 
     public static List<BezelPresetItem> ScanBezels(bool forceRefresh = false)
     {
@@ -571,35 +623,85 @@ public static class BezelManager
         return list[0];
     }
 
+    public static void ApplyBezel(BezelItem item) => ApplyBezel((BezelPresetItem)item);
+
     public static void ApplyBezel(BezelPresetItem item)
     {
-        if (item.CfgPath == "none" || item.Name == "Без рамки" || string.IsNullOrWhiteSpace(item.CfgPath))
+        if (item == null) return;
+
+        if (item.CfgPath == "none" || item.Name == "Без рамки")
         {
             DisableBezel();
             return;
         }
 
-        if (!File.Exists(item.CfgPath)) return;
+        // 1. Шейдерный пресет Mega Bezel (.slangp)
+        if (!string.IsNullOrEmpty(item.SlangpPath) && File.Exists(item.SlangpPath))
+        {
+            RetroArchConfigManager.Set("video_shader_enable", "true");
+            RetroArchConfigManager.Set("video_shader", item.SlangpPath);
+            RetroArchConfigManager.Set("video_shader_dir", Path.GetDirectoryName(item.SlangpPath) ?? "");
 
-        RetroArchConfigManager.Set("input_overlay_enable", "true");
-        RetroArchConfigManager.Set("input_overlay", item.CfgPath);
-        RetroArchConfigManager.Set("input_overlay_opacity", "1.000000");
-        RetroArchConfigManager.Set("input_overlay_hide_in_menu", "true");
-        RetroArchConfigManager.Set("input_overlay_scale_landscape", "1.000000");
-        RetroArchConfigManager.Set("input_overlay_auto_scale", "true");
-        RetroArchConfigManager.Set("aspect_ratio_index", "0");
-        RetroArchConfigManager.Set("video_scale_integer", "false");
-        RetroArchConfigManager.Save();
+            // Отключаем классический оверлей, чтобы не перекрывать шейдерную рамку
+            RetroArchConfigManager.Set("input_overlay_enable", "false");
+            RetroArchConfigManager.Set("input_overlay", "none");
+
+            SettingsManager.Current.ActiveMegaBezelSlangp = item.SlangpPath;
+            SettingsManager.Save();
+            RetroArchConfigManager.Save();
+
+            lock (_bezelsLock)
+            {
+                foreach (var b in _cachedBezels)
+                {
+                    b.IsActive = (b == item || (!string.IsNullOrEmpty(b.SlangpPath) && string.Equals(b.SlangpPath, item.SlangpPath, StringComparison.OrdinalIgnoreCase)));
+                }
+            }
+            return;
+        }
+
+        // 2. Классический CFG оверлей
+        if (!string.IsNullOrWhiteSpace(item.CfgPath) && File.Exists(item.CfgPath))
+        {
+            SettingsManager.Current.ActiveMegaBezelSlangp = "";
+            SettingsManager.Save();
+
+            RetroArchConfigManager.Set("input_overlay_enable", "true");
+            RetroArchConfigManager.Set("input_overlay", item.CfgPath);
+            RetroArchConfigManager.Set("input_overlay_opacity", "1.000000");
+            RetroArchConfigManager.Set("input_overlay_hide_in_menu", "true");
+            RetroArchConfigManager.Set("input_overlay_scale_landscape", "1.000000");
+            RetroArchConfigManager.Set("input_overlay_auto_scale", "true");
+            RetroArchConfigManager.Set("aspect_ratio_index", "0");
+            RetroArchConfigManager.Set("video_scale_integer", "false");
+            RetroArchConfigManager.Save();
+
+            lock (_bezelsLock)
+            {
+                foreach (var b in _cachedBezels)
+                {
+                    b.IsActive = (b == item || (b.CfgPath == item.CfgPath && item.CfgPath != "none"));
+                }
+            }
+            return;
+        }
+
+        DisableBezel();
     }
 
     public static void DisableBezel()
     {
         RetroArchConfigManager.Set("input_overlay_enable", "false");
         RetroArchConfigManager.Set("input_overlay", "none");
+        SettingsManager.Current.ActiveMegaBezelSlangp = "";
+        SettingsManager.Save();
         RetroArchConfigManager.Save();
-        foreach (var b in _cachedBezels)
+        lock (_bezelsLock)
         {
-            b.IsActive = (b.CfgPath == "none");
+            foreach (var b in _cachedBezels)
+            {
+                b.IsActive = (b.CfgPath == "none" || b.Name == "Без рамки");
+            }
         }
     }
 
