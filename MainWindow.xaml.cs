@@ -83,13 +83,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private Point _cardDragStartPoint;
     private bool _isSyncingQuickToggles;
 
-    private double _dynamicCardWidth = 380;
+    private double _dynamicCardWidth = 400;
     public double DynamicCardWidth
     {
         get => _dynamicCardWidth;
         set
         {
-            double clamped = Math.Clamp(value, 240, 560);
+            double clamped = Math.Clamp(value, 340, 580);
             if (Math.Abs(_dynamicCardWidth - clamped) > 0.1)
             {
                 _dynamicCardWidth = clamped;
@@ -106,9 +106,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     }
 
     public double DynamicBentoWidth => _dynamicCardWidth;
-    public double DynamicBentoHeight => Math.Max(206.0, Math.Round(_dynamicCardWidth * 0.465, 0));
-    public double DynamicBentoCoverWidth => Math.Round(_dynamicCardWidth * 0.285, 0);
-    public double DynamicBentoCoverHeight => Math.Max(96, DynamicBentoHeight - 24);
+    public double DynamicBentoHeight => Math.Max(234.0, Math.Round(_dynamicCardWidth * 0.575, 0));
+    public double DynamicBentoCoverWidth => Math.Round(_dynamicCardWidth * 0.28, 0);
+    public double DynamicBentoCoverHeight => Math.Max(110, DynamicBentoHeight - 26);
     public double DynamicCompactWidth => Math.Round(_dynamicCardWidth * 0.52, 0);
     public double DynamicCompactHeight => Math.Round(DynamicCompactWidth * 1.48, 0);
     public GridLength DynamicCompactCoverHeightGridLength => new GridLength(Math.Round(DynamicCompactHeight * 0.62, 0));
@@ -120,6 +120,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly BulkObservableCollection<CoreOptionItem> _filteredCoreOptions = new();
     private string _selectedCoreOptionCategory = "Все параметры";
     private string _coreOptionSearchQuery = "";
+    private ICollectionView? _coreOptionsCollectionView;
+    private readonly List<(ImageSource Image, string Caption)> _lightboxMediaItems = new();
+    private int _lightboxIndex = 0;
+    private bool _lightboxZoomed = false;
 
     // Cores Filter & Search
     private string _coreStatusFilter = "All";
@@ -292,7 +296,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         IcSettingsOzone.ItemsSource = _filteredSettings;
         LvSettingsCompact.ItemsSource = _filteredSettings;
 
-        if (ItemsCoreOptions != null) ItemsCoreOptions.ItemsSource = _filteredCoreOptions;
+        _coreOptionsCollectionView = CollectionViewSource.GetDefaultView(_filteredCoreOptions);
+        if (_coreOptionsCollectionView != null)
+        {
+            _coreOptionsCollectionView.GroupDescriptions.Clear();
+            _coreOptionsCollectionView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(CoreOptionItem.Category)));
+        }
+        if (ItemsCoreOptions != null) ItemsCoreOptions.ItemsSource = (System.Collections.IEnumerable?)_coreOptionsCollectionView ?? _filteredCoreOptions;
         if (LstCoreProfiles != null) LstCoreProfiles.ItemsSource = _allCoreProfiles;
 
         // Populate State Slots 0..99
@@ -304,7 +314,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         CmbStateSlot.SelectionChanged += CmbStateSlot_SelectionChanged;
         SettingItem.SettingChanged += OnLiveSettingChanged;
 
-        // 2.7.1 Instant Debounced Search Timer (35ms)
+        // 2.7.2 Instant Debounced Search Timer (35ms)
         _searchDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(35) };
         _searchDebounceTimer.Tick += (s, e) =>
         {
@@ -331,7 +341,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }));
         };
 
-        // 2.7.1 Multi-Device Input Engine & Controller Hotkey Studio
+        // 2.7.2 Multi-Device Input Engine & Controller Hotkey Studio
         DeviceInputProfileEngine.Initialize();
         DeviceInputProfileEngine.OnDeviceProfileActivated += (dev, msg) =>
         {
@@ -505,7 +515,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         IntPtr hwnd = helper.Handle;
         try
         {
-            SetWindowText(hwnd, Title ?? "STORM RETROARCH 2.7.1");
+            SetWindowText(hwnd, Title ?? "STORM RETROARCH 2.7.2");
             ChangeWindowMessageFilterEx(hwnd, WM_DROPFILES, MSGFLT_ALLOW, IntPtr.Zero);
             ChangeWindowMessageFilterEx(hwnd, WM_COPYDATA, MSGFLT_ALLOW, IntPtr.Zero);
             ChangeWindowMessageFilterEx(hwnd, WM_COPYGLOBALDATA, MSGFLT_ALLOW, IntPtr.Zero);
@@ -533,7 +543,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ItemsCheatEntries.ItemsSource = _selectedCheats;
         ItemsNetplayLobby.ItemsSource = _netplayLobby;
         ItemsBezels.ItemsSource = _filteredBezels;
-        ItemsCoreOptions.ItemsSource = _currentCoreOptions;
+        ItemsCoreOptions.ItemsSource = (System.Collections.IEnumerable?)_coreOptionsCollectionView ?? _filteredCoreOptions;
         ItemsInputRemap.ItemsSource = _currentRemapBindings;
         ItemsCheevosLibrary.ItemsSource = _filteredAchievements;
 
@@ -543,7 +553,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         // Load Subsystems
         _allCoreProfiles = CoreOptionsAndOverridesManager.GetCoreProfiles();
         if (LstCoreProfiles != null) LstCoreProfiles.ItemsSource = _allCoreProfiles;
-        if (ItemsCoreOptions != null) ItemsCoreOptions.ItemsSource = _filteredCoreOptions;
+        if (ItemsCoreOptions != null) ItemsCoreOptions.ItemsSource = (System.Collections.IEnumerable?)_coreOptionsCollectionView ?? _filteredCoreOptions;
         var firstProfile = _allCoreProfiles.FirstOrDefault();
         if (firstProfile != null)
         {
@@ -572,6 +582,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         // Load Settings and Real retroarch.cfg
         SettingsManager.Load();
         RetroArchConfigManager.Load();
+        ApplySavedCoreOptionsSidebarWidth();
 
         // Populate Theme, Accent, Font, Language Selectors
         PopulateThemeSelectors();
@@ -634,7 +645,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _isLoaded = true;
         LogCheckpoint("Before InitStudio200"); InitStudio200(); InitStudio210(); InitStudio220Subsystem(); InitStudio230Subsystem(); InitStudio260(); LogCheckpoint("After InitStudio260");
 
-        // 2.7.1 Non-blocking background subsystem warmup (shaders, saves, BIOS, cheats, bezels, achievements, external emus)
+        // 2.7.2 Non-blocking background subsystem warmup (shaders, saves, BIOS, cheats, bezels, achievements, external emus)
         if (Environment.GetCommandLineArgs().Any(a => a.StartsWith("--screenshot", StringComparison.OrdinalIgnoreCase)))
             {
                 await HydrateSubsystemsInBackgroundAsync();
@@ -1318,28 +1329,52 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SettingsManager.Save();
     }
 
+    public void FlushAllPersistentState()
+    {
+        try { SaveWindowPlacement(); } catch { }
+        try { SaveCoreOptionsSidebarWidth(); } catch { }
+        try { SaveLibraryToPlaylist(); } catch { }
+        try { SavePlaylists(); } catch { }
+        try { SettingsManager.Save(); } catch { }
+        try { RetroArchConfigManager.Save(); } catch { }
+    }
+
     private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
     {
-        SaveWindowPlacement();
         if (NativeLibretroHost.Current != null && NativeLibretroHost.Current.IsRunning &&
             SettingsManager.Current != null && SettingsManager.Current.AutoSaveLoadOnExit)
         {
             NativeLibretroHost.Current.SaveState(NativeLibretroHost.Current.ActiveStateSlot);
         }
-        // Minimize to tray if not exiting
-        if (SettingsManager.Current?.CheckUpdatesOnStartup == true)
-        {
-            // preserve
-        }
+        FlushAllPersistentState();
         _trayService?.Dispose();
-        SettingsManager.Save();
-        RetroArchConfigManager.Save();
-        SavePlaylists();
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         // Global ESC Modal Dismissal Rule (STORM Law 19) - Checked at the VERY TOP before anything else
+        if (PnlMediaLightboxModal != null && PnlMediaLightboxModal.Visibility == Visibility.Visible)
+        {
+            if (e.Key == Key.Left)
+            {
+                StepMediaLightbox(-1);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.Right)
+            {
+                StepMediaLightbox(1);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.Space || e.Key == Key.Add || e.Key == Key.OemPlus)
+            {
+                ToggleMediaLightboxZoom();
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (e.Key == Key.Escape)
         {
             if (PnlInGamePadOverlay != null && PnlInGamePadOverlay.Visibility == Visibility.Visible)
@@ -1371,6 +1406,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 StormAlertOverlay.Visibility = Visibility.Collapsed;
                 _alertTcs?.TrySetResult(false);
                 _alertTcs = null;
+                e.Handled = true;
+                return;
+            }
+            if (PnlMediaLightboxModal != null && PnlMediaLightboxModal.Visibility == Visibility.Visible)
+            {
+                CloseMediaLightbox();
+                e.Handled = true;
+                return;
+            }
+            if (PnlRomFoldersModal != null && PnlRomFoldersModal.Visibility == Visibility.Visible)
+            {
+                CloseRomFoldersModal();
                 e.Handled = true;
                 return;
             }
@@ -2318,7 +2365,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         // 3. Dynamic Card Width across all Bento Cards & Item Controls (respects SliderCardScale)
         if (_currentViewMode is ViewDisplayMode.Bento or ViewDisplayMode.Compact)
         {
-            DynamicCardWidth = SettingsManager.Current.BentoCardWidth > 240 ? SettingsManager.Current.BentoCardWidth : 380;
+            DynamicCardWidth = SettingsManager.Current.BentoCardWidth >= 340 ? SettingsManager.Current.BentoCardWidth : 400;
         }
     }
 
@@ -2649,37 +2696,40 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void BtnAddFolder_Click(object sender, RoutedEventArgs e)
     {
-        var dlg = new OpenFolderDialog
-        {
-            Title = "Выберите каталог с играми для сканирования"
-        };
-
-        if (dlg.ShowDialog() == true)
-        {
-            ScanDirectory(dlg.FolderName);
-            SaveLibraryToPlaylist();
-            ApplyGamesFilter();
-            UpdateStats();
-        }
+        OpenRomFoldersModal();
     }
 
     private async void BtnClearList_Click(object sender, RoutedEventArgs e)
     {
-        bool confirm = await ShowConfirmAsync("Очистить библиотеку", "Вы уверены, что хотите очистить весь список добавленных игр?");
+        bool confirm = await ShowConfirmAsync("Очистить библиотеку", "Вы уверены, что хотите очистить весь список добавленных игр и отслеживаемых папок?");
         if (confirm)
         {
             _allGames.Clear();
             _filteredGames.Clear();
             _favorites.Clear();
+            SettingsManager.Current.WatchedFolders.Clear();
+            SettingsManager.Current.RomDirectories.Clear();
+            SettingsManager.Save();
+            SaveLibraryToPlaylist();
+            RefreshAllLibraryFiltersAndCounts();
             UpdateStats();
+            RefreshPlayerAnalyticsDashboard();
+            InitCommandPaletteItems();
         }
     }
 
-    private void ScanDirectory(string dir)
+    private void ScanDirectory(string dir) => ScanDirectory(dir, recursive: true, registerWatchedFolder: true);
+
+    private void ScanDirectory(string dir, bool recursive, bool registerWatchedFolder = true)
     {
         try
         {
-            var romFiles = CoreManager.ScanSupportedRomFilesInDirectory(dir);
+            if (registerWatchedFolder && Directory.Exists(dir))
+            {
+                SettingsManager.AddOrUpdateWatchedFolder(dir, recursive);
+            }
+
+            var romFiles = CoreManager.ScanSupportedRomFilesInDirectory(dir, recursive);
             var newlyAdded = new List<RomItem>();
 
             foreach (var file in romFiles)
@@ -2687,6 +2737,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 var item = AddRomFileInternal(file);
                 if (item != null)
                 {
+                    GameMetadataStore.ApplyToRomItem(item);
                     newlyAdded.Add(item);
                 }
             }
@@ -2696,8 +2747,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 RefreshAllLibraryFiltersAndCounts();
                 SaveLibraryToPlaylist();
                 ApplyGamesFilter();
+                UpdateStats();
                 LoadCheats();
                 _ = CoverArtService.LoadCoversParallelAsync(newlyAdded, forceRefresh: false);
+                RefreshPlayerAnalyticsDashboard();
+                InitCommandPaletteItems();
+            }
+            else
+            {
+                SaveLibraryToPlaylist();
             }
 
             ShowNotification("STORM RETROARCH", $"Сканирование завершено: найдено и добавлено {newlyAdded.Count} игр!");
@@ -2706,10 +2764,268 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             ShowNotification("STORM RETROARCH", $"Ошибка сканирования папки: {ex.Message}");
         }
-    
-            RefreshPlayerAnalyticsDashboard();
-            InitCommandPaletteItems();
+    }
+
+    // ==================== WATCHED ROM FOLDERS MANAGER MODAL ====================
+
+    private void OpenRomFoldersModal()
+    {
+        if (PnlRomFoldersModal == null) return;
+        RefreshWatchedFoldersModalUi();
+        PnlRomFoldersModal.Visibility = Visibility.Visible;
+        if (RomFoldersDialogBorder != null)
+            AnalyticalSpringEngine.AnimateBackdropAndDialog(PnlRomFoldersModal, RomFoldersDialogBorder, opening: true);
+    }
+
+    private void CloseRomFoldersModal()
+    {
+        if (PnlRomFoldersModal == null) return;
+        if (RomFoldersDialogBorder != null)
+            AnalyticalSpringEngine.AnimateBackdropAndDialog(PnlRomFoldersModal, RomFoldersDialogBorder, opening: false, () => PnlRomFoldersModal.Visibility = Visibility.Collapsed);
+        else
+            PnlRomFoldersModal.Visibility = Visibility.Collapsed;
+    }
+
+    private void PnlRomFoldersModal_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource == PnlRomFoldersModal) CloseRomFoldersModal();
+    }
+
+    private void RomFoldersDialog_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+    }
+
+    private void BtnCloseRomFolders_Click(object sender, RoutedEventArgs e)
+    {
+        CloseRomFoldersModal();
+    }
+
+    private void BtnPickNewRomFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFolderDialog
+        {
+            Title = "Выберите каталог с играми для добавления в библиотеку"
+        };
+        if (dlg.ShowDialog() == true)
+        {
+            bool recursive = ChkNewFolderRecursive?.IsChecked ?? true;
+            ScanDirectory(dlg.FolderName, recursive, registerWatchedFolder: true);
+            RefreshWatchedFoldersModalUi();
         }
+    }
+
+    private void BtnRescanAllWatchedFolders_Click(object sender, RoutedEventArgs e)
+    {
+        SettingsManager.NormalizeWatchedFolders();
+        int totalAdded = 0;
+        var batchAdded = new List<RomItem>();
+        foreach (var wf in SettingsManager.Current.WatchedFolders.Where(w => w.Enabled && Directory.Exists(w.Path)).ToList())
+        {
+            var files = CoreManager.ScanSupportedRomFilesInDirectory(wf.Path, wf.Recursive);
+            wf.LastScannedUtc = DateTime.UtcNow;
+            foreach (var f in files)
+            {
+                var item = AddRomFileInternal(f);
+                if (item != null)
+                {
+                    GameMetadataStore.ApplyToRomItem(item);
+                    batchAdded.Add(item);
+                    totalAdded++;
+                }
+            }
+        }
+        SettingsManager.Save();
+        if (batchAdded.Count > 0)
+        {
+            RefreshAllLibraryFiltersAndCounts();
+            ApplyGamesFilter();
+            UpdateStats();
+            _ = CoverArtService.LoadCoversParallelAsync(batchAdded, forceRefresh: false);
+        }
+        SaveLibraryToPlaylist();
+        RefreshWatchedFoldersModalUi();
+        ShowOsdToast($"Пересканировано папок: {SettingsManager.Current.WatchedFolders.Count}, новых игр: {totalAdded}");
+    }
+
+    private static bool IsFileInFolderScope(string filePath, string folderPath, bool includeSubdirs)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || string.IsNullOrWhiteSpace(folderPath)) return false;
+        try
+        {
+            string normFile = Path.GetFullPath(filePath);
+            string normFolder = SettingsManager.NormalizeFolderPath(folderPath);
+            string fileDir = SettingsManager.NormalizeFolderPath(Path.GetDirectoryName(normFile));
+            if (!includeSubdirs)
+                return fileDir.Equals(normFolder, StringComparison.OrdinalIgnoreCase);
+            return fileDir.Equals(normFolder, StringComparison.OrdinalIgnoreCase)
+                || fileDir.StartsWith(normFolder + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }
+    }
+
+    private void RefreshWatchedFoldersModalUi()
+    {
+        if (PnlWatchedFoldersList == null) return;
+        SettingsManager.NormalizeWatchedFolders();
+        PnlWatchedFoldersList.Children.Clear();
+
+        var folders = SettingsManager.Current.WatchedFolders;
+        if (TxtWatchedFoldersSummary != null)
+        {
+            TxtWatchedFoldersSummary.Text = folders.Count > 0
+                ? $"Отслеживается папок: {folders.Count} • Всего игр в библиотеке: {_allGames.Count}"
+                : "Нет добавленных папок. Нажмите «Выбрать и добавить папку», чтобы подключить каталог игр.";
+        }
+
+        if (folders.Count == 0)
+        {
+            var emptyBorder = new Border
+            {
+                Background = (Brush)FindResource("ThemeBgWindow"),
+                BorderBrush = (Brush)FindResource("ThemeBorderSubtle"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(18)
+            };
+            emptyBorder.Child = new TextBlock
+            {
+                Text = "Пока не добавлено ни одной папки с играми.\nПри добавлении папки она сохраняется локально и автоматически загружается после перезапуска.",
+                Foreground = (Brush)FindResource("ThemeTextMuted"),
+                FontSize = 12.5,
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Center
+            };
+            PnlWatchedFoldersList.Children.Add(emptyBorder);
+            return;
+        }
+
+        foreach (var wf in folders.ToList())
+        {
+            int countInFolder = _allGames.Count(g => IsFileInFolderScope(g.FilePath, wf.Path, wf.Recursive));
+            bool folderExists = Directory.Exists(wf.Path);
+
+            var card = new Border
+            {
+                Background = (Brush)FindResource("ThemeBgWindow"),
+                BorderBrush = (Brush)FindResource("ThemeBorderSubtle"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(12, 10, 12, 10),
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+
+            var row = new Grid();
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var leftInfo = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+            leftInfo.Children.Add(new TextBlock
+            {
+                Text = wf.Path,
+                Foreground = (Brush)FindResource("ThemeTextPrimary"),
+                FontWeight = FontWeights.Bold,
+                FontSize = 12.5,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                ToolTip = wf.Path
+            });
+            leftInfo.Children.Add(new TextBlock
+            {
+                Text = folderExists
+                    ? $"Игр в папке: {countInFolder} • Режим: {(wf.Recursive ? "рекурсивно (с подпапками)" : "только верхний уровень")}"
+                    : "Папка временно недоступна на диске (сохранена в списке)",
+                Foreground = folderExists ? (Brush)FindResource("ThemeTextSecondary") : new SolidColorBrush(Color.FromRgb(0xFB, 0x71, 0x85)),
+                FontSize = 11,
+                Margin = new Thickness(0, 3, 0, 0)
+            });
+            Grid.SetColumn(leftInfo, 0);
+            row.Children.Add(leftInfo);
+
+            var rightActions = new WrapPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+
+            var chkRec = new CheckBox
+            {
+                Content = "Рекурсивное сканирование",
+                IsChecked = wf.Recursive,
+                Foreground = (Brush)FindResource("ThemeTextPrimary"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 2, 10, 2),
+                ToolTip = "Включить или отключить сканирование вложенных подпапок"
+            };
+            string capturedPath = wf.Path;
+            chkRec.Click += (s, ev) =>
+            {
+                bool recNow = chkRec.IsChecked == true;
+                SettingsManager.SetWatchedFolderRecursive(capturedPath, recNow);
+                if (recNow)
+                {
+                    ScanDirectory(capturedPath, recursive: true, registerWatchedFolder: true);
+                }
+                else
+                {
+                    // Remove only nested child entries belonging exclusively to subdirectories of capturedPath
+                    var otherFolders = SettingsManager.Current.WatchedFolders
+                        .Where(o => !o.Path.Equals(capturedPath, StringComparison.OrdinalIgnoreCase) && o.Enabled)
+                        .ToList();
+                    var keepGames = _allGames.Where(g =>
+                        !(IsFileInFolderScope(g.FilePath, capturedPath, includeSubdirs: true) &&
+                          !IsFileInFolderScope(g.FilePath, capturedPath, includeSubdirs: false) &&
+                          !otherFolders.Any(o => IsFileInFolderScope(g.FilePath, o.Path, o.Recursive)))).ToList();
+                    _allGames.ReplaceAll(keepGames);
+                    RefreshAllLibraryFiltersAndCounts();
+                    SaveLibraryToPlaylist();
+                    ApplyGamesFilter();
+                    UpdateStats();
+                }
+                RefreshWatchedFoldersModalUi();
+            };
+            rightActions.Children.Add(chkRec);
+
+            var btnScan = new Button
+            {
+                Style = (Style)FindResource("StormSecondaryButton"),
+                Padding = new Thickness(10, 5, 10, 5),
+                Margin = new Thickness(0, 2, 6, 2),
+                Content = new TextBlock { Text = "Сканировать", FontSize = 11.5 }
+            };
+            bool capRec = wf.Recursive;
+            btnScan.Click += (s, ev) =>
+            {
+                ScanDirectory(capturedPath, capRec, registerWatchedFolder: true);
+                RefreshWatchedFoldersModalUi();
+            };
+            rightActions.Children.Add(btnScan);
+
+            var btnDel = new Button
+            {
+                Style = (Style)FindResource("StormSecondaryButton"),
+                Padding = new Thickness(10, 5, 10, 5),
+                Margin = new Thickness(0, 2, 0, 2),
+                Content = new TextBlock { Text = "Удалить", FontSize = 11.5, Foreground = new SolidColorBrush(Color.FromRgb(0xFB, 0x71, 0x85)) }
+            };
+            btnDel.Click += (s, ev) =>
+            {
+                bool oldRec = SettingsManager.Current.WatchedFolders.FirstOrDefault(x => x.Path.Equals(capturedPath, StringComparison.OrdinalIgnoreCase))?.Recursive ?? true;
+                SettingsManager.RemoveWatchedFolder(capturedPath);
+                var remainingFolders = SettingsManager.Current.WatchedFolders.Where(x => x.Enabled).ToList();
+                var keepAfterDel = _allGames.Where(g =>
+                    !(IsFileInFolderScope(g.FilePath, capturedPath, oldRec) &&
+                      !remainingFolders.Any(o => IsFileInFolderScope(g.FilePath, o.Path, o.Recursive)))).ToList();
+                _allGames.ReplaceAll(keepAfterDel);
+                RefreshAllLibraryFiltersAndCounts();
+                SaveLibraryToPlaylist();
+                ApplyGamesFilter();
+                UpdateStats();
+                RefreshWatchedFoldersModalUi();
+            };
+            rightActions.Children.Add(btnDel);
+
+            Grid.SetColumn(rightActions, 1);
+            row.Children.Add(rightActions);
+            card.Child = row;
+            PnlWatchedFoldersList.Children.Add(card);
+        }
+    }
 
     private RomItem? AddRomFileInternal(string filePath)
     {
@@ -2983,7 +3299,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (!match) continue;
             }
 
-            // 2.0.0 / 2.7.1 Smart Collections filter
+            // 2.0.0 / 2.7.2 Smart Collections filter
             if (_selectedSmartCollection == "Избранное")
             {
                 if (!g.IsFavorite) continue;
@@ -3916,6 +4232,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (BtnCoresFilterAll != null) BtnCoresFilterAll.Tag = null;
         if (BtnCoresFilterInstalled != null) BtnCoresFilterInstalled.Tag = null;
         if (BtnCoresFilterAvailable != null) BtnCoresFilterAvailable.Tag = null;
+        if (BtnCoreStatusRecommended != null) BtnCoreStatusRecommended.Tag = null;
+        _activeCoreFilterStatus = "ALL";
         btn.Tag = "Active";
 
         if (btn == BtnCoresFilterInstalled) _coreStatusFilter = "Installed";
@@ -5131,6 +5449,43 @@ private void LoadBezels(bool forceReload = true)
 
     // ==================== CORE OPTIONS & OVERRIDES ====================
 
+    private void ApplySavedCoreOptionsSidebarWidth()
+    {
+        if (ColCoreProfilesSidebar != null && SettingsManager.Current != null)
+        {
+            double w = Math.Clamp(SettingsManager.Current.CoreOptionsSidebarWidth, 250.0, 560.0);
+            ColCoreProfilesSidebar.Width = new GridLength(w);
+        }
+    }
+
+    private void SaveCoreOptionsSidebarWidth()
+    {
+        if (ColCoreProfilesSidebar != null && ColCoreProfilesSidebar.ActualWidth >= 250.0 && SettingsManager.Current != null)
+        {
+            SettingsManager.Current.CoreOptionsSidebarWidth = Math.Round(Math.Clamp(ColCoreProfilesSidebar.ActualWidth, 250.0, 560.0), 0);
+        }
+    }
+
+    private void SplitterCoreProfiles_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+    {
+        SaveCoreOptionsSidebarWidth();
+        SettingsManager.Save();
+    }
+
+    private void UpdateCoreOptionCategoryChipCounts()
+    {
+        if (PnlCoreOptionCategories == null) return;
+        foreach (var child in PnlCoreOptionCategories.Children)
+        {
+            if (child is not Button b) continue;
+            string catKey = !string.IsNullOrWhiteSpace(b.Uid) ? b.Uid : "Все параметры";
+            int count = catKey == "Все параметры"
+                ? _currentCoreOptions.Count
+                : _currentCoreOptions.Count(o => o.Category != null && o.Category.Equals(catKey, StringComparison.OrdinalIgnoreCase));
+            b.Content = $"{catKey} ({count})";
+        }
+    }
+
     private void LoadCoreOptionsProfile(string coreName)
     {
         _selectedCoreProfile = _allCoreProfiles.FirstOrDefault(p => p.CoreName.Equals(coreName, StringComparison.OrdinalIgnoreCase)) ??
@@ -5148,6 +5503,7 @@ private void LoadBezels(bool forceReload = true)
         {
             _currentCoreOptions.Clear();
         }
+        UpdateCoreOptionCategoryChipCounts();
         ApplyCoreOptionsFilter();
     }
 
@@ -5179,6 +5535,7 @@ private void LoadBezels(bool forceReload = true)
         }
 
         _filteredCoreOptions.ReplaceAll(filtered);
+        _coreOptionsCollectionView?.Refresh();
     }
 
     private void BtnCoreOptionCategory_Click(object sender, RoutedEventArgs e)
@@ -5192,7 +5549,7 @@ private void LoadBezels(bool forceReload = true)
             }
         }
         btn.Tag = "Active";
-        _selectedCoreOptionCategory = btn.Content?.ToString() ?? "Все параметры";
+        _selectedCoreOptionCategory = !string.IsNullOrWhiteSpace(btn.Uid) ? btn.Uid : "Все параметры";
         ApplyCoreOptionsFilter();
     }
 
@@ -6884,16 +7241,34 @@ private void LoadBezels(bool forceReload = true)
         }
     }
 
+    private static void WriteAtomicLibraryJson(string targetFile, string json)
+    {
+        string? dir = Path.GetDirectoryName(targetFile);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+        string tmp = targetFile + ".tmp";
+        File.WriteAllText(tmp, json);
+        File.Move(tmp, targetFile, overwrite: true);
+    }
+
     private void SaveLibraryToPlaylist()
     {
         try
         {
-            string playlistDir = Path.Combine(CoreManager.AppDir, "playlists");
-            if (!Directory.Exists(playlistDir)) Directory.CreateDirectory(playlistDir);
-            string file = Path.Combine(playlistDir, "storm_library.json");
-            var paths = _allGames.Select(g => g.FilePath).Distinct().ToList();
+            var paths = _allGames
+                .Select(g => g.FilePath)
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
             string json = System.Text.Json.JsonSerializer.Serialize(paths, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(file, json);
+
+            string localFile = Path.Combine(CoreManager.AppDir, "playlists", "storm_library.json");
+            try { WriteAtomicLibraryJson(localFile, json); } catch { }
+
+            string appDataFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "STORM RETROARCH", "playlists", "storm_library.json");
+            if (!appDataFile.Equals(localFile, StringComparison.OrdinalIgnoreCase))
+            {
+                try { WriteAtomicLibraryJson(appDataFile, json); } catch { }
+            }
         }
         catch { }
     }
@@ -6955,12 +7330,44 @@ private void LoadBezels(bool forceReload = true)
                 catch { }
             }
 
+            // Also auto-scan enabled watched folders honoring per-folder Recursive setting
+            SettingsManager.NormalizeWatchedFolders();
+            foreach (var wf in SettingsManager.Current.WatchedFolders)
+            {
+                if (!wf.Enabled || !Directory.Exists(wf.Path)) continue;
+                try
+                {
+                    foreach (var p in CoreManager.ScanSupportedRomFilesInDirectory(wf.Path, wf.Recursive))
+                    {
+                        if (!File.Exists(p) || !existingPaths.Add(p)) continue;
+                        var fi = new FileInfo(p);
+                        var (platform, coreDll, coreName) = CoreManager.IdentifyRom(p);
+                        var item = new RomItem
+                        {
+                            FilePath = p,
+                            Extension = fi.Extension.ToLowerInvariant(),
+                            Platform = platform,
+                            CoreDll = coreDll,
+                            CoreDisplayName = coreName,
+                            FileSizeBytes = fi.Length,
+                            IsCoreInstalled = CoreManager.IsCoreInstalled(coreDll),
+                            StatusText = CoreManager.IsCoreInstalled(coreDll) ? "Готово к запуску" : "Требуется ядро"
+                        };
+                        item.ParseAndUpdateFromFileName(fi.Name);
+                        GameMetadataStore.ApplyToRomItem(item);
+                        batchItems.Add(item);
+                        migrated = true;
+                    }
+                }
+                catch { }
+            }
+
             if (batchItems.Count > 0)
             {
                 _allGames.AddRange(batchItems);
             }
 
-            if (migrated) SaveLibraryToPlaylist();
+            if (migrated || batchItems.Count > 0) SaveLibraryToPlaylist();
             foreach (var game in _allGames)
             {
                 GameMetadataStore.ApplyToRomItem(game);
@@ -7249,7 +7656,7 @@ private void LoadBezels(bool forceReload = true)
 
     private void BtnCardScaleDown_Click(object sender, RoutedEventArgs e)
     {
-        double next = Math.Max(270, DynamicCardWidth - 25);
+        double next = Math.Max(340, DynamicCardWidth - 25);
         if (SliderCardScale != null) SliderCardScale.Value = next;
         else DynamicCardWidth = next;
     }
@@ -8448,18 +8855,23 @@ private void LoadBezels(bool forceReload = true)
         var screenshots = CoverArtService.LoadGameScreenshots(item);
         if (screenshots.Count > 0)
         {
-            foreach (var shot in screenshots)
+            int coverOffset = item.Icon != null ? 1 : 0;
+            for (int idx = 0; idx < screenshots.Count; idx++)
             {
+                var shot = screenshots[idx];
+                int capturedTargetIndex = idx + coverOffset;
                 var border = new Border
                 {
-                    Width = 120,
-                    Height = 78,
-                    CornerRadius = new CornerRadius(6),
+                    Width = 136,
+                    Height = 86,
+                    CornerRadius = new CornerRadius(8),
                     ClipToBounds = true,
                     Margin = new Thickness(0, 0, 8, 0),
                     Background = new SolidColorBrush(Color.FromRgb(0x0F, 0x17, 0x2A)),
                     BorderBrush = (Brush)FindResource("ThemeBorder"),
-                    BorderThickness = new Thickness(1)
+                    BorderThickness = new Thickness(1.5),
+                    Cursor = Cursors.Hand,
+                    ToolTip = "Нажмите для увеличения и удобного переключения изображений"
                 };
                 var img = new Image
                 {
@@ -8468,6 +8880,11 @@ private void LoadBezels(bool forceReload = true)
                 };
                 RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
                 border.Child = img;
+                border.MouseLeftButtonUp += (s, ev) =>
+                {
+                    OpenMediaLightbox(item, capturedTargetIndex);
+                    ev.Handled = true;
+                };
                 PnlGameHubScreenshots.Children.Add(border);
             }
         }
@@ -8612,6 +9029,141 @@ private void LoadBezels(bool forceReload = true)
         {
             OpenFolderForGame(_activeGameHubItem);
         }
+    }
+
+    // ==================== COVER & SCREENSHOT LIGHTBOX VIEWER ====================
+
+    private void BdrGameHubCover_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_activeGameHubItem != null)
+        {
+            OpenMediaLightbox(_activeGameHubItem, 0);
+            e.Handled = true;
+        }
+    }
+
+    private void BtnGameHubOpenGallery_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeGameHubItem != null)
+        {
+            OpenMediaLightbox(_activeGameHubItem, 0);
+        }
+    }
+
+    public void OpenMediaLightbox(RomItem? item, int startIndex = 0)
+    {
+        if (item == null || PnlMediaLightboxModal == null) return;
+        _lightboxMediaItems.Clear();
+        if (item.Icon != null)
+        {
+            _lightboxMediaItems.Add((item.Icon, $"Обложка - {item.Name}"));
+        }
+        var shots = CoverArtService.LoadGameScreenshots(item);
+        for (int i = 0; i < shots.Count; i++)
+        {
+            _lightboxMediaItems.Add((shots[i], $"Скриншот {i + 1} - {item.Name}"));
+        }
+        if (_lightboxMediaItems.Count == 0) return;
+
+        _lightboxIndex = Math.Clamp(startIndex, 0, _lightboxMediaItems.Count - 1);
+        _lightboxZoomed = false;
+        RenderLightboxSlide();
+        PnlMediaLightboxModal.Visibility = Visibility.Visible;
+        if (MediaLightboxDialogBorder != null)
+            AnalyticalSpringEngine.AnimateBackdropAndDialog(PnlMediaLightboxModal, MediaLightboxDialogBorder, opening: true);
+    }
+
+    private void RenderLightboxSlide()
+    {
+        if (_lightboxMediaItems.Count == 0) return;
+        _lightboxIndex = (_lightboxIndex + _lightboxMediaItems.Count) % _lightboxMediaItems.Count;
+        var (img, caption) = _lightboxMediaItems[_lightboxIndex];
+
+        if (ImgMediaLightbox != null)
+        {
+            ImgMediaLightbox.Source = img;
+            ImgMediaLightbox.MaxHeight = _lightboxZoomed ? 1600 : 560;
+            ImgMediaLightbox.MaxWidth = _lightboxZoomed ? 2400 : 980;
+            ImgMediaLightbox.Stretch = Stretch.Uniform;
+        }
+        if (TxtMediaLightboxCaption != null) TxtMediaLightboxCaption.Text = caption;
+        if (TxtMediaLightboxCounter != null) TxtMediaLightboxCounter.Text = $"{_lightboxIndex + 1} / {_lightboxMediaItems.Count}";
+        if (TxtMediaLightboxZoomLabel != null) TxtMediaLightboxZoomLabel.Text = _lightboxZoomed ? "Уменьшить" : "Увеличить";
+
+        bool hasMulti = _lightboxMediaItems.Count > 1;
+        if (BtnLightboxPrev != null) BtnLightboxPrev.IsEnabled = hasMulti;
+        if (BtnLightboxNext != null) BtnLightboxNext.IsEnabled = hasMulti;
+
+        if (PnlLightboxThumbnails != null)
+        {
+            PnlLightboxThumbnails.Children.Clear();
+            for (int i = 0; i < _lightboxMediaItems.Count; i++)
+            {
+                int cap = i;
+                bool active = (i == _lightboxIndex);
+                var thumbBorder = new Border
+                {
+                    Width = 76,
+                    Height = 52,
+                    CornerRadius = new CornerRadius(6),
+                    ClipToBounds = true,
+                    Margin = new Thickness(0, 0, 8, 0),
+                    Background = new SolidColorBrush(Color.FromRgb(0x0F, 0x17, 0x2A)),
+                    BorderBrush = active ? (Brush)FindResource("ThemeAccentGlow") : (Brush)FindResource("ThemeBorderSubtle"),
+                    BorderThickness = new Thickness(active ? 2.5 : 1),
+                    Opacity = active ? 1.0 : 0.72,
+                    Cursor = Cursors.Hand,
+                    ToolTip = _lightboxMediaItems[i].Caption
+                };
+                var thumbImg = new Image { Source = _lightboxMediaItems[i].Image, Stretch = Stretch.UniformToFill };
+                RenderOptions.SetBitmapScalingMode(thumbImg, BitmapScalingMode.HighQuality);
+                thumbBorder.Child = thumbImg;
+                thumbBorder.MouseLeftButtonUp += (s, ev) =>
+                {
+                    _lightboxIndex = cap;
+                    RenderLightboxSlide();
+                    ev.Handled = true;
+                };
+                PnlLightboxThumbnails.Children.Add(thumbBorder);
+            }
+        }
+    }
+
+    private void StepMediaLightbox(int delta)
+    {
+        if (_lightboxMediaItems.Count <= 1) return;
+        _lightboxIndex = (_lightboxIndex + delta + _lightboxMediaItems.Count) % _lightboxMediaItems.Count;
+        RenderLightboxSlide();
+    }
+
+    private void ToggleMediaLightboxZoom()
+    {
+        _lightboxZoomed = !_lightboxZoomed;
+        RenderLightboxSlide();
+    }
+
+    private void BtnLightboxPrev_Click(object sender, RoutedEventArgs e) => StepMediaLightbox(-1);
+    private void BtnLightboxNext_Click(object sender, RoutedEventArgs e) => StepMediaLightbox(1);
+    private void BtnLightboxZoom_Click(object sender, RoutedEventArgs e) => ToggleMediaLightboxZoom();
+    private void ImgMediaLightbox_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => ToggleMediaLightboxZoom();
+
+    public void CloseMediaLightbox()
+    {
+        if (PnlMediaLightboxModal == null) return;
+        if (MediaLightboxDialogBorder != null)
+            AnalyticalSpringEngine.AnimateBackdropAndDialog(PnlMediaLightboxModal, MediaLightboxDialogBorder, opening: false, () => PnlMediaLightboxModal.Visibility = Visibility.Collapsed);
+        else
+            PnlMediaLightboxModal.Visibility = Visibility.Collapsed;
+    }
+
+    private void BtnCloseMediaLightbox_Click(object sender, RoutedEventArgs e) => CloseMediaLightbox();
+    private void PnlMediaLightboxModal_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource == PnlMediaLightboxModal) CloseMediaLightbox();
+    }
+    private void MediaLightboxDialog_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
     }
 
     private void BtnStar_Click(object sender, RoutedEventArgs e)

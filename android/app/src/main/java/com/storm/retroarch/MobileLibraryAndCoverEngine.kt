@@ -50,7 +50,11 @@ data class MobileRomItem(
     var customCollection: String = "",
     var totalPlaySeconds: Long = 0L,
     var launchCount: Int = 0,
-    var lastPlayedIso: String = ""
+    var lastPlayedIso: String = "",
+    val year: String = "Классика",
+    val translationBadge: String = "",
+    val audioBadge: String = "",
+    val versionFilesBadge: String = ""
 ) {
     val sizeFormatted: String
         get() {
@@ -74,7 +78,37 @@ data class MobileRomItem(
                 MobileLibraryAndCoverEngine.toStormLocalUrl(cp)
             } else ""
         }
+
+    val slotYear: String
+        get() = year.ifBlank { "Классика" }
+
+    val slotRegion: String
+        get() = regionCode.ifBlank { "WORLD" }
+
+    val slotTranslation: String
+        get() = translationBadge.ifBlank { if (isRussianMod) "RUS" else "ENG" }
+
+    val slotAudio: String
+        get() = audioBadge.ifBlank { if (isRussianMod) "Оригинал" else if (regionCode == "JP") "JPN" else "ENG" }
+
+    val slotFiles: String
+        get() = versionFilesBadge.ifBlank { if (isRussianMod) "1G+1M" else "1G • ${extension.uppercase(Locale.ROOT)}" }
+
+    val slotRating: String
+        get() = if (starRating > 0) "$starRating/5" else "0/5"
+
+    val slotLaunch: String
+        get() = when {
+            totalPlaySeconds >= 60L -> "${totalPlaySeconds / 60L} мин • $completionStatus"
+            launchCount > 0 -> "$launchCount зап."
+            else -> completionStatus
+        }
 }
+
+data class WatchedFolderEntry(
+    val pathOrUri: String,
+    var recursive: Boolean = true
+)
 
 data class LibraryFilterCounts(
     val smartCollections: Map<String, Int>,
@@ -96,6 +130,7 @@ object MobileLibraryAndCoverEngine {
     private const val THUMBNAILS_SERVER = "https://thumbnails.libretro.com"
     private const val PREFS_ROM_META = "storm_mobile_rom_metadata"
     private const val KEY_CUSTOM_DIRS = "custom_scan_dirs_json"
+    private const val KEY_CUSTOM_DIR_MODES = "custom_scan_dir_modes_json"
     private const val KEY_SINGLE_ROMS = "single_picked_roms_json"
 
     private val coverExecutor = Executors.newFixedThreadPool(3)
@@ -256,41 +291,148 @@ object MobileLibraryAndCoverEngine {
 
     // === Persisted Custom Directories & Single Picked ROMs ===
 
-    fun getPersistedScanFolders(context: Context): List<String> {
-        val raw = getMetaPrefs(context).getString(KEY_CUSTOM_DIRS, "[]") ?: "[]"
-        val out = ArrayList<String>()
-        try {
-            val arr = JSONArray(raw)
-            for (i in 0 until arr.length()) {
-                val s = arr.optString(i, "").trim()
-                if (s.isNotEmpty() && !out.contains(s)) out.add(s)
-            }
-        } catch (_: Throwable) {
-        }
-        return out
+    private val foldersLock = Any()
+
+    private fun getWatchedFoldersMirrorFiles(context: Context): List<File> {
+        return listOf(
+            File(context.applicationContext.filesDir, "playlists/storm_watched_folders.json"),
+            File(MobileCoreRegistry.STORM_PUBLIC_ROOT, "playlists/storm_watched_folders.json")
+        )
     }
 
-    fun addPersistedScanFolder(context: Context, pathOrUri: String) {
+    private fun writeWatchedFoldersMirrorLocked(context: Context, entries: List<WatchedFolderEntry>) {
+        val arr = JSONArray()
+        for (e in entries) {
+            arr.put(JSONObject().put("path", e.pathOrUri).put("recursive", e.recursive))
+        }
+        val jsonText = arr.toString()
+        for (file in getWatchedFoldersMirrorFiles(context)) {
+            try {
+                file.parentFile?.mkdirs()
+                val tmp = File(file.parentFile, "${file.name}.tmp")
+                tmp.writeText(jsonText, StandardCharsets.UTF_8)
+                if (file.exists()) file.delete()
+                if (!tmp.renameTo(file)) {
+                    file.writeText(jsonText, StandardCharsets.UTF_8)
+                    tmp.delete()
+                }
+            } catch (_: Throwable) {
+            }
+        }
+    }
+
+    fun getPersistedScanFolderEntries(context: Context): List<WatchedFolderEntry> {
+        synchronized(foldersLock) {
+            val prefs = getMetaPrefs(context)
+            val map = LinkedHashMap<String, WatchedFolderEntry>()
+
+            fun addOrMerge(path: String, rec: Boolean) {
+                val clean = path.trim()
+                if (clean.isEmpty()) return
+                val existing = map[clean]
+                if (existing == null) {
+                    map[clean] = WatchedFolderEntry(clean, rec)
+                }
+            }
+
+            // 1. Primary structured mode array in SharedPreferences
+            try {
+                val rawModes = prefs.getString(KEY_CUSTOM_DIR_MODES, "[]") ?: "[]"
+                val arr = JSONArray(rawModes)
+                for (i in 0 until arr.length()) {
+                    val obj = arr.optJSONObject(i) ?: continue
+                    val p = obj.optString("path", "").trim()
+                    val rec = obj.optBoolean("recursive", true)
+                    if (p.isNotEmpty()) addOrMerge(p, rec)
+                }
+            } catch (_: Throwable) {
+            }
+
+            // 2. Legacy plain folder string array
+            try {
+                val raw = prefs.getString(KEY_CUSTOM_DIRS, "[]") ?: "[]"
+                val arr = JSONArray(raw)
+                for (i in 0 until arr.length()) {
+                    val s = arr.optString(i, "").trim()
+                    if (s.isNotEmpty()) addOrMerge(s, true)
+                }
+            } catch (_: Throwable) {
+            }
+
+            // 3. Mirror files (survives app kill / reinstall backup restore)
+            for (mirror in getWatchedFoldersMirrorFiles(context)) {
+                try {
+                    if (!mirror.exists() || !mirror.canRead()) continue
+                    val arr = JSONArray(mirror.readText(StandardCharsets.UTF_8))
+                    for (i in 0 until arr.length()) {
+                        val obj = arr.optJSONObject(i) ?: continue
+                        val p = obj.optString("path", "").trim()
+                        val rec = obj.optBoolean("recursive", true)
+                        if (p.isNotEmpty()) addOrMerge(p, rec)
+                    }
+                } catch (_: Throwable) {
+                }
+            }
+
+            return map.values.toList()
+        }
+    }
+
+    private fun saveWatchedFolderEntriesLocked(context: Context, entries: List<WatchedFolderEntry>) {
+        val modesArr = JSONArray()
+        val legacyArr = JSONArray()
+        for (e in entries) {
+            modesArr.put(JSONObject().put("path", e.pathOrUri).put("recursive", e.recursive))
+            legacyArr.put(e.pathOrUri)
+        }
+        getMetaPrefs(context).edit()
+            .putString(KEY_CUSTOM_DIR_MODES, modesArr.toString())
+            .putString(KEY_CUSTOM_DIRS, legacyArr.toString())
+            .commit()
+        writeWatchedFoldersMirrorLocked(context, entries)
+    }
+
+    fun getPersistedScanFolders(context: Context): List<String> {
+        return getPersistedScanFolderEntries(context).map { it.pathOrUri }
+    }
+
+    fun addPersistedScanFolder(context: Context, pathOrUri: String, recursive: Boolean = true) {
         val clean = pathOrUri.trim()
         if (clean.isEmpty()) return
-        val current = getPersistedScanFolders(context).toMutableList()
-        if (!current.contains(clean)) {
-            current.add(clean)
-            val arr = JSONArray()
-            current.forEach { arr.put(it) }
-            getMetaPrefs(context).edit().putString(KEY_CUSTOM_DIRS, arr.toString()).apply()
+        synchronized(foldersLock) {
+            val current = getPersistedScanFolderEntries(context).toMutableList()
+            val idx = current.indexOfFirst { it.pathOrUri.equals(clean, ignoreCase = false) }
+            if (idx >= 0) {
+                current[idx].recursive = recursive
+            } else {
+                current.add(WatchedFolderEntry(clean, recursive))
+            }
+            saveWatchedFolderEntriesLocked(context, current)
+        }
+    }
+
+    fun setPersistedScanFolderRecursive(context: Context, pathOrUri: String, recursive: Boolean): Boolean {
+        val clean = pathOrUri.trim()
+        if (clean.isEmpty()) return false
+        synchronized(foldersLock) {
+            val current = getPersistedScanFolderEntries(context).toMutableList()
+            val target = current.firstOrNull { it.pathOrUri == clean } ?: return false
+            target.recursive = recursive
+            saveWatchedFolderEntriesLocked(context, current)
+            return true
         }
     }
 
     fun removePersistedScanFolder(context: Context, pathOrUri: String): Boolean {
-        val current = getPersistedScanFolders(context).toMutableList()
-        val removed = current.remove(pathOrUri.trim())
-        if (removed) {
-            val arr = JSONArray()
-            current.forEach { arr.put(it) }
-            getMetaPrefs(context).edit().putString(KEY_CUSTOM_DIRS, arr.toString()).apply()
+        val clean = pathOrUri.trim()
+        synchronized(foldersLock) {
+            val current = getPersistedScanFolderEntries(context).toMutableList()
+            val removed = current.removeAll { it.pathOrUri == clean }
+            if (removed) {
+                saveWatchedFolderEntriesLocked(context, current)
+            }
+            return removed
         }
-        return removed
     }
 
     fun getPersistedSingleRoms(context: Context): List<String> {
@@ -313,7 +455,7 @@ object MobileLibraryAndCoverEngine {
             current.add(filePath)
             val arr = JSONArray()
             current.forEach { arr.put(it) }
-            getMetaPrefs(context).edit().putString(KEY_SINGLE_ROMS, arr.toString()).apply()
+            getMetaPrefs(context).edit().putString(KEY_SINGLE_ROMS, arr.toString()).commit()
         }
     }
 
@@ -431,42 +573,51 @@ object MobileLibraryAndCoverEngine {
         val prefs = getMetaPrefs(appCtx)
         val supportedExts = MobileCoreRegistry.getAllUniqueExtensions(appCtx)
 
-        val scanRoots = LinkedHashSet<File>()
-        if (customRootDirs != null && customRootDirs.isNotEmpty()) {
-            scanRoots.addAll(customRootDirs)
-        } else {
-            val pubRoot = File(MobileCoreRegistry.STORM_PUBLIC_ROOT)
-            scanRoots.add(File(pubRoot, "roms"))
-            scanRoots.add(File(pubRoot, "games"))
-            scanRoots.add(File(appCtx.filesDir, "roms"))
-            scanRoots.add(File("/storage/emulated/0/Download"))
+        val scanRoots = LinkedHashMap<String, Pair<File, Boolean>>()
+        fun putScanRoot(dir: File, recursive: Boolean, overrideExisting: Boolean) {
+            val norm = normalizePathKey(dir)
+            if (overrideExisting || !scanRoots.containsKey(norm)) {
+                scanRoots[norm] = dir to recursive
+            }
         }
 
-        val safTreesToStage = ArrayList<Uri>()
-        for (savedEntry in getPersistedScanFolders(appCtx)) {
-            if (savedEntry.startsWith("content://")) {
-                val uri = Uri.parse(savedEntry)
+        if (customRootDirs != null && customRootDirs.isNotEmpty()) {
+            customRootDirs.forEach { putScanRoot(it, true, overrideExisting = false) }
+        } else {
+            val pubRoot = File(MobileCoreRegistry.STORM_PUBLIC_ROOT)
+            putScanRoot(File(pubRoot, "roms"), true, overrideExisting = false)
+            putScanRoot(File(pubRoot, "games"), true, overrideExisting = false)
+            putScanRoot(File(appCtx.filesDir, "roms"), true, overrideExisting = false)
+            putScanRoot(File("/storage/emulated/0/Download"), true, overrideExisting = false)
+        }
+
+        val safTreesToStage = ArrayList<Pair<Uri, Boolean>>()
+        for (entry in getPersistedScanFolderEntries(appCtx)) {
+            val savedPath = entry.pathOrUri
+            if (savedPath.startsWith("content://")) {
+                val uri = Uri.parse(savedPath)
                 val resolved = resolveTreeOrDocumentUriToRealFile(uri)
                 if (resolved != null && resolved.exists() && resolved.canRead()) {
-                    scanRoots.add(resolved)
+                    putScanRoot(resolved, entry.recursive, overrideExisting = true)
                 } else {
-                    safTreesToStage.add(uri)
+                    safTreesToStage.add(uri to entry.recursive)
                 }
             } else {
-                val f = File(savedEntry)
-                if (f.exists()) scanRoots.add(f)
+                val f = File(savedPath)
+                if (f.exists()) putScanRoot(f, entry.recursive, overrideExisting = true)
             }
         }
 
         // Stage ROMs from non-primary SAF trees (e.g. external SD card / restricted DocumentFile trees)
-        for (treeUri in safTreesToStage) {
-            stageRomsFromSafTree(appCtx, treeUri, supportedExts)
+        for ((treeUri, recFlag) in safTreesToStage) {
+            stageRomsFromSafTree(appCtx, treeUri, supportedExts, recFlag)
         }
 
         val candidateFiles = ArrayList<File>()
         val hiddenChildPaths = HashSet<String>()
 
-        fun collectRecursive(dir: File, depth: Int, isDownloadFolder: Boolean) {
+        fun collectRecursive(dir: File, depth: Int, isDownloadFolder: Boolean, recursive: Boolean) {
+            if (!recursive && depth > 0) return
             if (depth > 5 || !dir.exists() || !dir.isDirectory || !dir.canRead()) return
             if (depth > 0 && IGNORED_DIR_NAMES.contains(dir.name.lowercase(Locale.ROOT))) return
 
@@ -474,9 +625,10 @@ object MobileLibraryAndCoverEngine {
             for (entry in entries) {
                 if (entry.name.startsWith(".")) continue
                 if (entry.isDirectory) {
+                    if (!recursive) continue
                     val maxSubDepth = if (isDownloadFolder) 2 else 5
                     if (depth + 1 <= maxSubDepth) {
-                        collectRecursive(entry, depth + 1, isDownloadFolder)
+                        collectRecursive(entry, depth + 1, isDownloadFolder, recursive = true)
                     }
                 } else if (entry.isFile && entry.length() > 128L) {
                     val ext = entry.extension.lowercase(Locale.ROOT)
@@ -496,9 +648,9 @@ object MobileLibraryAndCoverEngine {
             }
         }
 
-        for (root in scanRoots) {
+        for ((root, recFlag) in scanRoots.values) {
             val isDl = root.name.equals("Download", ignoreCase = true)
-            collectRecursive(root, 0, isDl)
+            collectRecursive(root, 0, isDl, recFlag)
         }
 
         for (singlePath in getPersistedSingleRoms(appCtx)) {
@@ -525,17 +677,18 @@ object MobileLibraryAndCoverEngine {
         return results
     }
 
-    private fun stageRomsFromSafTree(context: Context, treeUri: Uri, supportedExts: Set<String>) {
+    private fun stageRomsFromSafTree(context: Context, treeUri: Uri, supportedExts: Set<String>, recursive: Boolean = true) {
         val docRoot = DocumentFile.fromTreeUri(context, treeUri) ?: return
         val stagingRoot = getRomsStagingDir(context)
 
         fun walkDoc(doc: DocumentFile, depth: Int, parentHint: String) {
+            if (!recursive && depth > 0) return
             if (depth > 4) return
             for (child in doc.listFiles()) {
                 val cName = child.name ?: continue
                 if (cName.startsWith(".")) continue
                 if (child.isDirectory) {
-                    if (!IGNORED_DIR_NAMES.contains(cName.lowercase(Locale.ROOT))) {
+                    if (recursive && !IGNORED_DIR_NAMES.contains(cName.lowercase(Locale.ROOT))) {
                         walkDoc(child, depth + 1, cName)
                     }
                 } else if (child.isFile) {
@@ -618,6 +771,30 @@ object MobileLibraryAndCoverEngine {
         }
 
         val existingCover = findCachedCoverFile(context, platformKey, cleanName, region)
+        val yearMatch = Regex("\\b(19\\d\\d|20\\d\\d)\\b").find(rawStem)
+        val parsedYear = yearMatch?.groupValues?.getOrNull(1) ?: "Классика"
+        val upperStem = rawStem.uppercase(Locale.ROOT)
+        val transBadge = when {
+            upperStem.contains("MOD - M. RUS") || upperStem.contains("M. RUS") -> "MOD - M. RUS"
+            isRus -> "RUS"
+            region == "JP" -> "JPN"
+            else -> "ENG"
+        }
+        val audioBadgeParsed = when {
+            Regex("\\[(VOX|SND|DUB|VOICE)\\]").containsMatchIn(upperStem) -> "RUS Озв."
+            upperStem.contains("[S. RUS]") -> "RUS Звук"
+            isRus -> "Оригинал"
+            region == "JP" -> "JPN"
+            else -> "ENG"
+        }
+        val filesBadgeParsed = when {
+            upperStem.contains("(1G+1U+1M)") -> "1G+1U+1M"
+            upperStem.contains("(1G+1M)") -> "1G+1M"
+            upperStem.contains("(1G+1U)") -> "1G+1U"
+            upperStem.contains("(1G)") -> "1G"
+            isRus -> "1G+1M"
+            else -> "1G • ${ext.uppercase(Locale.ROOT)}"
+        }
 
         val item = MobileRomItem(
             name = cleanName,
@@ -633,7 +810,11 @@ object MobileLibraryAndCoverEngine {
             isFavorite = savedFav,
             lastPlayedMs = savedLast,
             coverPath = existingCover?.absolutePath,
-            id = computeRomId(file.absolutePath)
+            id = computeRomId(file.absolutePath),
+            year = parsedYear,
+            translationBadge = transBadge,
+            audioBadge = audioBadgeParsed,
+            versionFilesBadge = filesBadgeParsed
         )
         applyMetadataToRom(context, item)
         return item
@@ -939,6 +1120,52 @@ object MobileLibraryAndCoverEngine {
         val pubAlt = File(File(MobileCoreRegistry.STORM_PUBLIC_ROOT, "thumbnails/${sanitizeFileComponent(platformKey)}"), primary.name)
         if (pubAlt.exists() && pubAlt.length() > 256L) return pubAlt
         return null
+    }
+
+    fun getGameMediaGallery(context: Context, rom: MobileRomItem): List<Pair<String, String>> {
+        val gallery = ArrayList<Pair<String, String>>()
+        val seenPaths = HashSet<String>()
+
+        fun addFile(f: File?, caption: String) {
+            if (f == null || !f.exists() || !f.isFile || f.length() <= 256L) return
+            val ext = f.extension.lowercase(Locale.ROOT)
+            if (ext !in setOf("png", "jpg", "jpeg", "webp")) return
+            val norm = normalizePathKey(f)
+            if (!seenPaths.add(norm)) return
+            gallery.add(toStormLocalUrl(f.absolutePath) to caption)
+        }
+
+        if (!rom.coverPath.isNullOrBlank()) {
+            addFile(File(rom.coverPath!!), "${rom.name} - Обложка")
+        }
+
+        val queryNorm = normalizeTitleForMatch(rom.name)
+        val stemNorm = normalizeTitleForMatch(rom.rawNoIntroName)
+        val safePlat = sanitizeFileComponent(rom.platformKey.ifEmpty { "misc" })
+        val snapDirs = listOf(
+            File(MobileCoreRegistry.STORM_PUBLIC_ROOT, "screenshots"),
+            File(context.applicationContext.filesDir, "screenshots"),
+            File(MobileCoreRegistry.STORM_PUBLIC_ROOT, "states"),
+            File(getThumbnailsRootDir(context), "$safePlat/Named_Snaps"),
+            File(MobileCoreRegistry.STORM_PUBLIC_ROOT, "thumbnails/$safePlat/Named_Snaps"),
+            File(getThumbnailsRootDir(context), "$safePlat/Named_Titles")
+        )
+
+        for (dir in snapDirs) {
+            if (gallery.size >= 16) break
+            if (!dir.exists() || !dir.isDirectory) continue
+            val files = dir.listFiles() ?: continue
+            for (f in files) {
+                if (gallery.size >= 16) break
+                val normFile = normalizeTitleForMatch(f.nameWithoutExtension)
+                val matches = (queryNorm.length >= 3 && normFile.contains(queryNorm)) ||
+                    (stemNorm.length >= 4 && normFile.contains(stemNorm))
+                if (matches) {
+                    addFile(f, f.nameWithoutExtension)
+                }
+            }
+        }
+        return gallery
     }
 
     private fun sanitizeFileComponent(raw: String): String {

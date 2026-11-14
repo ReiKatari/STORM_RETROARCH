@@ -291,6 +291,9 @@ public partial class MainWindow
                 if (TxtSplitInspectorPlatform != null) TxtSplitInspectorPlatform.Text = "Нажмите на карточку игры в списке";
                 if (TxtSplitInspectorRegion != null) TxtSplitInspectorRegion.Text = "-";
                 if (TxtSplitInspectorYear != null) TxtSplitInspectorYear.Text = "-";
+                if (TxtSplitInspectorTranslation != null) TxtSplitInspectorTranslation.Text = "-";
+                if (TxtSplitInspectorAudio != null) TxtSplitInspectorAudio.Text = "-";
+                if (TxtSplitInspectorFiles != null) TxtSplitInspectorFiles.Text = "-";
                 if (TxtSplitPlaytime != null) TxtSplitPlaytime.Text = "0 мин";
                 if (TxtSplitLaunchCount != null) TxtSplitLaunchCount.Text = "0";
                 if (TxtSplitNotes != null) TxtSplitNotes.Text = "";
@@ -302,8 +305,11 @@ public partial class MainWindow
             if (ImgSplitInspectorCover != null) ImgSplitInspectorCover.Source = item.Icon;
             if (TxtSplitInspectorTitle != null) TxtSplitInspectorTitle.Text = item.Name;
             if (TxtSplitInspectorPlatform != null) TxtSplitInspectorPlatform.Text = $"{item.Platform} • {item.CoreDisplayName}";
-            if (TxtSplitInspectorRegion != null) TxtSplitInspectorRegion.Text = string.IsNullOrWhiteSpace(item.Region) ? "Global" : item.Region;
-            if (TxtSplitInspectorYear != null) TxtSplitInspectorYear.Text = string.IsNullOrWhiteSpace(item.Year) ? "-" : item.Year;
+            if (TxtSplitInspectorRegion != null) TxtSplitInspectorRegion.Text = item.SlotRegion;
+            if (TxtSplitInspectorYear != null) TxtSplitInspectorYear.Text = item.SlotYear;
+            if (TxtSplitInspectorTranslation != null) TxtSplitInspectorTranslation.Text = item.SlotTranslation;
+            if (TxtSplitInspectorAudio != null) TxtSplitInspectorAudio.Text = item.SlotAudio;
+            if (TxtSplitInspectorFiles != null) TxtSplitInspectorFiles.Text = item.SlotFiles;
             if (TxtSplitPlaytime != null) TxtSplitPlaytime.Text = item.PlaytimeText;
             if (TxtSplitLaunchCount != null) TxtSplitLaunchCount.Text = item.LaunchCount.ToString();
 
@@ -344,6 +350,15 @@ public partial class MainWindow
             PathSplitFavoriteStar.Fill = isFavorite ? FavActiveFill : FavInactiveFill;
         if (TxtSplitFavoriteLabel != null)
             TxtSplitFavoriteLabel.Text = isFavorite ? "В избранном" : "В избранное";
+    }
+
+    private void BdrSplitInspectorCover_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_selectedSplitGame != null)
+        {
+            OpenMediaLightbox(_selectedSplitGame, 0);
+            e.Handled = true;
+        }
     }
 
     private void BtnToggleSplitInspector_Click(object sender, RoutedEventArgs e)

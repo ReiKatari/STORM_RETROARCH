@@ -1524,7 +1524,7 @@ fun showInGameQuickDrawer() {
         val measuredFps = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetMeasuredFps() else 60.0
         val frameMs = if (measuredFps > 1.0) 1000.0 / measuredFps else 16.7
         val telemetryPill = TextView(this).apply {
-            text = String.format(Locale.US, "STORM RETROARCH 2.7.1  |  %.1f FPS  |  %.1f ms", measuredFps, frameMs)
+            text = String.format(Locale.US, "STORM RETROARCH 2.7.2  |  %.1f FPS  |  %.1f ms", measuredFps, frameMs)
             fontFeatureSettings = "tnum"
             setTextColor(StormThemeEngine.lighten(accent, 0.25f))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f)

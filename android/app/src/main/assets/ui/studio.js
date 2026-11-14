@@ -1,5 +1,5 @@
 /* ==========================================================================
-   STORM RETROARCH 2.7.1 - MOBILE STUDIO FRONTEND ENGINE (studio.js)
+   STORM RETROARCH 2.7.2 - MOBILE STUDIO FRONTEND ENGINE (studio.js)
    Hardware-Accelerated STORM AURORA FLUID Architecture
    12 Interactive Studio Modules + 120Hz Spring Choreography + Virtual Grid
    Zero Em-Dash, Zero Emojis, Single Vector Icon Mandate
@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "2.7.1";
+  const APP_VERSION = "2.7.2";
   const hasBridge = typeof window.StormBridge !== "undefined";
 
   /* ------------------------------------------------------------------------
@@ -47,7 +47,11 @@
     shuffle: '<svg class="ico" viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>',
     chart: '<svg class="ico" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>',
     command: '<svg class="ico" viewBox="0 0 24 24"><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"></path></svg>',
-    bookmark: '<svg class="ico" viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>'
+    bookmark: '<svg class="ico" viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>',
+    zoom: '<svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>',
+    chevronLeft: '<svg class="ico" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>',
+    chevronRight: '<svg class="ico" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>',
+    trash: '<svg class="ico" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>'
   };
 
   function ico(name) {
@@ -612,7 +616,7 @@
       currentVersion: APP_VERSION,
       latestVersion: APP_VERSION,
       updateAvailable: false,
-      statusMessage: "Установлена актуальная версия 2.7.1"
+      statusMessage: "Установлена актуальная версия 2.7.2"
     },
     games: buildPreviewGames(),
     cores: buildDefaultCores252(),
@@ -672,6 +676,11 @@
     guidePlatform: "PS1",
     inspectorGameId: null,
     coreModalId: null,
+    watchedFolders: [],
+    nextFolderRecursive: true,
+    lightboxItems: [],
+    lightboxIdx: 0,
+    lightboxZoom: false,
     rouletteSpinTimer: null,
     rouletteGameId: null,
     omniboxQuery: "",
@@ -795,6 +804,14 @@
           userNotes: g.userNotes || "",
           customCollection: g.customCollection || "",
           sizeMb: g.sizeMb || (g.sizeBytes ? (g.sizeBytes / 1048576).toFixed(1) + " MB" : ""),
+          year: g.year || g.slotYear || "",
+          slotYear: g.slotYear || g.year || "Классика",
+          slotRegion: g.slotRegion || g.region || "WORLD",
+          slotTranslation: g.slotTranslation || "",
+          slotAudio: g.slotAudio || "",
+          slotFiles: g.slotFiles || "",
+          slotRating: g.slotRating || "",
+          slotLaunch: g.slotLaunch || "",
           filePath: g.filePath || "",
           cover: g.cover || g.coverUrl || g.coverPath || makePosterSvg((g.title || g.name || "GAME").slice(0, 18).toUpperCase(), plat, plat.toUpperCase(), g.regionCode || "ROM", "#24123A", "#0D0B18", "#8B5CF6")
         };
@@ -832,6 +849,7 @@
       });
     }
 
+    if (Array.isArray(data.watchedFolders)) state.watchedFolders = data.watchedFolders;
     if (Array.isArray(data.saves)) state.saves = data.saves;
     if (Array.isArray(data.controllers)) state.controllers = data.controllers;
     if (data.updateInfo) Object.assign(state.updateInfo, data.updateInfo);
@@ -845,7 +863,9 @@
       renderShellAndView();
     } else if (eventType === "libraryUpdated") {
       if (Array.isArray(p)) ingestBootstrap({ games: p });
-      else if (p && Array.isArray(p.games)) ingestBootstrap(p);
+      else if (p && typeof p === "object") ingestBootstrap(p);
+      const rfModal = document.getElementById("romFoldersModal");
+      if (rfModal && !rfModal.hidden) renderRomFoldersModalBody();
       renderShellAndView();
     } else if (eventType === "scanProgress") {
       showToast((isRu() ? "Сканирование ROM: " : "Scanning ROMs: ") + (p.message || p.count || ""));
@@ -1208,7 +1228,7 @@
       '</div>'
     ) : (
       '<div class="hero-spotlight-card stagger-card" style="--stagger-i:0;">' +
-        '<span class="hero-eyebrow">STORM RETROARCH 2.7.1</span>' +
+        '<span class="hero-eyebrow">STORM RETROARCH 2.7.2</span>' +
         '<h2 class="hero-game-title">' + (isRu() ? "Добро пожаловать в консоль-студию" : "Welcome to STORM Console Studio") + '</h2>' +
         '<p class="section-subtitle">' + (isRu() ? "20 флагманских ядер уже вшиты в APK и готовы к мгновенному офлайн-запуску. Укажите папку с играми или откройте файл ROM:" : "20 flagship cores are pre-bundled inside APK for instant offline play. Pick your ROM folder or open a file:") + '</p>' +
         '<div class="hero-actions-row">' +
@@ -1362,16 +1382,22 @@
     const coreReady = coreObj ? (coreObj.installed || coreObj.bundled) : true;
     const cardModeCls = state.libViewMode === "tiles" ? "tile-card" : "poster-card";
     const stMeta = statusMetaFor(g.completionStatus);
-    const showStatus = g.completionStatus && g.completionStatus !== "Не начато";
-    const statusShort = g.completionStatus === "Пройдено на 100%" ? "100%" : statusLabel(stMeta);
     const ratingVal = Number(g.starRating || 0);
+    const yr = g.slotYear || g.year || "Классика";
+    const reg = g.slotRegion || g.region || "WORLD";
+    const isRusGame = reg === "RUS" || String(g.rawNoIntroName || g.subtitle || g.filePath || "").toUpperCase().indexOf("RUS") >= 0;
+    const transVal = g.slotTranslation || (isRusGame ? "MOD - M. RUS" : "ENG");
+    const audVal = g.slotAudio || (isRusGame ? "Оригинал" : (reg === "JPN" || reg === "JP" ? "JPN" : "ENG"));
+    const filesVal = g.slotFiles || (isRusGame ? "1G+1M" : (g.sizeMb || "ROM"));
+    const ratVal = g.slotRating || (ratingVal + "/5");
+    const launchVal = g.slotLaunch || ((g.totalPlaySeconds >= 60 ? formatPlaytime(g.totalPlaySeconds) + " • " : "") + statusLabel(stMeta));
 
     return (
       '<article class="game-card ' + cardModeCls + '">' +
         '<div class="game-art-box" data-action="inspect-game" data-game="' + esc(g.id) + '">' +
           '<img src="' + esc(g.cover) + '" alt="' + esc(g.title) + '" loading="lazy">' +
           '<div class="game-art-top-badges">' +
-            '<span class="badge-pill ' + (g.region === "RUS" ? "badge-emerald" : "badge-accent") + '">' + esc(g.region) + '</span>' +
+            '<span class="badge-pill ' + (isRusGame ? "badge-emerald" : "badge-accent") + '">' + esc(reg) + '</span>' +
             '<div class="fav-corner-wrap">' +
               '<button type="button" class="icon-btn-3d' + (g.favorite ? " active-fav" : "") + '" data-action="toggle-fav" data-game="' + esc(g.id) + '" aria-label="Favorite">' +
                 ico("star") +
@@ -1385,14 +1411,17 @@
             '<span class="ready-dot" style="background:' + (coreReady ? "#34D399" : "#F59E0B") + '"></span>' +
             '<span>' + esc(g.platform) + ' • ' + esc(g.coreId) + '</span>' +
           '</div>' +
-          ((showStatus || ratingVal > 0) ? (
-            '<div class="game-status-row">' +
-              (showStatus ? '<span class="game-status-badge ' + stMeta.cls + '">' + esc(statusShort) + '</span>' : "") +
-              (ratingVal > 0 ? '<span class="game-status-badge">' + ico("star") + '<span>' + ratingVal + '</span></span>' : "") +
-            '</div>'
-          ) : "") +
+          '<div class="game-fixed-meta-grid">' +
+            '<div class="meta-slot-pill slot-year"><span class="meta-slot-lbl">' + (isRu() ? "Год" : "Year") + '</span><span class="meta-slot-val">' + esc(yr) + '</span></div>' +
+            '<div class="meta-slot-pill slot-region"><span class="meta-slot-lbl">' + (isRu() ? "Регион" : "Reg") + '</span><span class="meta-slot-val">' + esc(reg) + '</span></div>' +
+            '<div class="meta-slot-pill slot-trans"><span class="meta-slot-lbl">' + (isRu() ? "Перевод" : "Lang") + '</span><span class="meta-slot-val">' + esc(transVal) + '</span></div>' +
+            '<div class="meta-slot-pill slot-audio"><span class="meta-slot-lbl">' + (isRu() ? "Звук" : "Audio") + '</span><span class="meta-slot-val">' + esc(audVal) + '</span></div>' +
+            '<div class="meta-slot-pill slot-files"><span class="meta-slot-lbl">' + (isRu() ? "Файлы" : "Files") + '</span><span class="meta-slot-val">' + esc(filesVal) + '</span></div>' +
+            '<div class="meta-slot-pill slot-rating"><span class="meta-slot-lbl">' + (isRu() ? "Оценка" : "Rate") + '</span><span class="meta-slot-val">' + esc(ratVal) + '</span></div>' +
+            '<div class="meta-slot-pill slot-span-2"><span class="meta-slot-lbl">' + (isRu() ? "Запуск" : "Play") + '</span><span class="meta-slot-val">' + esc(launchVal) + '</span></div>' +
+          '</div>' +
           '<div class="toolbar-row" style="margin-top:auto;">' +
-            '<button type="button" class="btn-3d btn-3d-primary btn-3d-sm" style="flex:1;" data-action="launch-game" data-game="' + esc(g.id) + '" data-slot="-1">' +
+            '<button type="button" class="btn-3d btn-3d-primary btn-3d-sm" style="flex:1 1 auto;min-width:96px;" data-action="launch-game" data-game="' + esc(g.id) + '" data-slot="-1">' +
               ico("play") + '<span>' + esc(tr("play")) + '</span>' +
             '</button>' +
             '<button type="button" class="icon-btn-3d" data-action="inspect-game" data-game="' + esc(g.id) + '" aria-label="Inspector">' +
@@ -1469,7 +1498,7 @@
               '<input type="search" id="libSearchInput" class="input-well-3d" value="' + esc(state.libQuery) + '" placeholder="' + esc(tr("search_games")) + '">' +
             '</div>' +
             '<button type="button" class="btn-3d btn-3d-emerald btn-3d-sm" data-action="open-roulette">' + ico("shuffle") + '<span>' + (isRu() ? "Случайная игра" : "Random") + '</span></button>' +
-            '<button type="button" class="btn-3d btn-3d-primary btn-3d-sm" data-action="pick-rom-folder">' + ico("folder") + '<span>' + esc(tr("add_folder")) + '</span></button>' +
+            '<button type="button" class="btn-3d btn-3d-primary btn-3d-sm" data-action="open-rom-folders">' + ico("folder") + '<span>' + (isRu() ? "Папки с играми" : esc(tr("add_folder"))) + '</span></button>' +
             '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="pick-single-rom">' + ico("file") + '<span>' + esc(tr("open_rom")) + '</span></button>' +
             '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="refresh-covers">' + ico("refresh") + '<span>' + esc(tr("covers")) + '</span></button>' +
           '</div>' +
@@ -2513,7 +2542,7 @@
     } else if (sub === "aiguide") {
       // 3. AI GUIDE (Tactical Vision & TextToSpeech)
       const aiMsgs = state.aiMessages || [
-        { role: "assistant", text: isRu() ? "Приветствую в STORM RETROARCH 2.7.1! Готов подсказать секреты, тактику против боссов, оптимальные ядра и тайминги комбо." : "Welcome to STORM RETROARCH 2.7.1! I am ready to advise on boss tactics, secrets, core configs, and input timings." }
+        { role: "assistant", text: isRu() ? "Приветствую в STORM RETROARCH 2.7.2! Готов подсказать секреты, тактику против боссов, оптимальные ядра и тайминги комбо." : "Welcome to STORM RETROARCH 2.7.2! I am ready to advise on boss tactics, secrets, core configs, and input timings." }
       ];
 
       contentHtml = (
@@ -2725,7 +2754,7 @@
             '</div>' +
 
             '<div class="toolbar-row">' +
-              '<button type="button" class="btn-3d btn-3d-primary" style="flex:1;" data-action="check-updates">' + ico("refresh") + '<span>' + (isRu() ? "Проверить обновления (2.7.1)" : "Check Updates (2.7.1)") + '</span></button>' +
+              '<button type="button" class="btn-3d btn-3d-primary" style="flex:1;" data-action="check-updates">' + ico("refresh") + '<span>' + (isRu() ? "Проверить обновления (2.7.2)" : "Check Updates (2.7.2)") + '</span></button>' +
               (state.updateInfo.updateAvailable ? (
                 '<button type="button" class="btn-3d btn-3d-emerald" data-action="install-update">' + ico("download") + '<span>' + (isRu() ? "Обновить" : "Update") + '</span></button>'
               ) : "") +
@@ -2788,7 +2817,7 @@
     if (!modal || !box) return;
     box.innerHTML =
       '<div class="section-head">' +
-        '<div><h3 class="section-title" id="studioHubTitle">' + (isRu() ? "Все 12 модулей STORM RETROARCH 2.7.1" : "All 12 STORM Studio Modules") + '</h3><p class="section-subtitle">' + (isRu() ? "Выберите нужный раздел консоли в одно касание" : "Jump to any console subsystem in 1 tap") + '</p></div>' +
+        '<div><h3 class="section-title" id="studioHubTitle">' + (isRu() ? "Все 12 модулей STORM RETROARCH 2.7.2" : "All 12 STORM Studio Modules") + '</h3><p class="section-subtitle">' + (isRu() ? "Выберите нужный раздел консоли в одно касание" : "Jump to any console subsystem in 1 tap") + '</p></div>' +
         '<button type="button" class="icon-btn-3d" data-action="close-modals" aria-label="Close">' + ico("close") + '</button>' +
       '</div>' +
       '<div class="quick-bento-grid">' +
@@ -2815,10 +2844,23 @@
     const curRating = Number(g.starRating || 0);
     const playLabel = formatPlaytime(g.totalPlaySeconds || (g.playtimeMin || 0) * 60);
 
+    const gallery = getGameMediaGalleryList(g);
+    const snapsHtml = gallery.length > 0
+      ? '<div class="toggle-title" style="margin:6px 0 6px 0;">' + (isRu() ? "Обложка и скриншоты (нажмите для увеличения)" : "Cover & Screenshots (Tap to Zoom)") + '</div>' +
+        '<div class="inspector-snaps-row">' +
+          gallery.map(function (m, idx) {
+            return '<button type="button" class="inspector-snap-thumb" data-action="open-media-lightbox" data-game="' + esc(g.id) + '" data-idx="' + idx + '" title="' + esc(m.caption) + '"><img src="' + esc(m.url) + '" alt=""></button>';
+          }).join("") +
+        '</div>'
+      : "";
+
     box.innerHTML =
       '<div class="section-head">' +
         '<div style="display:flex;gap:12px;align-items:center;">' +
-          '<img src="' + esc(g.cover) + '" alt="" style="width:62px;height:84px;border-radius:10px;object-fit:cover;">' +
+          '<div class="inspector-cover-wrap" data-action="open-media-lightbox" data-game="' + esc(g.id) + '" data-idx="0" role="button" tabindex="0">' +
+            '<img src="' + esc(g.cover) + '" alt="" style="width:66px;height:90px;object-fit:cover;display:block;">' +
+            '<span class="inspector-cover-zoom">' + ico("zoom") + '</span>' +
+          '</div>' +
           '<div>' +
             '<h3 class="section-title" id="inspectorGameTitle">' + esc(g.title) + '</h3>' +
             '<p class="section-subtitle">' + esc(g.platform) + ' | ' + esc(g.region) + (g.sizeMb ? ' | ' + esc(g.sizeMb) : '') + ' | ' + esc(playLabel) + '</p>' +
@@ -2878,6 +2920,7 @@
         '</select>' +
       '</div>' +
 
+      snapsHtml +
       '<div class="toggle-title" style="margin-bottom:7px;">' + (isRu() ? "Быстрые слоты сохранений (0 - 9)" : "Quick Save State Slots (0 - 9)") + '</div>' +
       '<div class="slots-grid-10">' +
         [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(function (s) {
@@ -3012,7 +3055,7 @@
       { kind: "action", icon: "folder", title: ru ? "Сканировать папку с ROM" : "Scan ROM Folder", meta: state.storagePath, execType: "action", action: "quick-scan-storage" },
       { kind: "action", icon: "cpu", title: ru ? "Автосканер BIOS (MD5)" : "Auto-Scan BIOS (MD5)", meta: ru ? "Проверка системных прошивок" : "Verify system firmware hashes", execType: "action", action: "scan-bios-md5" },
       { kind: "action", icon: "archive", title: ru ? "Экспорт сохранений в ZIP" : "Export Saves Backup ZIP", meta: ru ? "Портативный перенос на ПК" : "Portable PC save transfer", execType: "action", action: "export-saves-zip" },
-      { kind: "action", icon: "refresh", title: ru ? "Проверить обновления (2.7.1)" : "Check Updates (2.7.1)", meta: "STORM RETROARCH", execType: "action", action: "check-updates" },
+      { kind: "action", icon: "refresh", title: ru ? "Проверить обновления (2.7.2)" : "Check Updates (2.7.2)", meta: "STORM RETROARCH", execType: "action", action: "check-updates" },
       { kind: "action", icon: "grid", title: ru ? "Все 12 модулей Студии" : "All 12 Studio Modules", meta: ru ? "Быстрый переход по разделам" : "Open 12-module launcher", execType: "hub" }
     ];
 
@@ -3151,7 +3194,7 @@
         window.StormBridge.exportSavesBackupZip();
       } else if (item.action === "check-updates") {
         if (hasBridge && window.StormBridge.checkForUpdates) window.StormBridge.checkForUpdates();
-        else showToast(isRu() ? "У вас установлена актуальная версия (2.7.1)" : "STORM RETROARCH 2.7.1 is up to date");
+        else showToast(isRu() ? "У вас установлена актуальная версия (2.7.2)" : "STORM RETROARCH 2.7.2 is up to date");
       }
     }
   }
@@ -3229,19 +3272,183 @@
     modal.hidden = false;
   }
 
+  function syncWatchedFoldersFromBridge() {
+    if (hasBridge && typeof window.StormBridge.getWatchedFoldersJson === "function") {
+      try {
+        const arr = safeJsonParse(window.StormBridge.getWatchedFoldersJson(), null);
+        if (Array.isArray(arr)) state.watchedFolders = arr;
+      } catch (_) {}
+    }
+  }
+
+  function renderRomFoldersModalBody() {
+    const box = document.getElementById("romFoldersContent");
+    if (!box) return;
+    syncWatchedFoldersFromBridge();
+    const list = state.watchedFolders || [];
+    const listHtml = list.length === 0
+      ? '<div class="glass-card" style="padding:14px;text-align:center;color:var(--text-secondary);">' +
+          (isRu() ? "Нет добавленных папок с играми. Нажмите «Добавить папку» ниже - выбор сохраняется автоматически." : "No custom ROM folders added yet.") +
+        '</div>'
+      : list.map(function (wf) {
+          const p = wf.path || "";
+          const rec = wf.recursive !== false;
+          const lbl = wf.displayName || p.split(/[\\/]/).pop() || p;
+          return (
+            '<div class="folder-row-card">' +
+              '<div class="folder-row-head">' +
+                '<div style="font-weight:800;font-size:0.88rem;color:#F8FAFC;">' + esc(lbl) + '</div>' +
+                '<span class="badge-pill ' + (rec ? "badge-emerald" : "badge-accent") + '">' + (rec ? (isRu() ? "Рекурсивно" : "Recursive") : (isRu() ? "Только верхний" : "Top Only")) + '</span>' +
+              '</div>' +
+              '<div class="folder-row-path mono-code">' + esc(p) + '</div>' +
+              '<div class="folder-row-controls">' +
+                '<div style="display:flex;align-items:center;gap:8px;">' +
+                  '<span class="toggle-title" style="font-size:0.78rem;">' + (isRu() ? "Рекурсивное сканирование" : "Recursive Scan") + '</span>' +
+                  '<button type="button" role="switch" aria-checked="' + Boolean(rec) + '" class="switch-3d" data-action="toggle-folder-recursive" data-path="' + esc(p) + '"><span class="switch-track"><span class="switch-thumb"></span></span></button>' +
+                '</div>' +
+                '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="remove-watched-folder" data-path="' + esc(p) + '">' + ico("trash") + '<span>' + (isRu() ? "Удалить" : "Remove") + '</span></button>' +
+              '</div>' +
+            '</div>'
+          );
+        }).join("");
+
+    box.innerHTML =
+      '<div class="section-head">' +
+        '<div>' +
+          '<h3 class="section-title" id="romFoldersTitle">' + (isRu() ? "Папки с играми (ROM)" : "Tracked ROM Folders") + '</h3>' +
+          '<p class="section-subtitle">' + (isRu() ? "Постоянное сохранение путей и индивидуальный режим рекурсии" : "Persistent library folders with per-folder recursive scan") + '</p>' +
+        '</div>' +
+        '<button type="button" class="icon-btn-3d" data-action="close-modals" aria-label="Close">' + ico("close") + '</button>' +
+      '</div>' +
+      '<div class="toggle-row-3d" style="margin-bottom:10px;">' +
+        '<div>' +
+          '<div class="toggle-title">' + (isRu() ? "Рекурсивное сканирование для новой папки" : "Recursive scan for next added folder") + '</div>' +
+          '<div class="toggle-sub">' + (isRu() ? "Включает все подпапки выбранного каталога" : "Include nested subdirectories when adding a folder") + '</div>' +
+        '</div>' +
+        '<button type="button" role="switch" aria-checked="' + Boolean(state.nextFolderRecursive) + '" class="switch-3d" data-action="toggle-next-folder-recursive"><span class="switch-track"><span class="switch-thumb"></span></span></button>' +
+      '</div>' +
+      '<div class="toolbar-row" style="margin-bottom:12px;">' +
+        '<button type="button" class="btn-3d btn-3d-primary" style="flex:1;" data-action="pick-rom-folder-native">' + ico("folder") + '<span>' + (isRu() ? "Выбрать и добавить папку" : "Add ROM Folder") + '</span></button>' +
+      '</div>' +
+      '<div style="max-height:46vh;overflow-y:auto;">' + listHtml + '</div>';
+  }
+
+  function openRomFoldersModal() {
+    const modal = document.getElementById("romFoldersModal");
+    if (!modal) return;
+    renderRomFoldersModalBody();
+    modal.hidden = false;
+  }
+
+  function getGameMediaGalleryList(g) {
+    if (!g) return [];
+    let items = [];
+    if (hasBridge && typeof window.StormBridge.getGameMediaGalleryJson === "function") {
+      try {
+        const res = safeJsonParse(window.StormBridge.getGameMediaGalleryJson(g.id), null);
+        if (Array.isArray(res) && res.length > 0) items = res;
+      } catch (_) {}
+    }
+    if (!items.length && g.cover) {
+      items = [{ url: g.cover, caption: g.title + " - " + (isRu() ? "Обложка" : "Cover Art") }];
+    }
+    return items;
+  }
+
+  function openMediaLightbox(gameId, idx) {
+    const g = state.games.find(function (x) { return x.id === gameId; }) || state.games[0];
+    if (!g) return;
+    const items = getGameMediaGalleryList(g);
+    if (!items.length) return;
+    state.lightboxItems = items;
+    state.lightboxIdx = Math.max(0, Math.min(items.length - 1, Number(idx || 0)));
+    state.lightboxZoom = false;
+    const modal = document.getElementById("mediaLightboxModal");
+    if (!modal) return;
+    renderMediaLightbox();
+    modal.hidden = false;
+  }
+
+  function renderMediaLightbox() {
+    const box = document.getElementById("mediaLightboxContent");
+    const items = state.lightboxItems || [];
+    if (!box || !items.length) return;
+    const cur = items[state.lightboxIdx] || items[0];
+    const multi = items.length > 1;
+    box.innerHTML =
+      '<div class="section-head" style="margin-bottom:8px;">' +
+        '<div>' +
+          '<h3 class="section-title" id="lightboxTitle">' + esc(cur.caption || "") + '</h3>' +
+          '<p class="section-subtitle tabular">' + (state.lightboxIdx + 1) + ' / ' + items.length + '</p>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;align-items:center;">' +
+          '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="lightbox-zoom">' + ico("zoom") + '<span>' + (state.lightboxZoom ? "100%" : "165%") + '</span></button>' +
+          '<button type="button" class="icon-btn-3d" data-action="close-lightbox" aria-label="Close">' + ico("close") + '</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="lightbox-stage-wrap" id="lightboxStage">' +
+        '<img src="' + esc(cur.url) + '" alt="" class="lightbox-img' + (state.lightboxZoom ? " zoomed" : "") + '" data-action="lightbox-zoom">' +
+      '</div>' +
+      (multi ? (
+        '<div class="toolbar-row" style="justify-content:space-between;margin-top:8px;">' +
+          '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="lightbox-prev">' + ico("chevronLeft") + '<span>' + (isRu() ? "Назад" : "Prev") + '</span></button>' +
+          '<button type="button" class="btn-3d btn-3d-secondary btn-3d-sm" data-action="lightbox-next"><span>' + (isRu() ? "Вперёд" : "Next") + '</span>' + ico("chevronRight") + '</button>' +
+        '</div>' +
+        '<div class="lightbox-thumbs-row">' +
+          items.map(function (it, i) {
+            return '<button type="button" class="lightbox-thumb-btn' + (i === state.lightboxIdx ? " active" : "") + '" data-action="lightbox-goto" data-idx="' + i + '"><img src="' + esc(it.url) + '" alt=""></button>';
+          }).join("") +
+        '</div>'
+      ) : "");
+
+    const stage = document.getElementById("lightboxStage");
+    if (stage && !stage.dataset.swipeBound) {
+      stage.dataset.swipeBound = "1";
+      let startX = 0;
+      stage.addEventListener("touchstart", function (ev) {
+        if (ev.touches && ev.touches[0]) startX = ev.touches[0].clientX;
+      }, { passive: true });
+      stage.addEventListener("touchend", function (ev) {
+        if (!ev.changedTouches || !ev.changedTouches[0]) return;
+        const dx = ev.changedTouches[0].clientX - startX;
+        if (Math.abs(dx) > 48 && (state.lightboxItems || []).length > 1) {
+          stepMediaLightbox(dx < 0 ? 1 : -1);
+        }
+      }, { passive: true });
+    }
+  }
+
+  function stepMediaLightbox(delta) {
+    const items = state.lightboxItems || [];
+    if (items.length <= 1) return;
+    state.lightboxIdx = (state.lightboxIdx + delta + items.length) % items.length;
+    state.lightboxZoom = false;
+    renderMediaLightbox();
+  }
+
+  function closeMediaLightboxOnly() {
+    const m = document.getElementById("mediaLightboxModal");
+    if (m) m.hidden = true;
+  }
+
   function closeAllModals() {
     if (state.rouletteSpinTimer) {
       clearTimeout(state.rouletteSpinTimer);
       state.rouletteSpinTimer = null;
     }
-    ["studioHubModal", "gameInspectorModal", "coreOptionsModal", "randomRouletteModal", "commandOmniboxModal"].forEach(function (id) {
+    ["mediaLightboxModal", "romFoldersModal", "studioHubModal", "gameInspectorModal", "coreOptionsModal", "randomRouletteModal", "commandOmniboxModal"].forEach(function (id) {
       const m = document.getElementById(id);
       if (m) m.hidden = true;
     });
   }
 
   window.handleAndroidBack = function () {
-    const ids = ["commandOmniboxModal", "randomRouletteModal", "coreOptionsModal", "gameInspectorModal", "studioHubModal"];
+    const lb = document.getElementById("mediaLightboxModal");
+    if (lb && !lb.hidden) {
+      closeMediaLightboxOnly();
+      return true;
+    }
+    const ids = ["commandOmniboxModal", "romFoldersModal", "randomRouletteModal", "coreOptionsModal", "gameInspectorModal", "studioHubModal"];
     for (let i = 0; i < ids.length; i++) {
       const m = document.getElementById(ids[i]);
       if (m && !m.hidden) {
@@ -3280,7 +3487,8 @@
     const backdrop = e.target.classList && e.target.classList.contains("modal-backdrop") ? e.target : null;
     if (backdrop) {
       haptic("tap");
-      closeAllModals();
+      if (backdrop.id === "mediaLightboxModal") closeMediaLightboxOnly();
+      else closeAllModals();
       return;
     }
 
@@ -3515,9 +3723,55 @@
       if (state.activeTab === "library") updateLibraryResults();
       else if (state.activeTab === "dashboard") renderViewport();
       showToast(isRu() ? "Заметки и статус игры сохранены" : "Game notes & status saved");
-    } else if (act === "pick-rom-folder") {
-      if (hasBridge && window.StormBridge.pickRomFolder) window.StormBridge.pickRomFolder();
-      else showToast(isRu() ? "Открыт системный выбор папки с ROM" : "Opening Android ROM folder picker");
+    } else if (act === "open-rom-folders") {
+      openRomFoldersModal();
+    } else if (act === "toggle-next-folder-recursive") {
+      state.nextFolderRecursive = !state.nextFolderRecursive;
+      renderRomFoldersModalBody();
+    } else if (act === "pick-rom-folder-native" || act === "pick-rom-folder") {
+      if (hasBridge && window.StormBridge.pickRomFolderWithMode) {
+        window.StormBridge.pickRomFolderWithMode(Boolean(state.nextFolderRecursive));
+      } else if (hasBridge && window.StormBridge.pickRomFolder) {
+        window.StormBridge.pickRomFolder();
+      } else {
+        const fakePath = "/storage/emulated/0/ROMs/Folder_" + ((state.watchedFolders || []).length + 1);
+        state.watchedFolders.push({ path: fakePath, displayName: fakePath.split("/").pop(), recursive: Boolean(state.nextFolderRecursive), exists: true });
+        renderRomFoldersModalBody();
+        showToast(isRu() ? "Папка добавлена и сохранена" : "Folder added & persisted");
+      }
+    } else if (act === "toggle-folder-recursive") {
+      const fPath = actEl.getAttribute("data-path");
+      const item = (state.watchedFolders || []).find(function (x) { return x.path === fPath; });
+      const nextRec = item ? !(item.recursive !== false) : true;
+      if (item) item.recursive = nextRec;
+      if (hasBridge && window.StormBridge.setWatchedFolderRecursive) {
+        const updated = safeJsonParse(window.StormBridge.setWatchedFolderRecursive(fPath, nextRec), null);
+        if (Array.isArray(updated)) state.watchedFolders = updated;
+      }
+      renderRomFoldersModalBody();
+    } else if (act === "remove-watched-folder") {
+      const fPath = actEl.getAttribute("data-path");
+      state.watchedFolders = (state.watchedFolders || []).filter(function (x) { return x.path !== fPath; });
+      if (hasBridge && window.StormBridge.removeWatchedFolder) {
+        const updated = safeJsonParse(window.StormBridge.removeWatchedFolder(fPath), null);
+        if (Array.isArray(updated)) state.watchedFolders = updated;
+      }
+      renderRomFoldersModalBody();
+    } else if (act === "open-media-lightbox") {
+      openMediaLightbox(actEl.getAttribute("data-game"), Number(actEl.getAttribute("data-idx") || 0));
+    } else if (act === "close-lightbox") {
+      closeMediaLightboxOnly();
+    } else if (act === "lightbox-prev") {
+      stepMediaLightbox(-1);
+    } else if (act === "lightbox-next") {
+      stepMediaLightbox(1);
+    } else if (act === "lightbox-goto") {
+      state.lightboxIdx = Number(actEl.getAttribute("data-idx") || 0);
+      state.lightboxZoom = false;
+      renderMediaLightbox();
+    } else if (act === "lightbox-zoom") {
+      state.lightboxZoom = !state.lightboxZoom;
+      renderMediaLightbox();
     } else if (act === "pick-single-rom") {
       if (hasBridge && window.StormBridge.pickSingleRom) window.StormBridge.pickSingleRom();
       else showToast(isRu() ? "Выбор одиночного образа ROM (.zip/.sfc/.chd/.iso)" : "Opening single ROM picker");
@@ -3732,7 +3986,7 @@
       else showToast(isRu() ? "Полный доступ к /storage/emulated/0/STORM RETROARCH активен" : "Storage access active");
     } else if (act === "check-updates") {
       if (hasBridge && window.StormBridge.checkForUpdates) window.StormBridge.checkForUpdates();
-      else showToast(isRu() ? "У вас установлена актуальная версия (2.7.1)" : "STORM RETROARCH 2.7.1 is up to date");
+      else showToast(isRu() ? "У вас установлена актуальная версия (2.7.2)" : "STORM RETROARCH 2.7.2 is up to date");
     } else if (act === "install-update") {
       if (hasBridge && window.StormBridge.installUpdateApk) window.StormBridge.installUpdateApk();
     }
@@ -3861,6 +4115,12 @@
       }
       renderViewport();
       return;
+    }
+    const lbModal = document.getElementById("mediaLightboxModal");
+    if (lbModal && !lbModal.hidden) {
+      if (e.key === "Escape") { e.preventDefault(); closeMediaLightboxOnly(); return; }
+      if (e.key === "ArrowLeft") { e.preventDefault(); stepMediaLightbox(-1); return; }
+      if (e.key === "ArrowRight") { e.preventDefault(); stepMediaLightbox(1); return; }
     }
     if (e.key === "Escape") {
       closeAllModals();

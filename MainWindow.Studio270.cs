@@ -21,11 +21,11 @@ using System.Windows.Threading;
 namespace StormRetroArch;
 
 /// <summary>
-/// STORM RETROARCH 2.7.1 Studio Integrator:
+/// STORM RETROARCH 2.7.2 Studio Integrator:
 /// - 2-row studio in-game HUD toolbar with direct ComboBox dropdown controls
 /// - Real-time LiveVisualEffectsEngine shader and bezel overlays
 /// - Dynamic font, theme, accent, and language synchronization with 140ms ease-out transitions
-/// - RetroAchievements 2.7.1 profile banner and visual card deck (unlocked full-color vs locked grayscale)
+/// - RetroAchievements 2.7.2 profile banner and visual card deck (unlocked full-color vs locked grayscale)
 /// - Rollback Netplay relay ping, room code generation (STORM-XXXX-XXXX) and LAN discovery
 /// - AI Vision Walkthrough with screenshot analysis and fast speech synthesis
 /// - Streaming telemetry and FFmpeg process bridge
@@ -33,7 +33,7 @@ namespace StormRetroArch;
 /// </summary>
 public partial class MainWindow
 {
-    // ==================== 1. HUD & STUDIO 2.7.1 STATE ====================
+    // ==================== 1. HUD & STUDIO 2.7.2 STATE ====================
     private bool _isStudio270Initialized = false;
     private DispatcherTimer? _streamingTelemetryTimer;
     private CancellationTokenSource? _aiAskCts;
@@ -65,8 +65,8 @@ public partial class MainWindow
             ItemsCheevosCards.ItemsSource = _studioCheevosCards;
         }
 
-        // 4. Update Window Title to 2.7.1
-        Title = "STORM RETROARCH 2.7.1";
+        // 4. Update Window Title to 2.7.2
+        Title = "STORM RETROARCH 2.7.2";
     }
 
     private void InitHudDropdowns()
@@ -413,7 +413,7 @@ public partial class MainWindow
         element.BeginAnimation(UIElement.OpacityProperty, anim);
     }
 
-    // ==================== 5. ACHIEVEMENTS STUDIO 2.7.1 ====================
+    // ==================== 5. ACHIEVEMENTS STUDIO 2.7.2 ====================
     public async Task RefreshAchievementsStudio270Async()
     {
         try
@@ -475,7 +475,7 @@ public partial class MainWindow
         }
     }
 
-    // ==================== 6. NETPLAY STUDIO 2.7.1 ====================
+    // ==================== 6. NETPLAY STUDIO 2.7.2 ====================
     private async void BtnNetplayPingRelay_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -552,7 +552,7 @@ public partial class MainWindow
         }
     }
 
-    // ==================== 7. AI GUIDE STUDIO 2.7.1 ====================
+    // ==================== 7. AI GUIDE STUDIO 2.7.2 ====================
     private async void BtnAiAskQuestion_Click(object sender, RoutedEventArgs e)
     {
         string question = TxtAiPrompt?.Text?.Trim() ?? "";
@@ -609,7 +609,7 @@ public partial class MainWindow
         ShowOsdToast("Озвучивание остановлено");
     }
 
-    // ==================== 8. STREAMING & TELEMETRY STUDIO 2.7.1 ====================
+    // ==================== 8. STREAMING & TELEMETRY STUDIO 2.7.2 ====================
     private async void BtnStreamCheckServer_Click(object sender, RoutedEventArgs e)
     {
         string target = (CmbStreamPlatform?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "127.0.0.1";
@@ -675,7 +675,7 @@ public partial class MainWindow
         _streamingTelemetryTimer.Start();
     }
 
-    // ==================== 9. BIOS STUDIO 2.7.1 ====================
+    // ==================== 9. BIOS STUDIO 2.7.2 ====================
     public void RefreshBiosStudio270()
     {
         try
@@ -724,13 +724,14 @@ public partial class MainWindow
     private void BtnCoreStatusRecommended_Click(object sender, RoutedEventArgs e)
     {
         _activeCoreFilterStatus = "RECOMMENDED";
+        if (BtnCoresFilterAll != null) BtnCoresFilterAll.Tag = null;
+        if (BtnCoresFilterInstalled != null) BtnCoresFilterInstalled.Tag = null;
+        if (BtnCoresFilterAvailable != null) BtnCoresFilterAvailable.Tag = null;
         ApplyCoreFilterStudio270();
     }
 
     private void ApplyCoreFilterStudio270()
     {
-        if (BtnCoreStatusAll != null) BtnCoreStatusAll.Tag = _activeCoreFilterStatus == "ALL" ? "Active" : null;
-        if (BtnCoreStatusInstalled != null) BtnCoreStatusInstalled.Tag = _activeCoreFilterStatus == "INSTALLED" ? "Active" : null;
         if (BtnCoreStatusRecommended != null) BtnCoreStatusRecommended.Tag = _activeCoreFilterStatus == "RECOMMENDED" ? "Active" : null;
         RefreshCoresUi();
     }

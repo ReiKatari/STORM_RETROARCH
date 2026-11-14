@@ -13,7 +13,7 @@ using Microsoft.Win32;
 namespace StormRetroArch;
 
 /// <summary>
-/// Phase 2.7.1 Studio UI, Hardware GPU Engine, Universal Bezel and Mega Bezel Integrator.
+/// Phase 2.7.2 Studio UI, Hardware GPU Engine, Universal Bezel and Mega Bezel Integrator.
 /// </summary>
 public partial class MainWindow
 {

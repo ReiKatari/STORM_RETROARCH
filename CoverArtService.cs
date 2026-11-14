@@ -950,18 +950,57 @@ public static class CoverArtService
     {
         var list = new List<ImageSource>();
         if (item == null || string.IsNullOrWhiteSpace(item.Name)) return list;
+        var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
             string key = NormalizeLookupKey(item.Name);
-            var screenshots = MediaIndex?.Screenshots; if (screenshots == null) return list;
-            if (screenshots.TryGetValue(key, out var paths))
+            string rawKey = !string.IsNullOrWhiteSpace(item.RawNoIntroName) ? NormalizeLookupKey(item.RawNoIntroName) : key;
+
+            void TryAddPath(string p)
             {
-                foreach (var p in paths)
+                if (list.Count >= 16 || string.IsNullOrWhiteSpace(p) || !File.Exists(p) || !seenPaths.Add(p)) return;
+                var img = LoadBitmapFromPath(p);
+                if (img != null) list.Add(img);
+            }
+
+            var screenshots = MediaIndex?.Screenshots;
+            if (screenshots != null)
+            {
+                if (screenshots.TryGetValue(key, out var paths))
                 {
-                    var img = LoadBitmapFromPath(p);
-                    if (img != null) list.Add(img);
-                    if (list.Count >= 6) break;
+                    foreach (var p in paths) TryAddPath(p);
                 }
+                if (rawKey != key && screenshots.TryGetValue(rawKey, out var rawPaths))
+                {
+                    foreach (var p in rawPaths) TryAddPath(p);
+                }
+            }
+
+            // Also include user-captured local screenshots & save-state previews
+            string[] localDirs = {
+                Path.Combine(CoreManager.AppDir, "screenshots"),
+                Path.Combine(CoreManager.AppDir, "states")
+            };
+            foreach (var dir in localDirs)
+            {
+                if (!Directory.Exists(dir)) continue;
+                try
+                {
+                    foreach (var f in Directory.GetFiles(dir, "*.*", SearchOption.AllDirectories))
+                    {
+                        string ext = Path.GetExtension(f);
+                        if (!ext.Equals(".png", StringComparison.OrdinalIgnoreCase) &&
+                            !ext.Equals(".jpg", StringComparison.OrdinalIgnoreCase) &&
+                            !ext.Equals(".webp", StringComparison.OrdinalIgnoreCase)) continue;
+                        string stemKey = NormalizeLookupKey(Path.GetFileNameWithoutExtension(f));
+                        if (!string.IsNullOrEmpty(stemKey) && (stemKey.Contains(key) || key.Contains(stemKey) || stemKey.Contains(rawKey)))
+                        {
+                            TryAddPath(f);
+                        }
+                        if (list.Count >= 16) break;
+                    }
+                }
+                catch { }
             }
         }
         catch { }

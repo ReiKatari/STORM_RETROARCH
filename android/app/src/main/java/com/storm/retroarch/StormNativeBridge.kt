@@ -40,17 +40,20 @@ class StormNativeBridge(
     private var startupWarmDone = false
 
     @Volatile
+    private var pendingPickRecursive: Boolean = true
+
+    @Volatile
     private var cachedBiosItems: List<MobileBiosItem>? = null
 
     @Volatile
     private var lastUpdateInfo: MobileUpdateInfo = MobileUpdateInfo(
         updateAvailable = false,
-        currentVersion = "2.7.1",
-        latestVersion = "2.7.1",
+        currentVersion = "2.7.2",
+        latestVersion = "2.7.2",
         apkDownloadUrl = "",
         releaseNotes = "",
         releasePageUrl = "https://github.com/ReiKatari/STORM_RETROARCH/releases",
-        statusMessage = "STORM RETROARCH 2.7.1"
+        statusMessage = "STORM RETROARCH 2.7.2"
     )
 
     @Volatile
@@ -151,14 +154,15 @@ class StormNativeBridge(
         includeSlowScans: Boolean = true
     ): JSONObject {
         val root = JSONObject()
-        root.put("version", "2.6.1")
-        root.put("versionCode", 260)
+        root.put("version", "2.7.2")
+        root.put("versionCode", 272)
         root.put("warming", !startupWarmDone)
         root.put("abi", MobileCoreRegistry.detectDeviceAbi())
         root.put("sdkInt", Build.VERSION.SDK_INT)
         root.put("storageGranted", hasAllFilesStorageAccess())
         root.put("storagePath", MobileCoreRegistry.STORM_PUBLIC_ROOT)
         root.put("settings", loadStudioSettingsJson())
+        root.put("watchedFolders", serializeWatchedFoldersArray())
         root.put("games", serializeGamesArray(games))
         root.put("cores", serializeCoresCatalogArray())
         root.put("bios", if (includeSlowScans || cachedBiosItems != null) serializeBiosArray() else JSONArray())
@@ -325,7 +329,58 @@ class StormNativeBridge(
 
     @JavascriptInterface
     fun pickRomFolder() {
+        pendingPickRecursive = true
         mainHandler.post { activity.openRomFolderPicker() }
+    }
+
+    @JavascriptInterface
+    fun pickRomFolderWithMode(recursive: Boolean) {
+        pendingPickRecursive = recursive
+        mainHandler.post { activity.openRomFolderPicker() }
+    }
+
+    @JavascriptInterface
+    fun getWatchedFoldersJson(): String {
+        return serializeWatchedFoldersArray().toString()
+    }
+
+    @JavascriptInterface
+    fun setWatchedFolderRecursive(pathOrUri: String, recursive: Boolean): String {
+        MobileLibraryAndCoverEngine.setPersistedScanFolderRecursive(appCtx, pathOrUri, recursive)
+        rescanLibraryAndEmitAsync()
+        return serializeWatchedFoldersArray().toString()
+    }
+
+    @JavascriptInterface
+    fun removeWatchedFolder(pathOrUri: String): String {
+        MobileLibraryAndCoverEngine.removePersistedScanFolder(appCtx, pathOrUri)
+        rescanLibraryAndEmitAsync()
+        return serializeWatchedFoldersArray().toString()
+    }
+
+    @JavascriptInterface
+    fun getGameMediaGalleryJson(gameId: String): String {
+        val rom = findRomByIdOrPath(gameId) ?: return "[]"
+        val arr = JSONArray()
+        for ((url, caption) in MobileLibraryAndCoverEngine.getGameMediaGallery(appCtx, rom)) {
+            arr.put(JSONObject().put("url", url).put("caption", caption))
+        }
+        return arr.toString()
+    }
+
+    private fun rescanLibraryAndEmitAsync() {
+        bgExecutor.execute {
+            val scanned = MobileLibraryAndCoverEngine.scanLibraryDirectories(appCtx)
+            cachedLibrary.clear()
+            cachedLibrary.addAll(scanned)
+            emitStormEvent(
+                "libraryUpdated",
+                JSONObject()
+                    .put("games", serializeGamesArray(scanned))
+                    .put("watchedFolders", serializeWatchedFoldersArray())
+            )
+            fetchMissingCoversInBackground(scanned)
+        }
     }
 
     @JavascriptInterface
@@ -1082,7 +1137,7 @@ class StormNativeBridge(
 
     @JavascriptInterface
     fun checkForUpdates() {
-        AutoUpdateHelper.checkForUpdateAsync("2.6.1") { info ->
+        AutoUpdateHelper.checkForUpdateAsync("2.7.2") { info ->
             lastUpdateInfo = info
             emitStormEvent("updateStatus", serializeUpdateInfo(info))
             emitToast(info.statusMessage)
@@ -1095,9 +1150,9 @@ class StormNativeBridge(
         if (!info.updateAvailable || info.apkDownloadUrl.isBlank()) {
             emitToast(
                 if (StormLocalization.currentLanguage == "ru") {
-                    "Установлена актуальная версия 2.7.1"
+                    "Установлена актуальная версия 2.7.2"
                 } else {
-                    "STORM RETROARCH 2.7.1 is up to date"
+                    "STORM RETROARCH 2.7.2 is up to date"
                 }
             )
             return
@@ -1128,11 +1183,17 @@ class StormNativeBridge(
             } else {
                 uri.toString()
             }
-            MobileLibraryAndCoverEngine.addPersistedScanFolder(appCtx, storedToken)
+            MobileLibraryAndCoverEngine.addPersistedScanFolder(appCtx, storedToken, pendingPickRecursive)
+            pendingPickRecursive = true
             val scanned = MobileLibraryAndCoverEngine.scanLibraryDirectories(appCtx)
             cachedLibrary.clear()
             cachedLibrary.addAll(scanned)
-            emitStormEvent("libraryUpdated", JSONObject().put("games", serializeGamesArray(scanned)))
+            emitStormEvent(
+                "libraryUpdated",
+                JSONObject()
+                    .put("games", serializeGamesArray(scanned))
+                    .put("watchedFolders", serializeWatchedFoldersArray())
+            )
             emitToast(
                 if (StormLocalization.currentLanguage == "ru") {
                     "Найдено игр в библиотеке: ${scanned.size}"
@@ -1258,6 +1319,31 @@ class StormNativeBridge(
 
     // === JSON Serializers ===
 
+    private fun serializeWatchedFoldersArray(): JSONArray {
+        val arr = JSONArray()
+        for (entry in MobileLibraryAndCoverEngine.getPersistedScanFolderEntries(appCtx)) {
+            val raw = entry.pathOrUri
+            var exists = true
+            var display = raw
+            if (raw.startsWith("content://")) {
+                val decoded = Uri.decode(raw)
+                display = decoded.substringAfterLast('/', decoded)
+            } else {
+                val f = File(raw)
+                exists = f.exists()
+                display = f.name.ifBlank { raw }
+            }
+            arr.put(
+                JSONObject()
+                    .put("path", raw)
+                    .put("displayName", display)
+                    .put("recursive", entry.recursive)
+                    .put("exists", exists)
+            )
+        }
+        return arr
+    }
+
     private fun serializeGamesArray(games: List<MobileRomItem>): JSONArray {
         val arr = JSONArray()
         for (g in games) {
@@ -1294,6 +1380,14 @@ class StormNativeBridge(
                     .put("playtimeMin", (g.totalPlaySeconds / 60L).toInt())
                     .put("launchCount", g.launchCount)
                     .put("lastPlayedIso", g.lastPlayedIso)
+                    .put("year", g.slotYear)
+                    .put("slotYear", g.slotYear)
+                    .put("slotRegion", g.slotRegion)
+                    .put("slotTranslation", g.slotTranslation)
+                    .put("slotAudio", g.slotAudio)
+                    .put("slotFiles", g.slotFiles)
+                    .put("slotRating", g.slotRating)
+                    .put("slotLaunch", g.slotLaunch)
             )
         }
         return arr
@@ -1457,7 +1551,7 @@ class StormNativeBridge(
             .put("statusMessage", info.statusMessage)
     }
 
-    // === RetroAchievements, Netplay, AI Guide & Streaming 2.7.1 Methods ===
+    // === RetroAchievements, Netplay, AI Guide & Streaming 2.7.2 Methods ===
 
     private var textToSpeech: android.speech.tts.TextToSpeech? = null
 

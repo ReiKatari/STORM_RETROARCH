@@ -36,6 +36,7 @@ public class RomItem : INotifyPropertyChanged
     private string _versionBadge = "";
     private string _rawNoIntroName = "";
     private string _regionDisplay = "";
+    private string _audioBadge = "";
 
     // Playtime, Launch & Library Metadata (1.6.0)
     private long _totalPlaySeconds;
@@ -53,6 +54,7 @@ public class RomItem : INotifyPropertyChanged
             if (SetField(ref _totalPlaySeconds, value))
             {
                 OnPropertyChanged(nameof(PlaytimeText));
+                OnPropertyChanged(nameof(SlotLaunch));
             }
         }
     }
@@ -62,7 +64,13 @@ public class RomItem : INotifyPropertyChanged
     public int LaunchCount
     {
         get => _launchCount;
-        set => SetField(ref _launchCount, value);
+        set
+        {
+            if (SetField(ref _launchCount, value))
+            {
+                OnPropertyChanged(nameof(SlotLaunch));
+            }
+        }
     }
 
     public string CompletionStatus
@@ -87,6 +95,7 @@ public class RomItem : INotifyPropertyChanged
             if (SetField(ref _starRating, value))
             {
                 OnPropertyChanged(nameof(StarRatingDisplay));
+                OnPropertyChanged(nameof(SlotRating));
             }
         }
     }
@@ -126,6 +135,7 @@ public class RomItem : INotifyPropertyChanged
             if (SetField(ref _year, value))
             {
                 OnPropertyChanged(nameof(HasYear));
+                OnPropertyChanged(nameof(SlotYear));
             }
         }
     }
@@ -138,6 +148,8 @@ public class RomItem : INotifyPropertyChanged
             if (SetField(ref _region, value))
             {
                 OnPropertyChanged(nameof(HasRegion));
+                OnPropertyChanged(nameof(SlotRegion));
+                OnPropertyChanged(nameof(SlotAudio));
             }
         }
     }
@@ -162,6 +174,20 @@ public class RomItem : INotifyPropertyChanged
             if (SetField(ref _languageBadge, value))
             {
                 OnPropertyChanged(nameof(HasLanguageBadge));
+                OnPropertyChanged(nameof(SlotTranslation));
+                OnPropertyChanged(nameof(SlotAudio));
+            }
+        }
+    }
+
+    public string AudioBadge
+    {
+        get => _audioBadge;
+        set
+        {
+            if (SetField(ref _audioBadge, value))
+            {
+                OnPropertyChanged(nameof(SlotAudio));
             }
         }
     }
@@ -177,6 +203,7 @@ public class RomItem : INotifyPropertyChanged
             {
                 OnPropertyChanged(nameof(HasVersionBadge));
                 OnPropertyChanged(nameof(Version));
+                OnPropertyChanged(nameof(SlotFiles));
             }
         }
     }
@@ -187,6 +214,50 @@ public class RomItem : INotifyPropertyChanged
     public bool HasRegion => !string.IsNullOrEmpty(Region);
     public bool HasLanguageBadge => !string.IsNullOrEmpty(LanguageBadge);
     public bool HasVersionBadge => !string.IsNullOrEmpty(VersionBadge);
+
+    // Structured Fixed-Slot Card Metadata Properties (7 consistent card slots)
+    public string SlotYear => !string.IsNullOrWhiteSpace(_year) ? _year : "-";
+    public string SlotRegion => !string.IsNullOrWhiteSpace(_region) ? _region : "GLOBAL";
+    public string SlotTranslation => !string.IsNullOrWhiteSpace(_languageBadge) ? _languageBadge : "Оригинал";
+    public string SlotAudio => !string.IsNullOrWhiteSpace(_audioBadge) ? _audioBadge : ResolveDefaultAudioSlot(_languageBadge, _region);
+    public string SlotFiles => !string.IsNullOrWhiteSpace(_versionBadge)
+        ? _versionBadge
+        : (!string.IsNullOrWhiteSpace(_extension) ? $"1G • {_extension.TrimStart('.').ToUpperInvariant()}" : "1G");
+    public string SlotRating => StarRatingDisplay;
+    public string SlotLaunch => _launchCount > 0 ? $"{PlaytimeText} ({_launchCount})" : "Не запускалась";
+
+    private static string ResolveDefaultAudioSlot(string? langBadge, string? region)
+    {
+        string lb = (langBadge ?? "").Trim().ToUpperInvariant();
+        string reg = (region ?? "").Trim().ToUpperInvariant();
+        if (lb.Contains("SND") || lb.Contains("DUB") || lb.Contains("VOICE") || lb.Contains("S. RUS") || lb.Contains("ОЗВУЧ"))
+            return "RUS";
+        if (lb == "RUS" || reg == "RU") return "RUS";
+        if (lb == "ENG" || reg == "US" || reg == "EU" || reg == "WORLD") return "ENG";
+        if (lb == "JPN" || reg == "JP") return "JPN";
+        return "Оригинал";
+    }
+
+    public static string ParseAudioBadge(string fileName, string langBadge, string region)
+    {
+        if (string.IsNullOrWhiteSpace(fileName)) return ResolveDefaultAudioSlot(langBadge, region);
+        string baseName = Path.GetFileNameWithoutExtension(fileName);
+        var matches = Regex.Matches(baseName, @"\[([^\[\]]+)\]");
+        foreach (Match m in matches)
+        {
+            string tok = m.Groups[1].Value.Trim().ToUpperInvariant();
+            if (tok.Contains("VOX") || tok.Contains("SND") || tok.Contains("DUB") || tok.Contains("VOICE") || tok.Contains("ОЗВУЧ"))
+            {
+                if (tok.Contains("RUS")) return "RUS";
+                if (tok.Contains("ENG")) return "ENG";
+                if (tok.Contains("JPN")) return "JPN";
+                return tok;
+            }
+            if (tok.Contains("S. RUS") || tok.Contains("M. RUS + S"))
+                return "RUS";
+        }
+        return ResolveDefaultAudioSlot(langBadge, region);
+    }
 
     public string FilePath
     {
@@ -228,7 +299,13 @@ public class RomItem : INotifyPropertyChanged
     public string Extension
     {
         get => _extension;
-        set => SetField(ref _extension, value);
+        set
+        {
+            if (SetField(ref _extension, value))
+            {
+                OnPropertyChanged(nameof(SlotFiles));
+            }
+        }
     }
 
     public string Platform
@@ -368,6 +445,7 @@ public class RomItem : INotifyPropertyChanged
         if (!string.IsNullOrEmpty(lang)) LanguageBadge = lang;
         if (!string.IsNullOrEmpty(ver)) VersionBadge = ver;
         if (!string.IsNullOrEmpty(rawNoIntro)) RawNoIntroName = rawNoIntro;
+        AudioBadge = ParseAudioBadge(fileName, LanguageBadge, Region);
     }
 
     public static (string CleanName, string Year, string Region, string LanguageBadge, string VersionBadge) ParseFileName(string fileName)

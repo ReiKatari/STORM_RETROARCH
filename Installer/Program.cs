@@ -77,7 +77,7 @@ namespace StormRetroArch.Installer
     public sealed class InstallerForm : Form
     {
         private const string AppDisplayName = "STORM RETROARCH";
-        private const string AppVersion = "2.7.1";
+        private const string AppVersion = "2.7.2";
         private const string AppFolderName = "STORM RETROARCH";
         private const string ExeName = "STORM RETROARCH.exe";
         private const string IcoName = "AppIcon.ico";
@@ -1038,10 +1038,16 @@ namespace StormRetroArch.Installer
                                     if (File.Exists(destPath))
                                     {
                                         if (relPath.Equals("settings.json", StringComparison.OrdinalIgnoreCase) ||
+                                            relPath.Equals("retroarch.cfg", StringComparison.OrdinalIgnoreCase) ||
                                             relPath.StartsWith("saves/", StringComparison.OrdinalIgnoreCase) ||
-                                            relPath.StartsWith("states/", StringComparison.OrdinalIgnoreCase))
+                                            relPath.StartsWith("states/", StringComparison.OrdinalIgnoreCase) ||
+                                            relPath.StartsWith("playlists/", StringComparison.OrdinalIgnoreCase) ||
+                                            relPath.StartsWith("save sync/", StringComparison.OrdinalIgnoreCase) ||
+                                            relPath.StartsWith("config/", StringComparison.OrdinalIgnoreCase) ||
+                                            relPath.StartsWith("screenshots/", StringComparison.OrdinalIgnoreCase) ||
+                                            relPath.StartsWith("thumbnails/", StringComparison.OrdinalIgnoreCase))
                                         {
-                                            // In-Place Upgrade: preserve user settings and saves/states
+                                            // In-Place Upgrade: preserve user library, settings, configs, thumbnails and saves/states
                                             continue;
                                         }
                                     }

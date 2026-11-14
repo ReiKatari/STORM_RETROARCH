@@ -1,10 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace StormRetroArch;
+
+public class WatchedRomFolder
+{
+    public string Path { get; set; } = string.Empty;
+    public bool Recursive { get; set; } = true;
+    public bool Enabled { get; set; } = true;
+    public DateTime LastScannedUtc { get; set; } = DateTime.UtcNow;
+}
 
 public class UserSettings
 {
@@ -32,7 +41,9 @@ public class UserSettings
     public bool AutoCheckUpdates { get; set; } = true;
     public bool StartMinimizedToTray { get; set; } = false;
     public List<string> RomDirectories { get; set; } = new();
+    public List<WatchedRomFolder> WatchedFolders { get; set; } = new();
     public List<string> RecentRoms { get; set; } = new();
+    public double CoreOptionsSidebarWidth { get; set; } = 330.0;
 
     // AI Walkthrough & Cloud Save Sync
     public string GeminiApiKey { get; set; } = string.Empty;
@@ -44,7 +55,7 @@ public class UserSettings
 
     // UI Scalability, Layout & Customization (1.5.0)
     public double UiScale { get; set; } = 1.0;
-    public double BentoCardWidth { get; set; } = 380.0;
+    public double BentoCardWidth { get; set; } = 400.0;
     public double CompactCardWidth { get; set; } = 200.0;
     public double SidebarWidth { get; set; } = 276.0;
     public bool SidebarCollapsed { get; set; } = false;
@@ -160,9 +171,11 @@ public static class SettingsManager
         }
 
         if (Current.UiScale < 0.75 || Current.UiScale > 1.5) Current.UiScale = 1.0;
-        if (Current.BentoCardWidth < 250 || Current.BentoCardWidth > 600) Current.BentoCardWidth = 380.0;
+        if (Current.BentoCardWidth < 360 || Current.BentoCardWidth > 620) Current.BentoCardWidth = 400.0;
         if (Current.CompactCardWidth < 130 || Current.CompactCardWidth > 360) Current.CompactCardWidth = 200.0;
         if (Current.SidebarWidth < 220 || Current.SidebarWidth > 460) Current.SidebarWidth = 276.0;
+        if (Current.CoreOptionsSidebarWidth < 250 || Current.CoreOptionsSidebarWidth > 560 || double.IsNaN(Current.CoreOptionsSidebarWidth)) Current.CoreOptionsSidebarWidth = 330.0;
+        NormalizeWatchedFolders();
 
         if (Current.WindowWidth < 960 || Current.WindowWidth > 7680 || double.IsNaN(Current.WindowWidth)) Current.WindowWidth = 1500.0;
         if (Current.WindowHeight < 620 || Current.WindowHeight > 4320 || double.IsNaN(Current.WindowHeight)) Current.WindowHeight = 890.0;
@@ -207,22 +220,126 @@ public static class SettingsManager
         Save();
     }
 
+    public static string NormalizeFolderPath(string? folderPath)
+    {
+        if (string.IsNullOrWhiteSpace(folderPath)) return string.Empty;
+        string trimmed = folderPath.Trim();
+        try
+        {
+            return Path.GetFullPath(trimmed).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+        catch
+        {
+            return trimmed.TrimEnd('\\', '/');
+        }
+    }
+
+    public static void NormalizeWatchedFolders()
+    {
+        Current.WatchedFolders ??= new List<WatchedRomFolder>();
+        Current.RomDirectories ??= new List<string>();
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var clean = new List<WatchedRomFolder>();
+
+        foreach (var wf in Current.WatchedFolders)
+        {
+            if (wf == null) continue;
+            string norm = NormalizeFolderPath(wf.Path);
+            if (string.IsNullOrEmpty(norm) || !seen.Add(norm)) continue;
+            wf.Path = norm;
+            clean.Add(wf);
+        }
+
+        foreach (var rawDir in Current.RomDirectories)
+        {
+            string norm = NormalizeFolderPath(rawDir);
+            if (string.IsNullOrEmpty(norm) || !seen.Add(norm)) continue;
+            clean.Add(new WatchedRomFolder
+            {
+                Path = norm,
+                Recursive = true,
+                Enabled = true,
+                LastScannedUtc = DateTime.UtcNow
+            });
+        }
+
+        Current.WatchedFolders = clean;
+        Current.RomDirectories = clean.Where(w => w.Enabled).Select(w => w.Path).ToList();
+    }
+
+    public static WatchedRomFolder AddOrUpdateWatchedFolder(string folderPath, bool recursive)
+    {
+        NormalizeWatchedFolders();
+        string norm = NormalizeFolderPath(folderPath);
+        var existing = Current.WatchedFolders.FirstOrDefault(w => w.Path.Equals(norm, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+        {
+            existing.Recursive = recursive;
+            existing.Enabled = true;
+            existing.LastScannedUtc = DateTime.UtcNow;
+        }
+        else
+        {
+            existing = new WatchedRomFolder
+            {
+                Path = norm,
+                Recursive = recursive,
+                Enabled = true,
+                LastScannedUtc = DateTime.UtcNow
+            };
+            Current.WatchedFolders.Add(existing);
+        }
+        NormalizeWatchedFolders();
+        Save();
+        return existing;
+    }
+
+    public static bool SetWatchedFolderRecursive(string folderPath, bool recursive)
+    {
+        NormalizeWatchedFolders();
+        string norm = NormalizeFolderPath(folderPath);
+        var existing = Current.WatchedFolders.FirstOrDefault(w => w.Path.Equals(norm, StringComparison.OrdinalIgnoreCase));
+        if (existing == null) return false;
+        existing.Recursive = recursive;
+        existing.LastScannedUtc = DateTime.UtcNow;
+        Save();
+        return true;
+    }
+
+    public static bool RemoveWatchedFolder(string folderPath)
+    {
+        NormalizeWatchedFolders();
+        string norm = NormalizeFolderPath(folderPath);
+        int removed = Current.WatchedFolders.RemoveAll(w => w.Path.Equals(norm, StringComparison.OrdinalIgnoreCase));
+        if (removed > 0)
+        {
+            NormalizeWatchedFolders();
+            Save();
+            return true;
+        }
+        return false;
+    }
+
+    private static void WriteAtomicText(string targetFile, string contents)
+    {
+        string? dir = Path.GetDirectoryName(targetFile);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+        string tmp = targetFile + ".tmp";
+        File.WriteAllText(tmp, contents);
+        File.Move(tmp, targetFile, overwrite: true);
+    }
+
     public static void Save()
     {
         try
         {
             string json = JsonSerializer.Serialize(Current, JsonOptions);
-            try
-            {
-                File.WriteAllText(LocalSettingsFile, json);
-            }
-            catch { }
-
-            if (!Directory.Exists(LegacySettingsDir))
-            {
-                Directory.CreateDirectory(LegacySettingsDir);
-            }
-            File.WriteAllText(LegacySettingsFile, json);
+            try { WriteAtomicText(LocalSettingsFile, json); } catch { }
+            try { WriteAtomicText(LegacySettingsFile, json); } catch { }
         }
         catch (Exception ex)
         {

@@ -1798,21 +1798,54 @@ public static class CoreManager
         ".zip", ".7z", ".bin", ".img"
     };
 
+    private static readonly HashSet<string> _ignoredScanSubdirs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "saves", "states", "bios", "system", "thumbnails", "screenshots",
+        "shaders", "bezels", "cheats", "playlists", "config", "save sync", ".git"
+    };
+
+    private static List<string> EnumerateFilesSafe(string rootDir, bool recursive)
+    {
+        var collected = new List<string>();
+        var stack = new Stack<string>();
+        stack.Push(rootDir);
+
+        while (stack.Count > 0)
+        {
+            string dir = stack.Pop();
+            try
+            {
+                collected.AddRange(Directory.GetFiles(dir, "*.*", SearchOption.TopDirectoryOnly));
+            }
+            catch { }
+
+            if (!recursive) continue;
+
+            try
+            {
+                foreach (var sub in Directory.GetDirectories(dir))
+                {
+                    string name = Path.GetFileName(sub);
+                    if (string.IsNullOrEmpty(name) || name.StartsWith(".") || _ignoredScanSubdirs.Contains(name))
+                        continue;
+                    stack.Push(sub);
+                }
+            }
+            catch { }
+        }
+        return collected;
+    }
+
     public static List<string> ScanSupportedRomFilesInDirectory(string rootDir)
+        => ScanSupportedRomFilesInDirectory(rootDir, true);
+
+    public static List<string> ScanSupportedRomFilesInDirectory(string rootDir, bool recursive)
     {
         var results = new List<string>();
         if (string.IsNullOrWhiteSpace(rootDir) || !Directory.Exists(rootDir))
             return results;
 
-        string[] allFiles;
-        try
-        {
-            allFiles = Directory.GetFiles(rootDir, "*.*", SearchOption.AllDirectories);
-        }
-        catch
-        {
-            return results;
-        }
+        var allFiles = EnumerateFilesSafe(rootDir, recursive);
 
         // Collect child track/disc files referenced by .cue, .gdi, and .m3u playlists so multi-track CDs don't create duplicates
         var referencedChildFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
