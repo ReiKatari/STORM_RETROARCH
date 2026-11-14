@@ -328,7 +328,7 @@ public class RomItem : INotifyPropertyChanged
             {
                 Platform = plat;
             }
-            if (!string.IsNullOrEmpty(dll) && (string.IsNullOrEmpty(CoreDll) || CoreDll == "swanstation_libretro.dll" || CoreDll == "fbneo_libretro.dll"))
+            if (!string.IsNullOrEmpty(dll) && (string.IsNullOrEmpty(CoreDll) || CoreDll == "swanstation_libretro.dll" || CoreDll == "fbneo_libretro.dll" || CoreDll.Equals("beetle_saturn_libretro.dll", StringComparison.OrdinalIgnoreCase)))
             {
                 CoreDll = dll;
                 CoreDisplayName = name;

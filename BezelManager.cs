@@ -521,7 +521,7 @@ public static class BezelManager
             else if (c.Contains("fceumm") || c.Contains("nestopia") || c.Contains("mesen")) mappedSlug = "Nintendo_NES_Famicom";
             else if (c.Contains("genesis_plus_gx") || c.Contains("picodrive")) mappedSlug = "Sega_Mega_Drive_Genesis";
             else if (c.Contains("flycast")) mappedSlug = "Sega_Dreamcast_Spiral";
-            else if (c.Contains("beetle_saturn") || c.Contains("yabause") || c.Contains("kronos")) mappedSlug = "Sega_Saturn_Titanium";
+            else if (c.Contains("mednafen_saturn") || c.Contains("beetle_saturn") || c.Contains("ymir") || c.Contains("yabause") || c.Contains("yabasanshiro") || c.Contains("kronos")) mappedSlug = "Sega_Saturn_Titanium";
             else if (c.Contains("mupen64plus") || c.Contains("parallel_n64")) mappedSlug = "Nintendo_64_Ultra";
             else if (c.Contains("mgba") || c.Contains("vba_next")) mappedSlug = "Game_Boy_Advance_Wide";
 

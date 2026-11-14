@@ -200,7 +200,7 @@ public static class RomSignatureDetector
             return new RomSignatureResult("Dreamcast", "flycast_libretro.dll", "Dreamcast CHD");
 
         if (combined.Contains("saturn") || combined.Contains("yabause"))
-            return new RomSignatureResult("Sega Saturn", "beetle_saturn_libretro.dll", "Sega Saturn CHD");
+            return new RomSignatureResult("Sega Saturn", "mednafen_saturn_libretro.dll", "Sega Saturn CHD");
 
         if (combined.Contains("ps2") || combined.Contains("playstation 2") || combined.Contains("lrps2") || combined.Contains("pcsx2"))
             return new RomSignatureResult("PlayStation 2", "pcsx2_libretro.dll", "PS2 CHD");
@@ -268,7 +268,7 @@ public static class RomSignatureDetector
         // 2. Sega Saturn header check (SEGA SEGASATURN)
         if (ContainsSequence(headerSlice, SegaSaturn))
         {
-            return new RomSignatureResult("Sega Saturn", "beetle_saturn_libretro.dll", "Sega Saturn CD");
+            return new RomSignatureResult("Sega Saturn", "mednafen_saturn_libretro.dll", "Sega Saturn CD");
         }
 
         // 3. Sega CD / Mega-CD header check (SEGADISCSYSTEM / SEGA DISCSYSTEM)
@@ -402,7 +402,7 @@ public static class RomSignatureDetector
 
         string combined = (cuePath + " " + parentDir).ToLowerInvariant();
         if (combined.Contains("saturn"))
-            return new RomSignatureResult("Sega Saturn", "beetle_saturn_libretro.dll", "Sega Saturn CUE");
+            return new RomSignatureResult("Sega Saturn", "mednafen_saturn_libretro.dll", "Sega Saturn CUE");
         if (combined.Contains("sega cd") || combined.Contains("mega-cd") || combined.Contains("megacd"))
             return new RomSignatureResult("Sega CD", "genesis_plus_gx_libretro.dll", "Sega CD CUE");
         if (combined.Contains("pce") || combined.Contains("pc engine") || combined.Contains("turbografx"))

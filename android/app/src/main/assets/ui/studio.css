@@ -2800,7 +2800,7 @@ body, button, input, select, textarea {
   transition: font-family 0.18s ease, color 0.18s ease;
 }
 
-/* 2.7.3 Zero-Truncation Anti-Clip Guarantees */
+/* 2.7.4 Zero-Truncation Anti-Clip Guarantees */
 .btn-3d,
 .btn-3d > span,
 .bento-tile-head,
@@ -2828,7 +2828,7 @@ body, button, input, select, textarea {
   padding: 10px 24px;
 }
 
-/* ==================== 2.7.3 FIXED-SLOT METADATA, FOLDER MANAGER & MEDIA LIGHTBOX ==================== */
+/* ==================== 2.7.4 FIXED-SLOT METADATA, FOLDER MANAGER & MEDIA LIGHTBOX ==================== */
 .game-fixed-meta-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

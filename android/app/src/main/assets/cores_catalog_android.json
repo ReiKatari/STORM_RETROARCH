@@ -4036,21 +4036,30 @@
     },
     {
       "id": "ymir",
-      "displayName": "Libretro Core (ymir)",
-      "platformId": "ports",
+      "displayName": "Sega - Saturn (Emir)",
+      "platformId": "saturn",
       "zipArm64": "ymir_libretro_android.so.zip",
       "zipArm32": "",
       "soInsideZip": "ymir_libretro_android.so",
       "jniLibName": "libymir_libretro_android.so",
       "extensions": [
-        "zip",
-        "rom",
-        "bin"
+        "cue",
+        "chd",
+        "mds",
+        "ccd",
+        "iso",
+        "m3u"
       ],
-      "biosFiles": [],
-      "recommended": false,
+      "biosFiles": [
+        "saturn_bios.bin",
+        "sega_101.bin",
+        "mpr-17933.bin"
+      ],
+      "recommended": true,
       "prebundledArm64": false,
-      "prebundledArm32": false
+      "prebundledArm32": false,
+      "platform": "Sega Saturn",
+      "platformKey": "saturn"
     },
     {
       "id": "lutro",

@@ -191,7 +191,7 @@ public sealed class StormTrayService : IDisposable
             uFlags = NIF_MESSAGE | NIF_TIP | (_hIcon != IntPtr.Zero ? NIF_ICON : 0),
             uCallbackMessage = WM_TRAYICON,
             hIcon = _hIcon,
-            szTip = "STORM RETROARCH 2.7.3"
+            szTip = "STORM RETROARCH 2.7.4"
         };
 
         _iconAdded = Shell_NotifyIcon(NIM_ADD, ref nid);

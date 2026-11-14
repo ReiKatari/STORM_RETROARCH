@@ -1574,7 +1574,7 @@ fun showInGameQuickDrawer() {
         val measuredFps = if (NativeLibretroBridge.isLibraryLoaded) NativeLibretroBridge.nativeGetMeasuredFps() else 60.0
         val frameMs = if (measuredFps > 1.0) 1000.0 / measuredFps else 16.7
         val telemetryPill = TextView(this).apply {
-            text = String.format(Locale.US, "STORM RETROARCH 2.7.3  |  %.1f FPS  |  %.1f ms", measuredFps, frameMs)
+            text = String.format(Locale.US, "STORM RETROARCH 2.7.4  |  %.1f FPS  |  %.1f ms", measuredFps, frameMs)
             fontFeatureSettings = "tnum"
             setTextColor(StormThemeEngine.lighten(accent, 0.25f))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f)
@@ -2186,7 +2186,7 @@ fun showInGameQuickDrawer() {
                         val idConn = URL("https://retroachievements.org/dorequest.php?r=gameid&m=$md5Str").openConnection() as HttpURLConnection
                         idConn.connectTimeout = 3500
                         idConn.readTimeout = 3500
-                        idConn.setRequestProperty("User-Agent", "STORM-RETROARCH/2.7.3")
+                        idConn.setRequestProperty("User-Agent", "STORM-RETROARCH/2.7.4")
                         if (idConn.responseCode in 200..299) {
                             val idText = idConn.inputStream.bufferedReader().readText()
                             try {
@@ -2203,7 +2203,7 @@ fun showInGameQuickDrawer() {
                         val progConn = URL("https://retroachievements.org/API/API_GetGameInfoAndUserProgress.php?u=$encU&y=$encT&g=$raGameId").openConnection() as HttpURLConnection
                         progConn.connectTimeout = 4000
                         progConn.readTimeout = 4000
-                        progConn.setRequestProperty("User-Agent", "STORM-RETROARCH/2.7.3")
+                        progConn.setRequestProperty("User-Agent", "STORM-RETROARCH/2.7.4")
                         if (progConn.responseCode in 200..299) {
                             val respJson = JSONObject(progConn.inputStream.bufferedReader().readText())
                             val achMap = respJson.optJSONObject("Achievements")

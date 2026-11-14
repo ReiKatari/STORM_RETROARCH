@@ -313,6 +313,9 @@ public static class CoreManager
                     string content = File.ReadAllText(infoPath);
                     string fileName = Path.GetFileName(infoPath);
                     string expectedDll = fileName.Replace(".info", ".dll");
+                    if (expectedDll.Equals("beetle_saturn_libretro.dll", StringComparison.OrdinalIgnoreCase) &&
+                        !File.Exists(Path.Combine(CoresDir, expectedDll)))
+                        continue;
 
                     // Check if already in golden set
                     if (_allCoresCatalog.Any(c => c.DllName.Equals(expectedDll, StringComparison.OrdinalIgnoreCase)))
@@ -573,6 +576,10 @@ public static class CoreManager
         {
             CategoryGroup = "Recommended"
         },
+        new("Emir", "Sega Saturn", "ymir_libretro.dll", "Современный быстрый и точный эмулятор Sega Saturn (SH-2 / VDP1 / VDP2)", "Sega", "cue|chd|mds|ccd|iso|m3u", "0.4.0", "Точный цикл", true)
+        {
+            CategoryGroup = "Recommended"
+        },
         new("Picodrive", "Sega 32X / Sega CD", "picodrive_libretro.dll", "Оптимизированный эмулятор Sega 32X, Mega-CD и Genesis", "Sega", "bin|gen|smd|md|32x|cue|iso", "", "JIT Dynarec", true)
         {
             CategoryGroup = "Consoles2D"
@@ -724,6 +731,7 @@ public static class CoreManager
         ["handy_libretro.dll"] = "0.97",
         ["mednafen_pce_fast_libretro.dll"] = "1.32.1",
         ["mednafen_saturn_libretro.dll"] = "1.32.1",
+        ["ymir_libretro.dll"] = "0.4.0",
         ["mednafen_ngp_libretro.dll"] = "1.32.1",
         ["mednafen_wswan_libretro.dll"] = "1.32.1",
         ["opera_libretro.dll"] = "1.0.0",
@@ -865,6 +873,51 @@ public static class CoreManager
         return ApplyUserCoreOverrides(filePath, baseResult.Platform, baseResult.CoreDll, baseResult.CoreName);
     }
 
+    public static string NormalizeCoreDllAlias(string? dllName)
+    {
+        if (string.IsNullOrWhiteSpace(dllName)) return "";
+        string clean = dllName.Trim();
+        if (clean.Equals("beetle_saturn_libretro.dll", StringComparison.OrdinalIgnoreCase) && !IsCoreInstalled(clean))
+        {
+            return "mednafen_saturn_libretro.dll";
+        }
+        return clean;
+    }
+
+    public static bool HasExplicitUserCoreOverride(string? filePath, string? platform)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(filePath) &&
+                SettingsManager.Current.GameCoreOverrides != null &&
+                SettingsManager.Current.GameCoreOverrides.TryGetValue(filePath, out string? gameOverride) &&
+                !string.IsNullOrWhiteSpace(gameOverride))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrEmpty(platform) &&
+                SettingsManager.Current.PlatformDefaultCores != null &&
+                SettingsManager.Current.PlatformDefaultCores.TryGetValue(platform, out string? platOverride) &&
+                !string.IsNullOrWhiteSpace(platOverride))
+            {
+                return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    public static CoreInfo? FindFirstInstalledCompatibleCore(string? platform, string ext = "")
+    {
+        if (string.IsNullOrWhiteSpace(platform)) return null;
+        var compat = GetCompatibleCoresForPlatform(platform, ext);
+        var installed = compat.FirstOrDefault(c => IsCoreInstalled(c.DllName));
+        if (installed != null) return installed;
+
+        return AllCoresCatalog.FirstOrDefault(c => c.IsInstalled && IsCoreForPlatform(c, platform));
+    }
+
     public static (string Platform, string CoreDll, string CoreName) ApplyUserCoreOverrides(string? filePath, string platform, string defaultDll, string defaultName)
     {
         try
@@ -875,8 +928,11 @@ public static class CoreManager
                 !string.IsNullOrWhiteSpace(gameOverride))
             {
                 var parts = gameOverride.Split('|');
-                if (parts.Length >= 2) return (platform, parts[0], parts[1]);
-                return (platform, gameOverride, GetCoreDisplayNameByDll(gameOverride));
+                string gDll = NormalizeCoreDllAlias(parts[0]);
+                string gName = (parts.Length >= 2 && !string.IsNullOrWhiteSpace(parts[1]) && gDll.Equals(parts[0].Trim(), StringComparison.OrdinalIgnoreCase))
+                    ? parts[1]
+                    : GetCoreDisplayNameByDll(gDll);
+                return (platform, gDll, gName);
             }
 
             if (!string.IsNullOrEmpty(platform) &&
@@ -885,13 +941,34 @@ public static class CoreManager
                 !string.IsNullOrWhiteSpace(platOverride))
             {
                 var parts = platOverride.Split('|');
-                if (parts.Length >= 2) return (platform, parts[0], parts[1]);
-                return (platform, platOverride, GetCoreDisplayNameByDll(platOverride));
+                string pDll = NormalizeCoreDllAlias(parts[0]);
+                string pName = (parts.Length >= 2 && !string.IsNullOrWhiteSpace(parts[1]) && pDll.Equals(parts[0].Trim(), StringComparison.OrdinalIgnoreCase))
+                    ? parts[1]
+                    : GetCoreDisplayNameByDll(pDll);
+                return (platform, pDll, pName);
             }
         }
         catch { }
 
-        return (platform, defaultDll, defaultName);
+        string normDefault = NormalizeCoreDllAlias(defaultDll);
+        string resolvedName = string.IsNullOrWhiteSpace(normDefault)
+            ? defaultName
+            : (normDefault.Equals(defaultDll, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(defaultName)
+                ? defaultName
+                : GetCoreDisplayNameByDll(normDefault));
+
+        if (!string.IsNullOrEmpty(normDefault) && !IsCoreInstalled(normDefault) && !string.IsNullOrWhiteSpace(platform))
+        {
+            string ext = "";
+            try { ext = string.IsNullOrEmpty(filePath) ? "" : Path.GetExtension(filePath); } catch { }
+            var installedCompat = FindFirstInstalledCompatibleCore(platform, ext);
+            if (installedCompat != null)
+            {
+                return (platform, installedCompat.DllName, GetCoreDisplayNameByDll(installedCompat.DllName));
+            }
+        }
+
+        return (platform, string.IsNullOrEmpty(normDefault) ? defaultDll : normDefault, resolvedName);
     }
 
     public static string GetCoreDisplayNameByDll(string dllName)
@@ -930,6 +1007,10 @@ public static class CoreManager
             "ppsspp" => "PPSSPP",
             "flycast" => "Flycast",
             "mednafen_saturn" => "Beetle Saturn",
+            "beetle_saturn" => "Beetle Saturn",
+            "ymir" => "Emir",
+            "yabasanshiro" => "YabaSanshiro",
+            "kronos" => "Kronos",
             "yabause" => "Yabause",
             "fbneo" => "FinalBurn Neo",
             "mame2003_plus" => "MAME 2003-Plus",
@@ -1231,6 +1312,8 @@ public static class CoreManager
                 keys.Add("sms_gg");
                 break;
             case "mednafen_saturn":
+            case "beetle_saturn":
+            case "ymir":
             case "yabause":
             case "yabasanshiro":
             case "kronos":
@@ -1532,8 +1615,10 @@ public static class CoreManager
 
             case "saturn":
                 AddCandidate("Beetle Saturn", "mednafen_saturn_libretro.dll", "Наиболее точное ядро Sega Saturn (рекомендуется)");
+                AddCandidate("Emir", "ymir_libretro.dll", "Современный быстрый и высокоточный эмулятор Sega Saturn (CHD / CUE / ISO)");
                 AddCandidate("Kronos", "kronos_libretro.dll", "Аппаратный апскейл 3D-графики Sega Saturn и ST-V");
                 AddCandidate("YabaSanshiro", "yabasanshiro_libretro.dll", "Быстрое ядро Sega Saturn с аппаратным ускорением");
+                AddCandidate("Yabause", "yabause_libretro.dll", "Классический кроссплатформенный эмулятор Sega Saturn");
                 break;
 
             case "dreamcast":

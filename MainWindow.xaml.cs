@@ -319,7 +319,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         CmbStateSlot.SelectionChanged += CmbStateSlot_SelectionChanged;
         SettingItem.SettingChanged += OnLiveSettingChanged;
 
-        // 2.7.3 Instant Debounced Search Timer (35ms)
+        // 2.7.4 Instant Debounced Search Timer (35ms)
         _searchDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(35) };
         _searchDebounceTimer.Tick += (s, e) =>
         {
@@ -346,7 +346,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }));
         };
 
-        // 2.7.3 Multi-Device Input Engine & Controller Hotkey Studio
+        // 2.7.4 Multi-Device Input Engine & Controller Hotkey Studio
         DeviceInputProfileEngine.Initialize();
         DeviceInputProfileEngine.OnDeviceProfileActivated += (dev, msg) =>
         {
@@ -520,7 +520,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         IntPtr hwnd = helper.Handle;
         try
         {
-            SetWindowText(hwnd, Title ?? "STORM RETROARCH 2.7.3");
+            SetWindowText(hwnd, Title ?? "STORM RETROARCH 2.7.4");
             ChangeWindowMessageFilterEx(hwnd, WM_DROPFILES, MSGFLT_ALLOW, IntPtr.Zero);
             ChangeWindowMessageFilterEx(hwnd, WM_COPYDATA, MSGFLT_ALLOW, IntPtr.Zero);
             ChangeWindowMessageFilterEx(hwnd, WM_COPYGLOBALDATA, MSGFLT_ALLOW, IntPtr.Zero);
@@ -667,7 +667,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _isLoaded = true;
         LogCheckpoint("Before InitStudio200"); InitStudio200(); InitStudio210(); InitStudio220Subsystem(); InitStudio230Subsystem(); InitStudio260(); InitializeStreamAndAiControls(); LogCheckpoint("After InitStudio260");
 
-        // 2.7.3 Non-blocking background subsystem warmup (shaders, saves, BIOS, cheats, bezels, achievements, external emus)
+        // 2.7.4 Non-blocking background subsystem warmup (shaders, saves, BIOS, cheats, bezels, achievements, external emus)
         if (Environment.GetCommandLineArgs().Any(a => a.StartsWith("--screenshot", StringComparison.OrdinalIgnoreCase)))
             {
                 await HydrateSubsystemsInBackgroundAsync();
@@ -3326,7 +3326,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 if (!match) continue;
             }
 
-            // 2.0.0 / 2.7.3 Smart Collections filter
+            // 2.0.0 / 2.7.4 Smart Collections filter
             if (_selectedSmartCollection == "Избранное")
             {
                 if (!g.IsFavorite) continue;
@@ -7126,6 +7126,62 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             cSp.Children.Add(new TextBlock { Text = c.InstalledStatusBadge, Foreground = installed ? new SolidColorBrush(Color.FromRgb(110, 231, 183)) : (Brush)FindResource("ThemeTextMuted"), FontSize = 9.5, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 4, 0, 0) });
             comp.Child = cSp;
             PanelCoresCompact.Children.Add(comp);
+        }
+
+        SyncLibraryGamesWithInstalledCores();
+    }
+
+    public void SyncLibraryGamesWithInstalledCores()
+    {
+        if (_allGames == null || _allGames.Count == 0) return;
+
+        bool anyChanged = false;
+        foreach (var game in _allGames)
+        {
+            string prevDll = game.CoreDll ?? "";
+            bool prevInstalled = game.IsCoreInstalled;
+
+            string normDll = CoreManager.NormalizeCoreDllAlias(prevDll);
+            if (!string.IsNullOrEmpty(normDll) && !normDll.Equals(prevDll, StringComparison.OrdinalIgnoreCase))
+            {
+                game.CoreDll = normDll;
+                game.CoreDisplayName = CoreManager.GetCoreDisplayNameByDll(normDll);
+                anyChanged = true;
+            }
+
+            if ((string.IsNullOrEmpty(game.CoreDll) || !CoreManager.IsCoreInstalled(game.CoreDll)) &&
+                !CoreManager.HasExplicitUserCoreOverride(game.FilePath, game.Platform))
+            {
+                var installedCompat = CoreManager.FindFirstInstalledCompatibleCore(game.Platform, game.Extension);
+                if (installedCompat != null)
+                {
+                    game.CoreDll = installedCompat.DllName;
+                    game.CoreDisplayName = CoreManager.GetCoreDisplayNameByDll(installedCompat.DllName);
+                    anyChanged = true;
+                }
+            }
+
+            bool nowInstalled = !string.IsNullOrEmpty(game.CoreDll) && CoreManager.IsCoreInstalled(game.CoreDll);
+            if (game.IsCoreInstalled != nowInstalled)
+            {
+                game.IsCoreInstalled = nowInstalled;
+                anyChanged = true;
+            }
+            string expectedStatus = nowInstalled ? "Готово к запуску" : "Требуется ядро";
+            if (!string.Equals(game.StatusText, expectedStatus, StringComparison.Ordinal))
+            {
+                game.StatusText = expectedStatus;
+            }
+            if (prevInstalled != nowInstalled)
+            {
+                anyChanged = true;
+            }
+        }
+
+        if (anyChanged)
+        {
+            RefreshAllLibraryFiltersAndCounts();
+            ApplyGamesFilter();
         }
     }
 

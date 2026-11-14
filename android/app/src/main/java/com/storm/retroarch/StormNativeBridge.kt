@@ -53,12 +53,12 @@ class StormNativeBridge(
     @Volatile
     private var lastUpdateInfo: MobileUpdateInfo = MobileUpdateInfo(
         updateAvailable = false,
-        currentVersion = "2.7.3",
-        latestVersion = "2.7.3",
+        currentVersion = "2.7.4",
+        latestVersion = "2.7.4",
         apkDownloadUrl = "",
         releaseNotes = "",
         releasePageUrl = "https://github.com/ReiKatari/STORM_RETROARCH/releases",
-        statusMessage = "STORM RETROARCH 2.7.3"
+        statusMessage = "STORM RETROARCH 2.7.4"
     )
 
     @Volatile
@@ -159,7 +159,7 @@ class StormNativeBridge(
         includeSlowScans: Boolean = true
     ): JSONObject {
         val root = JSONObject()
-        root.put("version", "2.7.3")
+        root.put("version", "2.7.4")
         root.put("versionCode", 272)
         root.put("warming", !startupWarmDone)
         root.put("abi", MobileCoreRegistry.detectDeviceAbi())
@@ -444,6 +444,8 @@ class StormNativeBridge(
         val rom = findRomByIdOrPath(gameId) ?: return false
         rom.assignedCoreId = coreId.trim()
         MobileLibraryAndCoverEngine.saveRomPreferenceState(appCtx, rom)
+        val keyBase = rom.filePath.hashCode().toString()
+        MobileLibraryAndCoverEngine.getMetaPrefs(appCtx).edit().putBoolean("core_pinned_$keyBase", coreId.isNotBlank()).apply()
         return true
     }
 
@@ -492,8 +494,9 @@ class StormNativeBridge(
             return
         }
 
-        val effectiveCoreId = coreId.trim().ifBlank { rom.assignedCoreId }
-        val core = MobileCoreRegistry.findCoreById(effectiveCoreId, appCtx)
+        val explicitCoreParam = coreId.trim()
+        val effectiveCoreId = explicitCoreParam.ifBlank { rom.assignedCoreId }
+        var core = MobileCoreRegistry.findCoreById(effectiveCoreId, appCtx)
             ?: MobileCoreRegistry.getDefaultCoreForPlatform(rom.platformKey, rom.extension, appCtx)
             ?: MobileCoreRegistry.findCoreById("snes9x", appCtx)
 
@@ -502,31 +505,47 @@ class StormNativeBridge(
             return
         }
 
+        var installedSo = MobileCoreRegistry.resolveInstalledCoreFile(appCtx, core)
+        if ((installedSo == null || !installedSo.exists()) && explicitCoreParam.isBlank()) {
+            val keyBase = rom.filePath.hashCode().toString()
+            val hasExplicitOverride = MobileLibraryAndCoverEngine.getMetaPrefs(appCtx).getBoolean("core_pinned_$keyBase", false)
+            if (!hasExplicitOverride) {
+                val installedCompat = MobileCoreRegistry.findFirstInstalledCoreForPlatform(appCtx, rom.platformKey, rom.extension)
+                if (installedCompat != null) {
+                    val compatSo = MobileCoreRegistry.resolveInstalledCoreFile(appCtx, installedCompat)
+                    if (compatSo != null && compatSo.exists()) {
+                        core = installedCompat
+                        installedSo = compatSo
+                    }
+                }
+            }
+        }
+
         // Materialize per-core & per-game Libretro .opt configuration before launch
         MobileCoreRegistry.syncCoreOptionsToLibretroOptFiles(appCtx, core.id, rom.id, rom.rawNoIntroName)
 
-        val installedSo = MobileCoreRegistry.resolveInstalledCoreFile(appCtx, core)
         if (installedSo != null && installedSo.exists()) {
             startEmulationActivityOnMain(rom, core, installedSo, stateSlot)
             return
         }
 
+        val targetCore = core
         // Unbundled core not yet downloaded: auto-download from Mirror 1 -> Mirror 2 then launch immediately!
         emitToast(
             if (StormLocalization.currentLanguage == "ru") {
-                "Загрузка ядра ${core.displayName}..."
+                "Загрузка ядра ${targetCore.displayName}..."
             } else {
-                "Downloading core ${core.displayName}..."
+                "Downloading core ${targetCore.displayName}..."
             }
         )
         MobileCoreRegistry.downloadCoreAsync(
             context = appCtx,
-            core = core,
+            core = targetCore,
             onProgress = { pct, mirrorName ->
                 emitStormEvent(
                     "coreProgress",
                     JSONObject()
-                        .put("coreId", core.id)
+                        .put("coreId", targetCore.id)
                         .put("percent", pct)
                         .put("progress", pct)
                         .put("mirror", mirrorName)
@@ -537,19 +556,26 @@ class StormNativeBridge(
                     emitStormEvent(
                         "coreInstalled",
                         JSONObject()
-                            .put("coreId", core.id)
-                            .put("id", core.id)
+                            .put("coreId", targetCore.id)
+                            .put("id", targetCore.id)
                             .put("installed", true)
                             .put("mirror", msg)
                     )
-                    startEmulationActivityOnMain(rom, core, soFile, stateSlot)
+                    startEmulationActivityOnMain(rom, targetCore, soFile, stateSlot)
                 } else {
-                    emitStormEvent(
-                        "coreError",
-                        JSONObject()
-                            .put("coreId", core.id)
-                            .put("message", msg)
-                    )
+                    val fallbackCompat = MobileCoreRegistry.findFirstInstalledCoreForPlatform(appCtx, rom.platformKey, rom.extension)
+                    val fallbackSo = if (fallbackCompat != null) MobileCoreRegistry.resolveInstalledCoreFile(appCtx, fallbackCompat) else null
+                    if (fallbackCompat != null && fallbackSo != null && fallbackSo.exists()) {
+                        MobileCoreRegistry.syncCoreOptionsToLibretroOptFiles(appCtx, fallbackCompat.id, rom.id, rom.rawNoIntroName)
+                        startEmulationActivityOnMain(rom, fallbackCompat, fallbackSo, stateSlot)
+                    } else {
+                        emitStormEvent(
+                            "coreError",
+                            JSONObject()
+                                .put("coreId", targetCore.id)
+                                .put("message", msg)
+                        )
+                    }
                 }
             }
         )
@@ -1148,7 +1174,7 @@ class StormNativeBridge(
 
     @JavascriptInterface
     fun checkForUpdates() {
-        AutoUpdateHelper.checkForUpdateAsync("2.7.3") { info ->
+        AutoUpdateHelper.checkForUpdateAsync("2.7.4") { info ->
             lastUpdateInfo = info
             emitStormEvent("updateStatus", serializeUpdateInfo(info))
             emitToast(info.statusMessage)
@@ -1161,9 +1187,9 @@ class StormNativeBridge(
         if (!info.updateAvailable || info.apkDownloadUrl.isBlank()) {
             emitToast(
                 if (StormLocalization.currentLanguage == "ru") {
-                    "Установлена актуальная версия 2.7.3"
+                    "Установлена актуальная версия 2.7.4"
                 } else {
-                    "STORM RETROARCH 2.7.3 is up to date"
+                    "STORM RETROARCH 2.7.4 is up to date"
                 }
             )
             return
@@ -1562,7 +1588,7 @@ class StormNativeBridge(
             .put("statusMessage", info.statusMessage)
     }
 
-    // === RetroAchievements, Netplay, AI Guide & Streaming 2.7.3 Methods ===
+    // === RetroAchievements, Netplay, AI Guide & Streaming 2.7.4 Methods ===
 
     private var textToSpeech: android.speech.tts.TextToSpeech? = null
 
@@ -1575,7 +1601,7 @@ class StormNativeBridge(
             val conn = URL(urlStr).openConnection() as HttpURLConnection
             conn.connectTimeout = timeoutMs
             conn.readTimeout = timeoutMs
-            conn.setRequestProperty("User-Agent", "STORM-RETROARCH/2.7.3 (Android; RetroAchievements Client)")
+            conn.setRequestProperty("User-Agent", "STORM-RETROARCH/2.7.4 (Android; RetroAchievements Client)")
             if (conn.responseCode in 200..299) {
                 conn.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
             } else null

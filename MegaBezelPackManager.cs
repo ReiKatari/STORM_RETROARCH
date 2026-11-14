@@ -83,7 +83,7 @@ public static class MegaBezelPackManager
     {
         try
         {
-            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("STORM-RETROARCH/2.7.3 (MegaBezelManager; contact@stormgamesworld.ru)");
+            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("STORM-RETROARCH/2.7.4 (MegaBezelManager; contact@stormgamesworld.ru)");
         }
         catch { }
     }
@@ -182,7 +182,7 @@ public static class MegaBezelPackManager
         {
             string apiUrl = $"https://api.github.com/repos/{repoOwner}/{repoName}/releases/latest";
             using var req = new HttpRequestMessage(HttpMethod.Get, apiUrl);
-            req.Headers.UserAgent.ParseAdd("STORM-RETROARCH/2.7.3 (MegaBezelManager; contact@stormgamesworld.ru)");
+            req.Headers.UserAgent.ParseAdd("STORM-RETROARCH/2.7.4 (MegaBezelManager; contact@stormgamesworld.ru)");
 
             using var resp = await _httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
             if (resp.IsSuccessStatusCode)

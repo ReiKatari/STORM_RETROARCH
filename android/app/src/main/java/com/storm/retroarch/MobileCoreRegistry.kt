@@ -70,7 +70,7 @@ object MobileCoreRegistry {
     const val STORM_PUBLIC_ROOT = "/storage/emulated/0/STORM RETROARCH"
     const val STORM_MIRROR_CORES_BASE = "https://stormgamesworld.ru/uploads/programs/STORM_RETROARCH/cores"
     const val BUILDBOT_ANDROID_BASE = "https://buildbot.libretro.com/nightly/android/latest"
-    private const val USER_AGENT = "STORM-RETROARCH/2.7.3 (Android; LibretroCoreLoader)"
+    private const val USER_AGENT = "STORM-RETROARCH/2.7.4 (Android; LibretroCoreLoader)"
     private const val MIN_VALID_SO_BYTES = 32768L
 
     private val downloadExecutor = Executors.newFixedThreadPool(2)
@@ -190,7 +190,7 @@ object MobileCoreRegistry {
         "sega32x" to listOf("picodrive"),
         "sms_gg" to listOf("genesis_plus_gx", "picodrive", "smsplus", "gearsystem"),
         "sg1000" to listOf("genesis_plus_gx", "gearsystem"),
-        "saturn" to listOf("yabasanshiro", "yabause", "mednafen_saturn", "kronos"),
+        "saturn" to listOf("yabasanshiro", "ymir", "mednafen_saturn", "yabause", "kronos"),
         "dreamcast" to listOf("flycast"),
         "naomi" to listOf("flycast"),
         "arcade" to listOf("fbneo", "mame2003_plus", "mame2010", "mamearcade"),
@@ -592,6 +592,9 @@ object MobileCoreRegistry {
         if (q == "mupen64plus_next") {
             catalog.firstOrNull { it.id == "mupen64plus_next_gles3" }?.let { return it }
         }
+        if (q == "beetle_saturn" || q == "beetle_saturn_libretro" || q == "beetle_saturn_libretro_android") {
+            catalog.firstOrNull { it.id == "mednafen_saturn" }?.let { return it }
+        }
         return catalog.firstOrNull {
             it.id.lowercase(Locale.ROOT) == q ||
                 it.soBaseName.lowercase(Locale.ROOT) == q ||
@@ -783,6 +786,24 @@ object MobileCoreRegistry {
                 .thenByDescending { it.recommended }
                 .thenBy { it.displayName }
         )
+    }
+
+    fun findFirstInstalledCoreForPlatform(
+        context: Context,
+        platform: String?,
+        ext: String = ""
+    ): MobileCoreInfo? {
+        val compat = getCompatibleCoresForPlatform(platform, ext, context)
+        return compat.firstOrDefaultOrNull(context)
+            ?: getAllCores(context).firstOrNull {
+                val pKey = normalizePlatformKey(platform, ext)
+                pKey.isNotEmpty() && it.platformKeys.contains(pKey) && isCoreInstalled(context, it)
+            }
+    }
+
+    private fun List<MobileCoreInfo>.firstOrDefaultOrNull(context: Context): MobileCoreInfo? {
+        return firstOrNull { isCoreInstalled(context, it) && it.recommended }
+            ?: firstOrNull { isCoreInstalled(context, it) }
     }
 
     fun getDefaultCoreForPlatform(

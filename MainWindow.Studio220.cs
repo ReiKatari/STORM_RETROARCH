@@ -13,7 +13,7 @@ using Microsoft.Win32;
 namespace StormRetroArch;
 
 /// <summary>
-/// Phase 2.7.3 Studio UI, Hardware GPU Engine, Universal Bezel and Mega Bezel Integrator.
+/// Phase 2.7.4 Studio UI, Hardware GPU Engine, Universal Bezel and Mega Bezel Integrator.
 /// </summary>
 public partial class MainWindow
 {
@@ -391,7 +391,17 @@ public partial class MainWindow
     {
         _activeRomItem = item;
 
-        // 1. Resolve best core if empty
+        // 1. Resolve best core and normalize legacy/dead core aliases (e.g. beetle_saturn -> mednafen_saturn)
+        if (!string.IsNullOrWhiteSpace(item.CoreDll))
+        {
+            string normalizedDll = CoreManager.NormalizeCoreDllAlias(item.CoreDll);
+            if (!normalizedDll.Equals(item.CoreDll, StringComparison.OrdinalIgnoreCase))
+            {
+                item.CoreDll = normalizedDll;
+                item.CoreDisplayName = CoreManager.GetCoreDisplayNameByDll(normalizedDll);
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(item.CoreDll))
         {
             var (plat, dll, name) = CoreManager.GetBestCoreForRom(item.FilePath);
@@ -399,7 +409,22 @@ public partial class MainWindow
             {
                 item.CoreDll = dll;
                 if (string.IsNullOrEmpty(item.Platform)) item.Platform = plat;
-                if (string.IsNullOrEmpty(item.CoreDisplayName)) item.CoreDisplayName = name;
+                item.CoreDisplayName = name;
+            }
+        }
+
+        // 1b. If assigned core is not installed and user has not pinned a specific override,
+        // automatically select an already-installed compatible core for this platform (e.g. Emir ymir_libretro.dll)
+        if (!CoreManager.IsCoreInstalled(item.CoreDll) &&
+            !CoreManager.HasExplicitUserCoreOverride(item.FilePath, item.Platform))
+        {
+            var installedCompat = CoreManager.FindFirstInstalledCompatibleCore(item.Platform, item.Extension);
+            if (installedCompat != null)
+            {
+                item.CoreDll = installedCompat.DllName;
+                item.CoreDisplayName = CoreManager.GetCoreDisplayNameByDll(installedCompat.DllName);
+                item.IsCoreInstalled = true;
+                item.StatusText = "Готово к запуску";
             }
         }
 
@@ -419,6 +444,20 @@ public partial class MainWindow
                     if (TxtGameViewportStatusDesc != null)
                         TxtGameViewportStatusDesc.Text = msg;
                 }));
+
+            // 2b. Fallback to any installed compatible core if Buildbot download failed or returned 404
+            if (!CoreManager.IsCoreInstalled(item.CoreDll))
+            {
+                var fallbackCompat = CoreManager.FindFirstInstalledCompatibleCore(item.Platform, item.Extension);
+                if (fallbackCompat != null)
+                {
+                    item.CoreDll = fallbackCompat.DllName;
+                    item.CoreDisplayName = CoreManager.GetCoreDisplayNameByDll(fallbackCompat.DllName);
+                    item.IsCoreInstalled = true;
+                    item.StatusText = "Готово к запуску";
+                    ShowOsdToast($"Запуск через установленное ядро {item.CoreDisplayName}");
+                }
+            }
 
             RefreshCoresUi();
         }
